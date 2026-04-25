@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { formatDate } from '@/lib/dateFormat'
 
 const SEVERITY_COLORS = {
   High: { bg: '#fee2e2', color: '#991b1b' },
@@ -27,9 +28,7 @@ export default function IncidentsPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('month')
 
-  useEffect(() => {
-    fetchIncidents()
-  }, [filter])
+  useEffect(() => { fetchIncidents() }, [filter])
 
   const getDateRange = () => {
     const now = new Date()
@@ -37,7 +36,7 @@ export default function IncidentsPage() {
     if (filter === '7days') start.setDate(now.getDate() - 7)
     else if (filter === 'month') start.setDate(1)
     else if (filter === '3months') start.setMonth(now.getMonth() - 3)
-    else if (filter === 'year') start.setMonth(0), start.setDate(1)
+    else if (filter === 'year') { start.setMonth(0); start.setDate(1) }
     return start.toISOString()
   }
 
@@ -61,22 +60,17 @@ export default function IncidentsPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>Incident Management</h1>
           <div style={{ display: 'flex', gap: 6 }}>
             {FILTERS.map(f => (
-              <button
-                key={f.value}
-                onClick={() => setFilter(f.value)}
-                style={{
-                  padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
-                  border: filter === f.value ? 'none' : '1px solid #d1d5db',
-                  background: filter === f.value ? '#1d4ed8' : '#fff',
-                  color: filter === f.value ? '#fff' : '#6b7280',
-                }}
-              >
+              <button key={f.value} onClick={() => setFilter(f.value)} style={{
+                padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+                border: filter === f.value ? 'none' : '1px solid #d1d5db',
+                background: filter === f.value ? '#1d4ed8' : '#fff',
+                color: filter === f.value ? '#fff' : '#6b7280', fontFamily: 'inherit'
+              }}>
                 {f.label}
               </button>
             ))}
@@ -91,18 +85,14 @@ export default function IncidentsPage() {
         </Link>
       </div>
 
-      {/* Stat Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div className="stat-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
         {[
           { label: 'Total Incidents', value: stats.total, color: '#111827', sub: 'ทั้งหมด' },
           { label: 'High Severity', value: stats.high, color: '#dc2626', sub: 'ต้องดำเนินการทันที' },
           { label: 'In Progress', value: stats.inProgress, color: '#d97706', sub: 'กำลังแก้ไข' },
           { label: 'Resolved', value: stats.resolved, color: '#059669', sub: 'ปิดเคสแล้ว' },
         ].map(card => (
-          <div key={card.label} style={{
-            background: '#fff', borderRadius: 10, padding: '14px 16px',
-            border: '1px solid #e5e7eb'
-          }}>
+          <div key={card.label} style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #e5e7eb' }}>
             <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{card.label}</div>
             <div style={{ fontSize: 28, fontWeight: 600, color: card.color }}>{card.value}</div>
             <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{card.sub}</div>
@@ -110,7 +100,6 @@ export default function IncidentsPage() {
         ))}
       </div>
 
-      {/* Table */}
       <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', fontSize: 13, fontWeight: 500, color: '#374151' }}>
           รายการ Incident ทั้งหมด ({incidents.length} รายการ)
@@ -125,44 +114,40 @@ export default function IncidentsPage() {
             </Link>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: '#f9fafb' }}>
-                {['Case ID', 'หัวข้อ / ระบบ', 'Severity', 'Status', 'วันที่', 'Action'].map(h => (
-                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500, fontSize: 12, borderBottom: '1px solid #e5e7eb' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {incidents.map(inc => (
-                <tr key={inc.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#6b7280', fontSize: 12 }}>{inc.case_number}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ fontWeight: 500, color: '#111827' }}>{inc.title}</div>
-                    {inc.affected_system && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{inc.affected_system}</div>}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{ ...SEVERITY_COLORS[inc.severity], padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500 }}>
-                      {inc.severity}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{ ...STATUS_COLORS[inc.status], padding: '3px 10px', borderRadius: 20, fontSize: 11 }}>
-                      {inc.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12 }}>
-                    {new Date(inc.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <Link href={`/dashboard/incidents/${inc.id}`} style={{ color: '#1d4ed8', fontSize: 12, textDecoration: 'none' }}>
-                      ดูรายละเอียด →
-                    </Link>
-                  </td>
+          <div className="table-scroll">
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f9fafb' }}>
+                  {['Case ID', 'หัวข้อ / ระบบ', 'Severity', 'Status', 'วันที่', 'Action'].map(h => (
+                    <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500, fontSize: 12, borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {incidents.map(inc => (
+                  <tr key={inc.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#6b7280', fontSize: 12, whiteSpace: 'nowrap' }}>{inc.case_number}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ fontWeight: 500, color: '#111827' }}>{inc.title}</div>
+                      {inc.affected_system && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{inc.affected_system}</div>}
+                    </td>
+                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                      <span style={{ ...SEVERITY_COLORS[inc.severity], padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500 }}>{inc.severity}</span>
+                    </td>
+                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                      <span style={{ ...STATUS_COLORS[inc.status], padding: '3px 10px', borderRadius: 20, fontSize: 11 }}>{inc.status}</span>
+                    </td>
+                    <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      {formatDate(inc.created_at)}
+                    </td>
+                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                      <Link href={`/dashboard/incidents/${inc.id}`} style={{ color: '#1d4ed8', fontSize: 12, textDecoration: 'none' }}>ดูรายละเอียด →</Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

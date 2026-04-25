@@ -1,0 +1,13 @@
+ทุกไฟล์ที่มีการแสดงวันที่ ให้ import และใช้แบบนี้
+
+import { formatDate, formatDateTime } from '@/lib/dateFormat'
+
+// แทนที่ทุก new Date(...).toLocaleDateString(...)
+// ก่อน:
+new Date(inc.created_at).toLocaleDateString('th-TH', { ... })
+
+// หลัง:
+formatDate(inc.created_at)           // → 25-Apr-2026
+formatDate(inc.created_at, 'th')     // → 25-เม.ย.-2569
+formatDateTime(inc.created_at)       // → 25-Apr-2026 14:30
+formatDateTime(inc.created_at, 'th') // → 25-เม.ย.-2569 14:30

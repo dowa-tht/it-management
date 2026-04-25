@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import { formatDate, formatDateTime } from '@/lib/dateFormat'
 
 const SEVERITY_COLORS = {
   High: { bg: '#fee2e2', color: '#991b1b' },
@@ -53,9 +54,6 @@ export default function IncidentDetailPage() {
 
   const handlePrint = () => window.print()
 
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'
-  const formatDateTime = (d) => d ? new Date(d).toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'short' }) : '—'
-
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลด...</div>
   if (!incident) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>ไม่พบข้อมูล</div>
 
@@ -94,28 +92,12 @@ export default function IncidentDetailPage() {
           .print-only { display: block !important; }
           body { background: white !important; margin: 0; }
           .print-page { padding: 20mm 15mm !important; max-width: 100% !important; }
-          .print-form-table { width: 100%; border-collapse: collapse; }
-          .print-form-table td, .print-form-table th { border: 1px solid #000; padding: 6px 8px; font-size: 12px; }
-          .print-header { font-size: 16px; font-weight: 700; text-align: center; margin-bottom: 16px; }
-          .print-subheader { font-size: 12px; text-align: center; margin-bottom: 20px; color: #444; }
-          .print-section { font-size: 13px; font-weight: 700; background: #f0f0f0; padding: 4px 8px; margin: 12px 0 6px; border-left: 4px solid #000; }
-          .print-row { display: flex; gap: 0; border: 1px solid #000; margin-bottom: -1px; }
-          .print-label { background: #f5f5f5; padding: 6px 10px; font-size: 11px; font-weight: 600; min-width: 140px; border-right: 1px solid #000; }
-          .print-value { padding: 6px 10px; font-size: 12px; flex: 1; }
-          .print-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; border: 1px solid currentColor; }
-          .print-sign-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-top: 40px; }
-          .print-sign-box { border: 1px solid #000; padding: 12px; min-height: 80px; }
-          .print-sign-label { font-size: 11px; color: #666; margin-bottom: 4px; }
-          .print-sign-name { font-size: 12px; font-weight: 600; margin-top: 40px; }
         }
-        @media screen {
-          .print-only { display: none !important; }
-        }
+        @media screen { .print-only { display: none !important; } }
       `}</style>
 
-      {/* ===== SCREEN VIEW ===== */}
+      {/* SCREEN VIEW */}
       <div className="no-print print-page" style={{ padding: 24, maxWidth: 860, margin: '0 auto' }}>
-        {/* Topbar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Link href="/dashboard/incidents" style={{ color: '#6b7280', fontSize: 13, textDecoration: 'none' }}>← กลับ</Link>
@@ -127,18 +109,12 @@ export default function IncidentDetailPage() {
             </button>
             {!editing ? (
               <>
-                <button onClick={() => setEditing(true)} style={{ padding: '7px 14px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', color: '#374151', fontFamily: 'inherit' }}>
-                  ✏️ แก้ไข
-                </button>
-                <button onClick={handleDelete} style={{ padding: '7px 14px', border: 'none', borderRadius: 7, fontSize: 13, background: '#fee2e2', cursor: 'pointer', color: '#991b1b', fontFamily: 'inherit' }}>
-                  🗑 ลบ
-                </button>
+                <button onClick={() => setEditing(true)} style={{ padding: '7px 14px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', color: '#374151', fontFamily: 'inherit' }}>✏️ แก้ไข</button>
+                <button onClick={handleDelete} style={{ padding: '7px 14px', border: 'none', borderRadius: 7, fontSize: 13, background: '#fee2e2', cursor: 'pointer', color: '#991b1b', fontFamily: 'inherit' }}>🗑 ลบ</button>
               </>
             ) : (
               <>
-                <button onClick={() => { setEditing(false); setForm(incident) }} style={{ padding: '7px 14px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  ยกเลิก
-                </button>
+                <button onClick={() => { setEditing(false); setForm(incident) }} style={{ padding: '7px 14px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
                 <button onClick={handleSave} disabled={saving} style={{ padding: '7px 16px', border: 'none', borderRadius: 7, fontSize: 13, background: '#1d4ed8', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
                   {saving ? 'กำลังบันทึก...' : 'บันทึก'}
                 </button>
@@ -186,7 +162,7 @@ export default function IncidentDetailPage() {
           </div>
         </div>
 
-        {/* SLA Info */}
+        {/* SLA */}
         <div style={{ background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe', padding: 16, fontSize: 13 }}>
           <div style={{ fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>SLA ตามระดับความรุนแรง ({incident.severity})</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, color: '#374151' }}>
@@ -196,9 +172,8 @@ export default function IncidentDetailPage() {
         </div>
       </div>
 
-      {/* ===== PRINT VIEW FR-IT-01 ===== */}
+      {/* PRINT VIEW FR-IT-01 */}
       <div className="print-only" style={{ padding: '20mm 15mm', fontFamily: 'Noto Sans Thai, sans-serif' }}>
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, borderBottom: '2px solid #000', paddingBottom: 12 }}>
           <div>
             <div style={{ fontSize: 20, fontWeight: 700 }}>DOWA</div>
@@ -211,11 +186,10 @@ export default function IncidentDetailPage() {
           <div style={{ textAlign: 'right', fontSize: 11 }}>
             <div>เอกสารเลขที่: <strong>FR-IT-01</strong></div>
             <div>Rev: 00</div>
-            <div>วันที่บังคับใช้: 30-Apr-26</div>
+            <div>วันที่บังคับใช้: 30-Apr-2026</div>
           </div>
         </div>
 
-        {/* Case Info */}
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12 }}>
           <tbody>
             <tr>
@@ -239,7 +213,7 @@ export default function IncidentDetailPage() {
             <tr>
               <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11 }}>ระดับความรุนแรง</td>
               <td style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 12 }}>
-                <strong>{incident.severity}</strong> — SLA Response: {SLAResponse} / Resolution: {SLAResolve}
+                <strong>{incident.severity}</strong> — Response: {SLAResponse} / Resolution: {SLAResolve}
               </td>
               <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11 }}>สถานะ</td>
               <td style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 12 }}><strong>{incident.status}</strong></td>
@@ -247,34 +221,19 @@ export default function IncidentDetailPage() {
           </tbody>
         </table>
 
-        {/* Description */}
-        <div style={{ border: '1px solid #000', marginBottom: 0 }}>
-          <div style={{ background: '#f0f0f0', padding: '5px 8px', fontWeight: 700, fontSize: 12, borderBottom: '1px solid #000' }}>
-            หัวข้อ / อาการที่พบ
+        {[
+          { label: 'หัวข้อ / อาการที่พบ', value: incident.title, height: 40 },
+          { label: 'รายละเอียด / Description', value: incident.description, height: 60 },
+          { label: 'สาเหตุที่แท้จริง / Root Cause Analysis', value: incident.root_cause, height: 60 },
+          { label: 'วิธีการแก้ไข / Resolution', value: incident.resolution, height: 60 },
+        ].map((item, i) => (
+          <div key={i} style={{ border: '1px solid #000', borderTop: i === 0 ? '1px solid #000' : 'none', marginBottom: 0 }}>
+            <div style={{ background: '#f0f0f0', padding: '5px 8px', fontWeight: 700, fontSize: 12, borderBottom: '1px solid #000' }}>{item.label}</div>
+            <div style={{ padding: '8px 10px', fontSize: 12, minHeight: item.height, whiteSpace: 'pre-wrap' }}>{item.value || '—'}</div>
           </div>
-          <div style={{ padding: '8px 10px', fontSize: 12, minHeight: 40 }}>{incident.title}</div>
-        </div>
-        <div style={{ border: '1px solid #000', borderTop: 'none', marginBottom: 0 }}>
-          <div style={{ background: '#f0f0f0', padding: '5px 8px', fontWeight: 700, fontSize: 12, borderBottom: '1px solid #000' }}>
-            รายละเอียด / Description
-          </div>
-          <div style={{ padding: '8px 10px', fontSize: 12, minHeight: 60, whiteSpace: 'pre-wrap' }}>{incident.description || '—'}</div>
-        </div>
-        <div style={{ border: '1px solid #000', borderTop: 'none', marginBottom: 0 }}>
-          <div style={{ background: '#f0f0f0', padding: '5px 8px', fontWeight: 700, fontSize: 12, borderBottom: '1px solid #000' }}>
-            สาเหตุที่แท้จริง / Root Cause Analysis
-          </div>
-          <div style={{ padding: '8px 10px', fontSize: 12, minHeight: 60, whiteSpace: 'pre-wrap' }}>{incident.root_cause || '—'}</div>
-        </div>
-        <div style={{ border: '1px solid #000', borderTop: 'none', marginBottom: 16 }}>
-          <div style={{ background: '#f0f0f0', padding: '5px 8px', fontWeight: 700, fontSize: 12, borderBottom: '1px solid #000' }}>
-            วิธีการแก้ไข / Resolution
-          </div>
-          <div style={{ padding: '8px 10px', fontSize: 12, minHeight: 60, whiteSpace: 'pre-wrap' }}>{incident.resolution || '—'}</div>
-        </div>
+        ))}
 
-        {/* Timeline */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', margin: '12px 0' }}>
           <tbody>
             <tr>
               <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11, width: 140 }}>วันที่/เวลาแจ้ง</td>
@@ -285,31 +244,25 @@ export default function IncidentDetailPage() {
           </tbody>
         </table>
 
-        {/* Signature */}
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <tbody>
             <tr>
               <td style={{ border: '1px solid #000', padding: '8px', width: '50%', verticalAlign: 'top' }}>
                 <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>ผู้บันทึก / IT Officer</div>
                 <div style={{ minHeight: 50 }}></div>
-                <div style={{ fontSize: 11, borderTop: '1px dotted #999', paddingTop: 4, marginTop: 8 }}>
-                  ชื่อ: .................................................. วันที่: ....................
-                </div>
+                <div style={{ fontSize: 11, borderTop: '1px dotted #999', paddingTop: 4, marginTop: 8 }}>ชื่อ: .................................................. วันที่: ....................</div>
               </td>
               <td style={{ border: '1px solid #000', padding: '8px', width: '50%', verticalAlign: 'top' }}>
                 <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>ผู้จัดการรับทราบ / Senior Manager (High only)</div>
                 <div style={{ minHeight: 50 }}></div>
-                <div style={{ fontSize: 11, borderTop: '1px dotted #999', paddingTop: 4, marginTop: 8 }}>
-                  ชื่อ: .................................................. วันที่: ....................
-                </div>
+                <div style={{ fontSize: 11, borderTop: '1px dotted #999', paddingTop: 4, marginTop: 8 }}>ชื่อ: .................................................. วันที่: ....................</div>
               </td>
             </tr>
           </tbody>
         </table>
 
-        {/* Footer */}
         <div style={{ marginTop: 12, textAlign: 'right', fontSize: 10, color: '#999' }}>
-          พิมพ์เมื่อ: {new Date().toLocaleString('th-TH')} | DOWA IT System | FR-IT-01 Rev.00
+          พิมพ์เมื่อ: {formatDateTime(new Date().toISOString())} | DOWA IT System | FR-IT-01 Rev.00
         </div>
       </div>
     </>
