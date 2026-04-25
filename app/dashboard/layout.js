@@ -30,28 +30,28 @@ export default function DashboardLayout({ children }) {
   ]
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <div className="sidebar" style={{ display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', margin: 0, padding: 0 }}>
+      <div className="sidebar" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
         <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>DOWA IT</div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>Management System</div>
         </div>
 
-        <nav style={{ padding: '12px 0', flex: 1 }}>
+        <nav style={{ padding: '12px 0', flex: 1, overflowY: 'auto' }}>
           {navItems.map(item => (
             <Link
               key={item.href}
               href={item.href}
               className={`nav-item ${pathname === item.href ? 'active' : ''}`}
             >
-              <span style={{ fontSize: 14 }}>{item.icon}</span>
+              <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
               {item.label}
             </Link>
           ))}
         </nav>
 
         <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 8, wordBreak: 'break-all' }}>
             {user?.email}
           </div>
           <button
@@ -67,7 +67,7 @@ export default function DashboardLayout({ children }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div style={{ flex: 1, overflow: 'auto', background: '#f0f2f5' }}>
         {children}
       </div>
     </div>
