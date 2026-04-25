@@ -1,5 +1,7 @@
 import './globals.css'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'DOWA IT System',
   description: 'IT Management System',
