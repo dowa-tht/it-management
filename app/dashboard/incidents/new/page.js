@@ -14,17 +14,37 @@ export default function NewIncidentPage() {
   })
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
+  e.preventDefault()
+  setLoading(true)
 
-    const now = new Date()
-    const case_number = `INC-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(Math.floor(Math.random()*9000)+1000)}`
+  const now = new Date()
+  const case_number = `INC-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(Math.floor(Math.random()*9000)+1000)}`
 
-    const { error } = await supabase.from('incidents').insert([{ ...form, case_number }])
+  const { error } = await supabase.from('incidents').insert([{ ...form, case_number }])
 
-    if (!error) router.push('/dashboard/incidents')
-    else { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'), setLoading(false) }
+  if (!error) {
+    // LINE Notify
+    if (form.severity === 'High' || form.severity === 'Medium') {
+      const emoji = form.severity === 'High' ? '🔴' : '🟡'
+      const msg = `${emoji} [DOWA IT] Incident แจ้งใหม่\n` +
+        `Case: ${case_number}\n` +
+        `ระดับ: ${form.severity}\n` +
+        `หัวข้อ: ${form.title}\n` +
+        `ระบบ: ${form.affected_system || '-'}\n` +
+        `ผู้แจ้ง: ${form.reported_by || '-'}`
+
+      await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg })
+      })
+    }
+    router.push('/dashboard/incidents')
+  } else {
+    alert('เกิดข้อผิดพลาด กรุณาลองใหม่')
+    setLoading(false)
   }
+}
 
   const field = (label, key, type = 'text', options = null) => (
     <div style={{ marginBottom: 16 }}>
