@@ -6,17 +6,78 @@ import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 
 const SEVERITY_COLORS = {
-  High: { bg: '#fee2e2', color: '#991b1b' },
+  High:   { bg: '#fee2e2', color: '#991b1b' },
   Medium: { bg: '#fef3c7', color: '#92400e' },
-  Low: { bg: '#d1fae5', color: '#065f46' },
+  Low:    { bg: '#d1fae5', color: '#065f46' },
 }
 const STATUS_COLORS = {
-  Open: { bg: '#dbeafe', color: '#1e40af' },
+  Open:        { bg: '#dbeafe', color: '#1e40af' },
   'In Progress': { bg: '#fef3c7', color: '#92400e' },
-  Resolved: { bg: '#d1fae5', color: '#065f46' },
+  Resolved:    { bg: '#d1fae5', color: '#065f46' },
 }
 
-// ===== Signature Canvas Component =====
+// รายชื่อผู้รับผิดชอบ — เพิ่มได้ที่นี่
+const ASSIGNEE_OPTIONS = [
+  'Natthawut Hapang',
+]
+
+// SLA config
+const SLA_MINUTES = {
+  High:   { response: 60,   resolve: 240  },
+  Medium: { response: 120,  resolve: 480  },
+  Low:    { response: 360,  resolve: 4320 },
+}
+const SLA_LABELS = {
+  High:   { response: 'ทันที (ภายใน 1 ชั่วโมง)', resolve: 'ภายใน 4 ชั่วโมง' },
+  Medium: { response: 'ภายใน 2 ชั่วโมง',         resolve: 'ภายใน 8 ชั่วโมง' },
+  Low:    { response: 'ภายใน 6 ชั่วโมง',         resolve: 'ภายใน 3 วันทำการ' },
+}
+
+function calcMinutes(from, to) {
+  if (!from) return null
+  const end = to ? new Date(to) : new Date()
+  return Math.floor((end - new Date(from)) / 60000)
+}
+
+function formatElapsed(minutes) {
+  if (minutes === null) return '—'
+  if (minutes < 60) return `${minutes} นาที`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m > 0 ? `${h} ชม. ${m} นาที` : `${h} ชม.`
+}
+
+function SLARow({ label, actual, limit, slaLabel, pending }) {
+  const ok   = actual !== null && actual <= limit
+  const late = actual !== null && actual > limit
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{label}</div>
+      <div style={{ fontSize: 12, color: '#6b7280' }}>เป้าหมาย: <strong>{slaLabel}</strong></div>
+      {pending ? (
+        <div style={{ fontSize: 12, color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 4 }}>
+          ⏳ กำลังนับ... ({formatElapsed(actual)} ที่ผ่านมา)
+        </div>
+      ) : actual === null ? (
+        <div style={{ fontSize: 12, color: '#9ca3af' }}>— ยังไม่มีข้อมูล</div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18 }}>{ok ? '✅' : '⏰'}</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: ok ? '#059669' : '#dc2626' }}>
+              {formatElapsed(actual)}
+              <span style={{ fontSize: 11, fontWeight: 400, marginLeft: 6 }}>
+                {ok ? '(ใน SLA)' : '(เกิน SLA)'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ===== Signature Canvas =====
 function SignatureCanvas({ onSave, onCancel, title }) {
   const canvasRef = useRef(null)
   const [drawing, setDrawing] = useState(false)
@@ -35,145 +96,67 @@ function SignatureCanvas({ onSave, onCancel, title }) {
 
   const getPos = (e, canvas) => {
     const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    if (e.touches) {
-      return {
-        x: (e.touches[0].clientX - rect.left) * scaleX,
-        y: (e.touches[0].clientY - rect.top) * scaleY
-      }
-    }
-    return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY
-    }
+    const sx = canvas.width / rect.width
+    const sy = canvas.height / rect.height
+    if (e.touches) return { x: (e.touches[0].clientX - rect.left) * sx, y: (e.touches[0].clientY - rect.top) * sy }
+    return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy }
   }
 
   const startDraw = (e) => {
     e.preventDefault()
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    const pos = getPos(e, canvas)
-    ctx.beginPath()
-    ctx.moveTo(pos.x, pos.y)
-    setDrawing(true)
-    setHasDrawn(true)
+    const ctx = canvasRef.current.getContext('2d')
+    const pos = getPos(e, canvasRef.current)
+    ctx.beginPath(); ctx.moveTo(pos.x, pos.y)
+    setDrawing(true); setHasDrawn(true)
   }
-
   const draw = (e) => {
     e.preventDefault()
     if (!drawing) return
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    const pos = getPos(e, canvas)
-    ctx.lineTo(pos.x, pos.y)
-    ctx.stroke()
+    const ctx = canvasRef.current.getContext('2d')
+    const pos = getPos(e, canvasRef.current)
+    ctx.lineTo(pos.x, pos.y); ctx.stroke()
   }
-
-  const stopDraw = (e) => {
-    e.preventDefault()
-    setDrawing(false)
-  }
+  const stopDraw = (e) => { e.preventDefault(); setDrawing(false) }
 
   const clearCanvas = () => {
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
+    const ctx = canvasRef.current.getContext('2d')
     ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height)
     setHasDrawn(false)
   }
 
   const compressAndSave = () => {
-    const canvas = canvasRef.current
-
-    // Compress โดยวาดลงบน canvas เล็กลง
     const small = document.createElement('canvas')
-    small.width = 300
-    small.height = 100
+    small.width = 300; small.height = 100
     const ctx = small.getContext('2d')
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, 300, 100)
-    ctx.drawImage(canvas, 0, 0, 300, 100)
-
-    // Export เป็น JPEG quality ต่ำเพื่อให้ไม่เกิน 10KB
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 300, 100)
+    ctx.drawImage(canvasRef.current, 0, 0, 300, 100)
     let quality = 0.5
     let dataUrl = small.toDataURL('image/jpeg', quality)
-
-    // ลด quality จนกว่าจะไม่เกิน 10KB
     while (dataUrl.length > 13000 && quality > 0.1) {
       quality -= 0.05
       dataUrl = small.toDataURL('image/jpeg', quality)
     }
-
     onSave(dataUrl)
   }
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000, padding: 16
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: 12, padding: 24,
-        width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-      }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: '#111827', marginBottom: 4 }}>
-          ✍️ {title}
-        </div>
-        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>
-          วาดลายเซ็นต์ในกรอบด้านล่าง (สีน้ำเงิน)
-        </div>
-
-        <div style={{
-          border: '2px solid #d1d5db', borderRadius: 8,
-          overflow: 'hidden', marginBottom: 12, cursor: 'crosshair',
-          touchAction: 'none'
-        }}>
-          <canvas
-            ref={canvasRef}
-            width={440}
-            height={160}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 480 }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: '#111827', marginBottom: 4 }}>✍️ {title}</div>
+        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>วาดลายเซ็นต์ในกรอบด้านล่าง (สีน้ำเงิน)</div>
+        <div style={{ border: '2px solid #d1d5db', borderRadius: 8, overflow: 'hidden', marginBottom: 12, cursor: 'crosshair', touchAction: 'none' }}>
+          <canvas ref={canvasRef} width={440} height={160}
             style={{ display: 'block', width: '100%', height: 160 }}
-            onMouseDown={startDraw}
-            onMouseMove={draw}
-            onMouseUp={stopDraw}
-            onMouseLeave={stopDraw}
-            onTouchStart={startDraw}
-            onTouchMove={draw}
-            onTouchEnd={stopDraw}
-          />
+            onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
+            onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw} />
         </div>
-
-        <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 16, textAlign: 'center' }}>
-          ขนาดลายเซ็นต์จะถูก compress อัตโนมัติ (ไม่เกิน 10KB)
-        </div>
-
+        <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 16, textAlign: 'center' }}>ขนาดจะถูก compress อัตโนมัติ (ไม่เกิน 10KB)</div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
-          <button onClick={clearCanvas} style={{
-            padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 7,
-            fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', color: '#374151'
-          }}>
-            🗑 ล้าง
-          </button>
+          <button onClick={clearCanvas} style={{ padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>🗑 ล้าง</button>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onCancel} style={{
-              padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 7,
-              fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit'
-            }}>
-              ยกเลิก
-            </button>
-            <button
-              onClick={compressAndSave}
-              disabled={!hasDrawn}
-              style={{
-                padding: '8px 20px', border: 'none', borderRadius: 7,
-                fontSize: 13, background: hasDrawn ? '#1d4ed8' : '#93c5fd',
-                color: '#fff', cursor: hasDrawn ? 'pointer' : 'not-allowed', fontFamily: 'inherit'
-              }}
-            >
-              ยืนยันลายเซ็นต์
-            </button>
+            <button onClick={onCancel} style={{ padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
+            <button onClick={compressAndSave} disabled={!hasDrawn} style={{ padding: '8px 20px', border: 'none', borderRadius: 7, fontSize: 13, background: hasDrawn ? '#1d4ed8' : '#93c5fd', color: '#fff', cursor: hasDrawn ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>ยืนยันลายเซ็นต์</button>
           </div>
         </div>
       </div>
@@ -181,219 +164,111 @@ function SignatureCanvas({ onSave, onCancel, title }) {
   )
 }
 
-// ===== Reopen Confirm Dialog =====
+// ===== Reopen Dialog =====
 function ReopenDialog({ onConfirm, onCancel }) {
   const [text, setText] = useState('')
   const valid = text === 'REOPEN'
-
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000, padding: 16
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: 12, padding: 24,
-        width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-      }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: '#dc2626', marginBottom: 8 }}>
-          ⚠️ Reopen Incident
-        </div>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 400 }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: '#dc2626', marginBottom: 8 }}>⚠️ Reopen Incident</div>
         <div style={{ fontSize: 13, color: '#374151', marginBottom: 16, lineHeight: 1.6 }}>
-          การ Reopen จะปลดล็อคเอกสารและลบลายเซ็นต์ที่มีอยู่ออกทั้งหมด
+          การ Reopen จะปลดล็อคเอกสารและลบลายเซ็นต์ออกทั้งหมด<br />
           กรุณาพิมพ์ <strong style={{ color: '#dc2626', fontFamily: 'monospace' }}>REOPEN</strong> เพื่อยืนยัน
         </div>
-        <input
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="พิมพ์ REOPEN"
-          style={{
-            width: '100%', padding: '10px 12px',
-            border: `1px solid ${valid ? '#10b981' : '#d1d5db'}`,
-            borderRadius: 8, fontSize: 14, fontFamily: 'monospace',
-            marginBottom: 16, outline: 'none',
-            background: valid ? '#f0fdf4' : '#fff'
-          }}
-        />
+        <input value={text} onChange={e => setText(e.target.value)} placeholder="พิมพ์ REOPEN"
+          style={{ width: '100%', padding: '10px 12px', border: `1px solid ${valid ? '#10b981' : '#d1d5db'}`, borderRadius: 8, fontSize: 14, fontFamily: 'monospace', marginBottom: 16, outline: 'none', background: valid ? '#f0fdf4' : '#fff' }} />
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{
-            padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 7,
-            fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit'
-          }}>
-            ยกเลิก
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={!valid}
-            style={{
-              padding: '8px 20px', border: 'none', borderRadius: 7,
-              fontSize: 13, background: valid ? '#dc2626' : '#fca5a5',
-              color: '#fff', cursor: valid ? 'pointer' : 'not-allowed', fontFamily: 'inherit'
-            }}
-          >
-            Reopen
-          </button>
+          <button onClick={onCancel} style={{ padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
+          <button onClick={onConfirm} disabled={!valid} style={{ padding: '8px 20px', border: 'none', borderRadius: 7, fontSize: 13, background: valid ? '#dc2626' : '#fca5a5', color: '#fff', cursor: valid ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>Reopen</button>
         </div>
       </div>
     </div>
   )
 }
 
-// ===== Resolve Confirm Dialog =====
+// ===== Resolve Dialog =====
 function ResolveDialog({ form, setForm, onConfirm, onCancel }) {
   const [step, setStep] = useState(1)
   const [sigIT, setSigIT] = useState(null)
   const [showCanvas, setShowCanvas] = useState(false)
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000, padding: 16, overflowY: 'auto'
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: 12, padding: 24,
-        width: '100%', maxWidth: 560, boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-        margin: 'auto'
-      }}>
-        {/* Step Indicator */}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16, overflowY: 'auto' }}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 560, margin: 'auto' }}>
+
+        {/* Steps */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {[
-            { n: 1, label: 'ยืนยัน Resolution' },
-            { n: 2, label: 'ลายเซ็นต์' },
-            { n: 3, label: 'ตรวจสอบ' },
-          ].map(s => (
+          {[{ n: 1, label: 'ยืนยัน Resolution' }, { n: 2, label: 'ลายเซ็นต์' }, { n: 3, label: 'ตรวจสอบ' }].map(s => (
             <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-              <div style={{
-                width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-                background: step >= s.n ? '#1d4ed8' : '#e5e7eb',
-                color: step >= s.n ? '#fff' : '#9ca3af',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 600
-              }}>{s.n}</div>
-              <div style={{ fontSize: 11, color: step >= s.n ? '#1d4ed8' : '#9ca3af', fontWeight: step === s.n ? 600 : 400 }}>
-                {s.label}
-              </div>
+              <div style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, background: step >= s.n ? '#1d4ed8' : '#e5e7eb', color: step >= s.n ? '#fff' : '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600 }}>{s.n}</div>
+              <div style={{ fontSize: 11, color: step >= s.n ? '#1d4ed8' : '#9ca3af', fontWeight: step === s.n ? 600 : 400 }}>{s.label}</div>
               {s.n < 3 && <div style={{ flex: 1, height: 1, background: step > s.n ? '#1d4ed8' : '#e5e7eb' }} />}
             </div>
           ))}
         </div>
 
-        {/* Step 1: ยืนยัน Resolution */}
+        {/* Step 1 */}
         {step === 1 && (
           <>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#111827', marginBottom: 16 }}>
-              ✅ ยืนยันการปิด Incident
-            </div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#111827', marginBottom: 16 }}>✅ ยืนยันการปิด Incident</div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>
-                วิธีการแก้ไข / Resolution <span style={{ color: '#dc2626' }}>*</span>
-              </label>
-              <textarea
-                value={form.resolution || ''}
-                onChange={e => setForm({ ...form, resolution: e.target.value })}
-                rows={4}
-                placeholder="อธิบายวิธีการที่ใช้แก้ไขปัญหา และผลลัพธ์ที่ได้..."
-                style={{
-                  width: '100%', padding: '9px 12px',
-                  border: '1px solid #d1d5db', borderRadius: 8,
-                  fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6
-                }}
-              />
+              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>วิธีการแก้ไข / Resolution <span style={{ color: '#dc2626' }}>*</span></label>
+              <textarea value={form.resolution || ''} onChange={e => setForm({ ...form, resolution: e.target.value })}
+                rows={4} placeholder="อธิบายวิธีการที่ใช้แก้ไขปัญหา..."
+                style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }} />
             </div>
             <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>
-                Root Cause Analysis
-              </label>
-              <textarea
-                value={form.root_cause || ''}
-                onChange={e => setForm({ ...form, root_cause: e.target.value })}
-                rows={3}
-                placeholder="วิเคราะห์สาเหตุที่แท้จริง..."
-                style={{
-                  width: '100%', padding: '9px 12px',
-                  border: '1px solid #d1d5db', borderRadius: 8,
-                  fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6
-                }}
-              />
+              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>Root Cause Analysis</label>
+              <textarea value={form.root_cause || ''} onChange={e => setForm({ ...form, root_cause: e.target.value })}
+                rows={3} placeholder="วิเคราะห์สาเหตุที่แท้จริง..."
+                style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }} />
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={onCancel} style={{ padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
-              <button
-                onClick={() => { if (!form.resolution?.trim()) { alert('กรุณากรอก Resolution ก่อนครับ'); return } setStep(2) }}
-                style={{ padding: '8px 20px', border: 'none', borderRadius: 7, fontSize: 13, background: '#1d4ed8', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
-              >
-                ถัดไป →
-              </button>
+              <button onClick={() => { if (!form.resolution?.trim()) { alert('กรุณากรอก Resolution ก่อนครับ'); return } setStep(2) }}
+                style={{ padding: '8px 20px', border: 'none', borderRadius: 7, fontSize: 13, background: '#1d4ed8', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>ถัดไป →</button>
             </div>
           </>
         )}
 
-        {/* Step 2: ลายเซ็นต์ */}
+        {/* Step 2 */}
         {step === 2 && (
           <>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#111827', marginBottom: 8 }}>
-              ✍️ ลายเซ็นต์ผู้ปิดเคส (IT Officer)
-            </div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>
-              วาดลายเซ็นต์เพื่อยืนยันการปิด Incident นี้
-            </div>
-
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#111827', marginBottom: 8 }}>✍️ ลายเซ็นต์ผู้ปิดเคส</div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>วาดลายเซ็นต์เพื่อยืนยันการปิด Incident</div>
             {sigIT ? (
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 12, color: '#059669', marginBottom: 8, fontWeight: 500 }}>
-                  ✅ ลายเซ็นต์บันทึกแล้ว
-                </div>
+                <div style={{ fontSize: 12, color: '#059669', marginBottom: 8, fontWeight: 500 }}>✅ ลายเซ็นต์บันทึกแล้ว</div>
                 <div style={{ border: '1px solid #d1d5db', borderRadius: 8, overflow: 'hidden', display: 'inline-block' }}>
-                  <img src={sigIT} alt="signature" style={{ display: 'block', height: 80, width: 'auto', maxWidth: '100%' }} />
+                  <img src={sigIT} alt="sig" style={{ display: 'block', height: 80 }} />
                 </div>
                 <div style={{ marginTop: 8 }}>
-                  <button onClick={() => setSigIT(null)} style={{ fontSize: 12, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                    🔄 วาดใหม่
-                  </button>
+                  <button onClick={() => setSigIT(null)} style={{ fontSize: 12, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>🔄 วาดใหม่</button>
                 </div>
               </div>
             ) : (
-              <div style={{
-                border: '2px dashed #d1d5db', borderRadius: 8,
-                padding: 24, textAlign: 'center', marginBottom: 16, cursor: 'pointer',
-                background: '#f9fafb'
-              }} onClick={() => setShowCanvas(true)}>
+              <div onClick={() => setShowCanvas(true)} style={{ border: '2px dashed #d1d5db', borderRadius: 8, padding: 24, textAlign: 'center', marginBottom: 16, cursor: 'pointer', background: '#f9fafb' }}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>✍️</div>
                 <div style={{ fontSize: 13, color: '#6b7280' }}>กดเพื่อวาดลายเซ็นต์</div>
               </div>
             )}
-
-            {showCanvas && (
-              <SignatureCanvas
-                title="ลายเซ็นต์ IT Officer"
-                onSave={(data) => { setSigIT(data); setShowCanvas(false) }}
-                onCancel={() => setShowCanvas(false)}
-              />
-            )}
-
+            {showCanvas && <SignatureCanvas title="ลายเซ็นต์ IT Officer" onSave={d => { setSigIT(d); setShowCanvas(false) }} onCancel={() => setShowCanvas(false)} />}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
               <button onClick={() => setStep(1)} style={{ padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>← ย้อนกลับ</button>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={onCancel} style={{ padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
-                <button
-                  onClick={() => { if (!sigIT) { alert('กรุณาวาดลายเซ็นต์ก่อนครับ'); return } setStep(3) }}
-                  style={{ padding: '8px 20px', border: 'none', borderRadius: 7, fontSize: 13, background: '#1d4ed8', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
-                >
-                  ถัดไป →
-                </button>
+                <button onClick={() => { if (!sigIT) { alert('กรุณาวาดลายเซ็นต์ก่อนครับ'); return } setStep(3) }}
+                  style={{ padding: '8px 20px', border: 'none', borderRadius: 7, fontSize: 13, background: '#1d4ed8', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>ถัดไป →</button>
               </div>
             </div>
           </>
         )}
 
-        {/* Step 3: ตรวจสอบ */}
+        {/* Step 3 */}
         {step === 3 && (
           <>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#111827', marginBottom: 16 }}>
-              🔍 ตรวจสอบก่อนบันทึก
-            </div>
-
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#111827', marginBottom: 16 }}>🔍 ตรวจสอบก่อนบันทึก</div>
             <div style={{ background: '#f9fafb', borderRadius: 8, padding: 16, marginBottom: 16, fontSize: 13 }}>
               <div style={{ marginBottom: 10 }}>
                 <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 2 }}>Resolution</div>
@@ -408,29 +283,19 @@ function ResolveDialog({ form, setForm, onConfirm, onCancel }) {
               <div>
                 <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>ลายเซ็นต์ IT Officer</div>
                 <div style={{ border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden', display: 'inline-block', background: '#fff' }}>
-                  <img src={sigIT} alt="signature" style={{ display: 'block', height: 60, width: 'auto' }} />
+                  <img src={sigIT} alt="sig" style={{ display: 'block', height: 60 }} />
                 </div>
               </div>
             </div>
-
-            <div style={{
-              background: '#fffbeb', border: '1px solid #fcd34d',
-              borderRadius: 8, padding: '10px 14px', fontSize: 12,
-              color: '#92400e', marginBottom: 16
-            }}>
+            <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#92400e', marginBottom: 16 }}>
               ⚠️ เมื่อบันทึกแล้ว เอกสารจะถูกล็อคและไม่สามารถแก้ไขได้ (ยกเว้น Super User)
             </div>
-
             <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
               <button onClick={() => setStep(2)} style={{ padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>← ย้อนกลับ</button>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={onCancel} style={{ padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
-                <button
-                  onClick={() => onConfirm(sigIT)}
-                  style={{ padding: '8px 20px', border: 'none', borderRadius: 7, fontSize: 13, background: '#059669', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}
-                >
-                  ✅ ยืนยัน Resolve
-                </button>
+                <button onClick={() => onConfirm(sigIT)}
+                  style={{ padding: '8px 20px', border: 'none', borderRadius: 7, fontSize: 13, background: '#059669', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>✅ ยืนยัน Resolve</button>
               </div>
             </div>
           </>
@@ -452,16 +317,18 @@ export default function IncidentDetailPage() {
   const [saving, setSaving] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
   const [isSuperUser, setIsSuperUser] = useState(false)
-
-  // Dialogs
   const [showResolveDialog, setShowResolveDialog] = useState(false)
   const [showReopenDialog, setShowReopenDialog] = useState(false)
 
+  useEffect(() => { initUser(); fetchIncident(); fetchLogs() }, [id])
+
+  // Auto status เมื่อ assigned_to เปลี่ยน (ตอน edit)
   useEffect(() => {
-    initUser()
-    fetchIncident()
-    fetchLogs()
-  }, [id])
+    if (!editing) return
+    if (form.assigned_to && form.status === 'Open') {
+      setForm(prev => ({ ...prev, status: 'In Progress' }))
+    }
+  }, [form.assigned_to])
 
   const initUser = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -479,35 +346,46 @@ export default function IncidentDetailPage() {
   }
 
   const fetchLogs = async () => {
-    const { data } = await supabase.from('incident_logs')
-      .select('*').eq('incident_id', id)
-      .order('created_at', { ascending: true })
+    const { data } = await supabase.from('incident_logs').select('*').eq('incident_id', id).order('created_at', { ascending: true })
     setLogs(data || [])
   }
 
   const addLog = async (action, fromStatus, toStatus, note = '') => {
     await supabase.from('incident_logs').insert([{
-      incident_id: id,
-      action,
-      from_status: fromStatus,
-      to_status: toStatus,
-      note,
-      user_email: currentUser?.email,
+      incident_id: id, action,
+      from_status: fromStatus, to_status: toStatus,
+      note, user_email: currentUser?.email,
     }])
     await fetchLogs()
   }
 
-  // บันทึกการแก้ไขปกติ (ไม่ใช่ Resolve)
   const handleSave = async () => {
     setSaving(true)
     const oldStatus = incident.status
     const newStatus = form.status
+    const oldAssignee = incident.assigned_to
+    const newAssignee = form.assigned_to
 
     await supabase.from('incidents').update(form).eq('id', id)
 
-    if (oldStatus !== newStatus) {
+    // Log การเปลี่ยน Assignee
+    if (oldAssignee !== newAssignee) {
+      if (newAssignee && !oldAssignee) {
+        await addLog('กำหนดผู้รับผิดชอบ', oldStatus, 'In Progress', `มอบหมายให้: ${newAssignee}`)
+      } else if (!newAssignee && oldAssignee) {
+        await addLog('ยกเลิกผู้รับผิดชอบ', oldStatus, newStatus, `ยกเลิก: ${oldAssignee}`)
+      } else {
+        await addLog('เปลี่ยนผู้รับผิดชอบ', oldStatus, newStatus, `${oldAssignee} → ${newAssignee}`)
+      }
+    }
+
+    // Log การเปลี่ยน Status (ถ้าไม่ได้เปลี่ยนจาก assignee)
+    if (oldStatus !== newStatus && oldAssignee === newAssignee) {
       await addLog('เปลี่ยนสถานะ', oldStatus, newStatus)
-    } else {
+    }
+
+    // Log แก้ไขข้อมูลทั่วไป
+    if (oldStatus === newStatus && oldAssignee === newAssignee) {
       await addLog('แก้ไขข้อมูล', oldStatus, oldStatus, 'อัปเดตรายละเอียด')
     }
 
@@ -516,7 +394,6 @@ export default function IncidentDetailPage() {
     setSaving(false)
   }
 
-  // Resolve พร้อมลายเซ็นต์
   const handleResolve = async (sigIT) => {
     setSaving(true)
     const now = new Date().toISOString()
@@ -528,31 +405,19 @@ export default function IncidentDetailPage() {
       resolved_by: currentUser?.email,
       signature_it: sigIT,
     }
-
     await supabase.from('incidents').update(updateData).eq('id', id)
     await addLog('ปิดเคส (Resolved)', incident.status, 'Resolved', `ลงนามโดย: ${currentUser?.email}`)
-
     setIncident(updateData)
     setForm(updateData)
     setShowResolveDialog(false)
     setSaving(false)
   }
 
-  // Reopen โดย Super User
   const handleReopen = async () => {
     setSaving(true)
-    const updateData = {
-      ...incident,
-      status: 'Open',
-      is_locked: false,
-      resolved_at: null,
-      resolved_by: null,
-      signature_it: null,
-    }
-
+    const updateData = { ...incident, status: 'Open', is_locked: false, resolved_at: null, resolved_by: null, signature_it: null }
     await supabase.from('incidents').update(updateData).eq('id', id)
-    await addLog('Reopen', 'Resolved', 'Open', `Reopen โดย Super User: ${currentUser?.email}`)
-
+    await addLog('Reopen', 'Resolved', 'Open', `Reopen โดย: ${currentUser?.email}`)
     setIncident(updateData)
     setForm(updateData)
     setShowReopenDialog(false)
@@ -567,14 +432,25 @@ export default function IncidentDetailPage() {
 
   const isLocked = incident?.is_locked || incident?.status === 'Resolved'
 
-  const SLAResponse = incident?.severity === 'High' ? 'ทันที (ภายใน 1 ชั่วโมง)' : incident?.severity === 'Medium' ? 'ภายใน 2 ชั่วโมง' : 'ภายใน 6 ชั่วโมง'
-  const SLAResolve = incident?.severity === 'High' ? 'ภายใน 4 ชั่วโมง' : incident?.severity === 'Medium' ? 'ภายใน 8 ชั่วโมง' : 'ภายใน 3 วันทำการ'
+  // SLA calculations
+  const slaMin = SLA_MINUTES[incident?.severity] || SLA_MINUTES['Medium']
+  const slaLabel = SLA_LABELS[incident?.severity] || SLA_LABELS['Medium']
+  const responseMin = calcMinutes(incident?.created_at, incident?.resolved_at || null)
+  const resolveMin = incident?.resolved_at ? calcMinutes(incident?.created_at, incident?.resolved_at) : null
 
-  const field = (label, key, type = 'text', options = null) => (
+  const field = (label, key, type = 'text', options = null, required = false) => (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
+        {label}{required && <span style={{ color: '#dc2626' }}> *</span>}
+      </div>
       {editing && !isLocked ? (
-        options ? (
+        options === 'assignee' ? (
+          <select value={form[key] || ''} onChange={e => setForm({ ...form, [key]: e.target.value })}
+            style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', fontFamily: 'inherit' }}>
+            <option value="">— ยังไม่ได้มอบหมาย —</option>
+            {ASSIGNEE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        ) : options ? (
           <select value={form[key] || ''} onChange={e => setForm({ ...form, [key]: e.target.value })}
             style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', fontFamily: 'inherit' }}>
             {options.map(o => <option key={o}>{o}</option>)}
@@ -608,21 +484,8 @@ export default function IncidentDetailPage() {
         @media screen { .print-only { display: none !important; } }
       `}</style>
 
-      {/* Dialogs */}
-      {showResolveDialog && (
-        <ResolveDialog
-          form={form}
-          setForm={setForm}
-          onConfirm={handleResolve}
-          onCancel={() => setShowResolveDialog(false)}
-        />
-      )}
-      {showReopenDialog && (
-        <ReopenDialog
-          onConfirm={handleReopen}
-          onCancel={() => setShowReopenDialog(false)}
-        />
-      )}
+      {showResolveDialog && <ResolveDialog form={form} setForm={setForm} onConfirm={handleResolve} onCancel={() => setShowResolveDialog(false)} />}
+      {showReopenDialog && <ReopenDialog onConfirm={handleReopen} onCancel={() => setShowReopenDialog(false)} />}
 
       {/* SCREEN VIEW */}
       <div className="no-print" style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
@@ -632,48 +495,26 @@ export default function IncidentDetailPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Link href="/dashboard/incidents" style={{ color: '#6b7280', fontSize: 13, textDecoration: 'none' }}>← กลับ</Link>
             <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>รายละเอียด Incident</h1>
-            {isLocked && (
-              <span style={{ background: '#d1fae5', color: '#065f46', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500 }}>
-                🔒 Resolved
-              </span>
-            )}
+            {isLocked && <span style={{ background: '#d1fae5', color: '#065f46', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500 }}>🔒 Resolved</span>}
           </div>
-
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={() => window.print()} style={{ padding: '7px 14px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
-              🖨 Print FR-IT-01
-            </button>
-
+            <button onClick={() => window.print()} style={{ padding: '7px 14px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>🖨 Print FR-IT-01</button>
             {isLocked ? (
               isSuperUser && (
-                <button onClick={() => setShowReopenDialog(true)} style={{ padding: '7px 14px', border: 'none', borderRadius: 7, fontSize: 13, background: '#fef3c7', color: '#92400e', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  🔓 Reopen
-                </button>
+                <button onClick={() => setShowReopenDialog(true)} style={{ padding: '7px 14px', border: 'none', borderRadius: 7, fontSize: 13, background: '#fef3c7', color: '#92400e', cursor: 'pointer', fontFamily: 'inherit' }}>🔓 Reopen</button>
               )
+            ) : !editing ? (
+              <>
+                <button onClick={() => setEditing(true)} style={{ padding: '7px 14px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>✏️ แก้ไข</button>
+                <button onClick={() => setShowResolveDialog(true)} style={{ padding: '7px 14px', border: 'none', borderRadius: 7, fontSize: 13, background: '#059669', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>✅ Resolve</button>
+                <button onClick={handleDelete} style={{ padding: '7px 14px', border: 'none', borderRadius: 7, fontSize: 13, background: '#fee2e2', color: '#991b1b', cursor: 'pointer', fontFamily: 'inherit' }}>🗑 ลบ</button>
+              </>
             ) : (
               <>
-                {!editing ? (
-                  <>
-                    <button onClick={() => setEditing(true)} style={{ padding: '7px 14px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
-                      ✏️ แก้ไข
-                    </button>
-                    <button onClick={() => setShowResolveDialog(true)} style={{ padding: '7px 14px', border: 'none', borderRadius: 7, fontSize: 13, background: '#059669', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
-                      ✅ Resolve
-                    </button>
-                    <button onClick={handleDelete} style={{ padding: '7px 14px', border: 'none', borderRadius: 7, fontSize: 13, background: '#fee2e2', color: '#991b1b', cursor: 'pointer', fontFamily: 'inherit' }}>
-                      🗑 ลบ
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={() => { setEditing(false); setForm(incident) }} style={{ padding: '7px 14px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
-                      ยกเลิก
-                    </button>
-                    <button onClick={handleSave} disabled={saving} style={{ padding: '7px 16px', border: 'none', borderRadius: 7, fontSize: 13, background: '#1d4ed8', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
-                      {saving ? 'กำลังบันทึก...' : '💾 บันทึก'}
-                    </button>
-                  </>
-                )}
+                <button onClick={() => { setEditing(false); setForm(incident) }} style={{ padding: '7px 14px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
+                <button onClick={handleSave} disabled={saving} style={{ padding: '7px 16px', border: 'none', borderRadius: 7, fontSize: 13, background: '#1d4ed8', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {saving ? 'กำลังบันทึก...' : '💾 บันทึก'}
+                </button>
               </>
             )}
           </div>
@@ -693,6 +534,13 @@ export default function IncidentDetailPage() {
           </div>
         )}
 
+        {/* Auto-status notice (ขณะ edit) */}
+        {editing && form.assigned_to && form.status === 'In Progress' && incident.status === 'Open' && (
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '10px 16px', marginBottom: 16, fontSize: 12, color: '#1e40af', display: 'flex', alignItems: 'center', gap: 8 }}>
+            ℹ️ สถานะจะเปลี่ยนเป็น <strong>"In Progress"</strong> อัตโนมัติเนื่องจากมีการกำหนดผู้รับผิดชอบ
+          </div>
+        )}
+
         {/* Case Header */}
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20, marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
@@ -705,10 +553,10 @@ export default function IncidentDetailPage() {
               <span style={{ ...STATUS_COLORS[incident.status], padding: '4px 12px', borderRadius: 20, fontSize: 12 }}>{incident.status}</span>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, fontSize: 12, color: '#6b7280', paddingTop: 12, borderTop: '1px solid #f3f4f6' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, fontSize: 12, color: '#6b7280', paddingTop: 12, borderTop: '1px solid #f3f4f6' }}>
             <div>วันที่แจ้ง: <span style={{ color: '#374151' }}>{formatDateTime(incident.created_at)}</span></div>
             <div>ผู้แจ้ง: <span style={{ color: '#374151' }}>{incident.reported_by || '—'}</span></div>
-            <div>ผู้รับผิดชอบ: <span style={{ color: '#374151' }}>{incident.assigned_to || '—'}</span></div>
+            <div>ผู้รับผิดชอบ: <span style={{ color: incident.assigned_to ? '#1d4ed8' : '#9ca3af', fontWeight: incident.assigned_to ? 500 : 400 }}>{incident.assigned_to || 'ยังไม่มอบหมาย'}</span></div>
             {incident.resolved_at && <div>วันที่ปิด: <span style={{ color: '#059669', fontWeight: 500 }}>{formatDateTime(incident.resolved_at)}</span></div>}
           </div>
         </div>
@@ -720,9 +568,36 @@ export default function IncidentDetailPage() {
             {field('ระบบที่ได้รับผลกระทบ', 'affected_system')}
             {field('ประเภท Incident', 'category')}
             {field('ระดับความรุนแรง', 'severity', 'select', ['High', 'Medium', 'Low'])}
+            {field('สถานะ', 'status', 'select',
+              editing && form.assigned_to ? ['In Progress', 'Open', 'Resolved'] : ['Open', 'In Progress', 'Resolved']
+            )}
             {field('ผู้แจ้ง', 'reported_by')}
-            {field('ผู้รับผิดชอบ', 'assigned_to')}
+
+            {/* Assignee — dropdown */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
+                ผู้รับผิดชอบ / Assigned To
+                {editing && !isLocked && <span style={{ fontSize: 10, color: '#9ca3af', marginLeft: 4 }}>(เลือกเพื่อเปลี่ยนสถานะเป็น In Progress)</span>}
+              </div>
+              {editing && !isLocked ? (
+                <>
+                  <select value={form.assigned_to || ''} onChange={e => setForm({ ...form, assigned_to: e.target.value })}
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', fontFamily: 'inherit' }}>
+                    <option value="">— ยังไม่ได้มอบหมาย —</option>
+                    {ASSIGNEE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                  {form.assigned_to && (
+                    <div style={{ fontSize: 11, color: '#059669', marginTop: 4 }}>✅ สถานะจะเปลี่ยนเป็น "In Progress" อัตโนมัติ</div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: 14, color: incident.assigned_to ? '#111827' : '#d1d5db', padding: '6px 0', borderBottom: '1px solid #f3f4f6', minHeight: 32 }}>
+                  {incident.assigned_to || '—'}
+                </div>
+              )}
+            </div>
           </div>
+
           <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #f3f4f6' }}>รายละเอียด</div>
             {field('อาการที่พบ / รายละเอียด', 'description', 'textarea')}
@@ -731,72 +606,70 @@ export default function IncidentDetailPage() {
           </div>
         </div>
 
-        {/* Signature Section */}
+        {/* SLA Section */}
+        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid #f3f4f6' }}>
+            ⏱ SLA — {incident.severity}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <SLARow
+              label="Response Time"
+              actual={responseMin}
+              limit={slaMin.response}
+              slaLabel={slaLabel.response}
+              pending={incident.status !== 'Resolved'}
+            />
+            <SLARow
+              label="Resolution Time"
+              actual={resolveMin}
+              limit={slaMin.resolve}
+              slaLabel={slaLabel.resolve}
+              pending={false}
+            />
+          </div>
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f3f4f6', fontSize: 11, color: '#9ca3af' }}>
+            สร้างเมื่อ: {formatDateTime(incident.created_at)}
+            {incident.resolved_at && ` · ปิดเมื่อ: ${formatDateTime(incident.resolved_at)}`}
+          </div>
+        </div>
+
+        {/* Signature */}
         {incident.signature_it && (
           <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #f3f4f6' }}>
-              ✍️ ลายเซ็นต์ดิจิตัล
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-              <div>
-                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>IT Officer</div>
-                <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', background: '#fafafa', display: 'inline-block' }}>
-                  <img src={incident.signature_it} alt="IT Officer Signature" style={{ display: 'block', height: 80, width: 'auto', maxWidth: 280 }} />
-                </div>
-                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>
-                  {incident.resolved_by} · {formatDateTime(incident.resolved_at)}
-                </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #f3f4f6' }}>✍️ ลายเซ็นต์ดิจิตัล</div>
+            <div>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>IT Officer</div>
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', background: '#fafafa', display: 'inline-block' }}>
+                <img src={incident.signature_it} alt="signature" style={{ display: 'block', height: 80, width: 'auto', maxWidth: 280 }} />
               </div>
+              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>{incident.resolved_by} · {formatDateTime(incident.resolved_at)}</div>
             </div>
           </div>
         )}
 
-        {/* SLA */}
-        <div style={{ background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe', padding: 16, fontSize: 13, marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>SLA — {incident.severity}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, color: '#374151' }}>
-            <div>⏱ Response: <strong>{SLAResponse}</strong></div>
-            <div>✅ Resolution: <strong>{SLAResolve}</strong></div>
-          </div>
-        </div>
-
-        {/* Transaction Log Timeline */}
+        {/* Transaction Log */}
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid #f3f4f6' }}>
-            📋 Transaction Log
-          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid #f3f4f6' }}>📋 Transaction Log</div>
           {logs.length === 0 ? (
             <div style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', padding: '16px 0' }}>ยังไม่มี Log</div>
           ) : (
-            <div style={{ position: 'relative' }}>
+            <div>
               {logs.map((log, i) => (
                 <div key={log.id} style={{ display: 'flex', gap: 12, marginBottom: i < logs.length - 1 ? 16 : 0 }}>
-                  {/* Timeline dot */}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
                     <div style={{
                       width: 32, height: 32, borderRadius: '50%',
-                      background: log.action.includes('Resolved') || log.action.includes('ปิดเคส') ? '#d1fae5'
-                        : log.action.includes('Reopen') ? '#fef3c7'
-                          : '#dbeafe',
+                      background: log.action.includes('ปิดเคส') ? '#d1fae5' : log.action.includes('Reopen') ? '#fef3c7' : log.action.includes('กำหนด') ? '#eff6ff' : '#f3f4f6',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0
                     }}>
-                      {log.action.includes('ปิดเคส') || log.action.includes('Resolved') ? '✅'
-                        : log.action.includes('Reopen') ? '🔓'
-                          : log.action.includes('สถานะ') ? '🔄'
-                            : '📝'}
+                      {log.action.includes('ปิดเคส') ? '✅' : log.action.includes('Reopen') ? '🔓' : log.action.includes('กำหนด') ? '👤' : log.action.includes('สถานะ') ? '🔄' : '📝'}
                     </div>
-                    {i < logs.length - 1 && (
-                      <div style={{ width: 1, flex: 1, background: '#e5e7eb', marginTop: 4 }} />
-                    )}
+                    {i < logs.length - 1 && <div style={{ width: 1, flex: 1, background: '#e5e7eb', marginTop: 4 }} />}
                   </div>
-
-                  {/* Content */}
                   <div style={{ flex: 1, paddingBottom: i < logs.length - 1 ? 8 : 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 4 }}>
                       <div style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>{log.action}</div>
-                      <div style={{ fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap' }}>
-                        {formatDateTime(log.created_at)}
-                      </div>
+                      <div style={{ fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap' }}>{formatDateTime(log.created_at)}</div>
                     </div>
                     {log.from_status && log.to_status && log.from_status !== log.to_status && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
@@ -815,21 +688,12 @@ export default function IncidentDetailPage() {
         </div>
       </div>
 
-      {/* PRINT VIEW FR-IT-01 */}
+      {/* PRINT VIEW */}
       <div className="print-only" style={{ padding: '20mm 15mm', fontFamily: 'Noto Sans Thai, sans-serif' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, borderBottom: '2px solid #000', paddingBottom: 12 }}>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 700 }}>DOWA</div>
-            <div style={{ fontSize: 10, color: '#666' }}>บริษัท ดาว่า ไทยแลนด์ จำกัด</div>
-          </div>
-          <div style={{ textAlign: 'center', flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>บันทึก IT Incident</div>
-            <div style={{ fontSize: 12, color: '#444' }}>IT Incident Log Form</div>
-          </div>
-          <div style={{ textAlign: 'right', fontSize: 11 }}>
-            <div>เอกสารเลขที่: <strong>FR-IT-01</strong></div>
-            <div>Rev: 00</div>
-          </div>
+          <div><div style={{ fontSize: 20, fontWeight: 700 }}>DOWA</div><div style={{ fontSize: 10, color: '#666' }}>บริษัท ดาว่า ไทยแลนด์ จำกัด</div></div>
+          <div style={{ textAlign: 'center', flex: 1 }}><div style={{ fontSize: 16, fontWeight: 700 }}>บันทึก IT Incident</div><div style={{ fontSize: 12, color: '#444' }}>IT Incident Log Form</div></div>
+          <div style={{ textAlign: 'right', fontSize: 11 }}><div>เอกสารเลขที่: <strong>FR-IT-01</strong></div><div>Rev: 00</div></div>
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10 }}>
@@ -853,19 +717,29 @@ export default function IncidentDetailPage() {
               <td style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 12 }}>{incident.category || '—'}</td>
             </tr>
             <tr>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11 }}>ระดับความรุนแรง</td>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 12 }}><strong>{incident.severity}</strong> — Response: {SLAResponse}</td>
+              <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11 }}>ระดับ / SLA</td>
+              <td style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 11 }}>
+                <strong>{incident.severity}</strong> | Response: {slaLabel.response} {responseMin !== null ? `(Actual: ${formatElapsed(responseMin)} ${responseMin <= slaMin.response ? '✓' : '⚠'})` : ''}
+              </td>
               <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11 }}>สถานะ</td>
               <td style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 12 }}><strong>{incident.status}</strong></td>
             </tr>
+            {incident.resolved_at && (
+              <tr>
+                <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11 }}>Resolution SLA</td>
+                <td colSpan={3} style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 11 }}>
+                  เป้าหมาย: {slaLabel.resolve} | Actual: {formatElapsed(resolveMin)} {resolveMin !== null && resolveMin <= slaMin.resolve ? '✓ (ใน SLA)' : '⚠ (เกิน SLA)'}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
 
         {[
-          { label: 'หัวข้อ / อาการที่พบ', value: incident.title, height: 36 },
-          { label: 'รายละเอียด / Description', value: incident.description, height: 56 },
-          { label: 'Root Cause Analysis', value: incident.root_cause, height: 56 },
-          { label: 'วิธีการแก้ไข / Resolution', value: incident.resolution, height: 56 },
+          { label: 'หัวข้อ', value: incident.title, height: 30 },
+          { label: 'รายละเอียด / Description', value: incident.description, height: 50 },
+          { label: 'Root Cause Analysis', value: incident.root_cause, height: 50 },
+          { label: 'วิธีการแก้ไข / Resolution', value: incident.resolution, height: 50 },
         ].map((item, i) => (
           <div key={i} style={{ border: '1px solid #000', borderTop: i === 0 ? '1px solid #000' : 'none' }}>
             <div style={{ background: '#f0f0f0', padding: '4px 8px', fontWeight: 700, fontSize: 11, borderBottom: '1px solid #000' }}>{item.label}</div>
@@ -873,7 +747,7 @@ export default function IncidentDetailPage() {
           </div>
         ))}
 
-        {/* Transaction Log in Print */}
+        {/* Transaction Log Print */}
         <div style={{ border: '1px solid #000', borderTop: 'none' }}>
           <div style={{ background: '#f0f0f0', padding: '4px 8px', fontWeight: 700, fontSize: 11, borderBottom: '1px solid #000' }}>Transaction Log</div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -900,7 +774,7 @@ export default function IncidentDetailPage() {
           </table>
         </div>
 
-        {/* Timeline + Signature */}
+        {/* Timeline */}
         <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 10 }}>
           <tbody>
             <tr>
@@ -920,7 +794,7 @@ export default function IncidentDetailPage() {
                 <div style={{ fontSize: 11, color: '#666', marginBottom: 6 }}>ลายเซ็นต์ IT Officer</div>
                 {incident.signature_it ? (
                   <>
-                    <img src={incident.signature_it} alt="IT Signature" style={{ height: 60, display: 'block' }} />
+                    <img src={incident.signature_it} alt="sig" style={{ height: 60, display: 'block' }} />
                     <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>{incident.resolved_by}</div>
                     <div style={{ fontSize: 10, color: '#666' }}>{formatDateTime(incident.resolved_at)}</div>
                   </>
@@ -932,7 +806,7 @@ export default function IncidentDetailPage() {
                 )}
               </td>
               <td style={{ border: '1px solid #000', padding: '8px', width: '50%', verticalAlign: 'top' }}>
-                <div style={{ fontSize: 11, color: '#666', marginBottom: 6 }}>ลายเซ็นต์ผู้จัดการ / Senior Manager (High only)</div>
+                <div style={{ fontSize: 11, color: '#666', marginBottom: 6 }}>ผู้จัดการรับทราบ / Senior Manager (High only)</div>
                 <div style={{ minHeight: 50 }}></div>
                 <div style={{ fontSize: 11, borderTop: '1px dotted #999', paddingTop: 4, marginTop: 8 }}>ชื่อ: .................................................. วันที่: ....................</div>
               </td>
