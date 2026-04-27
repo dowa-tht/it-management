@@ -7,9 +7,13 @@ export async function getDashboardData(timezoneOffset = -420) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('Missing Supabase environment variables');
-      return { error: 'ไม่พบ SUPABASE_SERVICE_ROLE_KEY หรือ NEXT_PUBLIC_SUPABASE_URL ใน Environment Variables' }
+    if (!supabaseUrl) {
+      console.error('Missing NEXT_PUBLIC_SUPABASE_URL');
+      return { error: 'ไม่พบตัวแปร NEXT_PUBLIC_SUPABASE_URL ใน Environment Variables ของ Vercel' }
+    }
+    if (!supabaseServiceKey) {
+      console.error('Missing SUPABASE_SERVICE_ROLE_KEY');
+      return { error: 'ไม่พบตัวแปร SUPABASE_SERVICE_ROLE_KEY ใน Environment Variables ของ Vercel (กรุณาเพิ่มค่านี้เพื่อให้ Dashboard ทำงานได้)' }
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
