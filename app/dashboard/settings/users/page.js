@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/dateFormat'
+import { createAdminUser } from '@/app/actions/admin'
 
 // ===== Password Confirm Dialog =====
 function PasswordConfirmDialog({ onConfirm, onCancel, targetName, action }) {
@@ -224,23 +225,17 @@ export default function UsersPage() {
     setSaving(true)
     setMsg({ text: '', type: '' })
 
-    const { data, error } = await supabase.auth.admin.createUser({
+    const result = await createAdminUser({
       email: newUser.email,
       password: newUser.password,
-      email_confirm: true,
-      user_metadata: { full_name: newUser.full_name }
+      full_name: newUser.full_name,
+      role: newUser.role,
+      can_be_assignee: newUser.can_be_assignee
     })
 
-    if (error) {
-      setMsg({ text: `เกิดข้อผิดพลาด: ${error.message}`, type: 'error' })
+    if (!result.success) {
+      setMsg({ text: `เกิดข้อผิดพลาด: ${result.error}`, type: 'error' })
     } else {
-      await supabase.from('user_profiles').upsert({
-        id: data.user.id,
-        full_name: newUser.full_name,
-        role: newUser.role,
-        is_active: true,
-        can_be_assignee: newUser.can_be_assignee,
-      })
       setMsg({ text: `สร้าง User "${newUser.full_name}" สำเร็จแล้ว`, type: 'success' })
       setNewUser({ email: '', password: '', full_name: '', role: 'user', can_be_assignee: false })
       setShowNew(false)
