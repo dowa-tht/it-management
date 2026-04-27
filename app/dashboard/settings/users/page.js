@@ -14,8 +14,9 @@ export default function UsersPage() {
   const [filterEmail, setFilterEmail] = useState('')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
-  const [newUser, setNewUser] = useState({ email: '', password: '', full_name: '', role: 'user' })
+  const [newUser, setNewUser] = useState({ email: '', password: '', full_name: '', role: 'user', can_be_assignee: false })
   const [saving, setSaving] = useState(false)
+  const [toggling, setToggling] = useState(null) // id ที่กำลัง toggle
   const [msg, setMsg] = useState({ text: '', type: '' })
 
   useEffect(() => { init() }, [])
@@ -24,7 +25,7 @@ export default function UsersPage() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
     setCurrentUser(session.user)
-    const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single()
+    const { data: profile } = await supabase.from('user_profiles').select('role').eq('id', session.user.id).single()
     const superUser = profile?.role === 'superuser'
     setIsSuperUser(superUser)
     await fetchLogs(session.user.id, superUser)
@@ -33,8 +34,31 @@ export default function UsersPage() {
   }
 
   const fetchUsers = async () => {
-    const { data } = await supabase.from('user_profiles').select('*').order('created_at')
-    setUsers(data || [])
+    // ดึง user_profiles + email จาก auth.users ผ่าน join
+    const { data: profiles } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .order('created_at', { ascending: true })
+
+    // ดึง email แยกต่างหาก (เพราะ auth.users ต้อง admin key)
+    // ใช้ login_logs เพื่อหา email ล่าสุดของแต่ละ user
+    const { data: logEmails } = await supabase
+      .from('login_logs')
+      .select('user_id, user_email')
+      .order('created_at', { ascending: false })
+
+    // Map email จาก login_logs
+    const emailMap = {}
+    logEmails?.forEach(l => {
+      if (!emailMap[l.user_id]) emailMap[l.user_id] = l.user_email
+    })
+
+    const merged = (profiles || []).map(p => ({
+      ...p,
+      email: emailMap[p.id] || '—'
+    }))
+
+    setUsers(merged)
   }
 
   const fetchLogs = async (userId, superUser) => {
@@ -69,10 +93,11 @@ export default function UsersPage() {
         id: data.user.id,
         full_name: newUser.full_name,
         role: newUser.role,
-        is_active: true
+        is_active: true,
+        can_be_assignee: newUser.can_be_assignee,
       })
-      setMsg({ text: `สร้าง User ${newUser.email} สำเร็จแล้ว`, type: 'success' })
-      setNewUser({ email: '', password: '', full_name: '', role: 'user' })
+      setMsg({ text: `สร้าง User "${newUser.full_name}" สำเร็จแล้ว`, type: 'success' })
+      setNewUser({ email: '', password: '', full_name: '', role: 'user', can_be_assignee: false })
       setShowNew(false)
       await fetchUsers()
     }
@@ -80,13 +105,33 @@ export default function UsersPage() {
   }
 
   const handleToggleActive = async (id, current) => {
+    setToggling(id + '_active')
     await supabase.from('user_profiles').update({ is_active: !current }).eq('id', id)
     await fetchUsers()
+    setToggling(null)
+  }
+
+  const handleToggleAssignee = async (id, current) => {
+    setToggling(id + '_assignee')
+    await supabase.from('user_profiles').update({ can_be_assignee: !current }).eq('id', id)
+    await fetchUsers()
+    setToggling(null)
+  }
+
+  const handleToggleRole = async (id, current) => {
+    if (!confirm(`ต้องการเปลี่ยน Role เป็น "${current === 'superuser' ? 'User' : 'Administrator'}" ใช่ไหม?`)) return
+    setToggling(id + '_role')
+    const newRole = current === 'superuser' ? 'user' : 'superuser'
+    await supabase.from('user_profiles').update({ role: newRole }).eq('id', id)
+    setMsg({ text: `เปลี่ยน Role สำเร็จแล้ว`, type: 'success' })
+    await fetchUsers()
+    setToggling(null)
   }
 
   const handleDeleteUser = async (id, name) => {
-    if (!confirm(`ต้องการลบ User "${name}" ใช่ไหม?`)) return
+    if (!confirm(`ต้องการลบ User "${name}" ใช่ไหม?\nการลบจะไม่สามารถกู้คืนได้`)) return
     await supabase.from('user_profiles').delete().eq('id', id)
+    setMsg({ text: `ลบ User "${name}" สำเร็จแล้ว`, type: 'success' })
     await fetchUsers()
   }
 
@@ -97,64 +142,118 @@ export default function UsersPage() {
     fontFamily: 'inherit', fontWeight: activeTab === tab ? 600 : 400
   })
 
+  const Toggle = ({ value, onToggle, loading, colorOn = '#059669', label }) => (
+    <button
+      onClick={onToggle}
+      disabled={loading}
+      title={label}
+      style={{
+        width: 40, height: 22, borderRadius: 11, border: 'none', cursor: loading ? 'wait' : 'pointer',
+        background: value ? colorOn : '#d1d5db',
+        position: 'relative', transition: 'background 0.2s', flexShrink: 0
+      }}
+    >
+      <div style={{
+        width: 16, height: 16, borderRadius: '50%', background: '#fff',
+        position: 'absolute', top: 3, transition: 'left 0.2s',
+        left: value ? 21 : 3,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+      }} />
+    </button>
+  )
+
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลด...</div>
 
   return (
     <div style={{ padding: 24 }}>
+
+      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>Account Management</h1>
+        <div>
+          <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>Account Management</h1>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>จัดการ User และสิทธิ์การเข้าถึงระบบ</div>
+        </div>
         {isSuperUser && activeTab === 'users' && (
-          <button onClick={() => setShowNew(true)} style={{ background: '#1d4ed8', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+          <button onClick={() => { setShowNew(true); setMsg({ text: '', type: '' }) }}
+            style={{ background: '#1d4ed8', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
             + สร้าง User ใหม่
           </button>
         )}
       </div>
 
+      {/* Tabs */}
       <div style={{ borderBottom: '1px solid #e5e7eb', marginBottom: 20, display: 'flex' }}>
         {isSuperUser && <button style={tabStyle('users')} onClick={() => setActiveTab('users')}>จัดการ Users</button>}
         <button style={tabStyle('logs')} onClick={() => { setActiveTab('logs'); fetchLogs(currentUser?.id, isSuperUser) }}>Login Log</button>
       </div>
 
+      {/* Message */}
       {msg.text && (
-        <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16, background: msg.type === 'success' ? '#d1fae5' : '#fee2e2', color: msg.type === 'success' ? '#065f46' : '#991b1b' }}>
+        <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16, background: msg.type === 'success' ? '#d1fae5' : '#fee2e2', color: msg.type === 'success' ? '#065f46' : '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
           {msg.type === 'success' ? '✅' : '❌'} {msg.text}
         </div>
       )}
 
-      {/* USERS TAB */}
+      {/* ===== USERS TAB ===== */}
       {activeTab === 'users' && isSuperUser && (
         <>
+          {/* New User Form */}
           {showNew && (
-            <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20, marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>สร้าง User ใหม่</div>
+            <div style={{ background: '#fff', borderRadius: 10, border: '2px solid #3b82f6', padding: 20, marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#1d4ed8', marginBottom: 16 }}>➕ สร้าง User ใหม่</div>
               <form onSubmit={handleCreateUser}>
                 <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                  {[
-                    { label: 'ชื่อ-นามสกุล', key: 'full_name', type: 'text' },
-                    { label: 'Email', key: 'email', type: 'email' },
-                    { label: 'Password เริ่มต้น (อย่างน้อย 8 ตัว)', key: 'password', type: 'password' },
-                  ].map(f => (
-                    <div key={f.key}>
-                      <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>{f.label}</label>
-                      <input type={f.type} value={newUser[f.key]} onChange={e => setNewUser({ ...newUser, [f.key]: e.target.value })} required minLength={f.key === 'password' ? 8 : undefined}
-                        style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
-                    </div>
-                  ))}
+                  <div>
+                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>ชื่อ-นามสกุล *</label>
+                    <input value={newUser.full_name} onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} required
+                      placeholder="ชื่อ นามสกุล"
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>Email *</label>
+                    <input type="email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>Password เริ่มต้น (อย่างน้อย 8 ตัว) *</label>
+                    <input type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required minLength={8}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
+                  </div>
                   <div>
                     <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>Role</label>
                     <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}
                       style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', fontFamily: 'inherit' }}>
                       <option value="user">User</option>
-                      <option value="superuser">Super User</option>
+                      <option value="superuser">Administrator</option>
                     </select>
                   </div>
                 </div>
+
+                {/* Can be Assignee */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '10px 14px', background: '#f9fafb', borderRadius: 8 }}>
+                  <Toggle
+                    value={newUser.can_be_assignee}
+                    onToggle={() => setNewUser({ ...newUser, can_be_assignee: !newUser.can_be_assignee })}
+                    loading={false}
+                    colorOn="#1d4ed8"
+                  />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>รับมอบหมายเคส (Assignee)</div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>หากเปิด จะแสดงชื่อใน Dropdown ตอนสร้าง/แก้ไข Incident</div>
+                  </div>
+                </div>
+
                 <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#92400e', marginBottom: 12 }}>
                   ⚠️ User ใหม่จะ Login ได้ทันที กรุณาแจ้ง Password เริ่มต้นให้ User เปลี่ยนเองในครั้งแรก
                 </div>
+
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button type="button" onClick={() => setShowNew(false)} style={{ padding: '7px 16px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
-                  <button type="submit" disabled={saving} style={{ padding: '7px 16px', border: 'none', borderRadius: 7, fontSize: 13, background: '#1d4ed8', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button type="button" onClick={() => { setShowNew(false); setMsg({ text: '', type: '' }) }}
+                    style={{ padding: '7px 16px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    ยกเลิก
+                  </button>
+                  <button type="submit" disabled={saving}
+                    style={{ padding: '7px 16px', border: 'none', borderRadius: 7, fontSize: 13, background: saving ? '#93c5fd' : '#1d4ed8', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                     {saving ? 'กำลังสร้าง...' : 'สร้าง User'}
                   </button>
                 </div>
@@ -162,48 +261,115 @@ export default function UsersPage() {
             </div>
           )}
 
+          {/* Assignee Summary */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+            {[
+              { label: 'User ทั้งหมด', value: users.length, color: '#374151', bg: '#f9fafb' },
+              { label: 'Administrator', value: users.filter(u => u.role === 'superuser').length, color: '#1e40af', bg: '#eff6ff' },
+              { label: 'Assignee', value: users.filter(u => u.can_be_assignee).length, color: '#1d4ed8', bg: '#eff6ff' },
+              { label: 'Active', value: users.filter(u => u.is_active).length, color: '#059669', bg: '#f0fdf4' },
+            ].map(s => (
+              <div key={s.label} style={{ background: s.bg, borderRadius: 8, padding: '10px 16px', border: '1px solid #e5e7eb', display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.value}</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Users Table */}
           <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
             <div className="table-scroll">
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: '#f9fafb' }}>
-                    {['ชื่อ', 'Role', 'สถานะ', 'วันที่สร้าง', 'Action'].map(h => (
+                    {['ชื่อ-นามสกุล', 'Email', 'Role', 'Assignee', 'สถานะ', 'วันที่สร้าง', 'Action'].map(h => (
                       <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500, fontSize: 12, borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {users.length === 0 ? (
-                    <tr><td colSpan={5} style={{ padding: 30, textAlign: 'center', color: '#9ca3af' }}>ยังไม่มีข้อมูล User</td></tr>
+                    <tr><td colSpan={7} style={{ padding: 30, textAlign: 'center', color: '#9ca3af' }}>ยังไม่มีข้อมูล User</td></tr>
                   ) : users.map(u => (
-                    <tr key={u.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <tr key={u.id} style={{ borderBottom: '1px solid #f3f4f6', background: u.is_active ? '#fff' : '#fafafa' }}>
+
+                      {/* ชื่อ */}
                       <td style={{ padding: '12px 16px' }}>
-                        <div style={{ fontWeight: 500, color: '#111827' }}>{u.full_name || '—'}</div>
+                        <div style={{ fontWeight: 500, color: u.is_active ? '#111827' : '#9ca3af' }}>
+                          {u.full_name || '—'}
+                        </div>
                       </td>
+
+                      {/* Email */}
+                      <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12 }}>
+                        {u.email}
+                      </td>
+
+                      {/* Role */}
                       <td style={{ padding: '12px 16px' }}>
-                        <span style={{ background: u.role === 'superuser' ? '#eff6ff' : '#f3f4f6', color: u.role === 'superuser' ? '#1e40af' : '#374151', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500 }}>
-                          {u.role === 'superuser' ? 'Super User' : 'User'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{
+                            background: u.role === 'superuser' ? '#eff6ff' : '#f3f4f6',
+                            color: u.role === 'superuser' ? '#1e40af' : '#374151',
+                            padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap'
+                          }}>
+                            {u.role === 'superuser' ? '⭐ Administrator' : 'User'}
+                          </span>
+                          {/* Toggle Role */}
+                          <button
+                            onClick={() => handleToggleRole(u.id, u.role)}
+                            disabled={toggling === u.id + '_role'}
+                            title={u.role === 'superuser' ? 'เปลี่ยนเป็น User' : 'เปลี่ยนเป็น Administrator'}
+                            style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 4, padding: '2px 6px', fontSize: 10, cursor: 'pointer', color: '#6b7280', whiteSpace: 'nowrap' }}
+                          >
+                            {toggling === u.id + '_role' ? '...' : '⇄'}
+                          </button>
+                        </div>
                       </td>
+
+                      {/* Assignee Toggle */}
                       <td style={{ padding: '12px 16px' }}>
-                        <span style={{ background: u.is_active ? '#d1fae5' : '#fee2e2', color: u.is_active ? '#065f46' : '#991b1b', padding: '2px 8px', borderRadius: 20, fontSize: 11 }}>
-                          {u.is_active ? 'Active' : 'Inactive'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Toggle
+                            value={u.can_be_assignee}
+                            onToggle={() => handleToggleAssignee(u.id, u.can_be_assignee)}
+                            loading={toggling === u.id + '_assignee'}
+                            colorOn="#1d4ed8"
+                            label={u.can_be_assignee ? 'คลิกเพื่อปิด Assignee' : 'คลิกเพื่อเปิด Assignee'}
+                          />
+                          <span style={{ fontSize: 11, color: u.can_be_assignee ? '#1d4ed8' : '#9ca3af', whiteSpace: 'nowrap' }}>
+                            {u.can_be_assignee ? 'รับเคสได้' : 'ไม่รับเคส'}
+                          </span>
+                        </div>
                       </td>
+
+                      {/* Active Toggle */}
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Toggle
+                            value={u.is_active}
+                            onToggle={() => handleToggleActive(u.id, u.is_active)}
+                            loading={toggling === u.id + '_active'}
+                            colorOn="#059669"
+                            label={u.is_active ? 'คลิกเพื่อ Deactivate' : 'คลิกเพื่อ Activate'}
+                          />
+                          <span style={{ fontSize: 11, color: u.is_active ? '#059669' : '#9ca3af', whiteSpace: 'nowrap' }}>
+                            {u.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* วันที่สร้าง */}
                       <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12, whiteSpace: 'nowrap' }}>
                         {formatDateTime(u.created_at)}
                       </td>
+
+                      {/* Action */}
                       <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={() => handleToggleActive(u.id, u.is_active)}
-                            style={{ padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 11, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
-                            {u.is_active ? 'Deactivate' : 'Activate'}
-                          </button>
-                          <button onClick={() => handleDeleteUser(u.id, u.full_name)}
-                            style={{ padding: '4px 10px', border: 'none', borderRadius: 6, fontSize: 11, background: '#fee2e2', color: '#991b1b', cursor: 'pointer', fontFamily: 'inherit' }}>
-                            ลบ
-                          </button>
-                        </div>
+                        <button onClick={() => handleDeleteUser(u.id, u.full_name)}
+                          style={{ padding: '4px 10px', border: 'none', borderRadius: 6, fontSize: 11, background: '#fee2e2', color: '#991b1b', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          🗑 ลบ
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -211,10 +377,15 @@ export default function UsersPage() {
               </table>
             </div>
           </div>
+
+          {/* Legend */}
+          <div style={{ marginTop: 12, padding: '10px 14px', background: '#eff6ff', borderRadius: 8, border: '1px solid #bfdbfe', fontSize: 12, color: '#1e40af' }}>
+            ℹ️ User ที่เปิด <strong>Assignee</strong> จะแสดงชื่อใน Dropdown รับมอบหมายเคส ตอนสร้างและแก้ไข Incident
+          </div>
         </>
       )}
 
-      {/* LOGS TAB */}
+      {/* ===== LOGS TAB ===== */}
       {activeTab === 'logs' && (
         <>
           {isSuperUser && (
@@ -223,7 +394,7 @@ export default function UsersPage() {
                 <div>
                   <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Filter Email</label>
                   <input value={filterEmail} onChange={e => setFilterEmail(e.target.value)} placeholder="ค้นหา email..."
-                    style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', width: 200 }} />
+                    style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', width: 220 }} />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>วันที่เริ่ม</label>
@@ -270,7 +441,7 @@ export default function UsersPage() {
                       <td style={{ padding: '10px 16px', color: '#374151', fontSize: 12, whiteSpace: 'nowrap' }}>
                         {formatDateTime(log.created_at)}
                       </td>
-                      <td style={{ padding: '10px 16px', color: '#9ca3af', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{ padding: '10px 16px', color: '#9ca3af', fontSize: 11, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {log.user_agent || '—'}
                       </td>
                     </tr>

@@ -30,12 +30,10 @@ function calcMinutes(from, to) {
   if (!from || !to) return null
   return Math.floor((new Date(to) - new Date(from)) / 60000)
 }
-
 function calcElapsedNow(from) {
   if (!from) return null
   return Math.floor((new Date() - new Date(from)) / 60000)
 }
-
 function formatElapsed(minutes) {
   if (minutes === null || minutes === undefined) return '—'
   if (minutes < 60) return `${minutes} นาที`
@@ -44,14 +42,13 @@ function formatElapsed(minutes) {
   return m > 0 ? `${h} ชม. ${m} นาที` : `${h} ชม.`
 }
 
-// SLA Widget — แสดง state ต่างๆ
-function SLAWidget({ label, slaLabel, state, actual, limit }) {
+function SLAWidget({ label, slaLabel, state, actual }) {
   const cfg = {
-    waiting:      { icon: '⏸', color: '#9ca3af', bg: '#f9fafb', border: '#e5e7eb', text: 'รอมอบหมาย' },
-    counting:     { icon: '⏳', color: '#d97706', bg: '#fffbeb', border: '#fcd34d', text: `กำลังนับ... (${formatElapsed(actual)} ที่ผ่านมา)` },
-    counting_late:{ icon: '⏰', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', text: `เกิน SLA แล้ว! (${formatElapsed(actual)})` },
-    done_ok:      { icon: '✅', color: '#059669', bg: '#f0fdf4', border: '#6ee7b7', text: `${formatElapsed(actual)} (ใน SLA)` },
-    done_late:    { icon: '⏰', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', text: `${formatElapsed(actual)} (เกิน SLA)` },
+    waiting:       { icon: '⏸', color: '#9ca3af', bg: '#f9fafb', border: '#e5e7eb', text: 'รอมอบหมาย' },
+    counting:      { icon: '⏳', color: '#d97706', bg: '#fffbeb', border: '#fcd34d', text: `กำลังนับ... (${formatElapsed(actual)} ที่ผ่านมา)` },
+    counting_late: { icon: '⏰', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', text: `เกิน SLA แล้ว! (${formatElapsed(actual)})` },
+    done_ok:       { icon: '✅', color: '#059669', bg: '#f0fdf4', border: '#6ee7b7', text: `${formatElapsed(actual)} (ใน SLA)` },
+    done_late:     { icon: '⏰', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', text: `${formatElapsed(actual)} (เกิน SLA)` },
   }
   const s = cfg[state] || cfg.waiting
   return (
@@ -260,16 +257,11 @@ export default function IncidentDetailPage() {
   const [isSuperUser, setIsSuperUser] = useState(false)
   const [showResolveDialog, setShowResolveDialog] = useState(false)
   const [showReopenDialog, setShowReopenDialog] = useState(false)
+
+  // Master Data
   const [categories, setCategories] = useState([])
   const [systems, setSystems] = useState([])
-  const [assignees, setAssignees] = useState([])
-  const [now, setNow] = useState(new Date())
-
-  // Live clock สำหรับ counting SLA
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 30000)
-    return () => clearInterval(t)
-  }, [])
+  const [assignees, setAssignees] = useState([]) // { id, full_name }
 
   useEffect(() => { initUser(); fetchIncident(); fetchLogs(); loadMasterData() }, [id])
 
@@ -277,19 +269,28 @@ export default function IncidentDetailPage() {
   useEffect(() => {
     if (!editing) return
     if (form.assigned_to && !incident?.assigned_to) {
-      // กำหนด assignee ใหม่ → In Progress + บันทึก assigned_at
       setForm(prev => ({ ...prev, status: 'In Progress', assigned_at: new Date().toISOString() }))
     } else if (!form.assigned_to && incident?.assigned_to) {
-      // ยกเลิก assignee → Open + ล้าง assigned_at
       setForm(prev => ({ ...prev, status: 'Open', assigned_at: null }))
     }
   }, [form.assigned_to, editing])
 
   const loadMasterData = async () => {
-    const { data } = await supabase.from('master_data').select('*').eq('is_active', true).order('sort_order')
-    setCategories((data||[]).filter(d=>d.type==='incident_category').map(d=>d.value))
-    setSystems((data||[]).filter(d=>d.type==='affected_system').map(d=>d.value))
-    setAssignees((data||[]).filter(d=>d.type==='assignee').map(d=>d.value))
+    const { data: master } = await supabase
+      .from('master_data').select('*')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+    setCategories((master||[]).filter(d=>d.type==='incident_category').map(d=>d.value))
+    setSystems((master||[]).filter(d=>d.type==='affected_system').map(d=>d.value))
+
+    // ดึง Assignee จาก user_profiles
+    const { data: assigneeData } = await supabase
+      .from('user_profiles')
+      .select('id, full_name')
+      .eq('can_be_assignee', true)
+      .eq('is_active', true)
+      .order('full_name', { ascending: true })
+    setAssignees(assigneeData || [])
   }
 
   const initUser = async () => {
@@ -306,12 +307,17 @@ export default function IncidentDetailPage() {
   }
 
   const fetchLogs = async () => {
-    const { data } = await supabase.from('incident_logs').select('*').eq('incident_id', id).order('created_at', { ascending: true })
+    const { data } = await supabase.from('incident_logs').select('*')
+      .eq('incident_id', id).order('created_at', { ascending: true })
     setLogs(data||[])
   }
 
   const addLog = async (action, fromStatus, toStatus, note='') => {
-    await supabase.from('incident_logs').insert([{ incident_id:id, action, from_status:fromStatus, to_status:toStatus, note, user_email:currentUser?.email }])
+    await supabase.from('incident_logs').insert([{
+      incident_id: id, action,
+      from_status: fromStatus, to_status: toStatus,
+      note, user_email: currentUser?.email,
+    }])
     await fetchLogs()
   }
 
@@ -344,19 +350,16 @@ export default function IncidentDetailPage() {
   const handleResolve = async (sigIT) => {
     setSaving(true)
     const now = new Date().toISOString()
-    const updateData = { ...form, status:'Resolved', is_locked:true, resolved_at:now, resolved_by:currentUser?.email, signature_it:sigIT }
-    await supabase.from('incidents').update(updateData).eq('id', id)
-
-    // คำนวณ SLA ตอน resolve
     const slaMin = SLA_MINUTES[incident.severity] || SLA_MINUTES['Medium']
     const responseMin = calcMinutes(incident.created_at, incident.assigned_at)
     const resolveMin = calcMinutes(incident.created_at, now)
     const responseOk = responseMin !== null ? responseMin <= slaMin.response : null
     const resolveOk = resolveMin !== null ? resolveMin <= slaMin.resolve : null
-
     const slaNote = `Response: ${formatElapsed(responseMin)} ${responseOk===true?'✅':responseOk===false?'⏰':'—'} | Resolution: ${formatElapsed(resolveMin)} ${resolveOk===true?'✅':resolveOk===false?'⏰':'—'}`
-    await addLog('ปิดเคส (Resolved)', incident.status, 'Resolved', `${slaNote} · ลงนามโดย: ${currentUser?.email}`)
 
+    const updateData = { ...form, status:'Resolved', is_locked:true, resolved_at:now, resolved_by:currentUser?.email, signature_it:sigIT }
+    await supabase.from('incidents').update(updateData).eq('id', id)
+    await addLog('ปิดเคส (Resolved)', incident.status, 'Resolved', `${slaNote} · ลงนามโดย: ${currentUser?.email}`)
     setIncident(updateData); setForm(updateData); setShowResolveDialog(false); setSaving(false)
   }
 
@@ -376,32 +379,19 @@ export default function IncidentDetailPage() {
 
   const isLocked = incident?.is_locked || incident?.status === 'Resolved'
 
-  // คำนวณ SLA
+  // SLA
   const slaMin = SLA_MINUTES[incident?.severity] || SLA_MINUTES['Medium']
   const slaLabel = SLA_LABELS[incident?.severity] || SLA_LABELS['Medium']
+  const responseMin = incident?.assigned_at ? calcMinutes(incident.created_at, incident.assigned_at) : calcElapsedNow(incident?.created_at)
+  const resolveMin = incident?.resolved_at ? calcMinutes(incident.created_at, incident.resolved_at) : calcElapsedNow(incident?.created_at)
 
-  // Response: จาก created_at → assigned_at (ถ้า assign แล้ว) หรือ now (ถ้ายังไม่ assign)
-  const responseMin = incident?.assigned_at
-    ? calcMinutes(incident.created_at, incident.assigned_at)
-    : calcElapsedNow(incident?.created_at)
-
-  // Resolution: จาก created_at → resolved_at (ถ้า resolve แล้ว) หรือ now (ถ้ายังไม่ resolve)
-  const resolveMin = incident?.resolved_at
-    ? calcMinutes(incident.created_at, incident.resolved_at)
-    : calcElapsedNow(incident?.created_at)
-
-  // States
-  const responseState = !incident?.assigned_at
-    ? 'waiting'
-    : incident?.assigned_at && !incident?.resolved_at
-      ? responseMin <= slaMin.response ? 'done_ok' : 'done_late'
-      : responseMin <= slaMin.response ? 'done_ok' : 'done_late'
-
+  const responseState = !incident?.assigned_at ? 'waiting'
+    : responseMin <= slaMin.response ? 'done_ok' : 'done_late'
   const resolveState = incident?.resolved_at
     ? resolveMin <= slaMin.resolve ? 'done_ok' : 'done_late'
     : resolveMin <= slaMin.resolve ? 'counting' : 'counting_late'
 
-  // field helper
+  // Field helper
   const field = (label, key, type='text', options=null) => (
     <div style={{ marginBottom:14 }}>
       <div style={{ fontSize:11, color:'#6b7280', marginBottom:4 }}>{label}</div>
@@ -443,12 +433,12 @@ export default function IncidentDetailPage() {
 
   return (
     <>
-      <style>{`@media print { .no-print{display:none!important} .print-only{display:block!important} body{background:white!important;margin:0} } @media screen { .print-only{display:none!important} }`}</style>
+      <style>{`@media print{.no-print{display:none!important}.print-only{display:block!important}body{background:white!important;margin:0}}@media screen{.print-only{display:none!important}}`}</style>
 
       {showResolveDialog && <ResolveDialog form={form} setForm={setForm} onConfirm={handleResolve} onCancel={() => setShowResolveDialog(false)} />}
       {showReopenDialog && <ReopenDialog onConfirm={handleReopen} onCancel={() => setShowReopenDialog(false)} />}
 
-      {/* SCREEN */}
+      {/* SCREEN VIEW */}
       <div className="no-print" style={{ padding:24, maxWidth:900, margin:'0 auto' }}>
 
         {/* Topbar */}
@@ -528,7 +518,7 @@ export default function IncidentDetailPage() {
             {field('สถานะ', 'status', 'select', ['Open','In Progress','Resolved'])}
             {field('ผู้แจ้ง', 'reported_by')}
 
-            {/* Assignee */}
+            {/* Assignee Dropdown จาก user_profiles */}
             <div style={{ marginBottom:14 }}>
               <div style={{ fontSize:11, color:'#6b7280', marginBottom:4 }}>
                 ผู้รับผิดชอบ / Assigned To
@@ -539,10 +529,16 @@ export default function IncidentDetailPage() {
                   <select value={form.assigned_to||''} onChange={e => setForm({...form, assigned_to:e.target.value})}
                     style={{ width:'100%', padding:'8px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13, background:'#fff', fontFamily:'inherit' }}>
                     <option value="">— ยังไม่ได้มอบหมาย —</option>
-                    {assignees.map(o => <option key={o}>{o}</option>)}
+                    {assignees.map(a => <option key={a.id} value={a.full_name}>{a.full_name}</option>)}
                   </select>
                   {form.assigned_to && !incident.assigned_to && (
                     <div style={{ fontSize:11, color:'#059669', marginTop:4 }}>✅ Response Time จะเริ่มนับทันทีที่บันทึก</div>
+                  )}
+                  {assignees.length === 0 && (
+                    <div style={{ fontSize:11, color:'#d97706', marginTop:4 }}>
+                      ⚠ ยังไม่มีรายชื่อ —{' '}
+                      <Link href="/dashboard/settings/users" style={{ color:'#1d4ed8' }}>เปิด Assignee ใน Settings → Users</Link>
+                    </div>
                   )}
                 </>
               ) : (
@@ -561,26 +557,12 @@ export default function IncidentDetailPage() {
           </div>
         </div>
 
-        {/* SLA Section */}
+        {/* SLA */}
         <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e5e7eb', padding:20, marginBottom:16 }}>
-          <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #f3f4f6' }}>
-            ⏱ SLA — {incident.severity}
-          </div>
+          <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #f3f4f6' }}>⏱ SLA — {incident.severity}</div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-            <SLAWidget
-              label="Response Time"
-              slaLabel={slaLabel.response}
-              state={responseState}
-              actual={responseMin}
-              limit={slaMin.response}
-            />
-            <SLAWidget
-              label="Resolution Time"
-              slaLabel={slaLabel.resolve}
-              state={resolveState}
-              actual={resolveMin}
-              limit={slaMin.resolve}
-            />
+            <SLAWidget label="Response Time" slaLabel={slaLabel.response} state={responseState} actual={responseMin} />
+            <SLAWidget label="Resolution Time" slaLabel={slaLabel.resolve} state={resolveState} actual={resolveMin} />
           </div>
           <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #f3f4f6', fontSize:11, color:'#9ca3af', display:'flex', gap:16, flexWrap:'wrap' }}>
             <span>สร้าง: {formatDateTime(incident.created_at)}</span>
@@ -609,19 +591,19 @@ export default function IncidentDetailPage() {
           {logs.length === 0 ? (
             <div style={{ color:'#9ca3af', fontSize:13, textAlign:'center', padding:'16px 0' }}>ยังไม่มี Log</div>
           ) : logs.map((log, i) => (
-            <div key={log.id} style={{ display:'flex', gap:12, marginBottom: i < logs.length-1 ? 16 : 0 }}>
+            <div key={log.id} style={{ display:'flex', gap:12, marginBottom: i<logs.length-1?16:0 }}>
               <div style={{ display:'flex', flexDirection:'column', alignItems:'center', flexShrink:0 }}>
-                <div style={{ width:32, height:32, borderRadius:'50%', background: log.action.includes('ปิดเคส')?'#d1fae5': log.action.includes('Reopen')?'#fef3c7': log.action.includes('กำหนด')?'#eff6ff':'#f3f4f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>
-                  {log.action.includes('ปิดเคส')?'✅': log.action.includes('Reopen')?'🔓': log.action.includes('กำหนด')?'👤': log.action.includes('สถานะ')?'🔄':'📝'}
+                <div style={{ width:32, height:32, borderRadius:'50%', background: log.action.includes('ปิดเคส')?'#d1fae5':log.action.includes('Reopen')?'#fef3c7':log.action.includes('กำหนด')?'#eff6ff':'#f3f4f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>
+                  {log.action.includes('ปิดเคส')?'✅':log.action.includes('Reopen')?'🔓':log.action.includes('กำหนด')?'👤':log.action.includes('สถานะ')?'🔄':'📝'}
                 </div>
-                {i < logs.length-1 && <div style={{ width:1, flex:1, background:'#e5e7eb', marginTop:4 }} />}
+                {i<logs.length-1 && <div style={{ width:1, flex:1, background:'#e5e7eb', marginTop:4 }} />}
               </div>
-              <div style={{ flex:1, paddingBottom: i < logs.length-1 ? 8 : 0 }}>
+              <div style={{ flex:1, paddingBottom: i<logs.length-1?8:0 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:4 }}>
                   <div style={{ fontSize:13, fontWeight:500, color:'#111827' }}>{log.action}</div>
                   <div style={{ fontSize:11, color:'#9ca3af', whiteSpace:'nowrap' }}>{formatDateTime(log.created_at)}</div>
                 </div>
-                {log.from_status && log.to_status && log.from_status !== log.to_status && (
+                {log.from_status && log.to_status && log.from_status!==log.to_status && (
                   <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4 }}>
                     <span style={{ ...STATUS_COLORS[log.from_status], padding:'1px 8px', borderRadius:20, fontSize:11 }}>{log.from_status}</span>
                     <span style={{ color:'#9ca3af', fontSize:12 }}>→</span>
@@ -636,7 +618,7 @@ export default function IncidentDetailPage() {
         </div>
       </div>
 
-      {/* PRINT */}
+      {/* PRINT VIEW */}
       <div className="print-only" style={{ padding:'20mm 15mm', fontFamily:'Noto Sans Thai, sans-serif' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16, borderBottom:'2px solid #000', paddingBottom:12 }}>
           <div><div style={{ fontSize:20, fontWeight:700 }}>DOWA</div><div style={{ fontSize:10, color:'#666' }}>บริษัท ดาว่า ไทยแลนด์ จำกัด</div></div>
@@ -666,7 +648,9 @@ export default function IncidentDetailPage() {
             </tr>
             <tr>
               <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11 }}>ระดับความรุนแรง</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:11 }}><strong>{incident.severity}</strong> | Response SLA: {slaLabel.response} | Actual: {formatElapsed(responseMin)} {responseState==='done_ok'?'✅':'⏰'}</td>
+              <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:11 }}>
+                <strong>{incident.severity}</strong> | Response SLA: {slaLabel.response} | Actual: {formatElapsed(responseMin)} {responseState==='done_ok'?'✅':'⏰'}
+              </td>
               <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11 }}>สถานะ</td>
               <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:12 }}><strong>{incident.status}</strong></td>
             </tr>
@@ -686,14 +670,13 @@ export default function IncidentDetailPage() {
           { label:'รายละเอียด / Description', value:incident.description, height:50 },
           { label:'Root Cause Analysis', value:incident.root_cause, height:50 },
           { label:'วิธีการแก้ไข / Resolution', value:incident.resolution, height:50 },
-        ].map((item, i) => (
-          <div key={i} style={{ border:'1px solid #000', borderTop: i===0 ? '1px solid #000' : 'none' }}>
+        ].map((item,i) => (
+          <div key={i} style={{ border:'1px solid #000', borderTop:i===0?'1px solid #000':'none' }}>
             <div style={{ background:'#f0f0f0', padding:'4px 8px', fontWeight:700, fontSize:11, borderBottom:'1px solid #000' }}>{item.label}</div>
             <div style={{ padding:'6px 10px', fontSize:12, minHeight:item.height, whiteSpace:'pre-wrap' }}>{item.value||'—'}</div>
           </div>
         ))}
 
-        {/* Transaction Log Print */}
         <div style={{ border:'1px solid #000', borderTop:'none' }}>
           <div style={{ background:'#f0f0f0', padding:'4px 8px', fontWeight:700, fontSize:11, borderBottom:'1px solid #000' }}>Transaction Log</div>
           <table style={{ width:'100%', borderCollapse:'collapse' }}>
@@ -718,7 +701,6 @@ export default function IncidentDetailPage() {
           </table>
         </div>
 
-        {/* Timeline */}
         <table style={{ width:'100%', borderCollapse:'collapse', marginTop:10 }}>
           <tbody>
             <tr>
@@ -730,7 +712,6 @@ export default function IncidentDetailPage() {
           </tbody>
         </table>
 
-        {/* Signature */}
         <table style={{ width:'100%', borderCollapse:'collapse', marginTop:10 }}>
           <tbody>
             <tr>

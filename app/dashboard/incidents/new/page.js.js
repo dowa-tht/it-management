@@ -17,11 +17,6 @@ const SLA_LABELS = {
   Low:    { response: 'ภายใน 6 ชั่วโมง',         resolve: 'ภายใน 3 วันทำการ' },
 }
 
-function calcMinutes(from, to) {
-  if (!from || !to) return null
-  return Math.floor((new Date(to) - new Date(from)) / 60000)
-}
-
 function calcElapsedNow(from) {
   if (!from) return null
   return Math.floor((new Date() - new Date(from)) / 60000)
@@ -35,16 +30,15 @@ function formatElapsed(minutes) {
   return m > 0 ? `${h} ชม. ${m} นาที` : `${h} ชม.`
 }
 
-function SLAWidget({ label, actual, limit, slaLabel, state }) {
-  // state: 'waiting' | 'counting' | 'done_ok' | 'done_late'
-  const styles = {
-    waiting:   { icon: '⏸',  color: '#9ca3af', bg: '#f9fafb',  border: '#e5e7eb',  text: 'รอมอบหมาย' },
-    counting:  { icon: '⏳',  color: '#d97706', bg: '#fffbeb',  border: '#fcd34d',  text: `กำลังนับ... (${formatElapsed(actual)} ที่ผ่านมา)` },
-    done_ok:   { icon: '✅',  color: '#059669', bg: '#f0fdf4',  border: '#6ee7b7',  text: `${formatElapsed(actual)} (ใน SLA)` },
-    done_late: { icon: '⏰',  color: '#dc2626', bg: '#fef2f2',  border: '#fca5a5',  text: `${formatElapsed(actual)} (เกิน SLA)` },
+function SLAWidget({ label, slaLabel, state, actual }) {
+  const cfg = {
+    waiting:       { icon: '⏸', color: '#9ca3af', bg: '#f9fafb', border: '#e5e7eb', text: 'รอมอบหมาย' },
+    counting:      { icon: '⏳', color: '#d97706', bg: '#fffbeb', border: '#fcd34d', text: `กำลังนับ... (${formatElapsed(actual)} ที่ผ่านมา)` },
+    counting_late: { icon: '⏰', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', text: `เกิน SLA แล้ว! (${formatElapsed(actual)})` },
+    done_ok:       { icon: '✅', color: '#059669', bg: '#f0fdf4', border: '#6ee7b7', text: `${formatElapsed(actual)} (ใน SLA)` },
+    done_late:     { icon: '⏰', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', text: `${formatElapsed(actual)} (เกิน SLA)` },
   }
-  const s = styles[state] || styles.waiting
-
+  const s = cfg[state] || cfg.waiting
   return (
     <div style={{ border: `1px solid ${s.border}`, borderRadius: 8, padding: '12px 14px', background: s.bg }}>
       <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, fontWeight: 500 }}>{label}</div>
@@ -68,7 +62,7 @@ export default function NewIncidentPage() {
 
   const [categories, setCategories] = useState([])
   const [systems, setSystems] = useState([])
-  const [assignees, setAssignees] = useState([])
+  const [assignees, setAssignees] = useState([]) // { id, full_name }
 
   const [form, setForm] = useState({
     title: '', description: '', severity: 'Medium',
@@ -78,17 +72,19 @@ export default function NewIncidentPage() {
   })
   const [assignedAt, setAssignedAt] = useState(null)
   const [errors, setErrors] = useState({})
-  const [now, setNow] = useState(new Date())
+  const [elapsed, setElapsed] = useState(0)
 
-  // นาฬิกา live สำหรับ SLA counting
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 30000)
+    loadNoSeries()
+    loadMasterData()
+    const timer = setInterval(() => setElapsed(calcElapsedNow(createdAt)), 30000)
     return () => clearInterval(timer)
   }, [])
 
-  useEffect(() => { loadNoSeries(); loadMasterData() }, [])
+  useEffect(() => {
+    setElapsed(calcElapsedNow(createdAt))
+  }, [createdAt])
 
-  // Auto status + บันทึกเวลา assign
   useEffect(() => {
     if (form.assigned_to) {
       setForm(prev => ({ ...prev, status: 'In Progress' }))
@@ -101,13 +97,25 @@ export default function NewIncidentPage() {
 
   const loadMasterData = async () => {
     setLoadingMaster(true)
-    const { data } = await supabase
+
+    // ดึง category และ system จาก master_data
+    const { data: master } = await supabase
       .from('master_data').select('*')
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
-    setCategories((data || []).filter(d => d.type === 'incident_category').map(d => d.value))
-    setSystems((data || []).filter(d => d.type === 'affected_system').map(d => d.value))
-    setAssignees((data || []).filter(d => d.type === 'assignee').map(d => d.value))
+
+    setCategories((master || []).filter(d => d.type === 'incident_category').map(d => d.value))
+    setSystems((master || []).filter(d => d.type === 'affected_system').map(d => d.value))
+
+    // ดึง Assignee จาก user_profiles ที่ can_be_assignee = true และ is_active = true
+    const { data: assigneeData } = await supabase
+      .from('user_profiles')
+      .select('id, full_name')
+      .eq('can_be_assignee', true)
+      .eq('is_active', true)
+      .order('full_name', { ascending: true })
+
+    setAssignees(assigneeData || [])
     setLoadingMaster(false)
   }
 
@@ -171,7 +179,7 @@ export default function NewIncidentPage() {
             action: 'กำหนดผู้รับผิดชอบ',
             from_status: 'Open',
             to_status: 'In Progress',
-            note: `มอบหมายให้: ${form.assigned_to}`,
+            note: `มอบหมายให้: ${form.assigned_to} · Response Time เริ่มนับแล้ว`,
             user_email: form.reported_by,
           }])
         }
@@ -185,18 +193,11 @@ export default function NewIncidentPage() {
     }
   }
 
-  // คำนวณ SLA states
   const slaMin = SLA_MINUTES[form.severity] || SLA_MINUTES['Medium']
   const slaLabel = SLA_LABELS[form.severity] || SLA_LABELS['Medium']
-
-  const responseMin = assignedAt ? calcMinutes(createdAt, assignedAt) : calcElapsedNow(createdAt)
-  const resolveMin = calcElapsedNow(createdAt)
-
-  const responseState = !form.assigned_to
-    ? 'waiting'
-    : responseMin <= slaMin.response ? 'done_ok' : 'done_late'
-
-  const resolveState = resolveMin <= slaMin.resolve ? 'counting' : 'counting'
+  const currentElapsed = calcElapsedNow(createdAt)
+  const responseState = !form.assigned_to ? 'waiting' : assignedAt ? 'done_ok' : 'waiting'
+  const resolveState = currentElapsed <= slaMin.resolve ? 'counting' : 'counting_late'
 
   const inputStyle = (key) => ({
     width: '100%', padding: '9px 12px',
@@ -204,9 +205,7 @@ export default function NewIncidentPage() {
     borderRadius: 8, fontSize: 14, fontFamily: 'inherit',
     background: errors[key] ? '#fff5f5' : '#fff', outline: 'none',
   })
-  const selectStyle = (key) => ({
-    ...inputStyle(key), cursor: 'pointer',
-  })
+  const selectStyle = (key) => ({ ...inputStyle(key), cursor: 'pointer' })
   const sectionStyle = { background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20, marginBottom: 16 }
   const sectionTitle = (icon, text, sub = '') => (
     <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -278,8 +277,7 @@ export default function NewIncidentPage() {
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>
-                สถานะ
-                {form.assigned_to && <span style={{ fontSize: 11, color: '#059669', marginLeft: 6, fontWeight: 400 }}>(ปรับอัตโนมัติ)</span>}
+                สถานะ{form.assigned_to && <span style={{ fontSize: 11, color: '#059669', marginLeft: 6, fontWeight: 400 }}>(ปรับอัตโนมัติ)</span>}
               </label>
               <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
                 disabled={!!form.assigned_to}
@@ -329,7 +327,7 @@ export default function NewIncidentPage() {
               <select value={form.assigned_to} onChange={e => setForm({ ...form, assigned_to: e.target.value })}
                 style={selectStyle('')} disabled={loadingMaster}>
                 <option value="">{loadingMaster ? 'กำลังโหลด...' : '— ยังไม่ได้มอบหมาย —'}</option>
-                {assignees.map(o => <option key={o}>{o}</option>)}
+                {assignees.map(a => <option key={a.id} value={a.full_name}>{a.full_name}</option>)}
               </select>
               {form.assigned_to && (
                 <div style={{ fontSize: 11, color: '#059669', marginTop: 4 }}>
@@ -338,7 +336,10 @@ export default function NewIncidentPage() {
               )}
               {assignees.length === 0 && !loadingMaster && (
                 <div style={{ fontSize: 11, color: '#d97706', marginTop: 4 }}>
-                  ⚠ ยังไม่มีรายชื่อ — <Link href="/dashboard/settings/master-data" style={{ color: '#1d4ed8' }}>เพิ่มใน Master Data</Link>
+                  ⚠ ยังไม่มีรายชื่อ —{' '}
+                  <Link href="/dashboard/settings/users" style={{ color: '#1d4ed8' }}>
+                    เปิด Assignee ใน Settings → Users
+                  </Link>
                 </div>
               )}
             </div>
@@ -349,20 +350,8 @@ export default function NewIncidentPage() {
         <div style={sectionStyle}>
           {sectionTitle('⏱', `SLA — ${form.severity}`)}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 12 }}>
-            <SLAWidget
-              label="Response Time"
-              actual={responseMin}
-              limit={slaMin.response}
-              slaLabel={slaLabel.response}
-              state={responseState}
-            />
-            <SLAWidget
-              label="Resolution Time"
-              actual={resolveMin}
-              limit={slaMin.resolve}
-              slaLabel={slaLabel.resolve}
-              state={resolveState}
-            />
+            <SLAWidget label="Response Time" slaLabel={slaLabel.response} state={responseState} actual={calcElapsedNow(assignedAt || createdAt)} />
+            <SLAWidget label="Resolution Time" slaLabel={slaLabel.resolve} state={resolveState} actual={currentElapsed} />
           </div>
           <div style={{ fontSize: 11, color: '#9ca3af', paddingTop: 10, borderTop: '1px solid #f3f4f6' }}>
             สร้างเมื่อ: {formatDateTime(createdAt)}
