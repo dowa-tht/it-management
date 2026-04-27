@@ -49,3 +49,42 @@ export async function createAdminUser({ email, password, full_name, role, can_be
     return { success: false, error: err.message || 'Internal Server Error' }
   }
 }
+
+export async function getAdminUsers() {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return { success: false, error: 'เกิดข้อผิดพลาดที่ Server: ไม่พบ SUPABASE_SERVICE_ROLE_KEY' }
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+
+    // ดึงข้อมูล users จากระบบ Auth (จะได้ email ที่แท้จริง)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers()
+    if (authError) throw authError
+
+    // ดึงข้อมูล profiles ทั้งหมด
+    const { data: profiles, error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('*')
+      .order('created_at', { ascending: true })
+    if (profileError) throw profileError
+
+    // นำข้อมูลมา Map รวมกัน (ใช้ id เป็นตัวเชื่อม)
+    const authMap = {}
+    authData.users.forEach(u => { authMap[u.id] = u.email })
+
+    const merged = profiles.map(p => ({
+      ...p,
+      email: authMap[p.id] || '—'
+    }))
+
+    return { success: true, data: merged }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+}

@@ -1,113 +1,193 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { formatDate } from '@/lib/dateFormat'
+import { getNextNo } from '@/lib/noSeries'
+import { CHECKLIST_TEMPLATES } from '@/lib/checklistItems'
 
-const CHECKLIST_ITEMS = [
-  { key: 'm365_health', label: 'ตรวจสอบ M365 Service Health', freq: 'ทุกวัน', category: 'Microsoft 365' },
-  { key: 'm365_signin', label: 'ตรวจสอบ M365 Sign-in Log', freq: 'ทุกสัปดาห์', category: 'Microsoft 365' },
-  { key: 'meraki', label: 'ตรวจสอบ Cisco Meraki Dashboard', freq: 'ทุกวัน', category: 'Network' },
-  { key: 'aruba', label: 'ตรวจสอบ HPE Aruba Instant On Site Health', freq: 'ทุกวัน', category: 'Network' },
-  { key: 'checkmk', label: 'ตรวจสอบ CheckMK Host / Service Status', freq: 'ทุกไตรมาส', category: 'Network' },
-  { key: 'firmware', label: 'Firmware Review (Meraki / Aruba / Yeastar)', freq: 'ทุกวัน', category: 'Network' },
-  { key: 'cctv', label: 'ตรวจสอบกล้อง CCTV Online / Recording', freq: 'ทุกวัน', category: 'CCTV' },
-  { key: 'nas_health', label: 'ตรวจสอบ Synology NAS Health / Storage', freq: 'ทุกวัน', category: 'Server & NAS' },
-  { key: 'pbx', label: 'ตรวจสอบ IP PBX Extension / Trunk', freq: 'ตามความจำเป็น', category: 'Phone' },
-  { key: 'user_license', label: 'จัดการ User / License (พนักงานเข้า-ออก)', freq: 'ทุกวัน', category: 'Microsoft 365' },
-]
-
-const CATEGORIES = [...new Set(CHECKLIST_ITEMS.map(i => i.category))]
-
-export default function ChecklistPage() {
-  const [checks, setChecks] = useState({})
+export default function ChecklistListPage() {
+  const [docs, setDocs] = useState([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const today = new Date().toISOString().split('T')[0]
+  const [creating, setCreating] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
+  const [userEmail, setUserEmail] = useState(null)
+  const router = useRouter()
 
-  useEffect(() => { fetchToday() }, [])
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setUserEmail(data.session?.user?.email))
+    fetchDocs()
+  }, [])
 
-  const fetchToday = async () => {
-    const { data } = await supabase.from('infra_checklists')
-      .select('*').eq('check_date', today)
-    const map = {}
-    data?.forEach(d => { map[d.item_key] = { done: d.is_done, notes: d.notes, id: d.id } })
-    setChecks(map)
+  const fetchDocs = async () => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('checklist_docs')
+      .select('*')
+      .order('created_at', { ascending: false })
+    
+    if (!error) setDocs(data || [])
     setLoading(false)
   }
 
-  const handleToggle = async (item) => {
-    const current = checks[item.key]
-    const newDone = !current?.done
-    setSaving(true)
+  const handleCreate = async (freqType) => {
+    setCreating(true)
+    const today = new Date().toISOString().split('T')[0]
 
-    if (current?.id) {
-      await supabase.from('infra_checklists').update({ is_done: newDone }).eq('id', current.id)
-    } else {
-      const { data } = await supabase.from('infra_checklists').insert([{
-        check_date: today, item_key: item.key,
-        item_label: item.label, is_done: newDone
-      }]).select().single()
-      setChecks(prev => ({ ...prev, [item.key]: { done: newDone, id: data?.id } }))
-      setSaving(false)
+    // ตรวจสอบว่ามีการสร้างสำหรับช่วงเวลานี้ไปแล้วหรือยัง
+    const { data: existing } = await supabase
+      .from('checklist_docs')
+      .select('id, doc_no')
+      .eq('freq_type', freqType)
+      .eq('period_date', today)
+      .maybeSingle()
+
+    if (existing) {
+      alert(`มีเอกสาร ${freqType} ของวันนี้อยู่แล้ว (${existing.doc_no}) ระบบจะพาไปยังเอกสารดังกล่าว`)
+      router.push(`/dashboard/checklist/${existing.id}`)
       return
     }
-    setChecks(prev => ({ ...prev, [item.key]: { ...current, done: newDone } }))
-    setSaving(false)
-  }
 
-  const doneCount = CHECKLIST_ITEMS.filter(i => checks[i.key]?.done).length
-  const progress = Math.round((doneCount / CHECKLIST_ITEMS.length) * 100)
+    // สร้างเอกสารใหม่
+    const noRes = await getNextNo('CHK')
+    const docNo = noRes ? noRes.nextNo : `CHK-${Date.now()}`
+
+    const { data: newDoc, error: insertErr } = await supabase
+      .from('checklist_docs')
+      .insert([{
+        doc_no: docNo,
+        freq_type: freqType,
+        period_date: today,
+        status: 'Open',
+        created_by: userEmail
+      }])
+      .select()
+      .single()
+
+    if (insertErr) {
+      alert(`สร้างเอกสารไม่สำเร็จ: ${insertErr.message}`)
+      setCreating(false)
+      return
+    }
+
+    if (noRes) {
+      const { updateLastNo } = await import('@/lib/noSeries')
+      await updateLastNo('CHK', docNo)
+    }
+
+    // สร้าง Log
+    await supabase.from('checklist_logs').insert([{
+      doc_id: newDoc.id,
+      action: `สร้างเอกสาร (${freqType})`,
+      user_email: userEmail
+    }])
+
+    // เตรียม Checklist Items
+    const items = CHECKLIST_TEMPLATES[freqType] || []
+    if (items.length > 0) {
+      const inserts = items.map(item => ({
+        doc_id: newDoc.id,
+        item_key: item.key,
+        item_label: item.label,
+        status: null,
+        notes: ''
+      }))
+      await supabase.from('checklist_items').insert(inserts)
+    }
+
+    router.push(`/dashboard/checklist/${newDoc.id}`)
+  }
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>IT Infrastructure Checklist</h1>
-          <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
-            {new Date().toLocaleDateString('th-TH', { dateStyle: 'full' })}
-          </div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 24, fontWeight: 700, color: progress === 100 ? '#059669' : '#1d4ed8' }}>{progress}%</div>
-          <div style={{ fontSize: 12, color: '#6b7280' }}>{doneCount}/{CHECKLIST_ITEMS.length} รายการ</div>
-        </div>
-      </div>
-
-      {/* Progress Bar */}
-      <div style={{ background: '#e5e7eb', borderRadius: 999, height: 8, marginBottom: 24, overflow: 'hidden' }}>
-        <div style={{ background: progress === 100 ? '#059669' : '#1d4ed8', height: '100%', width: `${progress}%`, borderRadius: 999, transition: 'width 0.3s' }} />
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign: 'center', color: '#9ca3af', padding: 40 }}>กำลังโหลด...</div>
-      ) : (
-        CATEGORIES.map(cat => (
-          <div key={cat} style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', marginBottom: 16, overflow: 'hidden' }}>
-            <div style={{ padding: '12px 16px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#374151' }}>
-              {cat}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>IT Checklist Documents</h1>
+        <div style={{ position: 'relative' }}>
+          <button 
+            onClick={() => setShowCreate(!showCreate)}
+            disabled={creating}
+            style={{
+              background: '#1d4ed8', color: '#fff', padding: '10px 20px',
+              borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit'
+            }}>
+            {creating ? 'กำลังสร้าง...' : '+ สร้างเอกสารใหม่ (New Checklist)'}
+          </button>
+          
+          {showCreate && !creating && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 8,
+              background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb',
+              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', overflow: 'hidden', zIndex: 50, width: 200
+            }}>
+              {Object.keys(CHECKLIST_TEMPLATES).map(freq => (
+                <button
+                  key={freq}
+                  onClick={() => handleCreate(freq)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left', padding: '12px 16px',
+                    background: 'none', border: 'none', borderBottom: '1px solid #f3f4f6',
+                    fontSize: 13, color: '#374151', cursor: 'pointer', fontFamily: 'inherit'
+                  }}>
+                  {freq} Checklist
+                </button>
+              ))}
             </div>
-            {CHECKLIST_ITEMS.filter(i => i.category === cat).map(item => {
-              const done = checks[item.key]?.done
-              return (
-                <div key={item.key} style={{
-                  display: 'flex', alignItems: 'center', padding: '12px 16px',
-                  borderBottom: '1px solid #f9fafb', background: done ? '#f0fdf4' : '#fff',
-                  transition: 'background 0.2s'
-                }}>
-                  <input type="checkbox" checked={!!done} onChange={() => handleToggle(item)}
-                    style={{ width: 18, height: 18, cursor: 'pointer', marginRight: 14, accentColor: '#1d4ed8' }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, color: done ? '#6b7280' : '#111827', textDecoration: done ? 'line-through' : 'none' }}>
-                      {item.label}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{item.freq}</div>
-                  </div>
-                  {done && <span style={{ fontSize: 11, color: '#059669', background: '#d1fae5', padding: '2px 8px', borderRadius: 20 }}>✓ เสร็จแล้ว</span>}
-                </div>
-              )
-            })}
+          )}
+        </div>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', fontSize: 13, fontWeight: 500, color: '#374151' }}>
+          ประวัติเอกสารทั้งหมด ({docs.length} รายการ)
+        </div>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>กำลังโหลด...</div>
+        ) : docs.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>
+            ยังไม่มีเอกสารในระบบ
           </div>
-        ))
-      )}
+        ) : (
+          <div className="table-scroll">
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f9fafb' }}>
+                  {['เลขที่เอกสาร', 'ประเภท', 'วันที่ตรวจสอบ', 'สถานะ', 'ผู้สร้าง', 'วันที่สร้าง'].map(h => (
+                    <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500, fontSize: 12, borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {docs.map(doc => (
+                  <tr key={doc.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#1d4ed8', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      <Link href={`/dashboard/checklist/${doc.id}`} style={{ textDecoration: 'none', color: 'inherit', fontWeight: 600 }}>
+                        {doc.doc_no}
+                      </Link>
+                    </td>
+                    <td style={{ padding: '12px 16px', fontWeight: 500, color: '#374151' }}>{doc.freq_type}</td>
+                    <td style={{ padding: '12px 16px', color: '#111827' }}>{formatDate(doc.period_date, false)}</td>
+                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                      <span style={{ 
+                        background: doc.status === 'Open' ? '#dbeafe' : '#d1fae5', 
+                        color: doc.status === 'Open' ? '#1e40af' : '#065f46', 
+                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500 
+                      }}>
+                        {doc.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12 }}>{doc.created_by}</td>
+                    <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      {formatDate(doc.created_at)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

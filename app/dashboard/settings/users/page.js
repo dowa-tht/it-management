@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/dateFormat'
-import { createAdminUser } from '@/app/actions/admin'
+import { createAdminUser, getAdminUsers } from '@/app/actions/admin'
 
 // ===== Password Confirm Dialog =====
 function PasswordConfirmDialog({ onConfirm, onCancel, targetName, action }) {
@@ -122,17 +122,12 @@ export default function UsersPage() {
   }
 
   const fetchUsers = async () => {
-    const { data: profiles } = await supabase
-      .from('user_profiles').select('*').order('created_at', { ascending: true })
-
-    const { data: logEmails } = await supabase
-      .from('login_logs').select('user_id, user_email').order('created_at', { ascending: false })
-
-    const emailMap = {}
-    logEmails?.forEach(l => { if (!emailMap[l.user_id]) emailMap[l.user_id] = l.user_email })
-
-    const merged = (profiles || []).map(p => ({ ...p, email: emailMap[p.id] || '—' }))
-    setUsers(merged)
+    const res = await getAdminUsers()
+    if (res.success && res.data) {
+      setUsers(res.data)
+    } else {
+      setMsg({ text: `โหลดรายชื่อผู้ใช้ล้มเหลว: ${res.error}`, type: 'error' })
+    }
   }
 
   const fetchLogs = async (userId, superUser) => {

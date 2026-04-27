@@ -313,12 +313,17 @@ export default function IncidentDetailPage() {
   }
 
   const addLog = async (action, fromStatus, toStatus, note='') => {
-    await supabase.from('incident_logs').insert([{
+    const { error } = await supabase.from('incident_logs').insert([{
       incident_id: id, action,
       from_status: fromStatus, to_status: toStatus,
       note, user_email: currentUser?.email,
     }])
+    if (error) {
+      alert(`บันทึก Log ไม่สำเร็จ: ${error.message}`)
+      return false
+    }
     await fetchLogs()
+    return true
   }
 
   const handleSave = async () => {
@@ -328,7 +333,12 @@ export default function IncidentDetailPage() {
     const oldAssignee = incident.assigned_to
     const newAssignee = form.assigned_to
 
-    await supabase.from('incidents').update(form).eq('id', id)
+    const { error } = await supabase.from('incidents').update(form).eq('id', id)
+    if (error) {
+      alert(`บันทึกข้อมูลไม่สำเร็จ: ${error.message}`)
+      setSaving(false)
+      return
+    }
 
     if (oldAssignee !== newAssignee) {
       if (newAssignee && !oldAssignee) {
@@ -358,7 +368,13 @@ export default function IncidentDetailPage() {
     const slaNote = `Response: ${formatElapsed(responseMin)} ${responseOk===true?'✅':responseOk===false?'⏰':'—'} | Resolution: ${formatElapsed(resolveMin)} ${resolveOk===true?'✅':resolveOk===false?'⏰':'—'}`
 
     const updateData = { ...form, status:'Resolved', is_locked:true, resolved_at:now, resolved_by:currentUser?.email, signature_it:sigIT }
-    await supabase.from('incidents').update(updateData).eq('id', id)
+    const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
+    if (error) {
+      alert(`ปิดเคสไม่สำเร็จ: ${error.message}`)
+      setSaving(false)
+      return
+    }
+
     await addLog('ปิดเคส (Resolved)', incident.status, 'Resolved', `${slaNote} · ลงนามโดย: ${currentUser?.email}`)
     setIncident(updateData); setForm(updateData); setShowResolveDialog(false); setSaving(false)
   }
@@ -366,14 +382,23 @@ export default function IncidentDetailPage() {
   const handleReopen = async () => {
     setSaving(true)
     const updateData = { ...incident, status:'Open', is_locked:false, resolved_at:null, resolved_by:null, signature_it:null }
-    await supabase.from('incidents').update(updateData).eq('id', id)
+    const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
+    if (error) {
+      alert(`Reopen ไม่สำเร็จ: ${error.message}`)
+      setSaving(false)
+      return
+    }
     await addLog('Reopen', 'Resolved', 'Open', `Reopen โดย: ${currentUser?.email}`)
     setIncident(updateData); setForm(updateData); setShowReopenDialog(false); setSaving(false)
   }
 
   const handleDelete = async () => {
     if (!confirm('ต้องการลบ Incident นี้ใช่ไหม?')) return
-    await supabase.from('incidents').delete().eq('id', id)
+    const { error } = await supabase.from('incidents').delete().eq('id', id)
+    if (error) {
+      alert(`ลบข้อมูลไม่สำเร็จ: ${error.message}`)
+      return
+    }
     router.push('/dashboard/incidents')
   }
 

@@ -25,6 +25,16 @@ export default function DashboardLayout({ children }) {
         setIsSuperUser(profile?.role === 'superuser')
       }
     })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        router.push('/')
+      }
+    })
+
+    return () => {
+      subscription?.unsubscribe()
+    }
   }, [])
 
   useEffect(() => { setSidebarOpen(false) }, [pathname])
@@ -51,8 +61,7 @@ export default function DashboardLayout({ children }) {
     { href: '/dashboard',                          label: 'Dashboard',       icon: '▦', section: 'operations' },
     { href: '/dashboard/incidents',                label: 'Incident',        icon: '⚠', section: 'operations' },
     { href: '/dashboard/backup',                   label: 'Backup Log',      icon: '☁', section: 'operations' },
-    { href: '/dashboard/checklist',                label: 'Infra Checklist', icon: '✓', section: 'operations' },
-    { href: '/dashboard/tasks',                    label: 'Daily Task',      icon: '◷', section: 'operations' },
+    { href: '/dashboard/checklist',                label: 'IT Checklist',    icon: '✅', section: 'operations' },
     // Settings
     { href: '/dashboard/settings/no-series',       label: 'No. Series',      icon: '⚙', section: 'settings' },
     { href: '/dashboard/settings/master-data',     label: 'Master Data',     icon: '📋', section: 'settings' },
@@ -68,10 +77,10 @@ export default function DashboardLayout({ children }) {
   const SidebarContent = () => (
     <>
       {/* Logo */}
-      <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      <Link href="/dashboard" style={{ display: 'block', padding: '20px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', textDecoration: 'none' }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: 0.3 }}>DOWA IT</div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>Management System</div>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav style={{ padding: '8px 0', flex: 1, overflowY: 'auto' }}>
@@ -183,7 +192,7 @@ export default function DashboardLayout({ children }) {
           >
             ☰
           </button>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>DOWA IT System</div>
+          <Link href="/dashboard" style={{ fontSize: 14, fontWeight: 600, color: '#fff', textDecoration: 'none' }}>DOWA IT System</Link>
         </div>
 
         <div style={{ flex: 1, overflow: 'auto' }}>

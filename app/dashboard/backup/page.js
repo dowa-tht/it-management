@@ -45,7 +45,12 @@ export default function BackupPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
-    await supabase.from('backup_logs').insert([form])
+    const { error } = await supabase.from('backup_logs').insert([form])
+    if (error) {
+      alert(`บันทึกข้อมูลไม่สำเร็จ: ${error.message}`)
+      setSaving(false)
+      return
+    }
     await fetchLogs()
     setShowForm(false)
     setSaving(false)
@@ -54,7 +59,11 @@ export default function BackupPage() {
 
   const handleDelete = async (id) => {
     if (!confirm('ต้องการลบรายการนี้ใช่ไหม?')) return
-    await supabase.from('backup_logs').delete().eq('id', id)
+    const { error } = await supabase.from('backup_logs').delete().eq('id', id)
+    if (error) {
+      alert(`ลบข้อมูลไม่สำเร็จ: ${error.message}`)
+      return
+    }
     await fetchLogs()
   }
 
