@@ -327,9 +327,16 @@ export default function IncidentDetailPage() {
   }
 
   const handleSave = async () => {
-    setSaving(true)
     const oldStatus = incident.status
     const newStatus = form.status
+
+    // ถ้ามีการเปลี่ยนสถานะเป็น Resolved ผ่าน dropdown ให้เปิดหน้าต่างเซ็นชื่อแทนการเซฟปกติ
+    if (newStatus === 'Resolved' && oldStatus !== 'Resolved') {
+      setShowResolveDialog(true)
+      return
+    }
+
+    setSaving(true)
     const oldAssignee = incident.assigned_to
     const newAssignee = form.assigned_to
 
@@ -376,7 +383,28 @@ export default function IncidentDetailPage() {
     }
 
     await addLog('ปิดเคส (Resolved)', incident.status, 'Resolved', `${slaNote} · ลงนามโดย: ${currentUser?.email}`)
-    setIncident(updateData); setForm(updateData); setShowResolveDialog(false); setSaving(false)
+
+    // Sync back to Checklist if this incident was opened from a checklist item
+    if (incident.ref_type === 'checklist' && incident.ref_id) {
+      try {
+        await supabase.from('checklist_items')
+          .update({ status: 'OK', notes: `${incident.notes || ''} (Fixed via ${incident.case_number})` })
+          .eq('id', incident.ref_id)
+        
+        const { data: item } = await supabase.from('checklist_items').select('doc_id').eq('id', incident.ref_id).single()
+        if (item?.doc_id) {
+          await supabase.from('checklist_logs').insert([{
+            doc_id: item.doc_id,
+            action: `รายการได้รับการแก้ไขและปิดเคสแล้ว (อ้างอิง ${incident.case_number})`,
+            user_email: currentUser?.email
+          }])
+        }
+      } catch (syncErr) {
+        console.error("Sync to checklist failed:", syncErr)
+      }
+    }
+
+    setIncident(updateData); setForm(updateData); setEditing(false); setShowResolveDialog(false); setSaving(false)
   }
 
   const handleReopen = async () => {

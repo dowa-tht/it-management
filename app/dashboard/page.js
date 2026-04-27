@@ -52,13 +52,21 @@ export default function DashboardPage() {
 
   useEffect(() => { 
     const offset = new Date().getTimezoneOffset()
-    getDashboardData(offset).then(res => {
-      setData(res)
-      setLoading(false)
-    })
+    getDashboardData(offset)
+      .then(res => {
+        setData(res)
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error("Dashboard Load Error:", err)
+        setData({ error: err.message || String(err) })
+        setLoading(false)
+      })
   }, [])
 
-  if (loading || !data) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลด...</div>
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลดข้อมูล...</div>
+  if (data?.error) return <div style={{ padding: 40, textAlign: 'center', color: '#dc2626' }}>เกิดข้อผิดพลาดในการโหลดข้อมูล: {data.error}</div>
+  if (!data) return null
 
   const { stats, incidentByDay, severityData, recentIncidents, recentBackups, checklists } = data
 
@@ -99,7 +107,7 @@ export default function DashboardPage() {
 
       {/* System Health Section */}
       <div style={{ marginBottom: 20, display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
-        <Link href="/dashboard/checklist" style={{ textDecoration: 'none' }}>
+        <Link href={infraStatus.isAlert ? "/dashboard/checklist?filter=ng" : "/dashboard/checklist"} style={{ textDecoration: 'none' }}>
           <div style={{ 
             background: infraStatus.bg, borderRadius: 12, padding: '20px 24px', 
             border: `1px solid ${infraStatus.color}40`,

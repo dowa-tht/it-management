@@ -190,8 +190,20 @@ export default function ChecklistDetailPage() {
                 <div style={{ fontSize: 11, color: '#1d4ed8', fontWeight: 600, marginBottom: 4 }}>{category}</div>
                 <div style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{item.item_label}</div>
                 {item.status === 'NG' && item.notes && (
-                  <div style={{ fontSize: 12, color: '#dc2626', marginTop: 6, background: '#fee2e2', padding: '6px 10px', borderRadius: 6, display: 'inline-block' }}>
-                    <strong>สาเหตุ:</strong> {item.notes}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: 12, color: '#dc2626', marginTop: 6, background: '#fee2e2', padding: '6px 10px', borderRadius: 6, display: 'inline-block' }}>
+                      <strong>สาเหตุ:</strong> {item.notes}
+                    </div>
+                    <Link 
+                      href={`/dashboard/incidents/new?ref_type=checklist&ref_id=${item.id}&doc_no=${doc.doc_no}`}
+                      style={{
+                        padding: '6px 12px', background: '#dc2626', color: '#fff', borderRadius: 6,
+                        fontSize: 11, fontWeight: 600, textDecoration: 'none', display: 'inline-flex',
+                        alignItems: 'center', gap: 4, marginTop: 8, boxShadow: '0 2px 4px rgba(220, 38, 38, 0.2)'
+                      }}
+                    >
+                      🚨 เปิด Incident Case
+                    </Link>
                   </div>
                 )}
               </div>

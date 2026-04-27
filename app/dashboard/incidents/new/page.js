@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { getNextNo, updateLastNo } from '@/lib/noSeries'
 import { formatDateTime } from '@/lib/dateFormat'
@@ -51,8 +51,9 @@ function SLAWidget({ label, slaLabel, state, actual }) {
   )
 }
 
-export default function NewIncidentPage() {
+function NewIncidentForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [loadingNo, setLoadingNo] = useState(true)
   const [loadingMaster, setLoadingMaster] = useState(true)
@@ -69,6 +70,7 @@ export default function NewIncidentPage() {
     status: 'Open', category: '', affected_system: '',
     reported_by: '', assigned_to: '',
     root_cause: '', resolution: '',
+    ref_type: null, ref_id: null, ref_doc_no: null
   })
   const [assignedAt, setAssignedAt] = useState(null)
   const [errors, setErrors] = useState({})
@@ -77,9 +79,30 @@ export default function NewIncidentPage() {
   useEffect(() => {
     loadNoSeries()
     loadMasterData()
+    handleChecklistRef()
     const timer = setInterval(() => setElapsed(calcElapsedNow(createdAt)), 30000)
     return () => clearInterval(timer)
   }, [])
+
+  const handleChecklistRef = async () => {
+    const refType = searchParams.get('ref_type')
+    const refId = searchParams.get('ref_id')
+    const docNo = searchParams.get('doc_no')
+
+    if (refType === 'checklist' && refId) {
+      const { data: item } = await supabase.from('checklist_items').select('*').eq('id', refId).single()
+      if (item) {
+        setForm(prev => ({
+          ...prev,
+          ref_type: 'checklist',
+          ref_id: refId,
+          ref_doc_no: docNo,
+          title: `[Checklist Ref] ${item.item_label}`,
+          description: `พบปัญหาจากเอกสาร ${docNo}: ${item.notes || '—'}`,
+        }))
+      }
+    }
+  }
 
   useEffect(() => {
     setElapsed(calcElapsedNow(createdAt))
@@ -97,24 +120,10 @@ export default function NewIncidentPage() {
 
   const loadMasterData = async () => {
     setLoadingMaster(true)
-
-    // ดึง category และ system จาก master_data
-    const { data: master } = await supabase
-      .from('master_data').select('*')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-
+    const { data: master } = await supabase.from('master_data').select('*').eq('is_active', true).order('sort_order', { ascending: true })
     setCategories((master || []).filter(d => d.type === 'incident_category').map(d => d.value))
     setSystems((master || []).filter(d => d.type === 'affected_system').map(d => d.value))
-
-    // ดึง Assignee จาก user_profiles ที่ can_be_assignee = true และ is_active = true
-    const { data: assigneeData } = await supabase
-      .from('user_profiles')
-      .select('id, full_name')
-      .eq('can_be_assignee', true)
-      .eq('is_active', true)
-      .order('full_name', { ascending: true })
-
+    const { data: assigneeData } = await supabase.from('user_profiles').select('id, full_name').eq('can_be_assignee', true).eq('is_active', true).order('full_name', { ascending: true })
     setAssignees(assigneeData || [])
     setLoadingMaster(false)
   }
@@ -170,7 +179,7 @@ export default function NewIncidentPage() {
           action: 'สร้างเคสใหม่',
           from_status: null,
           to_status: form.status,
-          note: `แจ้งโดย: ${form.reported_by}`,
+          note: `แจ้งโดย: ${form.reported_by}${form.ref_doc_no ? ` (อ้างอิง ${form.ref_doc_no})` : ''}`,
           user_email: form.reported_by,
         }])
         if (form.assigned_to && assignedAt) {
@@ -184,7 +193,6 @@ export default function NewIncidentPage() {
           }])
         }
       }
-
       router.push('/dashboard/incidents')
     } catch (err) {
       console.error(err)
@@ -226,18 +234,20 @@ export default function NewIncidentPage() {
       </div>
 
       <form onSubmit={handleSubmit} noValidate>
+        {form.ref_doc_no && (
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 18 }}>🔗</span>
+            <div style={{ fontSize: 13, color: '#1e40af' }}>
+              อ้างอิงจาก Checklist: <strong>{form.ref_doc_no}</strong> (ระบบดึงข้อมูลมาให้เบื้องต้นแล้ว)
+            </div>
+          </div>
+        )}
 
-        {/* เลขที่เอกสาร */}
         <div style={sectionStyle}>
           {sectionTitle('📋', 'เลขที่เอกสาร')}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>
-                Case Number{req}
-                {loadingNo ? <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6, fontWeight: 400 }}>กำลังโหลด...</span>
-                  : manualNos ? <span style={{ fontSize: 11, color: '#059669', marginLeft: 6, fontWeight: 400 }}>✏️ แก้ไขได้</span>
-                  : <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 6, fontWeight: 400 }}>(Auto)</span>}
-              </label>
+              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>Case Number{req}</label>
               <input value={caseNo} onChange={e => setCaseNo(e.target.value)} readOnly={!manualNos}
                 style={{ ...inputStyle('caseNo'), background: manualNos ? '#fff' : '#f9fafb', fontFamily: 'monospace', fontWeight: 600 }} />
               {errMsg('caseNo')}
@@ -249,26 +259,19 @@ export default function NewIncidentPage() {
           </div>
         </div>
 
-        {/* ข้อมูลหลัก */}
         <div style={sectionStyle}>
           {sectionTitle('⚠️', 'ข้อมูลหลัก')}
-
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>หัวข้อ Incident{req}</label>
-            <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
-              placeholder="อธิบายอาการหรือปัญหาที่พบโดยย่อ" style={inputStyle('title')} />
+            <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="อธิบายอาการหรือปัญหาที่พบโดยย่อ" style={inputStyle('title')} />
             {errMsg('title')}
           </div>
-
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>รายละเอียด / อาการที่พบ{req}</label>
-            <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-              rows={4} placeholder="อธิบายรายละเอียดของปัญหา..."
-              style={{ ...inputStyle('description'), resize: 'vertical', lineHeight: 1.6 }} />
+            <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={4} placeholder="อธิบายรายละเอียดของปัญหา..." style={{ ...inputStyle('description'), resize: 'vertical', lineHeight: 1.6 }} />
             {errMsg('description')}
           </div>
-
-          <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
             <div>
               <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>ระดับความรุนแรง{req}</label>
               <select value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value })} style={selectStyle('severity')}>
@@ -276,22 +279,16 @@ export default function NewIncidentPage() {
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>
-                สถานะ{form.assigned_to && <span style={{ fontSize: 11, color: '#059669', marginLeft: 6, fontWeight: 400 }}>(ปรับอัตโนมัติ)</span>}
-              </label>
-              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
-                disabled={!!form.assigned_to}
-                style={{ ...selectStyle(''), background: form.assigned_to ? '#f0fdf4' : '#fff' }}>
+              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>สถานะ</label>
+              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} disabled={!!form.assigned_to} style={{ ...selectStyle(''), background: form.assigned_to ? '#f0fdf4' : '#fff' }}>
                 {['Open', 'In Progress', 'Resolved'].map(o => <option key={o}>{o}</option>)}
               </select>
             </div>
           </div>
-
-          <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div>
               <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>ประเภท Incident{req}</label>
-              <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-                style={selectStyle('category')} disabled={loadingMaster}>
+              <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} style={selectStyle('category')} disabled={loadingMaster}>
                 <option value="">{loadingMaster ? 'กำลังโหลด...' : '— เลือกประเภท —'}</option>
                 {categories.map(o => <option key={o}>{o}</option>)}
               </select>
@@ -299,8 +296,7 @@ export default function NewIncidentPage() {
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>ระบบที่ได้รับผลกระทบ{req}</label>
-              <select value={form.affected_system} onChange={e => setForm({ ...form, affected_system: e.target.value })}
-                style={selectStyle('affected_system')} disabled={loadingMaster}>
+              <select value={form.affected_system} onChange={e => setForm({ ...form, affected_system: e.target.value })} style={selectStyle('affected_system')} disabled={loadingMaster}>
                 <option value="">{loadingMaster ? 'กำลังโหลด...' : '— เลือกระบบ —'}</option>
                 {systems.map(o => <option key={o}>{o}</option>)}
               </select>
@@ -309,100 +305,47 @@ export default function NewIncidentPage() {
           </div>
         </div>
 
-        {/* ผู้รับผิดชอบ */}
         <div style={sectionStyle}>
           {sectionTitle('👤', 'ผู้รับผิดชอบ')}
-          <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div>
               <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>ผู้แจ้ง / Reported By{req}</label>
-              <input value={form.reported_by} onChange={e => setForm({ ...form, reported_by: e.target.value })}
-                placeholder="ชื่อผู้แจ้งปัญหา" style={inputStyle('reported_by')} />
+              <input value={form.reported_by} onChange={e => setForm({ ...form, reported_by: e.target.value })} placeholder="ชื่อผู้แจ้งปัญหา" style={inputStyle('reported_by')} />
               {errMsg('reported_by')}
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>
-                ผู้รับผิดชอบ / Assigned To
-                <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 4, fontWeight: 400 }}>(ไม่บังคับ)</span>
-              </label>
-              <select value={form.assigned_to} onChange={e => setForm({ ...form, assigned_to: e.target.value })}
-                style={selectStyle('')} disabled={loadingMaster}>
+              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>ผู้รับผิดชอบ / Assigned To</label>
+              <select value={form.assigned_to} onChange={e => setForm({ ...form, assigned_to: e.target.value })} style={selectStyle('')} disabled={loadingMaster}>
                 <option value="">{loadingMaster ? 'กำลังโหลด...' : '— ยังไม่ได้มอบหมาย —'}</option>
                 {assignees.map(a => <option key={a.id} value={a.full_name}>{a.full_name}</option>)}
               </select>
-              {form.assigned_to && (
-                <div style={{ fontSize: 11, color: '#059669', marginTop: 4 }}>
-                  ✅ Assign เมื่อ {formatDateTime(assignedAt)} → Response Time เริ่มนับแล้ว
-                </div>
-              )}
-              {assignees.length === 0 && !loadingMaster && (
-                <div style={{ fontSize: 11, color: '#d97706', marginTop: 4 }}>
-                  ⚠ ยังไม่มีรายชื่อ —{' '}
-                  <Link href="/dashboard/settings/users" style={{ color: '#1d4ed8' }}>
-                    เปิด Assignee ใน Settings → Users
-                  </Link>
-                </div>
-              )}
             </div>
           </div>
         </div>
 
-        {/* SLA */}
         <div style={sectionStyle}>
           {sectionTitle('⏱', `SLA — ${form.severity}`)}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <SLAWidget label="Response Time" slaLabel={slaLabel.response} state={responseState} actual={calcElapsedNow(assignedAt || createdAt)} />
             <SLAWidget label="Resolution Time" slaLabel={slaLabel.resolve} state={resolveState} actual={currentElapsed} />
           </div>
-          <div style={{ fontSize: 11, color: '#9ca3af', paddingTop: 10, borderTop: '1px solid #f3f4f6' }}>
-            สร้างเมื่อ: {formatDateTime(createdAt)}
-            {assignedAt && ` · Assign เมื่อ: ${formatDateTime(assignedAt)}`}
-          </div>
         </div>
 
-        {/* วิเคราะห์ (Optional) */}
-        <div style={sectionStyle}>
-          {sectionTitle('🔍', 'การวิเคราะห์และแก้ไข', '(ไม่บังคับ — กรอกได้ภายหลัง)')}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>Root Cause Analysis</label>
-            <textarea value={form.root_cause} onChange={e => setForm({ ...form, root_cause: e.target.value })}
-              rows={3} placeholder="วิเคราะห์สาเหตุที่แท้จริงของปัญหา..."
-              style={{ ...inputStyle(''), resize: 'vertical', lineHeight: 1.6 }} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>วิธีการแก้ไข / Resolution</label>
-            <textarea value={form.resolution} onChange={e => setForm({ ...form, resolution: e.target.value })}
-              rows={3} placeholder="อธิบายวิธีการที่ใช้แก้ไขปัญหา..."
-              style={{ ...inputStyle(''), resize: 'vertical', lineHeight: 1.6 }} />
-          </div>
-        </div>
-
-        {/* Error Summary */}
-        {Object.keys(errors).length > 0 && (
-          <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 6 }}>⚠️ กรุณากรอกข้อมูลให้ครบถ้วน</div>
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
-              {Object.values(errors).map((e, i) => <li key={i} style={{ fontSize: 12, color: '#dc2626', marginBottom: 2 }}>{e}</li>)}
-            </ul>
-          </div>
-        )}
-
-        {/* Buttons */}
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingBottom: 24 }}>
-          <Link href="/dashboard/incidents" style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, color: '#374151', textDecoration: 'none', background: '#fff', display: 'flex', alignItems: 'center' }}>
-            ยกเลิก
-          </Link>
-          <button type="submit" disabled={loading || loadingNo || loadingMaster}
-            style={{
-              padding: '10px 28px',
-              background: loading || loadingNo || loadingMaster ? '#93c5fd' : '#1d4ed8',
-              color: '#fff', border: 'none', borderRadius: 8, fontSize: 14,
-              cursor: loading || loadingNo || loadingMaster ? 'not-allowed' : 'pointer',
-              fontWeight: 500, fontFamily: 'inherit'
-            }}>
-            {loading ? 'กำลังบันทึก...' : loadingNo || loadingMaster ? 'กำลังโหลด...' : '💾 บันทึก Incident'}
+          <Link href="/dashboard/incidents" style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, color: '#374151', textDecoration: 'none', background: '#fff' }}>ยกเลิก</Link>
+          <button type="submit" disabled={loading} style={{ padding: '10px 28px', background: loading ? '#93c5fd' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, cursor: 'pointer', fontWeight: 500 }}>
+            {loading ? 'กำลังบันทึก...' : '💾 บันทึก Incident'}
           </button>
         </div>
       </form>
     </div>
+  )
+}
+
+export default function NewIncidentPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลดแบบฟอร์ม...</div>}>
+      <NewIncidentForm />
+    </Suspense>
   )
 }

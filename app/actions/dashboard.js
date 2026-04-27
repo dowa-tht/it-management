@@ -1,11 +1,21 @@
 'use server'
-
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 export async function getDashboardData(timezoneOffset = -420) {
+  // สร้าง Supabase Admin Client เพื่อดึงข้อมูล Dashboard (Bypass RLS)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('ไม่พบ SUPABASE_SERVICE_ROLE_KEY ใน Environment Variables')
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  })
+
   // timezoneOffset is used to calculate "today" correctly for the user's local time if needed
   // Defaults to -420 for UTC+7 (Bangkok)
-  
   const start = new Date()
   start.setMonth(start.getMonth() - 1)
   const startIso = start.toISOString()
@@ -15,9 +25,9 @@ export async function getDashboardData(timezoneOffset = -420) {
   const todayStr = todayDate.toISOString().split('T')[0]
 
   const [incRes, bakRes, chkRes] = await Promise.all([
-    supabase.from('incidents').select('id, case_number, title, severity, status, created_at, affected_system').gte('created_at', startIso).order('created_at', { ascending: false }),
-    supabase.from('backup_logs').select('id, log_date, system_name, status, notes').gte('log_date', startIso.split('T')[0]).order('log_date', { ascending: false }),
-    supabase.from('checklist_docs').select('id, status, freq_type, checklist_items(id, status)').eq('period_date', todayStr)
+    supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, affected_system').gte('created_at', startIso).order('created_at', { ascending: false }),
+    supabaseAdmin.from('backup_logs').select('id, log_date, system_name, status, notes').gte('log_date', startIso.split('T')[0]).order('log_date', { ascending: false }),
+    supabaseAdmin.from('checklist_docs').select('id, status, freq_type, checklist_items(id, status)').eq('period_date', todayStr)
   ])
 
   const incidents = incRes.data || []
