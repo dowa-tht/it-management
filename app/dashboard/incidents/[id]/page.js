@@ -141,24 +141,95 @@ function ReopenDialog({ onConfirm, onCancel }) {
 }
 
 // ===== Resolve Dialog =====
-function ResolveDialog({ form, setForm, onConfirm, onCancel }) {
+function ResolveDialog({ incident, form, setForm, onConfirm, onCancel }) {
   const [step, setStep] = useState(1)
-  const [sigIT, setSigIT] = useState(null)
-  const [showCanvas, setShowCanvas] = useState(false)
+  const [sigIT, setSigIT] = useState(form.signature_it || null)
+  const [sigReporter, setSigReporter] = useState(form.signature_reporter || null)
+  const [sigManager, setSigManager] = useState(form.signature_manager || null)
+  const [showCanvas, setShowCanvas] = useState(null) // 'IT', 'Reporter', 'Manager'
+
+  const isHigh = incident?.severity === 'High'
+  const totalSteps = isHigh ? 5 : 4
+  const steps = [
+    { n:1, label:'Resolution' },
+    { n:2, label:'IT' },
+    { n:3, label:'ผู้แจ้ง' },
+    ...(isHigh ? [{ n:4, label:'ผู้จัดการ' }] : []),
+    { n:totalSteps, label:'ตรวจสอบ' }
+  ]
+
+  const handleDraft = () => {
+    onConfirm(sigIT, sigReporter, sigManager, true)
+  }
+
+  const renderCanvas = () => {
+    if (!showCanvas) return null
+    let title = ''
+    if (showCanvas === 'IT') title = 'ลายเซ็นต์ IT Officer'
+    if (showCanvas === 'Reporter') title = 'ลายเซ็นต์ผู้แจ้งรับทราบ'
+    if (showCanvas === 'Manager') title = 'ลายเซ็นต์ผู้จัดการรับทราบ'
+    return <SignatureCanvas title={title} onSave={d => { 
+      if (showCanvas === 'IT') setSigIT(d)
+      if (showCanvas === 'Reporter') setSigReporter(d)
+      if (showCanvas === 'Manager') setSigManager(d)
+      setShowCanvas(null) 
+    }} onCancel={() => setShowCanvas(null)} />
+  }
+
+  const renderSignatureStep = (title, subtitle, sig, setSig, canvasKey, nextStep, prevStep) => (
+    <>
+      <div style={{ fontSize:15, fontWeight:600, color:'#111827', marginBottom:8 }}>✍️ {title}</div>
+      <div style={{ fontSize:12, color:'#6b7280', marginBottom:16 }}>{subtitle}</div>
+      
+      {/* Details Preview */}
+      <div style={{ background:'#f9fafb', borderRadius:8, padding:12, marginBottom:16, fontSize:12 }}>
+        <div style={{ fontWeight:600, marginBottom:4 }}>รายละเอียดเคส:</div>
+        <div style={{ color:'#374151', marginBottom:8 }}>{form.resolution}</div>
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+          {sigIT && canvasKey !== 'IT' && <div style={{ border:'1px solid #e5e7eb', padding:4, borderRadius:4, background:'#fff' }}><div style={{fontSize:10, color:'#6b7280'}}>IT Officer</div><img src={sigIT} height={30} alt="sig"/></div>}
+          {sigReporter && canvasKey === 'Manager' && <div style={{ border:'1px solid #e5e7eb', padding:4, borderRadius:4, background:'#fff' }}><div style={{fontSize:10, color:'#6b7280'}}>ผู้แจ้ง</div><img src={sigReporter} height={30} alt="sig"/></div>}
+        </div>
+      </div>
+
+      {sig ? (
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontSize:12, color:'#059669', marginBottom:8, fontWeight:500 }}>✅ ลายเซ็นต์บันทึกแล้ว</div>
+          <div style={{ border:'1px solid #d1d5db', borderRadius:8, overflow:'hidden', display:'inline-block' }}>
+            <img src={sig} alt="sig" style={{ display:'block', height:80 }} />
+          </div>
+          <button onClick={() => setSig(null)} style={{ display:'block', marginTop:8, fontSize:12, color:'#6b7280', background:'none', border:'none', cursor:'pointer', padding:0 }}>🔄 วาดใหม่</button>
+        </div>
+      ) : (
+        <div onClick={() => setShowCanvas(canvasKey)} style={{ border:'2px dashed #d1d5db', borderRadius:8, padding:24, textAlign:'center', marginBottom:16, cursor:'pointer', background:'#f9fafb' }}>
+          <div style={{ fontSize:32, marginBottom:8 }}>✍️</div>
+          <div style={{ fontSize:13, color:'#6b7280' }}>กดเพื่อวาดลายเซ็นต์</div>
+        </div>
+      )}
+      <div style={{ display:'flex', gap:8, justifyContent:'space-between' }}>
+        <button onClick={() => setStep(prevStep)} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>← ย้อนกลับ</button>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={handleDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor:'pointer', fontFamily:'inherit', color:'#374151' }}>💾 Save Draft</button>
+          <button onClick={() => { if(!sig){alert('กรุณาวาดลายเซ็นต์ก่อนครับ');return} setStep(nextStep) }}
+            style={{ padding:'8px 20px', border:'none', borderRadius:7, fontSize:13, background:'#1d4ed8', color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>ถัดไป →</button>
+        </div>
+      </div>
+    </>
+  )
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16, overflowY: 'auto' }}>
       <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 560, margin: 'auto' }}>
-        {/* Steps */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {[{ n:1, label:'ยืนยัน Resolution' }, { n:2, label:'ลายเซ็นต์' }, { n:3, label:'ตรวจสอบ' }].map(s => (
-            <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20, overflowX: 'auto', paddingBottom: 8 }}>
+          {steps.map((s, i) => (
+            <div key={s.n} style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
               <div style={{ width:24, height:24, borderRadius:'50%', background: step>=s.n?'#1d4ed8':'#e5e7eb', color: step>=s.n?'#fff':'#9ca3af', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:600 }}>{s.n}</div>
               <div style={{ fontSize:11, color: step>=s.n?'#1d4ed8':'#9ca3af', fontWeight: step===s.n?600:400 }}>{s.label}</div>
-              {s.n < 3 && <div style={{ flex:1, height:1, background: step>s.n?'#1d4ed8':'#e5e7eb' }} />}
+              {i < steps.length - 1 && <div style={{ width: 16, height:1, background: step>s.n?'#1d4ed8':'#e5e7eb' }} />}
             </div>
           ))}
         </div>
+
+        {renderCanvas()}
 
         {step === 1 && (
           <>
@@ -170,70 +241,48 @@ function ResolveDialog({ form, setForm, onConfirm, onCancel }) {
                 style={{ width:'100%', padding:'9px 12px', border:'1px solid #d1d5db', borderRadius:8, fontSize:13, resize:'vertical', fontFamily:'inherit', lineHeight:1.6 }} />
             </div>
             <div style={{ marginBottom:20 }}>
-              <label style={{ fontSize:12, fontWeight:500, color:'#374151', display:'block', marginBottom:6 }}>Root Cause Analysis</label>
+              <label style={{ fontSize:12, fontWeight:500, color:'#374151', display:'block', marginBottom:6 }}>Root Cause Analysis <span style={{ color:'#dc2626' }}>*</span></label>
               <textarea value={form.root_cause||''} onChange={e => setForm({...form, root_cause:e.target.value})} rows={3}
                 placeholder="วิเคราะห์สาเหตุที่แท้จริง..."
                 style={{ width:'100%', padding:'9px 12px', border:'1px solid #d1d5db', borderRadius:8, fontSize:13, resize:'vertical', fontFamily:'inherit', lineHeight:1.6 }} />
             </div>
-            <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-              <button onClick={onCancel} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>ยกเลิก</button>
-              <button onClick={() => { if(!form.resolution?.trim()){alert('กรุณากรอก Resolution ก่อนครับ');return} setStep(2) }}
-                style={{ padding:'8px 20px', border:'none', borderRadius:7, fontSize:13, background:'#1d4ed8', color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>ถัดไป →</button>
-            </div>
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            <div style={{ fontSize:15, fontWeight:600, color:'#111827', marginBottom:8 }}>✍️ ลายเซ็นต์ผู้ปิดเคส</div>
-            <div style={{ fontSize:12, color:'#6b7280', marginBottom:16 }}>วาดลายเซ็นต์เพื่อยืนยันการปิด Incident</div>
-            {sigIT ? (
-              <div style={{ marginBottom:16 }}>
-                <div style={{ fontSize:12, color:'#059669', marginBottom:8, fontWeight:500 }}>✅ ลายเซ็นต์บันทึกแล้ว</div>
-                <div style={{ border:'1px solid #d1d5db', borderRadius:8, overflow:'hidden', display:'inline-block' }}>
-                  <img src={sigIT} alt="sig" style={{ display:'block', height:80 }} />
-                </div>
-                <button onClick={() => setSigIT(null)} style={{ display:'block', marginTop:8, fontSize:12, color:'#6b7280', background:'none', border:'none', cursor:'pointer', padding:0 }}>🔄 วาดใหม่</button>
-              </div>
-            ) : (
-              <div onClick={() => setShowCanvas(true)} style={{ border:'2px dashed #d1d5db', borderRadius:8, padding:24, textAlign:'center', marginBottom:16, cursor:'pointer', background:'#f9fafb' }}>
-                <div style={{ fontSize:32, marginBottom:8 }}>✍️</div>
-                <div style={{ fontSize:13, color:'#6b7280' }}>กดเพื่อวาดลายเซ็นต์</div>
-              </div>
-            )}
-            {showCanvas && <SignatureCanvas title="ลายเซ็นต์ IT Officer" onSave={d => { setSigIT(d); setShowCanvas(false) }} onCancel={() => setShowCanvas(false)} />}
             <div style={{ display:'flex', gap:8, justifyContent:'space-between' }}>
-              <button onClick={() => setStep(1)} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>← ย้อนกลับ</button>
+              <button onClick={onCancel} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>ยกเลิก</button>
               <div style={{ display:'flex', gap:8 }}>
-                <button onClick={onCancel} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>ยกเลิก</button>
-                <button onClick={() => { if(!sigIT){alert('กรุณาวาดลายเซ็นต์ก่อนครับ');return} setStep(3) }}
+                <button onClick={handleDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor:'pointer', fontFamily:'inherit', color:'#374151' }}>💾 Save Draft</button>
+                <button onClick={() => { if(!form.resolution?.trim() || !form.root_cause?.trim()){alert('กรุณากรอก Resolution และ Root Cause ให้ครบถ้วน');return} setStep(2) }}
                   style={{ padding:'8px 20px', border:'none', borderRadius:7, fontSize:13, background:'#1d4ed8', color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>ถัดไป →</button>
               </div>
             </div>
           </>
         )}
 
-        {step === 3 && (
+        {step === 2 && renderSignatureStep('ลายเซ็นต์ผู้ปิดเคส', 'วาดลายเซ็นต์เพื่อยืนยันการปิด Incident', sigIT, setSigIT, 'IT', 3, 1)}
+        {step === 3 && renderSignatureStep('ลายเซ็นต์ผู้แจ้ง', 'วาดลายเซ็นต์เพื่อรับทราบการปิดเคส', sigReporter, setSigReporter, 'Reporter', isHigh ? 4 : totalSteps, 2)}
+        {step === 4 && isHigh && renderSignatureStep('ลายเซ็นต์ผู้จัดการ', 'วาดลายเซ็นต์เพื่อรับทราบสำหรับเคส High Severity', sigManager, setSigManager, 'Manager', totalSteps, 3)}
+
+        {step === totalSteps && (
           <>
             <div style={{ fontSize:15, fontWeight:600, color:'#111827', marginBottom:16 }}>🔍 ตรวจสอบก่อนบันทึก</div>
             <div style={{ background:'#f9fafb', borderRadius:8, padding:16, marginBottom:16, fontSize:13 }}>
               <div style={{ marginBottom:10 }}><div style={{ fontSize:11, color:'#6b7280', marginBottom:2 }}>Resolution</div><div style={{ color:'#111827', lineHeight:1.6 }}>{form.resolution}</div></div>
-              {form.root_cause && <div style={{ marginBottom:10 }}><div style={{ fontSize:11, color:'#6b7280', marginBottom:2 }}>Root Cause</div><div style={{ color:'#111827', lineHeight:1.6 }}>{form.root_cause}</div></div>}
-              <div><div style={{ fontSize:11, color:'#6b7280', marginBottom:6 }}>ลายเซ็นต์ IT Officer</div>
-                <div style={{ border:'1px solid #e5e7eb', borderRadius:6, overflow:'hidden', display:'inline-block', background:'#fff' }}>
-                  <img src={sigIT} alt="sig" style={{ display:'block', height:60 }} />
-                </div>
+              <div style={{ marginBottom:10 }}><div style={{ fontSize:11, color:'#6b7280', marginBottom:2 }}>Root Cause</div><div style={{ color:'#111827', lineHeight:1.6 }}>{form.root_cause}</div></div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 10, marginTop: 12 }}>
+                <div><div style={{ fontSize:11, color:'#6b7280', marginBottom:6 }}>IT Officer</div>{sigIT ? <img src={sigIT} height={50} style={{border:'1px solid #e5e7eb', background:'#fff', borderRadius:4}} alt="sig"/> : <span style={{color:'#dc2626'}}>รอเซ็นต์</span>}</div>
+                <div><div style={{ fontSize:11, color:'#6b7280', marginBottom:6 }}>ผู้แจ้ง</div>{sigReporter ? <img src={sigReporter} height={50} style={{border:'1px solid #e5e7eb', background:'#fff', borderRadius:4}} alt="sig"/> : <span style={{color:'#dc2626'}}>รอเซ็นต์</span>}</div>
+                {isHigh && <div><div style={{ fontSize:11, color:'#6b7280', marginBottom:6 }}>ผู้จัดการ</div>{sigManager ? <img src={sigManager} height={50} style={{border:'1px solid #e5e7eb', background:'#fff', borderRadius:4}} alt="sig"/> : <span style={{color:'#dc2626'}}>รอเซ็นต์</span>}</div>}
               </div>
             </div>
             <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:8, padding:'10px 14px', fontSize:12, color:'#92400e', marginBottom:16 }}>
-              ⚠️ เมื่อบันทึกแล้ว เอกสารจะถูกล็อค (ยกเว้น Super User)
+              ⚠️ เมื่อยืนยันแล้ว เอกสารจะถูกล็อคสถานะ Resolved ทันที
             </div>
             <div style={{ display:'flex', gap:8, justifyContent:'space-between' }}>
-              <button onClick={() => setStep(2)} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>← ย้อนกลับ</button>
+              <button onClick={() => setStep(isHigh ? 4 : 3)} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>← ย้อนกลับ</button>
               <div style={{ display:'flex', gap:8 }}>
-                <button onClick={onCancel} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>ยกเลิก</button>
-                <button onClick={() => onConfirm(sigIT)}
-                  style={{ padding:'8px 20px', border:'none', borderRadius:7, fontSize:13, background:'#059669', color:'#fff', cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>✅ ยืนยัน Resolve</button>
+                <button onClick={handleDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor:'pointer', fontFamily:'inherit', color:'#374151' }}>💾 Save Draft</button>
+                <button onClick={() => onConfirm(sigIT, sigReporter, sigManager, false)}
+                  style={{ padding:'8px 20px', border:'none', borderRadius:7, fontSize:13, background:'#059669', color:'#fff', cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>✅ ยืนยันปิดเคส</button>
               </div>
             </div>
           </>
@@ -364,9 +413,32 @@ export default function IncidentDetailPage() {
     setIncident(form); setEditing(false); setSaving(false)
   }
 
-  const handleResolve = async (sigIT) => {
+  const handleResolve = async (sigIT, sigReporter, sigManager, isDraft) => {
     setSaving(true)
     const now = new Date().toISOString()
+    
+    if (isDraft) {
+      const updateData = { 
+        ...form,
+        status: incident.status, // Revert back to original status if saving draft
+        signature_it: sigIT,
+        signature_reporter: sigReporter,
+        signature_manager: sigManager
+      }
+      const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
+      if (error) {
+        alert(`บันทึก Draft ไม่สำเร็จ: ${error.message}`)
+      } else {
+        await addLog('บันทึก Draft', incident.status, incident.status, 'อัปเดตลายเซ็นต์ / Resolution')
+        setIncident(updateData)
+        setForm(updateData)
+        setShowResolveDialog(false)
+        setEditing(false)
+      }
+      setSaving(false)
+      return
+    }
+
     const slaMin = SLA_MINUTES[incident.severity] || SLA_MINUTES['Medium']
     const responseMin = calcMinutes(incident.created_at, incident.assigned_at)
     const resolveMin = calcMinutes(incident.created_at, now)
@@ -374,7 +446,16 @@ export default function IncidentDetailPage() {
     const resolveOk = resolveMin !== null ? resolveMin <= slaMin.resolve : null
     const slaNote = `Response: ${formatElapsed(responseMin)} ${responseOk===true?'✅':responseOk===false?'⏰':'—'} | Resolution: ${formatElapsed(resolveMin)} ${resolveOk===true?'✅':resolveOk===false?'⏰':'—'}`
 
-    const updateData = { ...form, status:'Resolved', is_locked:true, resolved_at:now, resolved_by:currentUser?.email, signature_it:sigIT }
+    const updateData = { 
+      ...form, 
+      status:'Resolved', 
+      is_locked:true, 
+      resolved_at:now, 
+      resolved_by:currentUser?.email, 
+      signature_it:sigIT,
+      signature_reporter:sigReporter,
+      signature_manager:sigManager
+    }
     const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
     if (error) {
       alert(`ปิดเคสไม่สำเร็จ: ${error.message}`)
@@ -409,7 +490,7 @@ export default function IncidentDetailPage() {
 
   const handleReopen = async () => {
     setSaving(true)
-    const updateData = { ...incident, status:'Open', is_locked:false, resolved_at:null, resolved_by:null, signature_it:null }
+    const updateData = { ...incident, status:'Open', is_locked:false, resolved_at:null, resolved_by:null, signature_it:null, signature_reporter:null, signature_manager:null }
     const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
     if (error) {
       alert(`Reopen ไม่สำเร็จ: ${error.message}`)
@@ -488,7 +569,7 @@ export default function IncidentDetailPage() {
     <>
       <style>{`@media print{.no-print{display:none!important}.print-only{display:block!important}body{background:white!important;margin:0}}@media screen{.print-only{display:none!important}}`}</style>
 
-      {showResolveDialog && <ResolveDialog form={form} setForm={setForm} onConfirm={handleResolve} onCancel={() => setShowResolveDialog(false)} />}
+      {showResolveDialog && <ResolveDialog incident={incident} form={form} setForm={setForm} onConfirm={handleResolve} onCancel={() => setShowResolveDialog(false)} />}
       {showReopenDialog && <ReopenDialog onConfirm={handleReopen} onCancel={() => setShowReopenDialog(false)} />}
 
       {/* SCREEN VIEW */}
@@ -624,16 +705,36 @@ export default function IncidentDetailPage() {
           </div>
         </div>
 
-        {/* Signature */}
-        {incident.signature_it && (
+        {/* Signature Section */}
+        {(incident.signature_it || incident.signature_reporter || incident.signature_manager) && (
           <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e5e7eb', padding:20, marginBottom:16 }}>
             <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:14, paddingBottom:10, borderBottom:'1px solid #f3f4f6' }}>✍️ ลายเซ็นต์ดิจิตัล</div>
-            <div>
-              <div style={{ fontSize:11, color:'#6b7280', marginBottom:8 }}>IT Officer</div>
-              <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', background:'#fafafa', display:'inline-block' }}>
-                <img src={incident.signature_it} alt="sig" style={{ display:'block', height:80, maxWidth:280 }} />
-              </div>
-              <div style={{ fontSize:11, color:'#9ca3af', marginTop:6 }}>{incident.resolved_by} · {formatDateTime(incident.resolved_at)}</div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:16 }}>
+              {incident.signature_it && (
+                <div>
+                  <div style={{ fontSize:11, color:'#6b7280', marginBottom:8 }}>IT Officer</div>
+                  <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', background:'#fafafa', display:'inline-block' }}>
+                    <img src={incident.signature_it} alt="sig" style={{ display:'block', height:80, maxWidth:280 }} />
+                  </div>
+                  <div style={{ fontSize:11, color:'#9ca3af', marginTop:6 }}>{incident.resolved_by} · {formatDateTime(incident.resolved_at)}</div>
+                </div>
+              )}
+              {incident.signature_reporter && (
+                <div>
+                  <div style={{ fontSize:11, color:'#6b7280', marginBottom:8 }}>ผู้แจ้ง</div>
+                  <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', background:'#fafafa', display:'inline-block' }}>
+                    <img src={incident.signature_reporter} alt="sig" style={{ display:'block', height:80, maxWidth:280 }} />
+                  </div>
+                </div>
+              )}
+              {incident.signature_manager && incident.severity === 'High' && (
+                <div>
+                  <div style={{ fontSize:11, color:'#6b7280', marginBottom:8 }}>ผู้จัดการรับทราบ</div>
+                  <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', background:'#fafafa', display:'inline-block' }}>
+                    <img src={incident.signature_manager} alt="sig" style={{ display:'block', height:80, maxWidth:280 }} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

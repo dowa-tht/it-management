@@ -9,7 +9,7 @@ const STATUS_COLORS = {
   'No Backup Task': { bg: '#f3f4f6', color: '#6b7280' },
 }
 
-const SYSTEMS = ['Server & File Share', 'Microsoft 365', 'Recovery Test']
+const SYSTEMS = ['Server & File Share', 'Microsoft 365']
 
 export default function BackupPage() {
   const [logs, setLogs] = useState([])
@@ -67,7 +67,6 @@ export default function BackupPage() {
     await fetchLogs()
   }
 
-  const handlePrint = () => window.print()
 
   const stats = {
     total: logs.length,
@@ -85,16 +84,6 @@ export default function BackupPage() {
 
   return (
     <>
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          .print-only { display: block !important; }
-          body { background: white !important; margin: 0; }
-          @page { margin: 15mm; }
-        }
-        @media screen { .print-only { display: none !important; } }
-      `}</style>
-
       {/* SCREEN VIEW */}
       <div className="no-print" style={{ padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
@@ -104,9 +93,6 @@ export default function BackupPage() {
               style={{ padding: '5px 10px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, fontFamily: 'inherit' }} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handlePrint} style={{ padding: '7px 14px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, background: '#fff', cursor: 'pointer', color: '#374151', fontFamily: 'inherit' }}>
-              🖨 Print FR-IT-02
-            </button>
             <button onClick={() => setShowForm(!showForm)} style={{ background: '#1d4ed8', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
               + บันทึก Backup
             </button>
@@ -205,100 +191,6 @@ export default function BackupPage() {
         </div>
       </div>
 
-      {/* PRINT VIEW FR-IT-02 */}
-      <div className="print-only" style={{ fontFamily: 'Noto Sans Thai, sans-serif' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, borderBottom: '2px solid #000', paddingBottom: 12 }}>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 700 }}>DOWA</div>
-            <div style={{ fontSize: 10, color: '#666' }}>บริษัท ดาว่า ไทยแลนด์ จำกัด</div>
-          </div>
-          <div style={{ textAlign: 'center', flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>บันทึกผลการสำรองข้อมูลและทดสอบการกู้คืน</div>
-            <div style={{ fontSize: 12, color: '#444' }}>Backup Log & Recovery Test Form</div>
-          </div>
-          <div style={{ textAlign: 'right', fontSize: 11 }}>
-            <div>เอกสารเลขที่: <strong>FR-IT-02</strong></div>
-            <div>Rev: 00</div>
-            <div>วันที่บังคับใช้: 30-Apr-2026</div>
-          </div>
-        </div>
-
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
-          <tbody>
-            <tr>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11, width: 140 }}>ประจำเดือน</td>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 12 }}>{monthLabel()}</td>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11, width: 140 }}>จำนวนรายการ</td>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 12 }}>{stats.total} รายการ</td>
-            </tr>
-            <tr>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11 }}>Success</td>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 12 }}>{stats.success} รายการ</td>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11 }}>Failed</td>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 12 }}>{stats.failed} รายการ</td>
-            </tr>
-            <tr>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11 }}>Success Rate</td>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 12, fontWeight: 700 }}>{successRate}%</td>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', background: '#f5f5f5', fontWeight: 600, fontSize: 11 }}>No Backup Task</td>
-              <td style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 12 }}>{stats.noTask} รายการ</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div style={{ fontSize: 12, fontWeight: 700, background: '#f0f0f0', padding: '5px 8px', border: '1px solid #000', borderBottom: 'none' }}>
-          รายการบันทึกผลการสำรองข้อมูล
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
-          <thead>
-            <tr style={{ background: '#f5f5f5' }}>
-              {['ลำดับ', 'วันที่', 'ระบบ / ข้อมูล', 'ประเภท', 'สถานะ', 'หมายเหตุ'].map(h => (
-                <th key={h} style={{ border: '1px solid #000', padding: '5px 8px', fontSize: 11, fontWeight: 600, textAlign: 'left' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {logs.length === 0 ? (
-              <tr><td colSpan={6} style={{ border: '1px solid #000', padding: '10px 8px', textAlign: 'center', fontSize: 12, color: '#999' }}>ไม่มีข้อมูลในเดือนนี้</td></tr>
-            ) : logs.map((log, i) => (
-              <tr key={log.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                <td style={{ border: '1px solid #000', padding: '4px 8px', fontSize: 11, textAlign: 'center', width: 40 }}>{i + 1}</td>
-                <td style={{ border: '1px solid #000', padding: '4px 8px', fontSize: 11, whiteSpace: 'nowrap' }}>{formatDate(log.log_date)}</td>
-                <td style={{ border: '1px solid #000', padding: '4px 8px', fontSize: 11 }}>{log.system_name}</td>
-                <td style={{ border: '1px solid #000', padding: '4px 8px', fontSize: 11 }}>{log.backup_type}</td>
-                <td style={{ border: '1px solid #000', padding: '4px 8px', fontSize: 11, fontWeight: log.status === 'Failed' ? 700 : 400, color: log.status === 'Failed' ? '#dc2626' : log.status === 'Success' ? '#059669' : '#666' }}>{log.status}</td>
-                <td style={{ border: '1px solid #000', padding: '4px 8px', fontSize: 11 }}>{log.notes || ''}</td>
-              </tr>
-            ))}
-            {Array.from({ length: Math.max(0, 5 - logs.length) }).map((_, i) => (
-              <tr key={`empty-${i}`}>
-                {[...Array(6)].map((_, j) => <td key={j} style={{ border: '1px solid #000', padding: '12px 8px' }}>&nbsp;</td>)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12 }}>
-          <tbody>
-            <tr>
-              <td style={{ border: '1px solid #000', padding: '8px', width: '50%', verticalAlign: 'top' }}>
-                <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>ผู้บันทึก / IT Officer</div>
-                <div style={{ minHeight: 50 }}></div>
-                <div style={{ fontSize: 11, borderTop: '1px dotted #999', paddingTop: 4, marginTop: 8 }}>ชื่อ: .................................................. วันที่: ....................</div>
-              </td>
-              <td style={{ border: '1px solid #000', padding: '8px', width: '50%', verticalAlign: 'top' }}>
-                <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>ผู้จัดการทบทวน / Senior Manager</div>
-                <div style={{ minHeight: 50 }}></div>
-                <div style={{ fontSize: 11, borderTop: '1px dotted #999', paddingTop: 4, marginTop: 8 }}>ชื่อ: .................................................. วันที่: ....................</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div style={{ textAlign: 'right', fontSize: 10, color: '#999' }}>
-          พิมพ์เมื่อ: {formatDate(new Date().toISOString())} | DOWA IT System | FR-IT-02 Rev.00
-        </div>
-      </div>
     </>
   )
 }
