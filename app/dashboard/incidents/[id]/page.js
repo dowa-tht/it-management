@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
+import { calculateNetBusinessMinutes, SLA_LIMITS } from '@/lib/slaUtils'
 
 const SEVERITY_COLORS = {
   High:   { bg: '#fee2e2', color: '#991b1b' },
@@ -306,13 +307,26 @@ export default function IncidentDetailPage() {
   const [isSuperUser, setIsSuperUser] = useState(false)
   const [showResolveDialog, setShowResolveDialog] = useState(false)
   const [showReopenDialog, setShowReopenDialog] = useState(false)
+  const [exclusions, setExclusions] = useState([])
+  const [workingHours, setWorkingHours] = useState(null)
+  const [holidays, setHolidays] = useState([])
+  const [exclusionReasons, setExclusionReasons] = useState([])
+  const [addingExclusion, setAddingExclusion] = useState(false)
+  const [newExclusion, setNewExclusion] = useState({ reason_id: '', start_time: '', end_time: '', notes: '' })
 
   // Master Data
   const [categories, setCategories] = useState([])
   const [systems, setSystems] = useState([])
   const [assignees, setAssignees] = useState([]) // { id, full_name }
 
-  useEffect(() => { initUser(); fetchIncident(); fetchLogs(); loadMasterData() }, [id])
+  useEffect(() => { 
+    initUser()
+    fetchIncident()
+    fetchLogs()
+    loadMasterData()
+    fetchExclusions()
+    fetchSettings()
+  }, [id])
 
   // Auto status เมื่อ edit แล้วเปลี่ยน assignee
   useEffect(() => {
@@ -331,6 +345,7 @@ export default function IncidentDetailPage() {
       .order('sort_order', { ascending: true })
     setCategories((master||[]).filter(d=>d.type==='incident_category').map(d=>d.value))
     setSystems((master||[]).filter(d=>d.type==='affected_system').map(d=>d.value))
+    setExclusionReasons((master||[]).filter(d=>d.type==='sla_exclusion_reason'))
 
     // ดึง Assignee จาก user_profiles
     const { data: assigneeData } = await supabase
@@ -359,6 +374,77 @@ export default function IncidentDetailPage() {
     const { data } = await supabase.from('incident_logs').select('*')
       .eq('incident_id', id).order('created_at', { ascending: true })
     setLogs(data||[])
+  }
+
+  const fetchExclusions = async () => {
+    const { data } = await supabase.from('incident_exclusions')
+      .select('*, reason:master_data(value)')
+      .eq('incident_id', id)
+      .order('start_time', { ascending: true })
+    setExclusions(data || [])
+  }
+
+  const fetchSettings = async () => {
+    // Fetch Working Hours
+    const { data: wh } = await supabase.from('system_settings').select('value').eq('key', 'working_hours').single()
+    if (wh) setWorkingHours(wh.value)
+
+    // Fetch Holidays
+    const { data: hl } = await supabase.from('holidays').select('holiday_date')
+    if (hl) setHolidays(hl.map(h => h.holiday_date))
+  }
+
+  const handleAddExclusion = async () => {
+    if (!newExclusion.reason_id || !newExclusion.start_time) {
+      alert('กรุณาระบุสาเหตุและเวลาเริ่ม')
+      return
+    }
+    const { error } = await supabase.from('incident_exclusions').insert([{
+      ...newExclusion,
+      incident_id: id,
+      created_by: currentUser?.email
+    }])
+    if (error) alert(error.message)
+    else {
+      setNewExclusion({ reason_id: '', start_time: '', end_time: '', notes: '' })
+      setAddingExclusion(false)
+      fetchExclusions()
+      addLog('เพิ่ม SLA Exclusion', incident.status, incident.status, 'บันทึกเวลาพัก SLA แบบกำหนดเอง')
+    }
+  }
+
+  const handleDeleteExclusion = async (exId) => {
+    if (!confirm('ต้องการลบรายการพักเวลานี้ใช่ไหม?')) return
+    await supabase.from('incident_exclusions').delete().eq('id', exId)
+    fetchExclusions()
+    addLog('ลบ SLA Exclusion', incident.status, incident.status, 'ยกเลิกการพักเวลา SLA')
+  }
+
+  const handlePauseSLA = async (reasonId) => {
+    const { error } = await supabase.from('incident_exclusions').insert([{
+      incident_id: id,
+      reason_id: reasonId,
+      start_time: new Date().toISOString(),
+      created_by: currentUser?.email
+    }])
+    if (error) alert(error.message)
+    else {
+      fetchExclusions()
+      addLog('เริ่มพักเวลา SLA', incident.status, incident.status, 'กดปุ่ม Pause SLA')
+    }
+  }
+
+  const handleResumeSLA = async () => {
+    const active = exclusions.find(e => !e.end_time)
+    if (!active) return
+    const { error } = await supabase.from('incident_exclusions')
+      .update({ end_time: new Date().toISOString() })
+      .eq('id', active.id)
+    if (error) alert(error.message)
+    else {
+      fetchExclusions()
+      addLog('เริ่มนับเวลา SLA ต่อ', incident.status, incident.status, 'กดปุ่ม Resume SLA')
+    }
   }
 
   const addLog = async (action, fromStatus, toStatus, note='') => {
@@ -440,11 +526,20 @@ export default function IncidentDetailPage() {
     }
 
     const slaMin = SLA_MINUTES[incident.severity] || SLA_MINUTES['Medium']
-    const responseMin = calcMinutes(incident.created_at, incident.assigned_at)
-    const resolveMin = calcMinutes(incident.created_at, now)
-    const responseOk = responseMin !== null ? responseMin <= slaMin.response : null
-    const resolveOk = resolveMin !== null ? resolveMin <= slaMin.resolve : null
-    const slaNote = `Response: ${formatElapsed(responseMin)} ${responseOk===true?'✅':responseOk===false?'⏰':'—'} | Resolution: ${formatElapsed(resolveMin)} ${resolveOk===true?'✅':resolveOk===false?'⏰':'—'}`
+    // SLA Calculation (Business Hours)
+    const defaultWH = { start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] }
+    const wh = workingHours || defaultWH
+    const slaLimit = SLA_LIMITS[incident?.severity] || SLA_LIMITS.Medium
+    const responseLimit = SLA_MINUTES[incident?.severity]?.response || 60
+
+    const responseMin = incident?.assigned_at 
+      ? calculateNetBusinessMinutes(incident.created_at, incident.assigned_at, wh, holidays, []) 
+      : calculateNetBusinessMinutes(incident.created_at, new Date(), wh, holidays, [])
+    const resolveMin = calculateNetBusinessMinutes(incident.created_at, now, wh, holidays, exclusions)
+    
+    const responseOk = responseMin <= responseLimit
+    const resolveOk = resolveMin <= slaLimit
+    const slaNote = `Response: ${formatElapsed(responseMin)} ${responseOk?'✅':'⏰'} | Resolution: ${formatElapsed(resolveMin)} ${resolveOk?'✅':'⏰'}`
 
     const updateData = { 
       ...form, 
@@ -512,20 +607,30 @@ export default function IncidentDetailPage() {
     }
     router.push('/dashboard/incidents')
   }
+  if (loading) return <div style={{ padding:40, textAlign:'center', color:'#9ca3af' }}>กำลังโหลด...</div>
+  if (!incident) return <div style={{ padding:40, textAlign:'center', color:'#9ca3af' }}>ไม่พบข้อมูล</div>
 
   const isLocked = incident?.is_locked || incident?.status === 'Resolved'
 
-  // SLA
-  const slaMin = SLA_MINUTES[incident?.severity] || SLA_MINUTES['Medium']
-  const slaLabel = SLA_LABELS[incident?.severity] || SLA_LABELS['Medium']
-  const responseMin = incident?.assigned_at ? calcMinutes(incident.created_at, incident.assigned_at) : calcElapsedNow(incident?.created_at)
-  const resolveMin = incident?.resolved_at ? calcMinutes(incident.created_at, incident.resolved_at) : calcElapsedNow(incident?.created_at)
+  // SLA Calculation (Business Hours)
+  const defaultWH = { start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] }
+  const wh = workingHours || defaultWH
+  const slaLimit = SLA_LIMITS[incident?.severity] || SLA_LIMITS.Medium
+  const slaLabelText = SLA_LABELS[incident?.severity] || SLA_LABELS.Medium
+  const responseLimit = SLA_MINUTES[incident?.severity]?.response || 60
+
+  const responseMin = incident?.assigned_at 
+    ? calculateNetBusinessMinutes(incident.created_at, incident.assigned_at, wh, holidays, []) 
+    : calculateNetBusinessMinutes(incident.created_at, new Date(), wh, holidays, [])
+  const resolveMin = calculateNetBusinessMinutes(incident.created_at, incident?.resolved_at || new Date(), wh, holidays, exclusions)
 
   const responseState = !incident?.assigned_at ? 'waiting'
-    : responseMin <= slaMin.response ? 'done_ok' : 'done_late'
+    : responseMin <= responseLimit ? 'done_ok' : 'done_late'
   const resolveState = incident?.resolved_at
-    ? resolveMin <= slaMin.resolve ? 'done_ok' : 'done_late'
-    : resolveMin <= slaMin.resolve ? 'counting' : 'counting_late'
+    ? resolveMin <= slaLimit ? 'done_ok' : 'done_late'
+    : resolveMin <= slaLimit ? 'counting' : 'counting_late'
+    
+  const activeExclusion = exclusions.find(e => !e.end_time)
 
   // Field helper
   const field = (label, key, type='text', options=null) => (
@@ -564,8 +669,6 @@ export default function IncidentDetailPage() {
     </div>
   )
 
-  if (loading) return <div style={{ padding:40, textAlign:'center', color:'#9ca3af' }}>กำลังโหลด...</div>
-  if (!incident) return <div style={{ padding:40, textAlign:'center', color:'#9ca3af' }}>ไม่พบข้อมูล</div>
 
   return (
     <>
@@ -695,15 +798,95 @@ export default function IncidentDetailPage() {
 
         {/* SLA */}
         <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e5e7eb', padding:20, marginBottom:16 }}>
-          <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #f3f4f6' }}>⏱ SLA — {incident.severity}</div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-            <SLAWidget label="Response Time" slaLabel={slaLabel.response} state={responseState} actual={responseMin} />
-            <SLAWidget label="Resolution Time" slaLabel={slaLabel.resolve} state={resolveState} actual={resolveMin} />
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #f3f4f6' }}>
+            <div style={{ fontSize:13, fontWeight:600, color:'#374151' }}>⏱ SLA Analysis (Business Hours) — {incident.severity}</div>
+            <div style={{ display:'flex', gap:8 }}>
+              {!isLocked && (
+                <>
+                  <button onClick={() => setAddingExclusion(!addingExclusion)} style={{ padding:'5px 12px', border:'1px solid #d1d5db', borderRadius:6, fontSize:11, background:'#fff', cursor:'pointer' }}>
+                    {addingExclusion ? 'Cancel' : '+ Manual Exclusion'}
+                  </button>
+                  {activeExclusion ? (
+                    <button onClick={handleResumeSLA} style={{ padding:'5px 12px', background:'#10b981', color:'#fff', border:'none', borderRadius:6, fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                      ▶ Resume SLA
+                    </button>
+                  ) : (
+                    <select 
+                      onChange={(e) => { if(e.target.value) handlePauseSLA(e.target.value) }} 
+                      style={{ padding:'4px 8px', borderRadius:6, border:'1px solid #d1d5db', fontSize:11, background:'#f9fafb' }}
+                    >
+                      <option value="">⏸ Pause SLA...</option>
+                      {exclusionReasons.map(r => <option key={r.id} value={r.id}>{r.value}</option>)}
+                    </select>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-          <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #f3f4f6', fontSize:11, color:'#9ca3af', display:'flex', gap:16, flexWrap:'wrap' }}>
-            <span>สร้าง: {formatDateTime(incident.created_at)}</span>
-            {incident.assigned_at && <span>Assign: {formatDateTime(incident.assigned_at)}</span>}
-            {incident.resolved_at && <span>ปิด: {formatDateTime(incident.resolved_at)}</span>}
+
+          {addingExclusion && (
+            <div style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:8, padding:16, marginBottom:16 }}>
+              <div style={{ fontSize:12, fontWeight:600, color:'#374151', marginBottom:12 }}>➕ เพิ่มรายการพักเวลาแบบ Manual</div>
+              <div className="grid-3-2-1" style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:10 }}>
+                <div>
+                  <label style={{ fontSize:10, color:'#6b7280', display:'block', marginBottom:4 }}>สาเหตุ</label>
+                  <select value={newExclusion.reason_id} onChange={e => setNewExclusion({...newExclusion, reason_id:e.target.value})} style={{ width:'100%', padding:'6px', borderRadius:4, border:'1px solid #d1d5db', fontSize:12 }}>
+                    <option value="">เลือกสาเหตุ...</option>
+                    {exclusionReasons.map(r => <option key={r.id} value={r.id}>{r.value}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:10, color:'#6b7280', display:'block', marginBottom:4 }}>เวลาเริ่ม</label>
+                  <input type="datetime-local" value={newExclusion.start_time} onChange={e => setNewExclusion({...newExclusion, start_time:e.target.value})} style={{ width:'100%', padding:'5px', borderRadius:4, border:'1px solid #d1d5db', fontSize:12 }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:10, color:'#6b7280', display:'block', marginBottom:4 }}>เวลาจบ (ถ้ามี)</label>
+                  <input type="datetime-local" value={newExclusion.end_time} onChange={e => setNewExclusion({...newExclusion, end_time:e.target.value})} style={{ width:'100%', padding:'5px', borderRadius:4, border:'1px solid #d1d5db', fontSize:12 }} />
+                </div>
+              </div>
+              <div style={{ display:'flex', justifyContent:'flex-end' }}>
+                <button onClick={handleAddExclusion} style={{ padding:'6px 16px', background:'#1d4ed8', color:'#fff', border:'none', borderRadius:4, fontSize:12, fontWeight:600, cursor:'pointer' }}>บันทึกรายการ</button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom: 16 }}>
+            <SLAWidget label="Response Time" slaLabel={slaLabelText.response} state={responseState} actual={responseMin} />
+            <SLAWidget label="Resolution Time (Net)" slaLabel={slaLabelText.resolve} state={resolveState} actual={resolveMin} />
+          </div>
+
+          {/* Exclusion History */}
+          {exclusions.length > 0 && (
+            <div style={{ border:'1px solid #f3f4f6', borderRadius:8, overflow:'hidden' }}>
+              <table style={{ width:'100%', fontSize:11, borderCollapse:'collapse' }}>
+                <thead>
+                  <tr style={{ background:'#f9fafb', color:'#6b7280' }}>
+                    <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:500 }}>Pause Reason</th>
+                    <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:500 }}>Start</th>
+                    <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:500 }}>End</th>
+                    <th style={{ padding:'6px 10px', textAlign:'center', fontWeight:500 }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {exclusions.map(ex => (
+                    <tr key={ex.id} style={{ borderTop:'1px solid #f3f4f6' }}>
+                      <td style={{ padding:'8px 10px', color:'#374151', fontWeight:500 }}>{ex.reason?.value || '—'}</td>
+                      <td style={{ padding:'8px 10px', color:'#6b7280' }}>{formatDateTime(ex.start_time)}</td>
+                      <td style={{ padding:'8px 10px', color:'#6b7280' }}>{ex.end_time ? formatDateTime(ex.end_time) : <span style={{ color:'#d97706', fontWeight:600 }}>⏸ Paused...</span>}</td>
+                      <td style={{ padding:'8px 10px', textAlign:'center' }}>
+                        {!isLocked && <button onClick={() => handleDeleteExclusion(ex.id)} style={{ background:'none', border:'none', color:'#dc2626', cursor:'pointer' }}>🗑</button>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div style={{ marginTop:12, pt:12, fontSize:11, color:'#9ca3af', display:'flex', gap:16, flexWrap:'wrap' }}>
+            <span>⏱ ทำงาน: {workingHours?.start}-{workingHours?.end} ({workingHours?.work_days?.length} วัน/สัปดาห์)</span>
+            <span>🌴 วันหยุด: {holidays.length} วัน</span>
+            {exclusions.length > 0 && <span style={{ color: '#d97706', fontWeight: 600 }}>⏸ หักเวลาออก: {exclusions.length} รายการ</span>}
           </div>
         </div>
 
@@ -805,7 +988,7 @@ export default function IncidentDetailPage() {
             <tr>
               <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11 }}>ระดับความรุนแรง</td>
               <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:11 }}>
-                <strong>{incident.severity}</strong> | Response SLA: {slaLabel.response} | Actual: {formatElapsed(responseMin)} {responseState==='done_ok'?'✅':'⏰'}
+                <strong>{incident.severity}</strong> | Response SLA: {slaLabelText.response} | Actual: {formatElapsed(responseMin)} {responseState==='done_ok'?'✅':'⏰'}
               </td>
               <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11 }}>สถานะ</td>
               <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:12 }}><strong>{incident.status}</strong></td>
@@ -814,7 +997,7 @@ export default function IncidentDetailPage() {
               <tr>
                 <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11 }}>Resolution SLA</td>
                 <td colSpan={3} style={{ border:'1px solid #000', padding:'5px 8px', fontSize:11 }}>
-                  เป้าหมาย: {slaLabel.resolve} | Actual: {formatElapsed(resolveMin)} {resolveState==='done_ok'?'✅ (ใน SLA)':'⏰ (เกิน SLA)'}
+                  เป้าหมาย: {slaLabelText.resolve} | Actual: {formatElapsed(resolveMin)} {resolveState==='done_ok'?'✅ (ใน SLA)':'⏰ (เกิน SLA)'}
                 </td>
               </tr>
             )}

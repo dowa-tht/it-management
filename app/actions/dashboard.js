@@ -1,5 +1,6 @@
 'use server'
 import { createClient } from '@supabase/supabase-js'
+import { calculateNetBusinessMinutes, SLA_LIMITS } from '@/lib/slaUtils'
 
 export async function getDashboardData(timezoneOffset = -420) {
   try {
@@ -35,11 +36,13 @@ export async function getDashboardData(timezoneOffset = -420) {
     streakStart.setDate(streakStart.getDate() - 35)
     const streakStartStr = streakStart.toISOString().split('T')[0]
 
-    const [incRes, bakRes, chkRes, holidayRes] = await Promise.all([
-      supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, affected_system').gte('created_at', startIso).order('created_at', { ascending: false }),
+    const [incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes] = await Promise.all([
+      supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, resolved_at, affected_system').gte('created_at', startIso).order('created_at', { ascending: false }),
       supabaseAdmin.from('backup_logs').select('id, log_date, system_name, status, notes').gte('log_date', startIso.split('T')[0]).order('log_date', { ascending: false }),
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').gte('period_date', streakStartStr),
-      supabaseAdmin.from('holidays').select('holiday_date').gte('holiday_date', streakStartStr)
+      supabaseAdmin.from('holidays').select('holiday_date').gte('holiday_date', streakStartStr),
+      supabaseAdmin.from('system_settings').select('value').eq('key', 'working_hours').single(),
+      supabaseAdmin.from('incident_exclusions').select('*').gte('start_time', startIso)
     ])
 
     if (incRes.error) console.error('Incidents Fetch Error:', incRes.error)
@@ -133,6 +136,26 @@ export async function getDashboardData(timezoneOffset = -420) {
       ? Math.round((backups.filter(b => b.status === 'Success').length / backups.length) * 100)
       : 0
 
+    // SLA KPI Calculation (Binary 0/1)
+    const defaultWH = { start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] }
+    const wh = settingsRes.data?.value || defaultWH
+    const allExclusions = exclusionsRes.data || []
+    
+    let passCount = 0
+    let totalClosed = 0
+    
+    incidents.forEach(inc => {
+      if (inc.status === 'Resolved' && inc.resolved_at) {
+        totalClosed++
+        const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
+        const netMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions)
+        const limit = SLA_LIMITS[inc.severity] || SLA_LIMITS.Medium
+        if (netMin <= limit) passCount++
+      }
+    })
+    
+    const slaComplianceRate = totalClosed > 0 ? Math.round((passCount / totalClosed) * 100) : 100
+
     // Incident 7 days chart data
     const chartMap = {}
     incidents.forEach(i => {
@@ -158,7 +181,8 @@ export async function getDashboardData(timezoneOffset = -420) {
         highSeverity,
         inProgress,
         openIncidents,
-        backupSuccessRate
+        backupSuccessRate,
+        slaComplianceRate
       },
       incidentByDay,
       severityData,

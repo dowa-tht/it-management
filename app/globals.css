@@ -65,7 +65,7 @@ html, body {
 .badge-resolved { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 20px; font-size: 11px; }
 
 /* ===== RESPONSIVE ===== */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .sidebar {
     position: fixed;
     top: 0;
@@ -107,12 +107,47 @@ html, body {
     grid-template-columns: 1fr !important;
   }
 
-  .hide-mobile {
+  .responsive-flex {
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  .responsive-flex > div {
+    width: 100% !important;
+  }
+
+  .grid-3-2-1 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .grid-2-1 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .hide-tablet {
     display: none !important;
   }
 
   .table-scroll {
     overflow-x: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .stat-grid-4 {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .grid-3-2-1 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .form-grid-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .hide-mobile {
+    display: none !important;
   }
 }
 

@@ -71,11 +71,12 @@ export default function DashboardPage() {
   const { stats, incidentByDay, severityData, recentIncidents, recentBackups, checklists } = data
 
   const statCards = [
-    { label: 'Incident 30 วันย้อนหลัง', value: stats.totalIncidents, color: '#1d4ed8', link: '/dashboard/incidents?date=30days' },
+    { label: 'Incident 30 วัน', value: stats.totalIncidents, color: '#1d4ed8', link: '/dashboard/incidents?date=30days' },
     { label: 'High Severity', value: stats.highSeverity, color: '#dc2626', link: '/dashboard/incidents?severity=High&date=30days' },
-    { label: 'กำลังแก้ไข (In Progress)', value: stats.inProgress, color: '#d97706', link: '/dashboard/incidents?status=InProgress&date=30days' },
-    { label: 'รอรับเรื่อง (Open)', value: stats.openIncidents, color: '#4f46e5', link: '/dashboard/incidents?status=Open&date=30days' },
-    { label: 'Backup Success Rate', value: `${stats.backupSuccessRate}%`, color: '#059669', link: '/dashboard/backup' },
+    { label: 'กำลังแก้ไข', value: stats.inProgress, color: '#d97706', link: '/dashboard/incidents?status=InProgress&date=30days' },
+    { label: 'รอรับเรื่อง', value: stats.openIncidents, color: '#4f46e5', link: '/dashboard/incidents?status=Open&date=30days' },
+    { label: 'SLA Success', value: `${stats.slaComplianceRate}%`, color: stats.slaComplianceRate >= 95 ? '#059669' : '#dc2626', link: '/dashboard/incidents?status=Resolved&date=30days' },
+    { label: 'Backup Rate', value: `${stats.backupSuccessRate}%`, color: '#059669', link: '/dashboard/backup' },
   ]
 
   const ca = data.checklistActions
@@ -102,75 +103,88 @@ export default function DashboardPage() {
       </div>
 
       {/* IT Checklist Tracking Section */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 20, marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>IT Checklist Compliance</h2>
-            <div style={{ fontSize: 12, color: '#6b7280' }}>สถานะการตรวจสอบระบบ IT ประจำรอบเวลา</div>
-          </div>
-          
-          {/* Health Streak */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Daily Streak (Last 7 Days)</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {ca?.streak?.map((s, idx) => (
-                <div key={idx} title={`${s.date}: ${s.label}`} style={{
-                  width: 16, height: 16, borderRadius: '50%',
-                  background: getStreakColor(s.status),
-                  border: s.status === 'skip' ? '1px solid #d1d5db' : 'none',
-                  boxShadow: s.status === 'ok' ? '0 0 8px rgba(16, 185, 129, 0.4)' : s.status === 'ng' || s.status === 'missed' ? '0 0 8px rgba(239, 68, 68, 0.4)' : 'none'
-                }} />
-              ))}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 20 }}>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+            <div>
+              <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>IT Checklist Compliance</h2>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>สถานะการตรวจสอบระบบ IT ประจำรอบเวลา</div>
             </div>
+            
+            {/* Health Streak */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Daily Streak</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {ca?.streak?.map((s, idx) => (
+                  <div key={idx} title={`${s.date}: ${s.label}`} style={{
+                    width: 14, height: 14, borderRadius: '50%',
+                    background: getStreakColor(s.status),
+                    border: s.status === 'skip' ? '1px solid #d1d5db' : 'none',
+                  }} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Action Cards */}
+          <div className="grid-3-2-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+            {/* Daily */}
+            <Link href={ca?.dailyStatus?.ngCount > 0 ? "/dashboard/checklist?filter=ng&freq_type=Daily" : "/dashboard/checklist"} style={{ textDecoration: 'none' }}>
+              <div style={{ background: ca?.dailyStatus?.status === 'ok' ? '#ecfdf5' : ca?.dailyStatus?.status === 'ng' ? '#fef2f2' : ca?.dailyStatus?.status === 'in-progress' ? '#eff6ff' : ca?.dailyStatus?.status === 'skip' ? '#f9fafb' : '#fffbeb', border: `1px solid ${ca?.dailyStatus?.status === 'ok' ? '#a7f3d0' : ca?.dailyStatus?.status === 'ng' ? '#fecaca' : ca?.dailyStatus?.status === 'in-progress' ? '#bfdbfe' : ca?.dailyStatus?.status === 'skip' ? '#e5e7eb' : '#fde68a'}`, borderRadius: 10, padding: 12, transition: 'transform 0.15s', cursor: 'pointer' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>Daily</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 18 }}>{ca?.dailyStatus?.status === 'ok' ? '✅' : ca?.dailyStatus?.status === 'ng' || ca?.dailyStatus?.status === 'missed' ? '⚠️' : ca?.dailyStatus?.status === 'in-progress' ? '🔄' : ca?.dailyStatus?.status === 'skip' ? '🌴' : '⏳'}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{ca?.dailyStatus?.label || 'รอตรวจ'}</span>
+                </div>
+              </div>
+            </Link>
+            
+            <Link href="/dashboard/checklist" style={{ textDecoration: 'none' }}>
+              <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>Weekly</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 18 }}>{ca?.weeklyStatus?.status === 'done' ? '✅' : '📅'}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{ca?.weeklyStatus?.label || 'รอตรวจ'}</span>
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/dashboard/checklist" style={{ textDecoration: 'none' }}>
+              <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>Monthly</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 18 }}>{ca?.monthlyStatus?.status === 'done' ? '✅' : '📊'}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{ca?.monthlyStatus?.label || 'รอตรวจ'}</span>
+                </div>
+              </div>
+            </Link>
           </div>
         </div>
 
-        {/* Action Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-          {/* Daily */}
-          <Link href={ca?.dailyStatus?.ngCount > 0 ? "/dashboard/checklist?filter=ng&freq_type=Daily" : "/dashboard/checklist"} style={{ textDecoration: 'none' }}>
-            <div style={{ background: ca?.dailyStatus?.status === 'ok' ? '#ecfdf5' : ca?.dailyStatus?.status === 'ng' ? '#fef2f2' : ca?.dailyStatus?.status === 'in-progress' ? '#eff6ff' : ca?.dailyStatus?.status === 'skip' ? '#f9fafb' : '#fffbeb', border: `1px solid ${ca?.dailyStatus?.status === 'ok' ? '#a7f3d0' : ca?.dailyStatus?.status === 'ng' ? '#fecaca' : ca?.dailyStatus?.status === 'in-progress' ? '#bfdbfe' : ca?.dailyStatus?.status === 'skip' ? '#e5e7eb' : '#fde68a'}`, borderRadius: 10, padding: 16, transition: 'transform 0.15s', cursor: 'pointer' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 8 }}>Daily Checklist</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 24 }}>{ca?.dailyStatus?.status === 'ok' ? '✅' : ca?.dailyStatus?.status === 'ng' || ca?.dailyStatus?.status === 'missed' ? '⚠️' : ca?.dailyStatus?.status === 'in-progress' ? '🔄' : ca?.dailyStatus?.status === 'skip' ? '🌴' : '⏳'}</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
-                  {ca?.dailyStatus?.label || 'รอตรวจสอบ'}
-                </span>
-              </div>
-            </div>
-          </Link>
-          
-          {/* Weekly */}
-          <Link href={ca?.weeklyStatus?.ngCount > 0 ? "/dashboard/checklist?filter=ng&freq_type=Weekly" : "/dashboard/checklist"} style={{ textDecoration: 'none' }}>
-            <div style={{ background: ca?.weeklyStatus?.status === 'done' ? '#ecfdf5' : ca?.weeklyStatus?.status === 'ng' ? '#fef2f2' : ca?.weeklyStatus?.status === 'in-progress' ? '#eff6ff' : '#f9fafb', border: `1px solid ${ca?.weeklyStatus?.status === 'done' ? '#a7f3d0' : ca?.weeklyStatus?.status === 'ng' ? '#fecaca' : ca?.weeklyStatus?.status === 'in-progress' ? '#bfdbfe' : '#e5e7eb'}`, borderRadius: 10, padding: 16, cursor: 'pointer' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 8 }}>Weekly Checklist</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 24 }}>{ca?.weeklyStatus?.status === 'done' ? '✅' : ca?.weeklyStatus?.status === 'ng' ? '⚠️' : ca?.weeklyStatus?.status === 'in-progress' ? '🔄' : '📅'}</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{ca?.weeklyStatus?.label || 'รอการตรวจสอบ'}</span>
-              </div>
-            </div>
-          </Link>
-
-          {/* Monthly */}
-          <Link href={ca?.monthlyStatus?.ngCount > 0 ? "/dashboard/checklist?filter=ng&freq_type=Monthly" : "/dashboard/checklist"} style={{ textDecoration: 'none' }}>
-            <div style={{ background: ca?.monthlyStatus?.status === 'done' ? '#ecfdf5' : ca?.monthlyStatus?.status === 'ng' ? '#fef2f2' : ca?.monthlyStatus?.status === 'in-progress' ? '#eff6ff' : '#f9fafb', border: `1px solid ${ca?.monthlyStatus?.status === 'done' ? '#a7f3d0' : ca?.monthlyStatus?.status === 'ng' ? '#fecaca' : ca?.monthlyStatus?.status === 'in-progress' ? '#bfdbfe' : '#e5e7eb'}`, borderRadius: 10, padding: 16, cursor: 'pointer' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 8 }}>Monthly Checklist</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 24 }}>{ca?.monthlyStatus?.status === 'done' ? '✅' : ca?.monthlyStatus?.status === 'ng' ? '⚠️' : ca?.monthlyStatus?.status === 'in-progress' ? '🔄' : '📊'}</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{ca?.monthlyStatus?.label || 'รอการตรวจสอบ'}</span>
-              </div>
-            </div>
-          </Link>
+        {/* SLA KPI Gauge Card */}
+        <div style={{ background: stats.slaComplianceRate >= 95 ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', borderRadius: 12, padding: 20, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>🎯</div>
+          <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>SLA Compliance Rate</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <div style={{ fontSize: 42, fontWeight: 800 }}>{stats.slaComplianceRate}%</div>
+            <div style={{ fontSize: 14, fontWeight: 500, opacity: 0.9 }}>/ 95% Target</div>
+          </div>
+          <div style={{ marginTop: 12, background: 'rgba(255,255,255,0.2)', height: 6, borderRadius: 10 }}>
+            <div style={{ background: '#fff', height: '100%', borderRadius: 10, width: `${Math.min(100, stats.slaComplianceRate)}%`, boxShadow: '0 0 10px rgba(255,255,255,0.5)' }} />
+          </div>
+          <div style={{ fontSize: 11, marginTop: 12, opacity: 0.9, fontWeight: 500 }}>
+            {stats.slaComplianceRate >= 95 ? '✅ ผ่านเป้าหมายการให้บริการ' : '⚠️ ต่ำกว่าเป้าหมายที่กำหนดไว้'}
+          </div>
         </div>
       </div>
 
       {/* Stat Cards */}
-      <div className="stat-grid-5" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div className="stat-grid-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 20 }}>
         {statCards.map(s => (
           <Link key={s.label} href={s.link} style={{ textDecoration: 'none' }}>
-            <div style={{ background: '#fff', borderRadius: 10, padding: '16px', border: '1px solid #e5e7eb', cursor: 'pointer' }}>
-              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>{s.label}</div>
-              <div style={{ fontSize: 30, fontWeight: 700, color: s.color }}>{s.value}</div>
+            <div style={{ background: '#fff', borderRadius: 10, padding: '14px', border: '1px solid #e5e7eb', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase' }}>{s.label}</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
             </div>
           </Link>
         ))}
