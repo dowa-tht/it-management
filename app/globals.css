@@ -107,9 +107,14 @@ html, body {
     grid-template-columns: 1fr !important;
   }
 
+  .stat-grid-6 {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
   .responsive-flex {
     flex-direction: column !important;
     gap: 16px !important;
+    align-items: flex-start !important;
   }
 
   .responsive-flex > div {
@@ -136,6 +141,10 @@ html, body {
 @media (max-width: 640px) {
   .stat-grid-4 {
     grid-template-columns: 1fr !important;
+  }
+
+  .stat-grid-6 {
+    grid-template-columns: repeat(2, 1fr) !important;
   }
   
   .grid-3-2-1 {
