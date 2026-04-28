@@ -150,14 +150,16 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel }) {
   const [showCanvas, setShowCanvas] = useState(null) // 'IT', 'Reporter', 'Manager'
 
   const isHigh = incident?.severity === 'High'
-  const totalSteps = isHigh ? 5 : 4
+  const requireCA = form.require_ca || isHigh
   const steps = [
     { n:1, label:'Resolution' },
-    { n:2, label:'IT' },
-    { n:3, label:'ผู้แจ้ง' },
-    ...(isHigh ? [{ n:4, label:'ผู้จัดการ' }] : []),
-    { n:totalSteps, label:'ตรวจสอบ' }
+    ...(requireCA ? [{ n:2, label:'Corrective Action' }] : []),
+    { n:requireCA ? 3 : 2, label:'IT' },
+    { n:requireCA ? 4 : 3, label:'ผู้แจ้ง' },
+    ...(isHigh ? [{ n:requireCA ? 5 : 4, label:'ผู้จัดการ' }] : []),
+    { n: (requireCA ? 4 : 3) + (isHigh ? 2 : 1), label:'ตรวจสอบ' }
   ]
+  const totalSteps = steps[steps.length - 1].n
 
   const handleDraft = () => {
     onConfirm(sigIT, sigReporter, sigManager, true)
@@ -251,16 +253,49 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel }) {
               <button onClick={onCancel} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>ยกเลิก</button>
               <div style={{ display:'flex', gap:8 }}>
                 <button onClick={handleDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor:'pointer', fontFamily:'inherit', color:'#374151' }}>💾 Save Draft</button>
-                <button onClick={() => { if(!form.resolution?.trim() || !form.root_cause?.trim()){alert('กรุณากรอก Resolution และ Root Cause ให้ครบถ้วน');return} setStep(2) }}
+                <button onClick={() => { 
+                  if(!form.resolution?.trim() || !form.root_cause?.trim()){
+                    alert('กรุณากรอก Resolution และ Root Cause ให้ครบถ้วน');
+                    return;
+                  } 
+                  setStep(2)
+                }}
                   style={{ padding:'8px 20px', border:'none', borderRadius:7, fontSize:13, background:'#1d4ed8', color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>ถัดไป →</button>
               </div>
             </div>
           </>
         )}
 
-        {step === 2 && renderSignatureStep('ลายเซ็นต์ผู้ปิดเคส', 'วาดลายเซ็นต์เพื่อยืนยันการปิด Incident', sigIT, setSigIT, 'IT', 3, 1)}
-        {step === 3 && renderSignatureStep('ลายเซ็นต์ผู้แจ้ง', 'วาดลายเซ็นต์เพื่อรับทราบการปิดเคส', sigReporter, setSigReporter, 'Reporter', isHigh ? 4 : totalSteps, 2)}
-        {step === 4 && isHigh && renderSignatureStep('ลายเซ็นต์ผู้จัดการ', 'วาดลายเซ็นต์เพื่อรับทราบสำหรับเคส High Severity', sigManager, setSigManager, 'Manager', totalSteps, 3)}
+        {step === 2 && requireCA && (
+          <>
+            <div style={{ fontSize:15, fontWeight:600, color:'#111827', marginBottom:16 }}>🛠️ Corrective Action (มาตรการแก้ไข)</div>
+            <div style={{ marginBottom:20 }}>
+              <label style={{ fontSize:12, fontWeight:500, color:'#374151', display:'block', marginBottom:6 }}>รายละเอียด Corrective Action <span style={{ color:'#dc2626' }}>*</span></label>
+              <textarea value={form.corrective_action||''} onChange={e => setForm({...form, corrective_action:e.target.value})} rows={5}
+                placeholder="อธิบายมาตรการเพื่อป้องกันการเกิดซ้ำ..."
+                style={{ width:'100%', padding:'9px 12px', border:'1px solid #d1d5db', borderRadius:8, fontSize:13, resize:'vertical', fontFamily:'inherit', lineHeight:1.6 }} />
+              <div style={{ fontSize:11, color:'#6b7280', marginTop:6 }}>* บังคับสำหรับเคส High Severity หรือมีการระบุว่าต้องการ Corrective Action</div>
+            </div>
+            <div style={{ display:'flex', gap:8, justifyContent:'space-between' }}>
+              <button onClick={() => setStep(1)} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>← ย้อนกลับ</button>
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={handleDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor:'pointer', fontFamily:'inherit', color:'#374151' }}>💾 Save Draft</button>
+                <button onClick={() => { 
+                  if(!form.corrective_action?.trim()){
+                    alert('กรุณากรอกรายละเอียด Corrective Action');
+                    return;
+                  }
+                  setStep(3)
+                }}
+                  style={{ padding:'8px 20px', border:'none', borderRadius:7, fontSize:13, background:'#1d4ed8', color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>ถัดไป →</button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {step === (requireCA ? 3 : 2) && renderSignatureStep('ลายเซ็นต์ผู้ปิดเคส', 'วาดลายเซ็นต์เพื่อยืนยันการปิด Incident', sigIT, setSigIT, 'IT', requireCA ? 4 : 3, requireCA ? 2 : 1)}
+        {step === (requireCA ? 4 : 3) && renderSignatureStep('ลายเซ็นต์ผู้แจ้ง', 'วาดลายเซ็นต์เพื่อรับทราบการปิดเคส', sigReporter, setSigReporter, 'Reporter', isHigh ? (requireCA ? 5 : 4) : totalSteps, requireCA ? 3 : 2)}
+        {step === (requireCA ? 5 : 4) && isHigh && renderSignatureStep('ลายเซ็นต์ผู้จัดการ', 'วาดลายเซ็นต์เพื่อรับทราบสำหรับเคส High Severity', sigManager, setSigManager, 'Manager', totalSteps, requireCA ? 4 : 3)}
 
         {step === totalSteps && (
           <>
@@ -268,6 +303,7 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel }) {
             <div style={{ background:'#f9fafb', borderRadius:8, padding:16, marginBottom:16, fontSize:13 }}>
               <div style={{ marginBottom:10 }}><div style={{ fontSize:11, color:'#6b7280', marginBottom:2 }}>Resolution</div><div style={{ color:'#111827', lineHeight:1.6 }}>{form.resolution}</div></div>
               <div style={{ marginBottom:10 }}><div style={{ fontSize:11, color:'#6b7280', marginBottom:2 }}>Root Cause</div><div style={{ color:'#111827', lineHeight:1.6 }}>{form.root_cause}</div></div>
+              {requireCA && <div style={{ marginBottom:10 }}><div style={{ fontSize:11, color:'#6b7280', marginBottom:2 }}>Corrective Action</div><div style={{ color:'#1d4ed8', lineHeight:1.6, fontWeight:500 }}>{form.corrective_action}</div></div>}
               
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 10, marginTop: 12 }}>
                 <div><div style={{ fontSize:11, color:'#6b7280', marginBottom:6 }}>IT Officer</div>{sigIT ? <img src={sigIT} height={50} style={{border:'1px solid #e5e7eb', background:'#fff', borderRadius:4}} alt="sig"/> : <span style={{color:'#dc2626'}}>รอเซ็นต์</span>}</div>
@@ -279,7 +315,7 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel }) {
               ⚠️ เมื่อยืนยันแล้ว เอกสารจะถูกล็อคสถานะ Resolved ทันที
             </div>
             <div style={{ display:'flex', gap:8, justifyContent:'space-between' }}>
-              <button onClick={() => setStep(isHigh ? 4 : 3)} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>← ย้อนกลับ</button>
+              <button onClick={() => setStep(isHigh ? (requireCA ? 5 : 4) : (requireCA ? 4 : 3))} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>← ย้อนกลับ</button>
               <div style={{ display:'flex', gap:8 }}>
                 <button onClick={handleDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor:'pointer', fontFamily:'inherit', color:'#374151' }}>💾 Save Draft</button>
                 <button onClick={() => onConfirm(sigIT, sigReporter, sigManager, false)}
@@ -337,6 +373,13 @@ export default function IncidentDetailPage() {
       setForm(prev => ({ ...prev, status: 'Open', assigned_at: null }))
     }
   }, [form.assigned_to, editing])
+
+  // Auto-check require_ca if High Severity
+  useEffect(() => {
+    if (form.severity === 'High' && !form.require_ca) {
+      setForm(prev => ({ ...prev, require_ca: true }))
+    }
+  }, [form.severity])
 
   const loadMasterData = async () => {
     const { data: master } = await supabase
@@ -509,7 +552,9 @@ export default function IncidentDetailPage() {
         status: incident.status, // Revert back to original status if saving draft
         signature_it: sigIT,
         signature_reporter: sigReporter,
-        signature_manager: sigManager
+        signature_manager: sigManager,
+        corrective_action: form.corrective_action,
+        require_ca: form.require_ca
       }
       const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
       if (error) {
@@ -549,7 +594,9 @@ export default function IncidentDetailPage() {
       resolved_by:currentUser?.email, 
       signature_it:sigIT,
       signature_reporter:sigReporter,
-      signature_manager:sigManager
+      signature_manager:sigManager,
+      corrective_action: form.corrective_action,
+      require_ca: form.require_ca
     }
     const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
     if (error) {
@@ -587,7 +634,18 @@ export default function IncidentDetailPage() {
 
   const handleReopen = async () => {
     setSaving(true)
-    const updateData = { ...incident, status:'Open', is_locked:false, resolved_at:null, resolved_by:null, signature_it:null, signature_reporter:null, signature_manager:null }
+    const updateData = { 
+      ...incident, 
+      status:'Open', 
+      is_locked:false, 
+      resolved_at:null, 
+      resolved_by:null, 
+      signature_it:null, 
+      signature_reporter:null, 
+      signature_manager:null,
+      corrective_action: null,
+      require_ca: incident.severity === 'High'
+    }
     const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
     if (error) {
       alert(`Reopen ไม่สำเร็จ: ${error.message}`)
@@ -755,6 +813,24 @@ export default function IncidentDetailPage() {
             {field('ประเภท Incident', 'category', 'select', 'master_category')}
             {field('ระดับความรุนแรง', 'severity', 'select', ['High','Medium','Low'])}
             {field('สถานะ', 'status', 'select', ['Open','In Progress','Resolved'])}
+            
+            {/* Require Corrective Action Checkbox */}
+            <div style={{ marginBottom:14, padding:'8px 12px', background:form.require_ca?'#eff6ff':'#f9fafb', borderRadius:8, border:`1px solid ${form.require_ca?'#bfdbfe':'#e5e7eb'}`, transition:'all 0.2s' }}>
+              <label style={{ display:'flex', alignItems:'center', gap:10, cursor: editing && form.severity!=='High' ? 'pointer' : 'default' }}>
+                <input type="checkbox" checked={form.require_ca||false} 
+                  disabled={!editing || form.severity==='High'}
+                  onChange={e => setForm({...form, require_ca: e.target.checked})}
+                  style={{ width:18, height:18, cursor: editing && form.severity!=='High' ? 'pointer' : 'default' }} />
+                <div>
+                  <div style={{ fontSize:13, fontWeight:600, color:form.require_ca?'#1e40af':'#374151' }}>Require Corrective Action</div>
+                  <div style={{ fontSize:11, color:'#6b7280' }} title="Corrective Action required for high severity or recurring incidents">
+                    จำเป็นต้องระบุแนวทางแก้ไขเพื่อป้องกันการเกิดซ้ำ ℹ️
+                  </div>
+                </div>
+              </label>
+              {form.severity === 'High' && <div style={{ fontSize:10, color:'#1d4ed8', marginTop:4, fontWeight:500 }}>* บังคับสำหรับความรุนแรงระดับ High</div>}
+            </div>
+
             {field('ผู้แจ้ง', 'reported_by')}
 
             {/* Assignee Dropdown จาก user_profiles */}
@@ -793,6 +869,7 @@ export default function IncidentDetailPage() {
             {field('อาการที่พบ / รายละเอียด', 'description', 'textarea')}
             {field('Root Cause Analysis', 'root_cause', 'textarea')}
             {field('วิธีการแก้ไข / Resolution', 'resolution', 'textarea')}
+            {form.require_ca && field('Corrective Action (มาตรการแก้ไขป้องกัน)', 'corrective_action', 'textarea')}
           </div>
         </div>
 
@@ -1009,6 +1086,7 @@ export default function IncidentDetailPage() {
           { label:'รายละเอียด / Description', value:incident.description, height:50 },
           { label:'Root Cause Analysis', value:incident.root_cause, height:50 },
           { label:'วิธีการแก้ไข / Resolution', value:incident.resolution, height:50 },
+          ...(incident.require_ca ? [{ label:'Corrective Action (มาตรการแก้ไขป้องกัน)', value:incident.corrective_action, height:60 }] : []),
         ].map((item,i) => (
           <div key={i} style={{ border:'1px solid #000', borderTop:i===0?'1px solid #000':'none' }}>
             <div style={{ background:'#f0f0f0', padding:'4px 8px', fontWeight:700, fontSize:11, borderBottom:'1px solid #000' }}>{item.label}</div>
