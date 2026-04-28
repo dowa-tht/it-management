@@ -73,7 +73,8 @@ export default function DashboardPage() {
   const statCards = [
     { label: 'Incident 30 วันย้อนหลัง', value: stats.totalIncidents, color: '#1d4ed8', link: '/dashboard/incidents?date=30days' },
     { label: 'High Severity', value: stats.highSeverity, color: '#dc2626', link: '/dashboard/incidents?severity=High&date=30days' },
-    { label: 'กำลังแก้ไข', value: stats.inProgress, color: '#d97706', link: '/dashboard/incidents?status=InProgress&date=30days' },
+    { label: 'กำลังแก้ไข (In Progress)', value: stats.inProgress, color: '#d97706', link: '/dashboard/incidents?status=InProgress&date=30days' },
+    { label: 'รอรับเรื่อง (Open)', value: stats.openIncidents, color: '#4f46e5', link: '/dashboard/incidents?status=Open&date=30days' },
     { label: 'Backup Success Rate', value: `${stats.backupSuccessRate}%`, color: '#059669', link: '/dashboard/backup' },
   ]
 
@@ -164,7 +165,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stat Cards */}
-      <div className="stat-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div className="stat-grid-5" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 }}>
         {statCards.map(s => (
           <Link key={s.label} href={s.link} style={{ textDecoration: 'none' }}>
             <div style={{ background: '#fff', borderRadius: 10, padding: '16px', border: '1px solid #e5e7eb', cursor: 'pointer' }}>

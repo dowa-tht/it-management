@@ -127,6 +127,7 @@ export async function getDashboardData(timezoneOffset = -420) {
     const totalIncidents = incidents.length
     const highSeverity = incidents.filter(i => i.severity === 'High').length
     const inProgress = incidents.filter(i => i.status === 'In Progress').length
+    const openIncidents = incidents.filter(i => i.status === 'Open').length
     
     const backupSuccessRate = backups.length
       ? Math.round((backups.filter(b => b.status === 'Success').length / backups.length) * 100)
@@ -156,6 +157,7 @@ export async function getDashboardData(timezoneOffset = -420) {
         totalIncidents,
         highSeverity,
         inProgress,
+        openIncidents,
         backupSuccessRate
       },
       incidentByDay,
