@@ -13,29 +13,22 @@ function ChecklistListForm() {
   const [creating, setCreating] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [userEmail, setUserEmail] = useState(null)
-  const [filters, setFilters] = useState({
-    freq_type: '',
-    status: '',
-    date_from: '',
-    date_to: '',
-    only_ng: false
-  })
-  
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  const [filters, setFilters] = useState({
+    freq_type: searchParams.get('freq_type') || '',
+    status: '',
+    date_from: '',
+    date_to: '',
+    only_ng: searchParams.get('filter') === 'ng'
+  })
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUserEmail(data.session?.user?.email))
-    
-    // Check if redirected from dashboard with NG filter
-    if (searchParams.get('filter') === 'ng') {
-      setFilters(prev => ({ ...prev, only_ng: true }))
-    }
-    
-    fetchDocs()
-  }, [searchParams])
+  }, [])
 
-  // Trigger fetch when filters change (debounced or manual would be better, but let's do it on change for now)
+  // Trigger fetch when filters change
   useEffect(() => {
     fetchDocs()
   }, [filters.freq_type, filters.status, filters.date_from, filters.date_to, filters.only_ng])
@@ -54,21 +47,38 @@ function ChecklistListForm() {
     const { data, error } = await query.order('period_date', { ascending: false }).order('created_at', { ascending: false })
     
     if (!error && data) {
-      // Fetch NG counts for these docs
+      // Fetch stats for these docs
       const docIds = data.map(d => d.id)
       if (docIds.length > 0) {
-        const { data: ngData } = await supabase
+        const { data: itemData } = await supabase
           .from('checklist_items')
-          .select('doc_id')
-          .eq('status', 'NG')
+          .select('doc_id, status')
           .in('doc_id', docIds)
         
-        const counts = {}
-        ngData?.forEach(item => {
-          counts[item.doc_id] = (counts[item.doc_id] || 0) + 1
+        const stats = {}
+        itemData?.forEach(item => {
+          if (!stats[item.doc_id]) stats[item.doc_id] = { total: 0, done: 0, ng: 0 }
+          stats[item.doc_id].total += 1
+          if (item.status === 'OK' || item.status === 'NG') stats[item.doc_id].done += 1
+          if (item.status === 'NG') stats[item.doc_id].ng += 1
         })
         
-        let processedDocs = data.map(d => ({ ...d, ng_count: counts[d.id] || 0 }))
+        let processedDocs = data.map(d => {
+          const s = stats[d.id] || { total: 0, done: 0, ng: 0 }
+          const progress = s.total > 0 ? Math.round((s.done / s.total) * 100) : 0
+          
+          let displayStatus = d.status
+          if (d.status === 'Open' && s.done > 0) displayStatus = 'In Progress'
+
+          return { 
+            ...d, 
+            ng_count: s.ng,
+            progress,
+            total_items: s.total,
+            done_items: s.done,
+            displayStatus
+          }
+        })
         
         // Filter by only_ng if enabled
         if (filters.only_ng) {
@@ -132,12 +142,24 @@ function ChecklistListForm() {
       user_email: userEmail
     }])
 
-    const items = CHECKLIST_TEMPLATES[freqType] || []
+    // 2. Fetch items from Master List (Database)
+    let { data: items, error: templateErr } = await supabase
+      .from('checklist_templates')
+      .select('item_key, item_label')
+      .eq('freq_type', freqType)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+
+    // Fallback to static if DB is empty (for safety)
+    if (!items || items.length === 0) {
+      items = (CHECKLIST_TEMPLATES[freqType] || []).map(i => ({ item_key: i.key, item_label: i.label }))
+    }
+
     if (items.length > 0) {
       const inserts = items.map(item => ({
         doc_id: newDoc.id,
-        item_key: item.key,
-        item_label: item.label,
+        item_key: item.item_key,
+        item_label: item.item_label,
         status: null,
         notes: ''
       }))
@@ -188,12 +210,42 @@ function ChecklistListForm() {
 
       {/* Filters Bar */}
       <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 16, marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end' }}>
-        <div style={{ flex: 1, minWidth: 140 }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
           <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 6 }}>ช่วงวันที่</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input type="date" value={filters.date_from} onChange={e => setFilters({...filters, date_from: e.target.value})} style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, flex: 1 }} />
+            
+            {/* Date From */}
+            <div style={{ flex: 1, position: 'relative' }}>
+              <div style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', color: filters.date_from ? '#111827' : '#9ca3af', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 33 }}>
+                <span>{filters.date_from ? formatDate(filters.date_from, false) : 'dd-mmm-yyyy'}</span>
+                <span style={{ fontSize: 12 }}>📅</span>
+              </div>
+              <input 
+                type="date" 
+                value={filters.date_from} 
+                onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
+                onChange={e => setFilters({...filters, date_from: e.target.value})} 
+                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} 
+              />
+            </div>
+            
             <span style={{ color: '#9ca3af' }}>-</span>
-            <input type="date" value={filters.date_to} onChange={e => setFilters({...filters, date_to: e.target.value})} style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, flex: 1 }} />
+            
+            {/* Date To */}
+            <div style={{ flex: 1, position: 'relative' }}>
+              <div style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', color: filters.date_to ? '#111827' : '#9ca3af', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 33 }}>
+                <span>{filters.date_to ? formatDate(filters.date_to, false) : 'dd-mmm-yyyy'}</span>
+                <span style={{ fontSize: 12 }}>📅</span>
+              </div>
+              <input 
+                type="date" 
+                value={filters.date_to} 
+                onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
+                onChange={e => setFilters({...filters, date_to: e.target.value})} 
+                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} 
+              />
+            </div>
+
           </div>
         </div>
         
@@ -221,7 +273,7 @@ function ChecklistListForm() {
           </label>
         </div>
 
-        <button onClick={() => setFilters({ freq_type: '', status: '', date_from: '', date_to: '', only_ng: false })} style={{ padding: '8px 16px', background: 'none', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12, color: '#6b7280', cursor: 'pointer' }}>
+        <button onClick={() => setFilters({ freq_type: '', status: '', date_from: '', date_to: '', only_ng: false })} style={{ padding: '8px 16px', background: 'none', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12, color: '#6b7280', cursor: 'pointer', marginBottom: 2 }}>
           ล้างฟิลเตอร์
         </button>
       </div>
@@ -242,7 +294,7 @@ function ChecklistListForm() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
-                  {['เลขที่เอกสาร', 'ประเภท', 'วันที่ตรวจสอบ', 'สถานะ', 'ปัญหา (NG)', 'ผู้สร้าง', 'วันที่สร้าง'].map(h => (
+                  {['เลขที่เอกสาร', 'ประเภท', 'วันที่ตรวจสอบ', 'Progress', 'สถานะ', 'ปัญหา (NG)', 'ผู้สร้าง', 'วันที่สร้าง'].map(h => (
                     <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500, fontSize: 12, borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -257,13 +309,22 @@ function ChecklistListForm() {
                     </td>
                     <td style={{ padding: '12px 16px', fontWeight: 500, color: '#374151' }}>{doc.freq_type}</td>
                     <td style={{ padding: '12px 16px', color: '#111827' }}>{formatDate(doc.period_date, false)}</td>
+                    <td style={{ padding: '12px 16px', minWidth: 120 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ flex: 1, background: '#e5e7eb', height: 6, borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ background: doc.progress === 100 ? '#10b981' : '#3b82f6', height: '100%', width: `${doc.progress}%` }}></div>
+                        </div>
+                        <span style={{ fontSize: 11, color: '#6b7280', width: 28, textAlign: 'right' }}>{doc.progress}%</span>
+                      </div>
+                    </td>
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       <span style={{ 
-                        background: doc.status === 'Open' ? '#dbeafe' : '#d1fae5', 
-                        color: doc.status === 'Open' ? '#1e40af' : '#065f46', 
+                        background: doc.displayStatus === 'In Progress' ? '#eff6ff' : doc.displayStatus === 'Open' ? '#f3f4f6' : '#ecfdf5', 
+                        color: doc.displayStatus === 'In Progress' ? '#1d4ed8' : doc.displayStatus === 'Open' ? '#4b5563' : '#059669', 
+                        border: `1px solid ${doc.displayStatus === 'In Progress' ? '#bfdbfe' : doc.displayStatus === 'Open' ? '#e5e7eb' : '#a7f3d0'}`,
                         padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500 
                       }}>
-                        {doc.status}
+                        {doc.displayStatus}
                       </span>
                     </td>
                     <td style={{ padding: '12px 16px' }}>

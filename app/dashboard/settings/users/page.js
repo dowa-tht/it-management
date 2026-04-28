@@ -98,6 +98,7 @@ export default function UsersPage() {
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const [newUser, setNewUser] = useState({ email: '', password: '', full_name: '', role: 'user', can_be_assignee: false })
+  const [showNewPassword, setShowNewPassword] = useState(false)
   const [saving, setSaving] = useState(false)
   const [toggling, setToggling] = useState(null)
   const [msg, setMsg] = useState({ text: '', type: '' })
@@ -220,6 +221,14 @@ export default function UsersPage() {
     setSaving(true)
     setMsg({ text: '', type: '' })
 
+    // Validate Password Complexity
+    const pwd = newUser.password
+    if (pwd.length < 8) { setMsg({ text: 'Password ต้องมีอย่างน้อย 8 ตัวอักษร', type: 'error' }); setSaving(false); return }
+    if (!/[A-Z]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวพิมพ์ใหญ่ (A-Z) อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
+    if (!/[a-z]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวพิมพ์เล็ก (a-z) อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
+    if (!/[0-9]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวเลข (0-9) อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
+    if (!/[^A-Za-z0-9]/.test(pwd)) { setMsg({ text: 'Password ต้องมีอักขระพิเศษ อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
+
     const result = await createAdminUser({
       email: newUser.email,
       password: newUser.password,
@@ -336,9 +345,38 @@ export default function UsersPage() {
                       style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
                   </div>
                   <div>
-                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>Password เริ่มต้น (อย่างน้อย 8 ตัว) *</label>
-                    <input type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required minLength={8}
-                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
+                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>Password เริ่มต้น *</label>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        type={showNewPassword ? "text" : "password"} 
+                        value={newUser.password} 
+                        onChange={e => setNewUser({ ...newUser, password: e.target.value })} 
+                        required 
+                        minLength={8}
+                        style={{ width: '100%', padding: '8px 10px', paddingRight: '36px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} 
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        tabIndex="-1"
+                        style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 14, color: '#9ca3af' }}
+                      >
+                        {showNewPassword ? '👁️' : '🙈'}
+                      </button>
+                    </div>
+                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {[
+                        { label: 'อย่างน้อย 8 ตัวอักษร', met: newUser.password.length >= 8 },
+                        { label: 'ตัวพิมพ์ใหญ่ (A-Z)', met: /[A-Z]/.test(newUser.password) },
+                        { label: 'ตัวพิมพ์เล็ก (a-z)', met: /[a-z]/.test(newUser.password) },
+                        { label: 'ตัวเลข (0-9)', met: /[0-9]/.test(newUser.password) },
+                        { label: 'อักขระพิเศษ', met: /[^A-Za-z0-9]/.test(newUser.password) }
+                      ].map((c, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: c.met ? '#059669' : '#9ca3af' }}>
+                          <span style={{ fontSize: 12 }}>{c.met ? '✅' : '⚪'}</span> {c.label}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <div>
                     <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>Role</label>

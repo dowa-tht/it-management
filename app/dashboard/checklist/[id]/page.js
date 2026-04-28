@@ -3,8 +3,32 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
-import { formatDate } from '@/lib/dateFormat'
+import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { CHECKLIST_TEMPLATES } from '@/lib/checklistItems'
+
+// ===== Instruction Dialog =====
+function InstructionDialog({ item, onCancel }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 500, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 12, color: '#1d4ed8', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{item.category}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{item.item_label}</div>
+          </div>
+          <button onClick={onCancel} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: '#9ca3af' }}>&times;</button>
+        </div>
+        <div style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 14, color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+          <strong>📝 วิธีการตรวจสอบ:</strong><br />
+          {item.instruction || 'ไม่มีคำแนะนำเพิ่มเติมสำหรับหัวข้อนี้'}
+        </div>
+        <div style={{ marginTop: 20, textAlign: 'right' }}>
+          <button onClick={onCancel} style={{ padding: '8px 24px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>ตกลง</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ===== NG Dialog =====
 function NgDialog({ item, onConfirm, onCancel }) {
@@ -39,6 +63,8 @@ export default function ChecklistDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [activeNgItem, setActiveNgItem] = useState(null)
+  const [activeInstruction, setActiveInstruction] = useState(null)
+  const [templates, setTemplates] = useState([]) // Master List from DB
   const [userEmail, setUserEmail] = useState(null)
 
   useEffect(() => {
@@ -48,15 +74,17 @@ export default function ChecklistDetailPage() {
 
   const fetchData = async () => {
     setLoading(true)
-    const [{ data: docData }, { data: itemsData }, { data: logsData }] = await Promise.all([
+    const [{ data: docData }, { data: itemsData }, { data: logsData }, { data: templateData }] = await Promise.all([
       supabase.from('checklist_docs').select('*').eq('id', id).single(),
       supabase.from('checklist_items').select('*').eq('doc_id', id).order('created_at', { ascending: true }),
-      supabase.from('checklist_logs').select('*').eq('doc_id', id).order('created_at', { ascending: false })
+      supabase.from('checklist_logs').select('*').eq('doc_id', id).order('created_at', { ascending: false }),
+      supabase.from('checklist_templates').select('*') // Get all templates to map categories/instructions
     ])
 
     if (docData) setDoc(docData)
     if (itemsData) setItems(itemsData)
     if (logsData) setLogs(logsData)
+    if (templateData) setTemplates(templateData)
     setLoading(false)
   }
 
@@ -141,6 +169,7 @@ export default function ChecklistDetailPage() {
   return (
     <div style={{ padding: 24, paddingBottom: 100, maxWidth: 1000, margin: '0 auto' }}>
       {activeNgItem && <NgDialog item={activeNgItem} onConfirm={handleNgConfirm} onCancel={() => setActiveNgItem(null)} />}
+      {activeInstruction && <InstructionDialog item={activeInstruction} onCancel={() => setActiveInstruction(null)} />}
 
       <div style={{ marginBottom: 24 }}>
         <Link href="/dashboard/checklist" style={{ color: '#6b7280', fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 12 }}>
@@ -176,9 +205,14 @@ export default function ChecklistDetailPage() {
         </div>
         
         {items.map((item, index) => {
-          // Find category from template if possible
-          const templateItem = CHECKLIST_TEMPLATES[doc.freq_type]?.find(t => t.key === item.item_key)
-          const category = templateItem ? templateItem.category : 'General'
+          // Find category and instruction from Master List (templates state)
+          const dbTemplate = templates.find(t => t.item_key === item.item_key || t.item_label === item.item_label)
+          
+          // Fallback to static if not found in DB yet
+          const staticTemplate = CHECKLIST_TEMPLATES[doc.freq_type]?.find(t => t.key === item.item_key)
+          
+          const category = dbTemplate?.category || staticTemplate?.category || 'General'
+          const instruction = dbTemplate?.instruction || staticTemplate?.instruction
 
           return (
             <div key={item.id} style={{
@@ -188,7 +222,16 @@ export default function ChecklistDetailPage() {
             }}>
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ fontSize: 11, color: '#1d4ed8', fontWeight: 600, marginBottom: 4 }}>{category}</div>
-                <div style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{item.item_label}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{item.item_label}</div>
+                  <button 
+                    onClick={() => setActiveInstruction({ ...item, category, instruction })}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4, display: 'flex', alignItems: 'center', opacity: 0.7 }}
+                    title="วิธีตรวจสอบ"
+                  >
+                    📄
+                  </button>
+                </div>
                 {item.status === 'NG' && item.notes && (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     <div style={{ fontSize: 12, color: '#dc2626', marginTop: 6, background: '#fee2e2', padding: '6px 10px', borderRadius: 6, display: 'inline-block' }}>
@@ -249,7 +292,7 @@ export default function ChecklistDetailPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {logs.map(log => (
                 <div key={log.id} style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-                  <div style={{ color: '#6b7280', width: 130, flexShrink: 0 }}>{formatDate(log.created_at)}</div>
+                  <div style={{ color: '#6b7280', width: 140, flexShrink: 0 }}>{formatDateTime(log.created_at)}</div>
                   <div style={{ flex: 1, color: '#111827' }}>
                     <strong>{log.action}</strong>
                     <span style={{ color: '#6b7280', marginLeft: 8 }}>โดย {log.user_email || 'System'}</span>

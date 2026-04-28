@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 
 export default function ChangePasswordPage() {
   const [form, setForm] = useState({ current: '', newPass: '', confirm: '' })
+  const [showPwd, setShowPwd] = useState({ current: false, newPass: false, confirm: false })
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState({ text: '', type: '' })
 
@@ -15,10 +16,14 @@ export default function ChangePasswordPage() {
       setMsg({ text: 'Password ใหม่ไม่ตรงกัน', type: 'error' })
       return
     }
-    if (form.newPass.length < 8) {
-      setMsg({ text: 'Password ต้องมีอย่างน้อย 8 ตัวอักษร', type: 'error' })
-      return
-    }
+    
+    // Validate Password Complexity
+    const pwd = form.newPass
+    if (pwd.length < 8) { setMsg({ text: 'Password ต้องมีอย่างน้อย 8 ตัวอักษร', type: 'error' }); return }
+    if (!/[A-Z]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวพิมพ์ใหญ่ (A-Z) อย่างน้อย 1 ตัว', type: 'error' }); return }
+    if (!/[a-z]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวพิมพ์เล็ก (a-z) อย่างน้อย 1 ตัว', type: 'error' }); return }
+    if (!/[0-9]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวเลข (0-9) อย่างน้อย 1 ตัว', type: 'error' }); return }
+    if (!/[^A-Za-z0-9]/.test(pwd)) { setMsg({ text: 'Password ต้องมีอักขระพิเศษ อย่างน้อย 1 ตัว', type: 'error' }); return }
 
     setLoading(true)
 
@@ -55,18 +60,43 @@ export default function ChangePasswordPage() {
         <form onSubmit={handleSubmit}>
           {[
             { label: 'รหัสผ่านปัจจุบัน', key: 'current' },
-            { label: 'รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)', key: 'newPass' },
+            { label: 'รหัสผ่านใหม่', key: 'newPass' },
             { label: 'ยืนยันรหัสผ่านใหม่', key: 'confirm' },
           ].map(f => (
             <div key={f.key} style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>{f.label}</label>
-              <input
-                type="password"
-                value={form[f.key]}
-                onChange={e => setForm({ ...form, [f.key]: e.target.value })}
-                required
-                style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPwd[f.key] ? "text" : "password"}
+                  value={form[f.key]}
+                  onChange={e => setForm({ ...form, [f.key]: e.target.value })}
+                  required
+                  style={{ width: '100%', padding: '10px 12px', paddingRight: '40px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd({ ...showPwd, [f.key]: !showPwd[f.key] })}
+                  tabIndex="-1"
+                  style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 16, color: '#9ca3af' }}
+                >
+                  {showPwd[f.key] ? '👁️' : '🙈'}
+                </button>
+              </div>
+              {f.key === 'newPass' && (
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {[
+                    { label: 'อย่างน้อย 8 ตัวอักษร', met: form.newPass.length >= 8 },
+                    { label: 'ตัวพิมพ์ใหญ่ (A-Z)', met: /[A-Z]/.test(form.newPass) },
+                    { label: 'ตัวพิมพ์เล็ก (a-z)', met: /[a-z]/.test(form.newPass) },
+                    { label: 'ตัวเลข (0-9)', met: /[0-9]/.test(form.newPass) },
+                    { label: 'อักขระพิเศษ', met: /[^A-Za-z0-9]/.test(form.newPass) }
+                  ].map((c, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: c.met ? '#059669' : '#9ca3af' }}>
+                      <span style={{ fontSize: 12 }}>{c.met ? '✅' : '⚪'}</span> {c.label}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
 
