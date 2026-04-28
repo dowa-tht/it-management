@@ -1,7 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/dateFormat'
 
 const SEVERITY_COLORS = {
@@ -19,17 +20,19 @@ const STATUS_COLORS = {
 const DATE_FILTERS = [
   { label: 'วันนี้', value: 'today' },
   { label: '7 วัน', value: '7days' },
+  { label: '30 วัน', value: '30days' },
   { label: 'เดือนนี้', value: 'month' },
   { label: '3 เดือน', value: '3months' },
   { label: 'ปีนี้', value: 'year' },
 ]
 
-export default function IncidentsPage() {
+function IncidentsContent() {
+  const searchParams = useSearchParams()
   const [incidents, setIncidents] = useState([])
   const [loading, setLoading] = useState(true)
-  const [dateFilter, setDateFilter] = useState('month')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [severityFilter, setSeverityFilter] = useState('all')
+  const [dateFilter, setDateFilter] = useState(searchParams.get('date') || 'month')
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all')
+  const [severityFilter, setSeverityFilter] = useState(searchParams.get('severity') || 'all')
 
   useEffect(() => { fetchIncidents() }, [dateFilter, statusFilter, severityFilter])
 
@@ -40,6 +43,8 @@ export default function IncidentsPage() {
       start.setHours(0, 0, 0, 0)
     } else if (dateFilter === '7days') {
       start.setDate(now.getDate() - 7)
+    } else if (dateFilter === '30days') {
+      start.setDate(now.getDate() - 30)
     } else if (dateFilter === 'month') {
       start.setDate(1)
       start.setHours(0, 0, 0, 0)
@@ -202,5 +207,13 @@ export default function IncidentsPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function IncidentsPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลดหน้าจอ...</div>}>
+      <IncidentsContent />
+    </Suspense>
   )
 }

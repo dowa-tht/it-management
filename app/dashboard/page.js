@@ -71,9 +71,9 @@ export default function DashboardPage() {
   const { stats, incidentByDay, severityData, recentIncidents, recentBackups, checklists } = data
 
   const statCards = [
-    { label: 'Incident 30 วันย้อนหลัง', value: stats.totalIncidents, color: '#1d4ed8', link: '/dashboard/incidents' },
-    { label: 'High Severity', value: stats.highSeverity, color: '#dc2626', link: '/dashboard/incidents' },
-    { label: 'กำลังแก้ไข', value: stats.inProgress, color: '#d97706', link: '/dashboard/incidents' },
+    { label: 'Incident 30 วันย้อนหลัง', value: stats.totalIncidents, color: '#1d4ed8', link: '/dashboard/incidents?date=30days' },
+    { label: 'High Severity', value: stats.highSeverity, color: '#dc2626', link: '/dashboard/incidents?severity=High&date=30days' },
+    { label: 'กำลังแก้ไข', value: stats.inProgress, color: '#d97706', link: '/dashboard/incidents?status=InProgress&date=30days' },
     { label: 'Backup Success Rate', value: `${stats.backupSuccessRate}%`, color: '#059669', link: '/dashboard/backup' },
   ]
 
