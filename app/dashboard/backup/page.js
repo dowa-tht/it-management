@@ -45,6 +45,20 @@ export default function BackupPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
+
+    // Check duplicate
+    const { data: existing } = await supabase.from('backup_logs')
+      .select('id')
+      .eq('log_date', form.log_date)
+      .eq('system_name', form.system_name)
+      .single()
+
+    if (existing) {
+      alert(`มีบันทึกของระบบ ${form.system_name} ในวันที่กำหนดอยู่แล้วครับ (1 ระบบบันทึกได้ 1 ครั้งต่อวัน)`)
+      setSaving(false)
+      return
+    }
+
     const { error } = await supabase.from('backup_logs').insert([form])
     if (error) {
       alert(`บันทึกข้อมูลไม่สำเร็จ: ${error.message}`)

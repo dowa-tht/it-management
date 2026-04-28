@@ -60,6 +60,7 @@ export default function ChecklistDetailPage() {
   const [doc, setDoc] = useState(null)
   const [items, setItems] = useState([])
   const [logs, setLogs] = useState([])
+  const [incidents, setIncidents] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [activeNgItem, setActiveNgItem] = useState(null)
@@ -85,6 +86,13 @@ export default function ChecklistDetailPage() {
     if (itemsData) setItems(itemsData)
     if (logsData) setLogs(logsData)
     if (templateData) setTemplates(templateData)
+
+    if (itemsData && itemsData.length > 0) {
+      const itemIds = itemsData.map(i => i.id)
+      const { data: incs } = await supabase.from('incidents').select('id, ref_id, case_number, status').eq('ref_type', 'checklist').in('ref_id', itemIds)
+      if (incs) setIncidents(incs)
+    }
+
     setLoading(false)
   }
 
@@ -232,23 +240,39 @@ export default function ChecklistDetailPage() {
                     📄
                   </button>
                 </div>
-                {item.status === 'NG' && item.notes && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                    <div style={{ fontSize: 12, color: '#dc2626', marginTop: 6, background: '#fee2e2', padding: '6px 10px', borderRadius: 6, display: 'inline-block' }}>
-                      <strong>สาเหตุ:</strong> {item.notes}
+                {item.status === 'NG' && item.notes && (() => {
+                  const relatedInc = incidents.find(inc => inc.ref_id === item.id)
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                      <div style={{ fontSize: 12, color: '#dc2626', marginTop: 6, background: '#fee2e2', padding: '6px 10px', borderRadius: 6, display: 'inline-block' }}>
+                        <strong>สาเหตุ:</strong> {item.notes}
+                      </div>
+                      {relatedInc ? (
+                        <Link 
+                          href={`/dashboard/incidents/${relatedInc.id}`}
+                          style={{
+                            padding: '6px 12px', background: '#fef3c7', color: '#92400e', borderRadius: 6, border: '1px solid #fcd34d',
+                            fontSize: 11, fontWeight: 600, textDecoration: 'none', display: 'inline-flex',
+                            alignItems: 'center', gap: 4, marginTop: 8
+                          }}
+                        >
+                          📌 เปิดเคสแล้ว: {relatedInc.case_number} ({relatedInc.status})
+                        </Link>
+                      ) : (
+                        <Link 
+                          href={`/dashboard/incidents/new?ref_type=checklist&ref_id=${item.id}&doc_no=${doc.doc_no}`}
+                          style={{
+                            padding: '6px 12px', background: '#dc2626', color: '#fff', borderRadius: 6,
+                            fontSize: 11, fontWeight: 600, textDecoration: 'none', display: 'inline-flex',
+                            alignItems: 'center', gap: 4, marginTop: 8, boxShadow: '0 2px 4px rgba(220, 38, 38, 0.2)'
+                          }}
+                        >
+                          🚨 เปิด Incident Case
+                        </Link>
+                      )}
                     </div>
-                    <Link 
-                      href={`/dashboard/incidents/new?ref_type=checklist&ref_id=${item.id}&doc_no=${doc.doc_no}`}
-                      style={{
-                        padding: '6px 12px', background: '#dc2626', color: '#fff', borderRadius: 6,
-                        fontSize: 11, fontWeight: 600, textDecoration: 'none', display: 'inline-flex',
-                        alignItems: 'center', gap: 4, marginTop: 8, boxShadow: '0 2px 4px rgba(220, 38, 38, 0.2)'
-                      }}
-                    >
-                      🚨 เปิด Incident Case
-                    </Link>
-                  </div>
-                )}
+                  )
+                })()}
               </div>
               
               <div style={{ display: 'flex', gap: 6 }}>

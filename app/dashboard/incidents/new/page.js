@@ -70,7 +70,7 @@ function NewIncidentForm() {
     status: 'Open', category: '', affected_system: '',
     reported_by: '', assigned_to: '',
     root_cause: '', resolution: '',
-    ref_type: null, ref_id: null, ref_doc_no: null
+    ref_type: null, ref_id: null, ref_doc_no: null, ref_doc_id: null
   })
   const [assignedAt, setAssignedAt] = useState(null)
   const [errors, setErrors] = useState({})
@@ -97,6 +97,7 @@ function NewIncidentForm() {
           ref_type: 'checklist',
           ref_id: refId,
           ref_doc_no: docNo,
+          ref_doc_id: item.doc_id,
           title: `[Checklist Ref] ${item.item_label}`,
           description: `พบปัญหาจากเอกสาร ${docNo}: ${item.notes || '—'}`,
         }))
@@ -162,8 +163,9 @@ function NewIncidentForm() {
     setLoading(true)
 
     try {
+      const { ref_doc_id, ...insertData } = form
       const { error } = await supabase.from('incidents').insert([{
-        ...form,
+        ...insertData,
         case_number: caseNo,
         created_at: createdAt,
         assigned_at: assignedAt,
@@ -190,6 +192,15 @@ function NewIncidentForm() {
             to_status: 'In Progress',
             note: `มอบหมายให้: ${form.assigned_to} · Response Time เริ่มนับแล้ว`,
             user_email: form.reported_by,
+          }])
+        }
+
+        // --- เพิ่ม Audit Log กลับไปยัง Checklist กรณีมาจากหน้า Checklist ---
+        if (form.ref_type === 'checklist' && form.ref_doc_id) {
+          await supabase.from('checklist_logs').insert([{
+            doc_id: form.ref_doc_id,
+            action: `เปิด Incident Case (${caseNo}) หัวข้อ: ${form.title.replace('[Checklist Ref] ', '')}`,
+            user_email: form.reported_by || 'System'
           }])
         }
       }

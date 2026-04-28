@@ -468,17 +468,19 @@ export default function IncidentDetailPage() {
     // Sync back to Checklist if this incident was opened from a checklist item
     if (incident.ref_type === 'checklist' && incident.ref_id) {
       try {
-        await supabase.from('checklist_items')
-          .update({ status: 'OK', notes: `${incident.notes || ''} (Fixed via ${incident.case_number})` })
-          .eq('id', incident.ref_id)
-        
-        const { data: item } = await supabase.from('checklist_items').select('doc_id').eq('id', incident.ref_id).single()
-        if (item?.doc_id) {
-          await supabase.from('checklist_logs').insert([{
-            doc_id: item.doc_id,
-            action: `รายการได้รับการแก้ไขและปิดเคสแล้ว (อ้างอิง ${incident.case_number})`,
-            user_email: currentUser?.email
-          }])
+        const { data: item } = await supabase.from('checklist_items').select('doc_id, notes').eq('id', incident.ref_id).single()
+        if (item) {
+          await supabase.from('checklist_items')
+            .update({ status: 'OK', notes: `${item.notes ? item.notes + '\n' : ''}(Fixed via ${incident.case_number})` })
+            .eq('id', incident.ref_id)
+
+          if (item.doc_id) {
+            await supabase.from('checklist_logs').insert([{
+              doc_id: item.doc_id,
+              action: `รายการได้รับการแก้ไขและปิดเคสแล้ว (อ้างอิง ${incident.case_number})`,
+              user_email: currentUser?.email
+            }])
+          }
         }
       } catch (syncErr) {
         console.error("Sync to checklist failed:", syncErr)
