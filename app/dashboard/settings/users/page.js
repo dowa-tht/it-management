@@ -130,6 +130,40 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
     setLoading(false)
   }
 
+  const handleMigrateTier = async (newTier, newRole) => {
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการย้าย User นี้ไปที่ Tier: ${newTier} (${newRole})?\nบัญชีเดิมจะถูกระงับการใช้งานและเปลี่ยนไปใช้รูปแบบใหม่ทันที`)) return
+    
+    setLoading(true)
+    setMsg({ text: 'กำลังดำเนินการย้าย Tier...', type: 'success' })
+    
+    try {
+      const res = await fetch('/api/users/migrate-tier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: user.email, 
+          targetTier: newTier, 
+          targetRole: newRole 
+        })
+      })
+      const data = await res.json()
+      
+      if (res.ok) {
+        setMsg({ 
+          text: `ย้าย Tier สำเร็จ! ${data.newPin ? `PIN ใหม่คือ: ${data.newPin}` : 'ส่งอีเมลตั้งรหัสผ่านใหม่แล้ว'}`, 
+          type: 'success' 
+        })
+        onRefresh()
+      } else {
+        setMsg({ text: data.error || 'การย้าย Tier ล้มเหลว', type: 'error' })
+      }
+    } catch (err) {
+      setMsg({ text: 'เกิดข้อผิดพลาดในการเชื่อมต่อ', type: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleUpdatePassword = async () => {
     if (pwdForm.newPass !== pwdForm.confirm) {
       setMsg({ text: 'รหัสผ่านไม่ตรงกัน', type: 'error' })
@@ -254,6 +288,43 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
                   {loading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลทั่วไป'}
                 </button>
               </div>
+
+              {/* Advanced Migration Section */}
+              {!isSelf && (
+                <div style={{ marginTop: 24, padding: 16, background: '#fff7ed', border: '1px solid #ffedd5', borderRadius: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#9a3412', marginBottom: 4 }}>⚡ Advanced: ย้ายกลุ่มสิทธิ์ (Cross-Tier Migration)</div>
+                  <div style={{ fontSize: 11, color: '#c2410c', marginBottom: 16 }}>ใช้สำหรับย้ายผู้ใช้ข้ามระหว่างระบบ Login ปกติ กับระบบ Guest/External</div>
+                  
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    {normalizeRole(user.role) === 'administrator' || normalizeRole(user.role) === 'supervisor' ? (
+                      <>
+                        <button 
+                          onClick={() => handleMigrateTier('external', 'guest')}
+                          disabled={loading}
+                          style={{ flex: 1, padding: '8px', background: '#fff', border: '1px solid #fdba74', color: '#c2410c', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
+                        >
+                          ย้ายไปเป็น Guest (Tier 4)
+                        </button>
+                        <button 
+                          onClick={() => handleMigrateTier('external', 'approval')}
+                          disabled={loading}
+                          style={{ flex: 1, padding: '8px', background: '#fff', border: '1px solid #fdba74', color: '#c2410c', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
+                        >
+                          ย้ายไปเป็น Approver (Tier 3)
+                        </button>
+                      </>
+                    ) : (
+                      <button 
+                        onClick={() => handleMigrateTier('internal', 'supervisor')}
+                        disabled={loading}
+                        style={{ flex: 1, padding: '8px', background: '#fff', border: '1px solid #fdba74', color: '#1d4ed8', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
+                      >
+                        ย้ายกลับมาเป็น Supervisor (Tier 2)
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

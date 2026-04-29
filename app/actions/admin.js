@@ -44,6 +44,16 @@ export async function createAdminUser({ email, password, full_name, role, can_be
       return { success: false, error: `สร้างบัญชีสำเร็จ แต่เกิดปัญหาตอนสร้างโปรไฟล์: ${profileError.message}` }
     }
 
+    // 3. Sync ลง user_registry (Bridge Table)
+    const normalizedRole = role === 'superuser' ? 'administrator' : 'supervisor'
+    await supabaseAdmin.from('user_registry').upsert({
+      email: email,
+      full_name: full_name,
+      user_role: normalizedRole,
+      supabase_user_id: data.user.id,
+      is_active: true
+    }, { onConflict: 'email' })
+
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message || 'Internal Server Error' }
@@ -108,14 +118,23 @@ export async function updateAdminUser({ id, full_name, role, can_be_assignee, is
     })
 
     // 2. อัปเดตข้อมูลใน user_profiles
-    const { error } = await supabaseAdmin.from('user_profiles').update({
+    const { error: profileUpdateError } = await supabaseAdmin.from('user_profiles').update({
       full_name,
       role,
       can_be_assignee,
       is_active
     }).eq('id', id)
 
-    if (error) throw error
+    if (profileUpdateError) throw profileUpdateError
+
+    // 3. Sync ลง user_registry
+    const normalizedRole = role === 'superuser' ? 'administrator' : 'supervisor'
+    await supabaseAdmin.from('user_registry').update({
+      full_name,
+      user_role: normalizedRole,
+      is_active,
+      last_role_changed_at: new Date().toISOString()
+    }).eq('supabase_user_id', id)
 
     return { success: true }
   } catch (err) {
