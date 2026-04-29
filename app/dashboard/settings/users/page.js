@@ -169,10 +169,10 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
       setMsg({ text: 'รหัสผ่านไม่ตรงกัน', type: 'error' })
       return
     }
-    // Simplified complexity check: Only length >= 8
+    // Complexity check (same as creation)
     const pwd = pwdForm.newPass
-    if (pwd.length < 8) {
-      setMsg({ text: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร', type: 'error' })
+    if (pwd.length < 8 || !/[A-Z]/.test(pwd) || !/[a-z]/.test(pwd) || !/[0-9]/.test(pwd) || !/[^A-Za-z0-9]/.test(pwd)) {
+      setMsg({ text: 'รหัสผ่านไม่ผ่านเกณฑ์ความปลอดภัย', type: 'error' })
       return
     }
 
@@ -209,6 +209,10 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
 
   const pwdChecks = [
     { label: 'อย่างน้อย 8 ตัวอักษร', met: pwdForm.newPass.length >= 8 },
+    { label: 'ตัวพิมพ์ใหญ่ (A-Z)', met: /[A-Z]/.test(pwdForm.newPass) },
+    { label: 'ตัวพิมพ์เล็ก (a-z)', met: /[a-z]/.test(pwdForm.newPass) },
+    { label: 'ตัวเลข (0-9)', met: /[0-9]/.test(pwdForm.newPass) },
+    { label: 'อักขระพิเศษ', met: /[^A-Za-z0-9]/.test(pwdForm.newPass) },
     { label: 'รหัสผ่านตรงกัน', met: pwdForm.newPass && pwdForm.newPass === pwdForm.confirm }
   ]
 
@@ -567,13 +571,13 @@ export default function UsersPage() {
     setSaving(true)
     setMsg({ text: '', type: '' })
 
-    // Simplified Validation: Only length >= 8
+    // Validate Password Complexity
     const pwd = newUser.password
-    if (pwd.length < 8) { 
-      setMsg({ text: 'Password ต้องมีอย่างน้อย 8 ตัวอักษร', type: 'error' }); 
-      setSaving(false); 
-      return 
-    }
+    if (pwd.length < 8) { setMsg({ text: 'Password ต้องมีอย่างน้อย 8 ตัวอักษร', type: 'error' }); setSaving(false); return }
+    if (!/[A-Z]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวพิมพ์ใหญ่ (A-Z) อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
+    if (!/[a-z]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวพิมพ์เล็ก (a-z) อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
+    if (!/[0-9]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวเลข (0-9) อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
+    if (!/[^A-Za-z0-9]/.test(pwd)) { setMsg({ text: 'Password ต้องมีอักขระพิเศษ อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
 
     const result = await createAdminUser({
       email: newUser.email,
