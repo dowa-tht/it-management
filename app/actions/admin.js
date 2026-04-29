@@ -12,7 +12,7 @@ export async function createAdminUser({ email, password, full_name, role, can_be
     }
 
     // สร้าง Supabase Client ที่มีสิทธิ์ระดับ Admin
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false
@@ -101,7 +101,7 @@ export async function updateAdminUser({ id, full_name, role, can_be_assignee, is
       return { success: false, error: 'เกิดข้อผิดพลาดที่ Server: ไม่พบ SUPABASE_SERVICE_ROLE_KEY' }
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
@@ -147,7 +147,7 @@ export async function updateAdminUserPassword(userId, newPassword) {
       return { success: false, error: 'เกิดข้อผิดพลาดที่ Server: ไม่พบ SUPABASE_SERVICE_ROLE_KEY' }
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 

@@ -270,13 +270,16 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 24 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button onClick={() => setFormData({ ...formData, can_be_assignee: !formData.can_be_assignee })}
-                    style={{ width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer', background: formData.can_be_assignee ? '#1d4ed8' : '#d1d5db', position: 'relative' }}>
-                    <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: formData.can_be_assignee ? 21 : 3, transition: 'left 0.2s' }} />
-                  </button>
-                  <span style={{ fontSize: 13, color: '#374151' }}>รับมอบหมายเคส (Assignee)</span>
-                </div>
+                {/* Assignee (ซ่อนสำหรับ Approval/Guest) */}
+                { (formData.role === 'administrator' || formData.role === 'superuser' || formData.role === 'user' || formData.role === 'supervisor') && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button onClick={() => setFormData({ ...formData, can_be_assignee: !formData.can_be_assignee })}
+                      style={{ width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer', background: formData.can_be_assignee ? '#1d4ed8' : '#d1d5db', position: 'relative' }}>
+                      <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: formData.can_be_assignee ? 21 : 3, transition: 'left 0.2s' }} />
+                    </button>
+                    <span style={{ fontSize: 13, color: '#374151' }}>รับมอบหมายเคส (Assignee)</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <button onClick={() => !isSelf && setFormData({ ...formData, is_active: !formData.is_active })} disabled={isSelf}
                     style={{ width: 40, height: 22, borderRadius: 11, border: 'none', cursor: isSelf ? 'not-allowed' : 'pointer', background: formData.is_active ? '#059669' : '#d1d5db', position: 'relative', opacity: isSelf ? 0.5 : 1 }}>
@@ -794,16 +797,19 @@ export default function UsersPage() {
                     </select>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '10px 14px', background: '#f9fafb', borderRadius: 8 }}>
-                  <button type="button" onClick={() => setNewUser({ ...newUser, can_be_assignee: !newUser.can_be_assignee })}
-                    style={{ width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer', background: newUser.can_be_assignee ? '#1d4ed8' : '#d1d5db', position: 'relative', flexShrink: 0 }}>
-                    <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: newUser.can_be_assignee ? 21 : 3, transition: 'left 0.2s' }} />
-                  </button>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>รับมอบหมายเคส (Assignee)</div>
-                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>หากเปิด จะแสดงชื่อใน Dropdown ตอนสร้าง/แก้ไข Incident</div>
+                {/* Assignee (ซ่อนสำหรับ Approval/Guest) */}
+                { (newUser.role === 'administrator' || newUser.role === 'superuser' || newUser.role === 'user' || newUser.role === 'supervisor') && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '10px 14px', background: '#f9fafb', borderRadius: 8 }}>
+                    <button type="button" onClick={() => setNewUser({ ...newUser, can_be_assignee: !newUser.can_be_assignee })}
+                      style={{ width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer', background: newUser.can_be_assignee ? '#1d4ed8' : '#d1d5db', position: 'relative', flexShrink: 0 }}>
+                      <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: newUser.can_be_assignee ? 21 : 3, transition: 'left 0.2s' }} />
+                    </button>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>รับมอบหมายเคส (Assignee)</div>
+                      <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>หากเปิด จะแสดงชื่อใน Dropdown ตอนสร้าง/แก้ไข Incident</div>
+                    </div>
                   </div>
-                </div>
+                )}
                 <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#92400e', marginBottom: 12 }}>
                   ⚠️ User ใหม่จะ Login ได้ทันที กรุณาแจ้ง Password เริ่มต้นให้ User เปลี่ยนเองในครั้งแรก
                 </div>
@@ -908,19 +914,23 @@ export default function UsersPage() {
                           </div>
                         </td>
 
-                        {/* Assignee */}
+                        {/* Assignee (ซ่อนสำหรับ Approval/Guest) */}
                         <td style={{ padding: '12px 16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Toggle
-                              value={u.can_be_assignee}
-                              onToggle={() => handleToggleAssignee(u.id, u.can_be_assignee)}
-                              loading={toggling === u.id + '_assignee'}
-                              colorOn="#1d4ed8"
-                            />
-                            <span style={{ fontSize: 11, color: u.can_be_assignee ? '#1d4ed8' : '#9ca3af', whiteSpace: 'nowrap' }}>
-                              {u.can_be_assignee ? 'รับเคสได้' : 'ไม่รับเคส'}
-                            </span>
-                          </div>
+                          { (u.role === 'administrator' || u.role === 'superuser' || u.role === 'user' || u.role === 'supervisor') ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <Toggle
+                                value={u.can_be_assignee}
+                                onToggle={() => handleToggleAssignee(u.id, u.can_be_assignee)}
+                                loading={toggling === u.id + '_assignee'}
+                                colorOn="#1d4ed8"
+                              />
+                              <span style={{ fontSize: 11, color: u.can_be_assignee ? '#1d4ed8' : '#9ca3af', whiteSpace: 'nowrap' }}>
+                                {u.can_be_assignee ? 'รับเคสได้' : 'ไม่รับเคส'}
+                              </span>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 11, color: '#9ca3af' }}>—</span>
+                          )}
                         </td>
 
                         {/* Active Toggle */}
