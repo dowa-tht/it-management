@@ -84,10 +84,10 @@ function ProfileContent() {
       return
     }
 
-    // Complexity check
+    // Simplified complexity check: Only length >= 8
     const pwd = pwdForm.newPass
-    if (pwd.length < 8 || !/[A-Z]/.test(pwd) || !/[a-z]/.test(pwd) || !/[0-9]/.test(pwd) || !/[^A-Za-z0-9]/.test(pwd)) {
-      setMsg({ text: 'รหัสผ่านใหม่ไม่ผ่านเกณฑ์ความปลอดภัย', type: 'error' })
+    if (pwd.length < 8) {
+      setMsg({ text: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร', type: 'error' })
       return
     }
 
@@ -133,10 +133,6 @@ function ProfileContent() {
 
   const pwdChecks = [
     { label: 'อย่างน้อย 8 ตัวอักษร', met: pwdForm.newPass.length >= 8 },
-    { label: 'ตัวพิมพ์ใหญ่ (A-Z)', met: /[A-Z]/.test(pwdForm.newPass) },
-    { label: 'ตัวพิมพ์เล็ก (a-z)', met: /[a-z]/.test(pwdForm.newPass) },
-    { label: 'ตัวเลข (0-9)', met: /[0-9]/.test(pwdForm.newPass) },
-    { label: 'อักขระพิเศษ', met: /[^A-Za-z0-9]/.test(pwdForm.newPass) },
     { label: 'รหัสผ่านตรงกัน', met: pwdForm.newPass && pwdForm.newPass === pwdForm.confirm }
   ]
 
