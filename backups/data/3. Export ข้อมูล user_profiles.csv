@@ -1,0 +1,4 @@
+id,full_name,role,is_active,can_be_assignee
+fe76ce6a-b9b8-41f2-ae2d-09d2a7b5dd55,Administrator,superuser,true,false
+836aa99e-c7cb-49c0-acc9-e9efc2686bb2,Antigravity,user,true,false
+7ad17b8b-c877-4a18-b9c6-bbdd8fb22c30,Natthawut Hapang,superuser,true,true

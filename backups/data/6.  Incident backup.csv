@@ -1,0 +1,9 @@
+id,case_number,title,severity,status,created_at
+157f0664-31fa-4004-9db3-8719c1895dc5,DTT-INC-2604-001,ทดสอบปัญหาที่ 1,Low,Resolved,2026-04-25 11:22:06.244109+00
+a6c2e4d7-3835-4179-a12b-977b623fea28,DTT-INC-2604-002,ทดสอบเอกสารใบที่ 2,Low,Resolved,2026-04-25 11:39:56.169825+00
+f066e374-50a8-4498-b312-d2f20d389880,DTT-INC-2604-003,เมาส์พัง,Medium,Resolved,2026-04-26 15:05:31.242205+00
+ffe25f4d-34bc-4dd8-ba00-dcf94d5f8ddc,DTT-INC-2604-004,เข้า M365 ไม่ได้,High,Resolved,2026-04-26 15:45:10.266+00
+971501c8-4b5d-4686-9936-7c13020a000b,DTT-INC-2604-005,[Checklist Ref] ตรวจสอบ HPE Aruba Instant On Site Health,Medium,Resolved,2026-04-27 07:56:58.044+00
+371767c7-bace-41a6-bf08-f1808c2ec6f9,DTT-INC-2604-006,[Checklist Ref] ตรวจสอบ Cisco Meraki Dashboard,High,Resolved,2026-04-28 05:37:48.935+00
+396a5d3e-88f8-4872-87a5-d92f981336c0,DTT-INC-2604-007,[Checklist Ref] ทดสอบและตรวจสอบความสมบูรณ์ของระบบ Backup,Medium,Resolved,2026-04-28 06:21:32.449+00
+25c461ec-45ee-45ff-b302-fce204536ca1,DTT-INC-2604-010,Test SLA Buttons,High,Resolved,2026-04-28 09:10:16.526+00
