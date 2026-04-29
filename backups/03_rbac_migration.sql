@@ -64,12 +64,14 @@ CREATE TABLE IF NOT EXISTS public.approval_tokens (
 
 -- ============================================================
 -- BLOCK 3: สร้างตาราง user_registry (Bridge Table)
+-- หมายเหตุ: ใช้ user_role แทน current_role เพราะ current_role
+--           เป็น Reserved Keyword ใน PostgreSQL
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.user_registry (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email                 TEXT NOT NULL UNIQUE,
   full_name             TEXT NOT NULL,
-  current_role          TEXT NOT NULL CHECK (current_role IN (
+  user_role             TEXT NOT NULL CHECK (user_role IN (
                           'administrator','supervisor','approval','guest'
                         )),
   supabase_user_id      UUID,
@@ -111,7 +113,7 @@ ALTER TABLE public.user_profiles
 -- BLOCK 6: Seed user_registry จาก user_profiles ที่มีอยู่
 -- (ทำให้ 3 users เดิมอยู่ใน Bridge Table ด้วย)
 -- ============================================================
-INSERT INTO public.user_registry (email, full_name, current_role, supabase_user_id, is_active)
+INSERT INTO public.user_registry (email, full_name, user_role, supabase_user_id, is_active)
 SELECT 
   au.email,
   up.full_name,
@@ -120,7 +122,7 @@ SELECT
     WHEN 'user'      THEN 'supervisor'
     WHEN 'visitor'   THEN 'guest'
     ELSE up.role
-  END AS current_role,
+  END AS user_role,
   up.id AS supabase_user_id,
   up.is_active
 FROM public.user_profiles up
