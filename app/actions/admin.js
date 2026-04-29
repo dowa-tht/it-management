@@ -67,26 +67,39 @@ export async function getAdminUsers() {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 
-    // ดึงข้อมูลจาก user_registry ซึ่งเป็นจุดรวมของทุก Tier
-    const { data: registryUsers, error } = await adminClient
+    // 1. ดึงข้อมูลจาก user_registry ทั้งหมด
+    const { data: registryUsers, error: regError } = await adminClient
       .from('user_registry')
       .select('*')
       .order('created_at', { ascending: false })
 
-    if (error) throw error
+    if (regError) throw regError
 
-    // แปลงข้อมูลให้เข้ากับ UI เดิม
-    const formatted = registryUsers.map(u => ({
-      id: u.supabase_user_id || u.external_user_id || u.id,
-      email: u.email,
-      full_name: u.full_name,
-      role: u.user_role, // 'administrator', 'supervisor', 'approval', 'guest'
-      is_active: u.is_active,
-      can_be_assignee: u.can_be_assignee,
-      created_at: u.created_at,
-      // mapping สำหรับ UI logic เดิม
-      is_external: !!u.external_user_id
-    }))
+    // 2. ดึงข้อมูลจาก user_profiles เพื่อเอา can_be_assignee และ is_active
+    const { data: profiles, error: profError } = await adminClient
+      .from('user_profiles')
+      .select('id, can_be_assignee, is_active')
+
+    if (profError) throw profError
+
+    // สร้าง Map เพื่อให้ค้นหา profile ได้ไวขึ้น
+    const profileMap = {}
+    profiles.forEach(p => { profileMap[p.id] = p })
+
+    // 3. แปลงข้อมูลและประกอบร่างรวมกัน
+    const formatted = registryUsers.map(u => {
+      const p = u.supabase_user_id ? profileMap[u.supabase_user_id] : null
+      return {
+        id: u.supabase_user_id || u.external_user_id || u.id,
+        email: u.email,
+        full_name: u.full_name,
+        role: u.user_role,
+        is_active: p ? p.is_active : u.is_active,
+        can_be_assignee: p ? p.can_be_assignee : (u.can_be_assignee || false),
+        created_at: u.created_at,
+        is_external: !!u.external_user_id
+      }
+    })
 
     return { success: true, data: formatted }
   } catch (err) {
