@@ -37,14 +37,32 @@ export async function middleware(req) {
   // ดึง Session ของ Tier 1 (Supabase Auth)
   const { data: { session } } = await supabase.auth.getSession()
 
-  // ไม่มี Session → redirect ไปหน้า Login
+  // ไม่มี Supabase Session → ตรวจสอบ Guest Session (Tier 4)
   if (!session) {
-    // ตรวจสอบ Guest Token ใน Cookie ก่อน (Tier 2)
-    const guestToken = req.cookies.get('guest_token')?.value
-    if (guestToken) {
-      // ให้ผ่านไปก่อน — Client-side จะตรวจสอบ Token เองใน layout
-      return res
+    const guestSession = req.cookies.get('guest-session')?.value
+    if (guestSession) {
+      try {
+        // ถอดรหัส JSON จาก base64
+        const guestData = JSON.parse(atob(guestSession))
+        
+        // ตรวจสอบวันหมดอายุ (exp)
+        if (guestData.exp > Date.now()) {
+          // ถ้าเป็น Guest อนุญาตให้เข้าได้เฉพาะบางหน้า (canAccess จะจัดการ)
+          if (canAccess('guest', pathname)) {
+            return res
+          } else {
+            return NextResponse.redirect(new URL('/dashboard?error=access_denied', req.url))
+          }
+        }
+      } catch (e) {
+        // Token ผิดพลาด ลบ cookie
+        const response = NextResponse.redirect(new URL('/?error=invalid_session', req.url))
+        response.cookies.delete('guest-session')
+        return response
+      }
     }
+    
+    // ไม่มีทั้ง Supabase และ Guest Session
     return NextResponse.redirect(new URL('/?error=unauthorized', req.url))
   }
 

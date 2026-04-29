@@ -18,7 +18,30 @@ export default function DashboardLayout({ children }) {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) {
-        router.push('/')
+        // ลองเช็ค Guest Session (Tier 4) จาก Cookie
+        const cookies = document.cookie.split('; ').reduce((prev, current) => {
+          const [name, value] = current.split('=')
+          prev[name] = value
+          return prev
+        }, {})
+
+        const guestSession = cookies['guest-session']
+        if (guestSession) {
+          try {
+            const guestData = JSON.parse(atob(guestSession))
+            setRole('guest')
+            setProfile({ full_name: guestData.name, role: 'guest' })
+            setUser({ email: guestData.email, id: guestData.id })
+            
+            if (!canAccess('guest', pathname)) {
+              router.push('/dashboard?error=access_denied')
+            }
+          } catch (e) {
+            router.push('/')
+          }
+        } else {
+          router.push('/')
+        }
       } else {
         setUser(session.user)
         const { data: profileData } = await supabase
@@ -70,6 +93,8 @@ export default function DashboardLayout({ children }) {
         }])
       } catch {}
     }
+    // ลบ Guest Cookie ด้วย
+    document.cookie = "guest-session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
     await supabase.auth.signOut()
     router.push('/')
   }
