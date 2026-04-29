@@ -1,172 +1,162 @@
 'use client'
-import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { checkUserTier, unifiedLogin } from '@/app/actions/auth'
 
 export default function LoginPage() {
+  const [step, setStep] = useState('email') // 'email' or 'auth'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
+  const [pin, setPin] = useState(['', '', '', '', '', ''])
+  const [tier, setTier] = useState(null) // 'internal' or 'external'
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+  const pinRefs = [useRef(null), useRef(null), useRef(null), useRef(null), useRef(null), useRef(null)]
+
+  const handleNext = async (e) => {
+    e.preventDefault()
+    if (!email) return
+    setLoading(true)
+    setError('')
+    
+    try {
+      const res = await checkUserTier(email)
+      if (res.success && res.tier !== 'not_found') {
+        setTier(res.tier)
+        setStep('auth')
+      } else {
+        setError('ไม่พบอีเมลนี้ในระบบ หรือบัญชีถูกระงับการใช้งาน')
+      }
+    } catch (err) {
+      setError('เกิดข้อผิดพลาดในการตรวจสอบข้อมูล')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleLogin = async (e) => {
-    e.preventDefault()
+    e?.preventDefault()
     setLoading(true)
     setError('')
 
-    // Step 1: Login ด้วย Supabase Auth
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-
-    // Step 2: ถ้า Login ไม่สำเร็จ
-    if (signInError) {
-      setError('Email หรือ Password ไม่ถูกต้อง')
-      setLoading(false)
-      return
-    }
-
-    // Step 3: บันทึก Login Log
     try {
-      await supabase.from('login_logs').insert([{
-        user_id: data.user.id,
-        user_email: data.user.email,
-        action: 'login',
-        ip_address: null,
-        user_agent: navigator.userAgent.slice(0, 200)
-      }])
-    } catch (logError) {
-      // ถ้า log ไม่ได้ก็ไม่เป็นไร ไม่ block การ login
-      console.warn('Login log error:', logError)
-    }
+      const finalPass = tier === 'internal' ? password : pin.join('')
+      const res = await unifiedLogin(email, finalPass)
 
-    // Step 4: ไปหน้า Dashboard
-    router.push('/dashboard')
+      if (res.success) {
+        router.push('/dashboard')
+      } else {
+        setError(res.error || 'การเข้าสู่ระบบล้มเหลว')
+      }
+    } catch (err) {
+      setError('เกิดข้อผิดพลาดในการเชื่อมต่อ')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handlePinChange = (index, value) => {
+    if (value.length > 1) value = value.slice(-1)
+    const newPin = [...pin]
+    newPin[index] = value
+    setPin(newPin)
+
+    if (value && index < 5) {
+      pinRefs[index + 1].current?.focus()
+    }
+  }
+
+  const handlePinKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !pin[index] && index > 0) {
+      pinRefs[index - 1].current?.focus()
+    }
   }
 
   return (
     <div style={{
-      minHeight: '100vh',
-      background: '#0f1923',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '0 16px'
+      minHeight: '100vh', background: '#0a0f16',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '20px', fontFamily: 'inherit'
     }}>
+      {/* Background Glow */}
+      <div style={{ position: 'fixed', top: '20%', left: '30%', width: '400px', height: '400px', background: 'rgba(29, 78, 216, 0.15)', filter: 'blur(100px)', borderRadius: '50%', zIndex: 0 }} />
+      
       <div style={{
-        background: '#fff',
-        borderRadius: 12,
-        padding: '40px 36px',
-        width: '100%',
-        maxWidth: 380,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+        background: 'rgba(255, 255, 255, 0.03)',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        borderRadius: 24, padding: '48px 40px',
+        width: '100%', maxWidth: 420,
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+        zIndex: 1, position: 'relative'
       }}>
-        {/* Logo */}
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#0f1923' }}>DOWA IT System</div>
-          <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>IT Management Portal</div>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: '-0.5px' }}>DOWA IT System</div>
+          <p style={{ fontSize: 14, color: '#94a3b8', marginTop: 8 }}>Secure Access Management</p>
         </div>
 
-        <form onSubmit={handleLogin}>
-          {/* Email */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{
-              fontSize: 12, fontWeight: 500, color: '#374151',
-              display: 'block', marginBottom: 6
-            }}>
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              placeholder="your@email.com"
-              style={{
-                width: '100%', padding: '10px 12px',
-                border: '1px solid #d1d5db', borderRadius: 8,
-                fontSize: 14, outline: 'none', fontFamily: 'inherit',
-                transition: 'border-color 0.15s'
-              }}
-              onFocus={e => e.target.style.borderColor = '#3b82f6'}
-              onBlur={e => e.target.style.borderColor = '#d1d5db'}
-            />
+        {error && (
+          <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '12px 16px', borderRadius: 12, fontSize: 13, marginBottom: 24, border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'center' }}>
+             {error}
           </div>
+        )}
 
-          {/* Password */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={{
-              fontSize: 12, fontWeight: 500, color: '#374151',
-              display: 'block', marginBottom: 6
-            }}>
-              Password
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                style={{
-                  width: '100%', padding: '10px 12px', paddingRight: '40px',
-                  border: '1px solid #d1d5db', borderRadius: 8,
-                  fontSize: 14, outline: 'none', fontFamily: 'inherit',
-                  transition: 'border-color 0.15s'
-                }}
-                onFocus={e => e.target.style.borderColor = '#3b82f6'}
-                onBlur={e => e.target.style.borderColor = '#d1d5db'}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                tabIndex="-1"
-                style={{
-                  position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                  fontSize: 16, color: '#9ca3af', display: 'flex', alignItems: 'center'
-                }}
-              >
-                {showPassword ? '👁️' : '🙈'}
+        <div style={{ overflow: 'hidden', position: 'relative' }}>
+          {step === 'email' ? (
+            <form onSubmit={handleNext} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email Address</label>
+                <input
+                  type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="name@example.com" required
+                  style={{ width: '100%', padding: '14px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 15, outline: 'none' }}
+                />
+              </div>
+              <button type="submit" disabled={loading} style={{ width: '100%', padding: '14px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>
+                {loading ? 'Checking...' : 'Continue'}
               </button>
-            </div>
-          </div>
+            </form>
+          ) : (
+            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>
+                    {tier === 'internal' ? 'Password' : 'Enter 6-Digit PIN'}
+                  </label>
+                  <button type="button" onClick={() => setStep('email')} style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: 12, cursor: 'pointer' }}>Change Email</button>
+                </div>
 
-          {/* Error Message */}
-          {error && (
-            <div style={{
-              background: '#fee2e2', color: '#991b1b',
-              padding: '10px 12px', borderRadius: 8,
-              fontSize: 13, marginBottom: 16,
-              display: 'flex', alignItems: 'center', gap: 8
-            }}>
-              ⚠️ {error}
-            </div>
+                {tier === 'internal' ? (
+                  <input
+                    type="password" value={password} onChange={e => setPassword(e.target.value)}
+                    placeholder="••••••••" required autoFocus
+                    style={{ width: '100%', padding: '14px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 15, outline: 'none' }}
+                  />
+                ) : (
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                    {pin.map((digit, i) => (
+                      <input
+                        key={i} ref={pinRefs[i]} type="text" inputMode="numeric"
+                        value={digit} onChange={e => handlePinChange(i, e.target.value)}
+                        onKeyDown={e => handlePinKeyDown(i, e)}
+                        style={{ width: 44, height: 56, textAlign: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 20, fontWeight: 700, outline: 'none' }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button type="submit" disabled={loading} style={{ width: '100%', padding: '14px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+                {loading ? 'Authenticating...' : tier === 'internal' ? 'Sign In' : 'Access System'}
+              </button>
+            </form>
           )}
+        </div>
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%', padding: '11px',
-              background: loading ? '#93c5fd' : '#1d4ed8',
-              color: '#fff', border: 'none', borderRadius: 8,
-              fontSize: 14, fontWeight: 500,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit', transition: 'background 0.15s'
-            }}
-          >
-            {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
-          </button>
-        </form>
-
-        {/* Footer */}
-        <div style={{ marginTop: 24, textAlign: 'center', fontSize: 11, color: '#d1d5db' }}>
-          DOWA IT System v1.0 · Secured by Supabase
+        <div style={{ marginTop: 32, textAlign: 'center', fontSize: 11, color: '#475569' }}>
+          DOWA IT System v2.0 · RBAC Protected Architecture
         </div>
       </div>
     </div>

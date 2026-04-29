@@ -262,8 +262,10 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
                   <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }}>Role</label>
                   <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} disabled={isSelf}
                     style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, background: isSelf ? '#f3f4f6' : '#fff' }}>
-                    <option value="user">Supervisor</option>
-                    <option value="superuser">Administrator</option>
+                    <option value="user">Supervisor (Tier 2)</option>
+                    <option value="superuser">Administrator (Tier 1)</option>
+                    <option value="approval">Approver (Tier 3)</option>
+                    <option value="guest">Guest (Tier 4)</option>
                   </select>
                 </div>
               </div>
