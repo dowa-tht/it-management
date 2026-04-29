@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/dateFormat'
-import { createAdminUser, getAdminUsers } from '@/app/actions/admin'
+import { createAdminUser, getAdminUsers, updateAdminUser, updateAdminUserPassword } from '@/app/actions/admin'
 
 // ===== Password Confirm Dialog =====
 function PasswordConfirmDialog({ onConfirm, onCancel, targetName, action }) {
@@ -85,6 +85,280 @@ function PasswordConfirmDialog({ onConfirm, onCancel, targetName, action }) {
   )
 }
 
+// ===== User Setup Dialog (Edit & Logs) =====
+function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
+  const [activeTab, setActiveTab] = useState('general')
+  const [formData, setFormData] = useState({ ...user })
+  const [pwdForm, setPwdForm] = useState({ newPass: '', confirm: '' })
+  const [showPwd, setShowPwd] = useState(false)
+  const [loginLogs, setLoginLogs] = useState([])
+  const [activityLogs, setActivityLogs] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState({ text: '', type: '' })
+
+  const isSelf = user.id === currentUser?.id
+
+  useEffect(() => {
+    if (activeTab === 'login_logs') fetchLoginLogs()
+    if (activeTab === 'activity_logs') fetchActivityLogs()
+  }, [activeTab])
+
+  const fetchLoginLogs = async () => {
+    setLoading(true)
+    const { data } = await supabase.from('login_logs').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
+    setLoginLogs(data || [])
+    setLoading(false)
+  }
+
+  const fetchActivityLogs = async () => {
+    setLoading(true)
+    const { data } = await supabase.from('incident_logs').select('*').eq('user_email', user.email).order('created_at', { ascending: false }).limit(50)
+    setActivityLogs(data || [])
+    setLoading(false)
+  }
+
+  const handleUpdateGeneral = async () => {
+    setLoading(true)
+    const res = await updateAdminUser(formData)
+    if (res.success) {
+      setMsg({ text: 'อัปเดตข้อมูลสำเร็จ', type: 'success' })
+      onRefresh()
+    } else {
+      setMsg({ text: res.error, type: 'error' })
+    }
+    setLoading(false)
+  }
+
+  const handleUpdatePassword = async () => {
+    if (pwdForm.newPass !== pwdForm.confirm) {
+      setMsg({ text: 'รหัสผ่านไม่ตรงกัน', type: 'error' })
+      return
+    }
+    // Complexity check (same as creation)
+    const pwd = pwdForm.newPass
+    if (pwd.length < 8 || !/[A-Z]/.test(pwd) || !/[a-z]/.test(pwd) || !/[0-9]/.test(pwd) || !/[^A-Za-z0-9]/.test(pwd)) {
+      setMsg({ text: 'รหัสผ่านไม่ผ่านเกณฑ์ความปลอดภัย', type: 'error' })
+      return
+    }
+
+    setLoading(true)
+    const res = await updateAdminUserPassword(user.id, pwd)
+    if (res.success) {
+      setMsg({ text: 'เปลี่ยนรหัสผ่านสำเร็จ', type: 'success' })
+      setPwdForm({ newPass: '', confirm: '' })
+    } else {
+      setMsg({ text: res.error, type: 'error' })
+    }
+    setLoading(false)
+  }
+
+  const generatePwd = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*"
+    let p = ""
+    p += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)]
+    p += "abcdefghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 26)]
+    p += "0123456789"[Math.floor(Math.random() * 10)]
+    p += "!@#$%^&*"[Math.floor(Math.random() * 8)]
+    for (let i = 0; i < 4; i++) p += chars[Math.floor(Math.random() * chars.length)]
+    const final = p.split('').sort(() => 0.5 - Math.random()).join('')
+    setPwdForm({ ...pwdForm, newPass: final })
+    setMsg({ text: '', type: '' })
+  }
+
+  const tabStyle = (tab) => ({
+    padding: '12px 16px', fontSize: 13, cursor: 'pointer', border: 'none',
+    borderBottom: activeTab === tab ? '2px solid #1d4ed8' : '2px solid transparent',
+    background: 'none', color: activeTab === tab ? '#1d4ed8' : '#6b7280',
+    fontFamily: 'inherit', fontWeight: activeTab === tab ? 600 : 400, flex: 1
+  })
+
+  const pwdChecks = [
+    { label: 'อย่างน้อย 8 ตัวอักษร', met: pwdForm.newPass.length >= 8 },
+    { label: 'ตัวพิมพ์ใหญ่ (A-Z)', met: /[A-Z]/.test(pwdForm.newPass) },
+    { label: 'ตัวพิมพ์เล็ก (a-z)', met: /[a-z]/.test(pwdForm.newPass) },
+    { label: 'ตัวเลข (0-9)', met: /[0-9]/.test(pwdForm.newPass) },
+    { label: 'อักขระพิเศษ', met: /[^A-Za-z0-9]/.test(pwdForm.newPass) },
+    { label: 'รหัสผ่านตรงกัน', met: pwdForm.newPass && pwdForm.newPass === pwdForm.confirm }
+  ]
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+        
+        {/* Header */}
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f9fafb' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 20, background: '#1d4ed8', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700 }}>
+              {user.full_name?.charAt(0) || user.email?.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: '#111827' }}>{user.full_name || '—'}</div>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>{user.email}</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', color: '#9ca3af' }}>×</button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #f3f4f6' }}>
+          <button style={tabStyle('general')} onClick={() => setActiveTab('general')}>⚙️ ข้อมูลทั่วไป</button>
+          <button style={tabStyle('security')} onClick={() => setActiveTab('security')}>🔐 ความปลอดภัย</button>
+          <button style={tabStyle('login_logs')} onClick={() => setActiveTab('login_logs')}>🕒 ประวัติ Login</button>
+          <button style={tabStyle('activity_logs')} onClick={() => setActiveTab('activity_logs')}>📝 ประวัติการทำงาน</button>
+        </div>
+
+        {/* Content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {msg.text && (
+            <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 20, background: msg.type === 'success' ? '#d1fae5' : '#fee2e2', color: msg.type === 'success' ? '#065f46' : '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
+              {msg.type === 'success' ? '✅' : '❌'} {msg.text}
+            </div>
+          )}
+
+          {activeTab === 'general' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }}>ชื่อ-นามสกุล</label>
+                  <input value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} 
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }}>Role</label>
+                  <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} disabled={isSelf}
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, background: isSelf ? '#f3f4f6' : '#fff' }}>
+                    <option value="user">User</option>
+                    <option value="superuser">Administrator</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button onClick={() => setFormData({ ...formData, can_be_assignee: !formData.can_be_assignee })}
+                    style={{ width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer', background: formData.can_be_assignee ? '#1d4ed8' : '#d1d5db', position: 'relative' }}>
+                    <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: formData.can_be_assignee ? 21 : 3, transition: 'left 0.2s' }} />
+                  </button>
+                  <span style={{ fontSize: 13, color: '#374151' }}>รับมอบหมายเคส (Assignee)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button onClick={() => !isSelf && setFormData({ ...formData, is_active: !formData.is_active })} disabled={isSelf}
+                    style={{ width: 40, height: 22, borderRadius: 11, border: 'none', cursor: isSelf ? 'not-allowed' : 'pointer', background: formData.is_active ? '#059669' : '#d1d5db', position: 'relative', opacity: isSelf ? 0.5 : 1 }}>
+                    <div style={{ width: 16, height: 16, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: formData.is_active ? 21 : 3, transition: 'left 0.2s' }} />
+                  </button>
+                  <span style={{ fontSize: 13, color: '#374151' }}>สถานะการใช้งาน (Active)</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                <button onClick={handleUpdateGeneral} disabled={loading} style={{ padding: '10px 24px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
+                  {loading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลทั่วไป'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'security' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>ตั้งรหัสผ่านใหม่</div>
+                <button onClick={generatePwd} style={{ fontSize: 12, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '6px 12px', borderRadius: 6, cursor: 'pointer' }}>
+                  🎲 Generate Password
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }}>รหัสผ่านใหม่</label>
+                  <div style={{ position: 'relative' }}>
+                    <input type={showPwd ? "text" : "password"} value={pwdForm.newPass} onChange={e => setPwdForm({ ...pwdForm, newPass: e.target.value })} 
+                      style={{ width: '100%', padding: '10px 12px', paddingRight: '40px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }} />
+                    <button onClick={() => setShowPwd(!showPwd)} style={{ position: 'absolute', right: 10, top: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' }}>{showPwd ? '👁️' : '🙈'}</button>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }}>ยืนยันรหัสผ่านใหม่</label>
+                  <input type={showPwd ? "text" : "password"} value={pwdForm.confirm} onChange={e => setPwdForm({ ...pwdForm, confirm: e.target.value })} 
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }} />
+                </div>
+              </div>
+              <div style={{ background: '#f9fafb', padding: 16, borderRadius: 10, marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 10 }}>เกณฑ์ความปลอดภัย:</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {pwdChecks.map((c, i) => (
+                    <div key={i} style={{ fontSize: 11, color: c.met ? '#059669' : '#9ca3af', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {c.met ? '✅' : '⚪'} {c.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={handleUpdatePassword} disabled={loading || !pwdChecks.every(c => c.met)} 
+                  style={{ padding: '10px 24px', background: loading || !pwdChecks.every(c => c.met) ? '#93c5fd' : '#dc2626', color: '#fff', border: 'none', borderRadius: 8, cursor: loading || !pwdChecks.every(c => c.met) ? 'not-allowed' : 'pointer', fontWeight: 600 }}>
+                  {loading ? 'กำลังบันทึก...' : 'อัปเดตรหัสผ่าน'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'login_logs' && (
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead style={{ background: '#f9fafb' }}>
+                  <tr>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500 }}>Action</th>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500 }}>วันที่/เวลา</th>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500 }}>Device/Browser</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loginLogs.length === 0 ? (
+                    <tr><td colSpan={3} style={{ padding: 20, textAlign: 'center', color: '#9ca3af' }}>ไม่พบข้อมูล</td></tr>
+                  ) : loginLogs.map(log => (
+                    <tr key={log.id} style={{ borderTop: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '10px 16px' }}>
+                        <span style={{ background: log.action === 'login' ? '#d1fae5' : '#fee2e2', color: log.action === 'login' ? '#065f46' : '#991b1b', padding: '2px 8px', borderRadius: 20, fontSize: 11 }}>
+                          {log.action === 'login' ? '🔓 Login' : '🔒 Logout'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 16px' }}>{new Date(log.created_at).toLocaleString('th-TH')}</td>
+                      <td style={{ padding: '10px 16px', fontSize: 11, color: '#6b7280' }}>{log.user_agent}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {activeTab === 'activity_logs' && (
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead style={{ background: '#f9fafb' }}>
+                  <tr>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500 }}>งาน</th>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500 }}>หมายเลขเคส</th>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500 }}>วันที่</th>
+                    <th style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500 }}>หมายเหตุ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activityLogs.length === 0 ? (
+                    <tr><td colSpan={4} style={{ padding: 20, textAlign: 'center', color: '#9ca3af' }}>ไม่พบข้อมูล</td></tr>
+                  ) : activityLogs.map(log => (
+                    <tr key={log.id} style={{ borderTop: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '10px 16px', fontWeight: 600 }}>{log.action}</td>
+                      <td style={{ padding: '10px 16px', color: '#1d4ed8' }}>INC-XXXX</td>
+                      <td style={{ padding: '10px 16px' }}>{new Date(log.created_at).toLocaleDateString('th-TH')}</td>
+                      <td style={{ padding: '10px 16px', fontSize: 12, color: '#6b7280' }}>{log.note || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function UsersPage() {
   const [users, setUsers] = useState([])
   const [logs, setLogs] = useState([])
@@ -102,6 +376,8 @@ export default function UsersPage() {
   const [saving, setSaving] = useState(false)
   const [toggling, setToggling] = useState(null)
   const [msg, setMsg] = useState({ text: '', type: '' })
+
+  const [setupUser, setSetupUser] = useState(null)
 
   // Password Confirm Dialog state
   const [confirmDialog, setConfirmDialog] = useState(null)
@@ -278,6 +554,16 @@ export default function UsersPage() {
 
   return (
     <div style={{ padding: 24 }}>
+
+      {/* User Setup Dialog */}
+      {setupUser && (
+        <UserSetupDialog 
+          user={setupUser} 
+          currentUser={currentUser} 
+          onClose={() => setSetupUser(null)} 
+          onRefresh={fetchUsers} 
+        />
+      )}
 
       {/* Password Confirm Dialog */}
       {confirmDialog && (
@@ -457,11 +743,18 @@ export default function UsersPage() {
                       <tr key={u.id} style={{ borderBottom: '1px solid #f3f4f6', background: u.is_active ? '#fff' : '#fafafa' }}>
 
                         {/* ชื่อ */}
-                        <td style={{ padding: '12px 16px' }}>
+                         <td style={{ padding: '12px 16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ fontWeight: 500, color: u.is_active ? '#111827' : '#9ca3af' }}>
+                            <button 
+                              onClick={() => setSetupUser(u)}
+                              style={{ 
+                                background: 'none', border: 'none', padding: 0, 
+                                fontWeight: 500, color: u.is_active ? '#111827' : '#9ca3af', 
+                                cursor: 'pointer', textAlign: 'left', textDecoration: 'underline'
+                              }}
+                            >
                               {u.full_name || '—'}
-                            </div>
+                            </button>
                             {isSelf && (
                               <span style={{ fontSize: 10, background: '#eff6ff', color: '#1d4ed8', padding: '1px 6px', borderRadius: 20, fontWeight: 500 }}>คุณ</span>
                             )}
@@ -532,15 +825,19 @@ export default function UsersPage() {
                         </td>
 
                         {/* Action */}
-                        <td style={{ padding: '12px 16px' }}>
-                          {!isSelf ? (
-                            <button onClick={() => handleDeleteUser(u.id, u.full_name)}
-                              style={{ padding: '4px 10px', border: 'none', borderRadius: 6, fontSize: 11, background: '#fee2e2', color: '#991b1b', cursor: 'pointer', fontFamily: 'inherit' }}>
-                              🗑 ลบ
+                         <td style={{ padding: '12px 16px' }}>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button onClick={() => setSetupUser(u)}
+                              style={{ padding: '4px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 11, background: '#fff', color: '#374151', cursor: 'pointer', fontFamily: 'inherit' }}>
+                              ⚙️ Setup
                             </button>
-                          ) : (
-                            <span style={{ fontSize: 11, color: '#d1d5db' }}>—</span>
-                          )}
+                            {!isSelf && (
+                              <button onClick={() => handleDeleteUser(u.id, u.full_name)}
+                                style={{ padding: '4px 10px', border: 'none', borderRadius: 6, fontSize: 11, background: '#fee2e2', color: '#991b1b', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                🗑 ลบ
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )

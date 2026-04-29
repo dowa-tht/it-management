@@ -10,6 +10,7 @@ export default function DashboardLayout({ children }) {
   const [user, setUser] = useState(null)
   const [isSuperUser, setIsSuperUser] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [expandedSection, setExpandedSection] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -37,7 +38,15 @@ export default function DashboardLayout({ children }) {
     }
   }, [])
 
-  useEffect(() => { setSidebarOpen(false) }, [pathname])
+  // Auto-expand current section on first load or path change
+  useEffect(() => {
+    setSidebarOpen(false)
+    if (pathname.includes('/settings/')) {
+      setExpandedSection('settings')
+    } else if (pathname.startsWith('/dashboard/incidents') || pathname === '/dashboard' || pathname.includes('/backup') || pathname.includes('/checklist')) {
+      setExpandedSection('operations')
+    }
+  }, [pathname])
 
   const handleLogout = async () => {
     const { data: { user: currentUser } } = await supabase.auth.getUser()
@@ -74,6 +83,10 @@ export default function DashboardLayout({ children }) {
     return pathname.startsWith(href)
   }
 
+  const toggleSection = (section) => {
+    setExpandedSection(prev => prev === section ? null : section)
+  }
+
   const SidebarContent = () => (
     <>
       {/* Logo */}
@@ -84,25 +97,63 @@ export default function DashboardLayout({ children }) {
 
       {/* Navigation */}
       <nav style={{ padding: '8px 0', flex: 1, overflowY: 'auto' }}>
-        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: 1, padding: '8px 16px 4px', textTransform: 'uppercase' }}>
-          Operations
+        {/* Operations Section */}
+        <div 
+          onClick={() => toggleSection('operations')}
+          style={{ 
+            fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: 1, padding: '12px 16px 8px', 
+            textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            cursor: 'pointer', transition: 'background 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+        >
+          <span>Operations</span>
+          <span style={{ 
+            fontSize: 10, transition: 'transform 0.3s', 
+            transform: expandedSection === 'operations' ? 'rotate(0deg)' : 'rotate(-90deg)' 
+          }}>▼</span>
         </div>
-        {navItems.filter(i => i.section === 'operations').map(item => (
-          <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
-            <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
-            {item.label}
-          </Link>
-        ))}
+        <div style={{ 
+          maxHeight: expandedSection === 'operations' ? '500px' : '0', 
+          overflow: 'hidden', transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
+        }}>
+          {navItems.filter(i => i.section === 'operations').map(item => (
+            <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
+              <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
+        </div>
 
-        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: 1, padding: '12px 16px 4px', textTransform: 'uppercase' }}>
-          Settings
+        {/* Settings Section */}
+        <div 
+          onClick={() => toggleSection('settings')}
+          style={{ 
+            fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: 1, padding: '16px 16px 8px', 
+            textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            cursor: 'pointer', transition: 'background 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+        >
+          <span>Settings</span>
+          <span style={{ 
+            fontSize: 10, transition: 'transform 0.3s', 
+            transform: expandedSection === 'settings' ? 'rotate(0deg)' : 'rotate(-90deg)' 
+          }}>▼</span>
         </div>
-        {navItems.filter(i => i.section === 'settings').map(item => (
-          <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
-            <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
-            {item.label}
-          </Link>
-        ))}
+        <div style={{ 
+          maxHeight: expandedSection === 'settings' ? '500px' : '0', 
+          overflow: 'hidden', transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
+        }}>
+          {navItems.filter(i => i.section === 'settings').map(item => (
+            <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
+              <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
+        </div>
       </nav>
 
       {/* Bottom — Email + Role + Logout */}

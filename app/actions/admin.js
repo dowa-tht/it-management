@@ -88,3 +88,62 @@ export async function getAdminUsers() {
     return { success: false, error: err.message }
   }
 }
+
+export async function updateAdminUser({ id, full_name, role, can_be_assignee, is_active }) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return { success: false, error: 'เกิดข้อผิดพลาดที่ Server: ไม่พบ SUPABASE_SERVICE_ROLE_KEY' }
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+
+    // 1. อัปเดตข้อมูลใน Auth Metadata (เลือกทำ)
+    await supabaseAdmin.auth.admin.updateUserById(id, {
+      user_metadata: { full_name }
+    })
+
+    // 2. อัปเดตข้อมูลใน user_profiles
+    const { error } = await supabaseAdmin.from('user_profiles').update({
+      full_name,
+      role,
+      can_be_assignee,
+      is_active
+    }).eq('id', id)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+}
+
+export async function updateAdminUserPassword(userId, newPassword) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return { success: false, error: 'เกิดข้อผิดพลาดที่ Server: ไม่พบ SUPABASE_SERVICE_ROLE_KEY' }
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: newPassword
+    })
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+}

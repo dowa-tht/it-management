@@ -11,6 +11,81 @@ const STATUS_COLORS = {
 
 const SYSTEMS = ['Server & File Share', 'Microsoft 365']
 
+const ENG_MONTHS_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+]
+
+function MonthPicker({ value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [viewYear, setViewYear] = useState(() => parseInt(value.split('-')[0]))
+
+  const [year, month] = value.split('-').map(Number)
+  const monthLabel = ENG_MONTHS_SHORT[month - 1]
+
+  useEffect(() => {
+    setViewYear(parseInt(value.split('-')[0]))
+  }, [value])
+
+  const handleMonthSelect = (m) => {
+    onChange(`${viewYear}-${String(m).padStart(2, '0')}`)
+    setIsOpen(false)
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          padding: '6px 12px', background: '#fff', border: '1px solid #d1d5db',
+          borderRadius: 8, fontSize: 13, cursor: 'pointer', display: 'flex',
+          alignItems: 'center', gap: 8, minWidth: 120, justifyContent: 'space-between',
+          fontFamily: 'inherit'
+        }}
+      >
+        <span style={{ fontWeight: 500 }}>{monthLabel} {viewYear}</span>
+        <span style={{ fontSize: 10, color: '#9ca3af', transform: isOpen ? 'rotate(180deg)' : 'rotate(0)', transition: '0.2s' }}>▼</span>
+      </button>
+
+      {isOpen && (
+        <>
+          <div onClick={() => setIsOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, marginTop: 8,
+            background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12,
+            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
+            zIndex: 100, padding: 12, width: 180
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <button onClick={() => setViewYear(viewYear - 1)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 8px', fontSize: 10 }}>◀</button>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{viewYear}</div>
+              <button onClick={() => setViewYear(viewYear + 1)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 8px', fontSize: 10 }}>▶</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
+              {ENG_MONTHS_SHORT.map((m, idx) => (
+                <button
+                  key={m}
+                  onClick={() => handleMonthSelect(idx + 1)}
+                  style={{
+                    padding: '10px 0', border: 'none', borderRadius: 8, fontSize: 12,
+                    background: (idx + 1 === month && viewYear === year) ? '#1d4ed8' : 'transparent',
+                    color: (idx + 1 === month && viewYear === year) ? '#fff' : '#374151',
+                    cursor: 'pointer', transition: 'all 0.15s', fontWeight: (idx + 1 === month && viewYear === year) ? 600 : 400
+                  }}
+                  onMouseEnter={e => (idx + 1 !== month || viewYear !== year) && (e.target.style.background = '#f9fafb')}
+                  onMouseLeave={e => (idx + 1 !== month || viewYear !== year) && (e.target.style.background = 'transparent')}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function BackupPage() {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -93,7 +168,7 @@ export default function BackupPage() {
 
   const monthLabel = () => {
     const [y, m] = filterMonth.split('-')
-    return new Date(y, m - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
+    return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   }
 
   return (
@@ -103,8 +178,7 @@ export default function BackupPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>Backup Log</h1>
-            <input type="month" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
-              style={{ padding: '5px 10px', border: '1px solid #d1d5db', borderRadius: 7, fontSize: 13, fontFamily: 'inherit' }} />
+            <MonthPicker value={filterMonth} onChange={setFilterMonth} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setShowForm(!showForm)} style={{ background: '#1d4ed8', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>

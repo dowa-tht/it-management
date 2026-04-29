@@ -76,7 +76,19 @@ export default function MasterDataPage() {
   // Working Hours Fields
   const [whSettings, setWhSettings] = useState({ start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] })
 
+  const [expandedGroup, setExpandedGroup] = useState(null)
+
+  useEffect(() => {
+    // Auto expand group that contains activeType
+    const group = MASTER_GROUPS.find(g => g.items.some(i => i.key === activeType))
+    if (group) setExpandedGroup(group.name)
+  }, [activeType])
+
   useEffect(() => { fetchItems() }, [activeType])
+
+  const toggleGroup = (name) => {
+    setExpandedGroup(prev => prev === name ? null : name)
+  }
 
   const fetchItems = async () => {
     setLoading(true)
@@ -279,19 +291,37 @@ export default function MasterDataPage() {
 
       <div className="responsive-flex" style={{ display: 'flex', gap: 24, flex: 1, alignItems: 'flex-start' }}>
         {/* Left Sidebar Menu */}
-        <div style={{ width: 260, flexShrink: 0, background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ width: 260, flexShrink: 0, background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 4, overflow: 'hidden' }}>
           {MASTER_GROUPS.map(group => (
             <div key={group.name}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', marginBottom: 10, paddingLeft: 12, letterSpacing: '0.05em' }}>
+              <div 
+                onClick={() => toggleGroup(group.name)}
+                style={{ 
+                  fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', 
+                  padding: '12px 16px', letterSpacing: '0.05em', cursor: 'pointer',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
                 {group.name}
+                <span style={{ 
+                  fontSize: 10, transition: 'transform 0.3s', 
+                  transform: expandedGroup === group.name ? 'rotate(0deg)' : 'rotate(-90deg)' 
+                }}>▼</span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ 
+                maxHeight: expandedGroup === group.name ? '300px' : '0', 
+                overflow: 'hidden', transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                padding: '0 8px'
+              }}>
                 {group.items.map(t => (
                   <button
                     key={t.key}
                     onClick={() => { setActiveType(t.key); setMsg({ text: '', type: '' }); setEditingId(null) }}
                     style={{
-                      padding: '10px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', textAlign: 'left',
+                      width: '100%', padding: '10px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', textAlign: 'left',
                       border: 'none',
                       background: activeType === t.key ? '#eff6ff' : 'transparent',
                       color: activeType === t.key ? '#1d4ed8' : '#374151',
