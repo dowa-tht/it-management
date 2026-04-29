@@ -168,9 +168,9 @@ export async function updateAdminUser({ id, full_name, role, can_be_assignee, is
       full_name,
       user_role: normalizedRole,
       is_active,
-      can_be_assignee: isInternal ? can_be_assignee : false, // ภายนอกไม่รับเคส
+      can_be_assignee: isInternal ? can_be_assignee : false,
       last_role_changed_at: new Date().toISOString()
-    }).eq('id', regEntry.id)
+    }).eq('email', regEntry.email)
 
     return { success: true }
   } catch (err) {
