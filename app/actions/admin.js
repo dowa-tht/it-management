@@ -64,36 +64,29 @@ export async function getAdminUsers() {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return { success: false, error: 'เกิดข้อผิดพลาดที่ Server: ไม่พบ SUPABASE_SERVICE_ROLE_KEY' }
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
-
-    // ดึงข้อมูล users จากระบบ Auth (จะได้ email ที่แท้จริง)
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers()
-    if (authError) throw authError
-
-    // ดึงข้อมูล profiles ทั้งหมด
-    const { data: profiles, error: profileError } = await supabaseAdmin
-      .from('user_profiles')
+    // ดึงข้อมูลจาก user_registry ซึ่งเป็นจุดรวมของทุก Tier
+    const { data: registryUsers, error } = await adminClient
+      .from('user_registry')
       .select('*')
-      .order('created_at', { ascending: true })
-    if (profileError) throw profileError
+      .order('created_at', { ascending: false })
 
-    // นำข้อมูลมา Map รวมกัน (ใช้ id เป็นตัวเชื่อม)
-    const authMap = {}
-    authData.users.forEach(u => { authMap[u.id] = u.email })
+    if (error) throw error
 
-    const merged = profiles.map(p => ({
-      ...p,
-      email: authMap[p.id] || '—'
+    // แปลงข้อมูลให้เข้ากับ UI เดิม
+    const formatted = registryUsers.map(u => ({
+      id: u.supabase_user_id || u.external_user_id || u.id,
+      email: u.email,
+      full_name: u.full_name,
+      role: u.user_role, // 'administrator', 'supervisor', 'approval', 'guest'
+      is_active: u.is_active,
+      created_at: u.created_at,
+      // mapping สำหรับ UI logic เดิม
+      is_external: !!u.external_user_id
     }))
 
-    return { success: true, data: merged }
+    return { success: true, data: formatted }
   } catch (err) {
     return { success: false, error: err.message }
   }

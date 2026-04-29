@@ -862,11 +862,21 @@ export default function UsersPage() {
                         <td style={{ padding: '12px 16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{
-                              background: u.role === 'superuser' ? '#eff6ff' : '#f3f4f6',
-                              color: u.role === 'superuser' ? '#1e40af' : '#374151',
-                              padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap'
+                              background: (u.role === 'superuser' || u.role === 'administrator') ? '#eff6ff' : 
+                                         (u.role === 'user' || u.role === 'supervisor') ? '#f0fdf4' : 
+                                         u.role === 'approval' ? '#fff7ed' : '#f8fafc',
+                              color: (u.role === 'superuser' || u.role === 'administrator') ? '#1e40af' : 
+                                     (u.role === 'user' || u.role === 'supervisor') ? '#166534' : 
+                                     u.role === 'approval' ? '#9a3412' : '#475569',
+                              padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+                              border: `1px solid ${(u.role === 'superuser' || u.role === 'administrator') ? '#dbeafe' : 
+                                                  (u.role === 'user' || u.role === 'supervisor') ? '#dcfce7' : 
+                                                  u.role === 'approval' ? '#ffedd5' : '#e2e8f0'}`
                             }}>
-                              {u.role === 'superuser' ? '👑 Administrator' : u.role === 'user' ? '🛡️ Supervisor' : '👤 ' + u.role}
+                              { (u.role === 'superuser' || u.role === 'administrator') ? '👑 Administrator' : 
+                                (u.role === 'user' || u.role === 'supervisor') ? '🛡️ Supervisor' : 
+                                u.role === 'approval' ? '📜 Approver' : 
+                                u.role === 'guest' ? '👤 Guest' : '👤 ' + u.role }
                             </span>
                             {!isSelf && (
                               <button onClick={() => handleToggleRole(u.id, u.role)} disabled={toggling === u.id + '_role'}
