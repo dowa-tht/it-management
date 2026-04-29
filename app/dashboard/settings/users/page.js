@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/dateFormat'
+import { normalizeRole, ROLE_BADGE } from '@/lib/auth'
 import { createAdminUser, getAdminUsers, updateAdminUser, updateAdminUserPassword } from '@/app/actions/admin'
 
 // ===== Password Confirm Dialog =====
@@ -227,9 +228,8 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
                   <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }}>Role</label>
                   <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} disabled={isSelf}
                     style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, background: isSelf ? '#f3f4f6' : '#fff' }}>
-                    <option value="user">User</option>
+                    <option value="user">Supervisor</option>
                     <option value="superuser">Administrator</option>
-                    <option value="visitor">Visitor (Read-only)</option>
                   </select>
                 </div>
               </div>
@@ -366,7 +366,8 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState(null)
   const [currentProfile, setCurrentProfile] = useState(null)
-  const [isSuperUser, setIsSuperUser] = useState(false)
+  const [role, setRole] = useState('supervisor')
+  const isAdmin = role === 'administrator'
   const [showNew, setShowNew] = useState(false)
   const [activeTab, setActiveTab] = useState('users')
   const [filterEmail, setFilterEmail] = useState('')
@@ -392,10 +393,11 @@ export default function UsersPage() {
     setCurrentUser(session.user)
     const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single()
     setCurrentProfile(profile)
-    const superUser = profile?.role === 'superuser'
-    setIsSuperUser(superUser)
-    await fetchLogs(session.user.id, superUser)
-    if (superUser) await fetchUsers()
+    const normalized = normalizeRole(profile?.role)
+    setRole(normalized)
+    const isAdminRole = normalized === 'administrator'
+    await fetchLogs(session.user.id, isAdminRole)
+    if (isAdminRole) await fetchUsers()
     setLoading(false)
   }
 
@@ -408,9 +410,9 @@ export default function UsersPage() {
     }
   }
 
-  const fetchLogs = async (userId, superUser) => {
+  const fetchLogs = async (userId, isAdminRole) => {
     let query = supabase.from('login_logs').select('*').order('created_at', { ascending: false })
-    if (!superUser) {
+    if (!isAdminRole) {
       query = query.eq('user_id', userId).limit(10)
     } else {
       if (filterEmail) query = query.ilike('user_email', `%${filterEmail}%`)
@@ -551,7 +553,7 @@ export default function UsersPage() {
     </div>
   )
 
-  const isVisitor = currentUser?.role === 'visitor'
+  const isVisitor = role === 'guest'
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลด...</div>
 
@@ -600,7 +602,7 @@ export default function UsersPage() {
           <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>Account Management</h1>
           <div style={{ fontSize: 12, color: '#6b7280' }}>จัดการ User และสิทธิ์การเข้าถึงระบบ</div>
         </div>
-        {isSuperUser && activeTab === 'users' && (
+        {isAdmin && activeTab === 'users' && (
           <button onClick={() => { setShowNew(true); setMsg({ text: '', type: '' }) }}
             style={{ background: '#1d4ed8', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
             + สร้าง User ใหม่
@@ -610,8 +612,8 @@ export default function UsersPage() {
 
       {/* Tabs */}
       <div style={{ borderBottom: '1px solid #e5e7eb', marginBottom: 20, display: 'flex' }}>
-        {isSuperUser && <button style={tabStyle('users')} onClick={() => setActiveTab('users')}>จัดการ Users</button>}
-        <button style={tabStyle('logs')} onClick={() => { setActiveTab('logs'); fetchLogs(currentUser?.id, isSuperUser) }}>Login Log</button>
+        {isAdmin && <button style={tabStyle('users')} onClick={() => setActiveTab('users')}>จัดการ Users</button>}
+        <button style={tabStyle('logs')} onClick={() => { setActiveTab('logs'); fetchLogs(currentUser?.id, isAdmin) }}>Login Log</button>
       </div>
 
       {/* Message */}
@@ -623,7 +625,7 @@ export default function UsersPage() {
       )}
 
       {/* ===== USERS TAB ===== */}
-      {activeTab === 'users' && isSuperUser && (
+      {activeTab === 'users' && isAdmin && (
         <>
           {/* Safety Info Banner */}
           <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#92400e', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
@@ -687,7 +689,7 @@ export default function UsersPage() {
                     <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>Role</label>
                     <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}
                       style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', fontFamily: 'inherit' }}>
-                      <option value="user">User</option>
+                      <option value="user">Supervisor</option>
                       <option value="superuser">Administrator</option>
                     </select>
                   </div>
@@ -786,12 +788,16 @@ export default function UsersPage() {
                         {/* Role */}
                         <td style={{ padding: '12px 16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ background: u.role === 'superuser' ? '#eff6ff' : '#f3f4f6', color: u.role === 'superuser' ? '#1e40af' : '#374151', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap' }}>
-                              {u.role === 'superuser' ? '⭐ Admin' : 'User'}
+                            <span style={{
+                              background: u.role === 'superuser' ? '#eff6ff' : '#f3f4f6',
+                              color: u.role === 'superuser' ? '#1e40af' : '#374151',
+                              padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap'
+                            }}>
+                              {u.role === 'superuser' ? '👑 Administrator' : u.role === 'user' ? '🛡️ Supervisor' : '👤 ' + u.role}
                             </span>
                             {!isSelf && (
                               <button onClick={() => handleToggleRole(u.id, u.role)} disabled={toggling === u.id + '_role'}
-                                title={u.role === 'superuser' ? 'เปลี่ยนเป็น User' : 'เปลี่ยนเป็น Administrator'}
+                                title={u.role === 'superuser' ? 'เปลี่ยนเป็น Supervisor' : 'เปลี่ยนเป็น Administrator'}
                                 style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 4, padding: '2px 6px', fontSize: 10, cursor: 'pointer', color: '#6b7280', whiteSpace: 'nowrap' }}>
                                 {toggling === u.id + '_role' ? '...' : '⇄'}
                               </button>
@@ -875,7 +881,7 @@ export default function UsersPage() {
       {/* ===== LOGS TAB ===== */}
       {activeTab === 'logs' && (
         <>
-          {isSuperUser && (
+          {isAdmin && (
             <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 16, marginBottom: 16 }}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                 <div>
@@ -893,7 +899,7 @@ export default function UsersPage() {
                   <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)}
                     style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
                 </div>
-                <button onClick={() => fetchLogs(currentUser?.id, isSuperUser)}
+                <button onClick={() => fetchLogs(currentUser?.id, isAdmin)}
                   style={{ padding: '7px 16px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                   ค้นหา
                 </button>
@@ -903,13 +909,13 @@ export default function UsersPage() {
 
           <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', fontSize: 13, fontWeight: 500, color: '#374151' }}>
-              {isSuperUser ? `Login/Logout Log ทั้งหมด (${logs.length} รายการ)` : 'Login/Logout Log ของคุณ (10 รายการล่าสุด)'}
+              {isAdmin ? `Login/Logout Log ทั้งหมด (${logs.length} รายการ)` : 'Login/Logout Log ของคุณ (10 รายการล่าสุด)'}
             </div>
             <div className="table-scroll">
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: '#f9fafb' }}>
-                    {[...(isSuperUser ? ['User'] : []), 'Action', 'วันที่/เวลา', 'User Agent'].map(h => (
+                    {[...(isAdmin ? ['User'] : []), 'Action', 'วันที่/เวลา', 'User Agent'].map(h => (
                       <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500, fontSize: 12, borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -919,7 +925,7 @@ export default function UsersPage() {
                     <tr><td colSpan={4} style={{ padding: 30, textAlign: 'center', color: '#9ca3af' }}>ยังไม่มี Log</td></tr>
                   ) : logs.map(log => (
                     <tr key={log.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      {isSuperUser && <td style={{ padding: '10px 16px', color: '#374151', fontSize: 12 }}>{log.user_email}</td>}
+                      {isAdmin && <td style={{ padding: '10px 16px', color: '#374151', fontSize: 12 }}>{log.user_email}</td>}
                       <td style={{ padding: '10px 16px', whiteSpace: 'nowrap' }}>
                         <span style={{ background: log.action === 'login' ? '#d1fae5' : '#fee2e2', color: log.action === 'login' ? '#065f46' : '#991b1b', padding: '2px 8px', borderRadius: 20, fontSize: 11 }}>
                           {log.action === 'login' ? '🔓 Login' : '🔒 Logout'}
