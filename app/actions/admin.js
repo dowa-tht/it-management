@@ -51,7 +51,8 @@ export async function createAdminUser({ email, password, full_name, role, can_be
       full_name: full_name,
       user_role: normalizedRole,
       supabase_user_id: data.user.id,
-      is_active: true
+      is_active: true,
+      can_be_assignee: can_be_assignee || false
     }, { onConflict: 'email' })
 
     return { success: true }
@@ -81,6 +82,7 @@ export async function getAdminUsers() {
       full_name: u.full_name,
       role: u.user_role, // 'administrator', 'supervisor', 'approval', 'guest'
       is_active: u.is_active,
+      can_be_assignee: u.can_be_assignee,
       created_at: u.created_at,
       // mapping สำหรับ UI logic เดิม
       is_external: !!u.external_user_id
@@ -129,6 +131,7 @@ export async function updateAdminUser({ id, full_name, role, can_be_assignee, is
       full_name,
       user_role: normalizedRole,
       is_active,
+      can_be_assignee,
       last_role_changed_at: new Date().toISOString()
     }).eq('supabase_user_id', id).eq('external_user_id', null)
 
