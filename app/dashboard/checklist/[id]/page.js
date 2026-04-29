@@ -67,11 +67,21 @@ export default function ChecklistDetailPage() {
   const [activeInstruction, setActiveInstruction] = useState(null)
   const [templates, setTemplates] = useState([]) // Master List from DB
   const [userEmail, setUserEmail] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setUserEmail(data.session?.user?.email))
+    supabase.auth.getSession().then(({ data }) => {
+      setUserEmail(data.session?.user?.email)
+      if (data.session?.user) {
+        supabase.from('user_profiles').select('*').eq('id', data.session.user.id).single().then(({ data: profile }) => {
+          setCurrentUser(profile)
+        })
+      }
+    })
     fetchData()
   }, [id])
+
+  const isVisitor = currentUser?.role === 'visitor'
 
   const fetchData = async () => {
     setLoading(true)
@@ -97,7 +107,7 @@ export default function ChecklistDetailPage() {
   }
 
   const handleStatusClick = (index, newStatus) => {
-    if (doc.status === 'Closed') return
+    if (doc.status === 'Closed' || isVisitor) return
 
     const newItems = [...items]
     if (newStatus === 'NG') {
@@ -258,7 +268,7 @@ export default function ChecklistDetailPage() {
                         >
                           📌 เปิดเคสแล้ว: {relatedInc.case_number} ({relatedInc.status})
                         </Link>
-                      ) : (
+                      ) : !isVisitor && (
                         <Link 
                           href={`/dashboard/incidents/new?ref_type=checklist&ref_id=${item.id}&doc_no=${doc.doc_no}`}
                           style={{
@@ -278,9 +288,9 @@ export default function ChecklistDetailPage() {
               <div style={{ display: 'flex', gap: 6 }}>
                 <button 
                   onClick={() => handleStatusClick(index, 'OK')}
-                  disabled={isClosed}
+                  disabled={isClosed || isVisitor}
                   style={{ 
-                    padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: isClosed ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                    padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: (isClosed || isVisitor) ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                     border: item.status === 'OK' ? 'none' : '1px solid #d1d5db',
                     background: item.status === 'OK' ? '#059669' : '#fff',
                     color: item.status === 'OK' ? '#fff' : '#6b7280'
@@ -289,9 +299,9 @@ export default function ChecklistDetailPage() {
                 </button>
                 <button 
                   onClick={() => handleStatusClick(index, 'NG')}
-                  disabled={isClosed}
+                  disabled={isClosed || isVisitor}
                   style={{ 
-                    padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: isClosed ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                    padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: (isClosed || isVisitor) ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                     border: item.status === 'NG' ? 'none' : '1px solid #d1d5db',
                     background: item.status === 'NG' ? '#dc2626' : '#fff',
                     color: item.status === 'NG' ? '#fff' : '#6b7280'
@@ -334,47 +344,49 @@ export default function ChecklistDetailPage() {
         background: '#fff', borderTop: '1px solid #e5e7eb', boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.05)',
         display: 'flex', justifyContent: 'flex-end', zIndex: 100
       }}>
-        <div style={{ width: '100%', maxWidth: 1000, margin: '0 auto', display: 'flex', justifyContent: 'flex-end', gap: 12, paddingLeft: 220 }}>
-          {isClosed ? (
-            <button 
-              onClick={handleReopen} 
-              disabled={saving}
-              style={{ 
-                padding: '10px 24px', border: '1px solid #dc2626', borderRadius: 8, fontSize: 14, fontWeight: 600, 
-                background: '#fff', color: '#dc2626', cursor: saving ? 'not-allowed' : 'pointer', 
-                fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8
-              }}>
-              🔓 Reopen (เปิดเอกสารใหม่)
-            </button>
-          ) : (
-            <>
+        {!isVisitor && (
+          <div style={{ width: '100%', maxWidth: 1000, margin: '0 auto', display: 'flex', justifyContent: 'flex-end', gap: 12, paddingLeft: 220 }}>
+            {isClosed ? (
               <button 
-                onClick={() => handleSaveAll(false)} 
-                disabled={saving || loading}
+                onClick={handleReopen} 
+                disabled={saving}
                 style={{ 
-                  padding: '10px 24px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontWeight: 600, 
-                  background: '#fff', color: '#374151', cursor: saving ? 'not-allowed' : 'pointer', 
+                  padding: '10px 24px', border: '1px solid #dc2626', borderRadius: 8, fontSize: 14, fontWeight: 600, 
+                  background: '#fff', color: '#dc2626', cursor: saving ? 'not-allowed' : 'pointer', 
                   fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8
                 }}>
-                💾 Save Draft (บันทึก)
+                🔓 Reopen (เปิดเอกสารใหม่)
               </button>
-              <button 
-                onClick={() => {
-                  if(confirm('ยืนยันการปิดเอกสาร? จะไม่สามารถแก้ไขได้อีกนอกจากจะกด Reopen')) {
-                    handleSaveAll(true)
-                  }
-                }} 
-                disabled={saving || loading || progress < 100}
-                style={{ 
-                  padding: '10px 24px', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, 
-                  background: (progress < 100) ? '#9ca3af' : '#1d4ed8', color: '#fff', cursor: (saving || progress < 100) ? 'not-allowed' : 'pointer', 
-                  fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8
-                }}>
-                ✅ Submit & Close (ยืนยันปิดงาน)
-              </button>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <button 
+                  onClick={() => handleSaveAll(false)} 
+                  disabled={saving || loading}
+                  style={{ 
+                    padding: '10px 24px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontWeight: 600, 
+                    background: '#fff', color: '#374151', cursor: saving ? 'not-allowed' : 'pointer', 
+                    fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8
+                  }}>
+                  💾 Save Draft (บันทึก)
+                </button>
+                <button 
+                  onClick={() => {
+                    if(confirm('ยืนยันการปิดเอกสาร? จะไม่สามารถแก้ไขได้อีกนอกจากจะกด Reopen')) {
+                      handleSaveAll(true)
+                    }
+                  }} 
+                  disabled={saving || loading || progress < 100}
+                  style={{ 
+                    padding: '10px 24px', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, 
+                    background: (progress < 100) ? '#9ca3af' : '#1d4ed8', color: '#fff', cursor: (saving || progress < 100) ? 'not-allowed' : 'pointer', 
+                    fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8
+                  }}>
+                  ✅ Submit & Close (ยืนยันปิดงาน)
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

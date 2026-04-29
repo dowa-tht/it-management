@@ -408,6 +408,8 @@ export default function IncidentDetailPage() {
     setIsSuperUser(p?.role === 'superuser')
   }
 
+  const isVisitor = currentUser?.role === 'visitor'
+
   const fetchIncident = async () => {
     const { data } = await supabase.from('incidents').select('*').eq('id', id).single()
     setIncident(data); setForm(data||{}); setLoading(false)
@@ -488,6 +490,30 @@ export default function IncidentDetailPage() {
       fetchExclusions()
       addLog('เริ่มนับเวลา SLA ต่อ', incident.status, incident.status, 'กดปุ่ม Resume SLA')
     }
+  }
+
+  const handleAcknowledge = async () => {
+    if (!currentUser) return
+    setSaving(true)
+    const now = new Date().toISOString()
+    
+    const { error } = await supabase.from('incidents')
+      .update({ 
+        acknowledged_at: now,
+        status: incident.status === 'Open' ? 'In Progress' : incident.status,
+        assigned_to: incident.assigned_to || currentUser?.email?.split('@')[0] // ถ้าไม่มีใครรับ ให้ลงชื่อตัวเอง
+      })
+      .eq('id', id)
+
+    if (error) {
+      alert(`ไม่สามารถรับเรื่องได้: ${error.message}`)
+      setSaving(false)
+      return
+    }
+
+    await addLog('รับเรื่อง (Acknowledge)', incident.status, 'In Progress', 'IT กดรับทราบเคสและเริ่มดำเนินการ')
+    await fetchIncident()
+    setSaving(false)
   }
 
   const addLog = async (action, fromStatus, toStatus, note='') => {
@@ -575,10 +601,9 @@ export default function IncidentDetailPage() {
     const defaultWH = { start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] }
     const wh = workingHours || defaultWH
     const slaLimit = SLA_LIMITS[incident?.severity] || SLA_LIMITS.Medium
-    const responseLimit = SLA_MINUTES[incident?.severity]?.response || 60
-
-    const responseMin = incident?.assigned_at 
-      ? calculateNetBusinessMinutes(incident.created_at, incident.assigned_at, wh, holidays, []) 
+    const respTime = incident?.acknowledged_at || incident?.assigned_at
+    const responseMin = respTime 
+      ? calculateNetBusinessMinutes(incident.created_at, respTime, wh, holidays, []) 
       : calculateNetBusinessMinutes(incident.created_at, new Date(), wh, holidays, [])
     const resolveMin = calculateNetBusinessMinutes(incident.created_at, now, wh, holidays, exclusions)
     
@@ -677,12 +702,13 @@ export default function IncidentDetailPage() {
   const slaLabelText = SLA_LABELS[incident?.severity] || SLA_LABELS.Medium
   const responseLimit = SLA_MINUTES[incident?.severity]?.response || 60
 
-  const responseMin = incident?.assigned_at 
-    ? calculateNetBusinessMinutes(incident.created_at, incident.assigned_at, wh, holidays, []) 
+  const respTime = incident?.acknowledged_at || incident?.assigned_at
+  const responseMin = respTime 
+    ? calculateNetBusinessMinutes(incident.created_at, respTime, wh, holidays, []) 
     : calculateNetBusinessMinutes(incident.created_at, new Date(), wh, holidays, [])
   const resolveMin = calculateNetBusinessMinutes(incident.created_at, incident?.resolved_at || new Date(), wh, holidays, exclusions)
 
-  const responseState = !incident?.assigned_at ? 'waiting'
+  const responseState = !respTime ? 'waiting'
     : responseMin <= responseLimit ? 'done_ok' : 'done_late'
   const resolveState = incident?.resolved_at
     ? resolveMin <= slaLimit ? 'done_ok' : 'done_late'
@@ -747,13 +773,22 @@ export default function IncidentDetailPage() {
           </div>
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
             <button onClick={() => window.print()} style={{ padding:'7px 14px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>🖨 Print FR-IT-01</button>
+            {!isLocked && !incident.acknowledged_at && (
+              <button onClick={handleAcknowledge} disabled={saving} style={{ padding:'7px 20px', border:'none', borderRadius:7, fontSize:13, background:'#1d4ed8', color:'#fff', cursor:'pointer', fontFamily:'inherit', fontWeight:600, boxShadow:'0 2px 4px rgba(29,78,216,0.3)' }}>
+                ✅ รับเรื่อง (Acknowledge)
+              </button>
+            )}
             {isLocked ? (
-              isSuperUser && <button onClick={() => setShowReopenDialog(true)} style={{ padding:'7px 14px', border:'none', borderRadius:7, fontSize:13, background:'#fef3c7', color:'#92400e', cursor:'pointer', fontFamily:'inherit' }}>🔓 Reopen</button>
+              isSuperUser && !isVisitor && <button onClick={() => setShowReopenDialog(true)} style={{ padding:'7px 14px', border:'none', borderRadius:7, fontSize:13, background:'#fef3c7', color:'#92400e', cursor:'pointer', fontFamily:'inherit' }}>🔓 Reopen</button>
             ) : !editing ? (
               <>
-                <button onClick={() => setEditing(true)} style={{ padding:'7px 14px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>✏️ แก้ไข</button>
-                <button onClick={() => setShowResolveDialog(true)} style={{ padding:'7px 14px', border:'none', borderRadius:7, fontSize:13, background:'#059669', color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>✅ Resolve</button>
-                <button onClick={handleDelete} style={{ padding:'7px 14px', border:'none', borderRadius:7, fontSize:13, background:'#fee2e2', color:'#991b1b', cursor:'pointer', fontFamily:'inherit' }}>🗑 ลบ</button>
+                {!isVisitor && (
+                  <>
+                    <button onClick={() => setEditing(true)} style={{ padding:'7px 14px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>✏️ แก้ไข</button>
+                    <button onClick={() => setShowResolveDialog(true)} style={{ padding:'7px 14px', border:'none', borderRadius:7, fontSize:13, background:'#059669', color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>✅ Resolve</button>
+                    <button onClick={handleDelete} style={{ padding:'7px 14px', border:'none', borderRadius:7, fontSize:13, background:'#fee2e2', color:'#991b1b', cursor:'pointer', fontFamily:'inherit' }}>🗑 ลบ</button>
+                  </>
+                )}
               </>
             ) : (
               <>

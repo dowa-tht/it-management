@@ -94,6 +94,7 @@ export default function BackupPage() {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
+  const [currentUser, setCurrentUser] = useState(null)
   const [form, setForm] = useState({
     log_date: new Date().toISOString().split('T')[0],
     system_name: 'Server & File Share',
@@ -104,6 +105,19 @@ export default function BackupPage() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { fetchLogs() }, [filterMonth])
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', user.id).single()
+        setCurrentUser(profile)
+      }
+    }
+    getUser()
+  }, [])
+
+  const isVisitor = currentUser?.role === 'visitor'
 
   const fetchLogs = async () => {
     setLoading(true)
@@ -181,9 +195,11 @@ export default function BackupPage() {
             <MonthPicker value={filterMonth} onChange={setFilterMonth} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setShowForm(!showForm)} style={{ background: '#1d4ed8', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-              + บันทึก Backup
-            </button>
+            {!isVisitor && (
+              <button onClick={() => setShowForm(!showForm)} style={{ background: '#1d4ed8', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                + บันทึก Backup
+              </button>
+            )}
           </div>
         </div>
 
@@ -208,8 +224,22 @@ export default function BackupPage() {
               <div className="form-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
                 <div>
                   <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>วันที่</label>
-                  <input type="date" value={form.log_date} onChange={e => setForm({ ...form, log_date: e.target.value })}
-                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
+                  <div style={{ position: 'relative' }}>
+                    <input type="date" value={form.log_date} onChange={e => setForm({ ...form, log_date: e.target.value })}
+                      style={{ 
+                        position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', 
+                        cursor: 'pointer', zIndex: 2 
+                      }} 
+                    />
+                    <div style={{ 
+                      width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, 
+                      fontSize: 13, background: '#fff', display: 'flex', justifyContent: 'space-between', 
+                      alignItems: 'center', minHeight: '35.5px'
+                    }}>
+                      <span style={{ color: '#374151' }}>{formatDate(form.log_date).replaceAll('-', '/')}</span>
+                      <span style={{ fontSize: 12, color: '#6b7280' }}>📅</span>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>ระบบ</label>
@@ -261,7 +291,7 @@ export default function BackupPage() {
                   <tr><td colSpan={6} style={{ padding: 30, textAlign: 'center', color: '#9ca3af' }}>ยังไม่มีข้อมูล Backup Log ในเดือนนี้</td></tr>
                 ) : logs.map(log => (
                   <tr key={log.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '11px 16px', color: '#374151', whiteSpace: 'nowrap' }}>{formatDate(log.log_date)}</td>
+                    <td style={{ padding: '11px 16px', color: '#374151', whiteSpace: 'nowrap' }}>{formatDate(log.log_date).replaceAll('-', '/')}</td>
                     <td style={{ padding: '11px 16px', color: '#374151' }}>{log.system_name}</td>
                     <td style={{ padding: '11px 16px', color: '#6b7280', fontSize: 12 }}>{log.backup_type}</td>
                     <td style={{ padding: '11px 16px', whiteSpace: 'nowrap' }}>
@@ -269,7 +299,9 @@ export default function BackupPage() {
                     </td>
                     <td style={{ padding: '11px 16px', color: '#6b7280' }}>{log.notes || '—'}</td>
                     <td style={{ padding: '11px 16px' }}>
-                      <button onClick={() => handleDelete(log.id)} style={{ background: 'none', border: 'none', color: '#d1d5db', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit' }}>×</button>
+                      {!isVisitor && (
+                        <button onClick={() => handleDelete(log.id)} style={{ background: 'none', border: 'none', color: '#d1d5db', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit' }}>×</button>
+                      )}
                     </td>
                   </tr>
                 ))}

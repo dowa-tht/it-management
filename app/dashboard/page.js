@@ -162,20 +162,22 @@ export default function DashboardPage() {
         </div>
 
         {/* SLA KPI Gauge Card */}
-        <div style={{ background: stats.slaComplianceRate >= 95 ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', borderRadius: 12, padding: 20, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>🎯</div>
-          <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>SLA Compliance Rate</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <div style={{ fontSize: 42, fontWeight: 800 }}>{stats.slaComplianceRate}%</div>
-            <div style={{ fontSize: 14, fontWeight: 500, opacity: 0.9 }}>/ 95% Target</div>
+        <Link href="/dashboard/reports/sla" style={{ textDecoration: 'none', display: 'flex' }}>
+          <div style={{ flex: 1, background: stats.slaComplianceRate >= 95 ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', borderRadius: 12, padding: 20, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+            <div style={{ position: 'absolute', right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>🎯</div>
+            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>SLA Compliance Rate (YTD)</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <div style={{ fontSize: 42, fontWeight: 800 }}>{stats.slaComplianceRate}%</div>
+              <div style={{ fontSize: 14, fontWeight: 500, opacity: 0.9 }}>/ 95% Target</div>
+            </div>
+            <div style={{ marginTop: 12, background: 'rgba(255,255,255,0.2)', height: 6, borderRadius: 10 }}>
+              <div style={{ background: '#fff', height: '100%', borderRadius: 10, width: `${Math.min(100, stats.slaComplianceRate)}%`, boxShadow: '0 0 10px rgba(255,255,255,0.5)' }} />
+            </div>
+            <div style={{ fontSize: 11, marginTop: 12, opacity: 0.9, fontWeight: 500 }}>
+              {stats.slaComplianceRate >= 95 ? '✅ ผ่านเป้าหมาย (คลิกเพื่อดูรายงาน)' : '⚠️ ต่ำกว่าเป้าหมาย (คลิกเพื่อดูรายงาน)'}
+            </div>
           </div>
-          <div style={{ marginTop: 12, background: 'rgba(255,255,255,0.2)', height: 6, borderRadius: 10 }}>
-            <div style={{ background: '#fff', height: '100%', borderRadius: 10, width: `${Math.min(100, stats.slaComplianceRate)}%`, boxShadow: '0 0 10px rgba(255,255,255,0.5)' }} />
-          </div>
-          <div style={{ fontSize: 11, marginTop: 12, opacity: 0.9, fontWeight: 500 }}>
-            {stats.slaComplianceRate >= 95 ? '✅ ผ่านเป้าหมายการให้บริการ' : '⚠️ ต่ำกว่าเป้าหมายที่กำหนดไว้'}
-          </div>
-        </div>
+        </Link>
       </div>
 
       {/* Stat Cards */}

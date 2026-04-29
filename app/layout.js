@@ -1,5 +1,6 @@
 import './globals.css'
 import { Noto_Sans_Thai, Noto_Sans } from 'next/font/google'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 const notoSansThai = Noto_Sans_Thai({
   subsets: ['thai'],
@@ -26,7 +27,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="th" className={`${notoSansThai.variable} ${notoSans.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <SpeedInsights />
+      </body>
     </html>
   )
 }

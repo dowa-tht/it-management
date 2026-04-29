@@ -23,10 +23,20 @@ function ChecklistListForm() {
     date_to: '',
     only_ng: searchParams.get('filter') === 'ng'
   })
+  const [currentUser, setCurrentUser] = useState(null)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setUserEmail(data.session?.user?.email))
+    supabase.auth.getSession().then(({ data }) => {
+      setUserEmail(data.session?.user?.email)
+      if (data.session?.user) {
+        supabase.from('user_profiles').select('*').eq('id', data.session.user.id).single().then(({ data: profile }) => {
+          setCurrentUser(profile)
+        })
+      }
+    })
   }, [])
+
+  const isVisitor = currentUser?.role === 'visitor'
 
   // Trigger fetch when filters change
   useEffect(() => {
@@ -174,16 +184,18 @@ function ChecklistListForm() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>IT Checklist Documents</h1>
         <div style={{ position: 'relative' }}>
-          <button 
-            onClick={() => setShowCreate(!showCreate)}
-            disabled={creating}
-            style={{
-              background: '#1d4ed8', color: '#fff', padding: '10px 20px',
-              borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit'
-            }}>
-            {creating ? 'กำลังสร้าง...' : '+ สร้างเอกสารใหม่ (New Checklist)'}
-          </button>
+            {!isVisitor && (
+              <button 
+                onClick={() => setShowCreate(!showCreate)}
+                disabled={creating}
+                style={{
+                  background: '#1d4ed8', color: '#fff', padding: '10px 20px',
+                  borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit'
+                }}>
+                {creating ? 'กำลังสร้าง...' : '+ สร้างเอกสารใหม่ (New Checklist)'}
+              </button>
+            )}
           
           {showCreate && !creating && (
             <div style={{

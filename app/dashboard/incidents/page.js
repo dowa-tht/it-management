@@ -33,6 +33,20 @@ function IncidentsContent() {
   const [dateFilter, setDateFilter] = useState(searchParams.get('date') || 'month')
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all')
   const [severityFilter, setSeverityFilter] = useState(searchParams.get('severity') || 'all')
+  const [currentUser, setCurrentUser] = useState(null)
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', user.id).single()
+        setCurrentUser(profile)
+      }
+    }
+    getUser()
+  }, [])
+
+  const isVisitor = currentUser?.role === 'visitor'
 
   useEffect(() => { fetchIncidents() }, [dateFilter, statusFilter, severityFilter])
 
@@ -89,13 +103,15 @@ function IncidentsContent() {
     <div style={{ padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>Incident Management</h1>
-        <Link href="/dashboard/incidents/new" style={{
-          background: '#1d4ed8', color: '#fff', padding: '8px 16px',
-          borderRadius: 8, fontSize: 13, textDecoration: 'none',
-          display: 'flex', alignItems: 'center', gap: 6
-        }}>
-          + Add Incident
-        </Link>
+        {!isVisitor && (
+          <Link href="/dashboard/incidents/new" style={{
+            background: '#1d4ed8', color: '#fff', padding: '8px 16px',
+            borderRadius: 8, fontSize: 13, textDecoration: 'none',
+            display: 'flex', alignItems: 'center', gap: 6
+          }}>
+            + Add Incident
+          </Link>
+        )}
       </div>
 
       <div className="stat-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
@@ -165,9 +181,11 @@ function IncidentsContent() {
         ) : incidents.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>
             ไม่พบข้อมูลตามเงื่อนไขที่เลือก<br />
-            <Link href="/dashboard/incidents/new" style={{ color: '#1d4ed8', fontSize: 13, marginTop: 8, display: 'inline-block' }}>
-              + เพิ่ม Incident ใหม่
-            </Link>
+            {!isVisitor && (
+              <Link href="/dashboard/incidents/new" style={{ color: '#1d4ed8', fontSize: 13, marginTop: 8, display: 'inline-block' }}>
+                + เพิ่ม Incident ใหม่
+              </Link>
+            )}
           </div>
         ) : (
           <div className="table-scroll">

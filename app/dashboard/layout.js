@@ -8,9 +8,11 @@ export default function DashboardLayout({ children }) {
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState(null)
+  const [profile, setProfile] = useState(null)
   const [isSuperUser, setIsSuperUser] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [expandedSection, setExpandedSection] = useState(null)
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -18,12 +20,13 @@ export default function DashboardLayout({ children }) {
         router.push('/')
       } else {
         setUser(session.user)
-        const { data: profile } = await supabase
+        const { data: profileData } = await supabase
           .from('user_profiles')
-          .select('role')
+          .select('role, full_name')
           .eq('id', session.user.id)
           .single()
-        setIsSuperUser(profile?.role === 'superuser')
+        setProfile(profileData)
+        setIsSuperUser(profileData?.role === 'superuser')
       }
     })
 
@@ -69,13 +72,13 @@ export default function DashboardLayout({ children }) {
     // Operations
     { href: '/dashboard',                          label: 'Dashboard',       icon: '▦', section: 'operations' },
     { href: '/dashboard/incidents',                label: 'Incident',        icon: '⚠', section: 'operations' },
+    { href: '/dashboard/reports/sla',             label: 'SLA Report',      icon: '📊', section: 'operations' },
     { href: '/dashboard/backup',                   label: 'Backup Log',      icon: '☁', section: 'operations' },
     { href: '/dashboard/checklist',                label: 'IT Checklist',    icon: '✅', section: 'operations' },
     // Settings
     { href: '/dashboard/settings/no-series',       label: 'No. Series',      icon: '⚙', section: 'settings' },
     { href: '/dashboard/settings/master-data',     label: 'Master Data',     icon: '📋', section: 'settings' },
     { href: '/dashboard/settings/users',           label: 'Users',           icon: '👤', section: 'settings' },
-    { href: '/dashboard/settings/change-password', label: 'Change Password', icon: '🔑', section: 'settings' },
   ]
 
   const isActive = (href) => {
@@ -156,35 +159,116 @@ export default function DashboardLayout({ children }) {
         </div>
       </nav>
 
-      {/* Bottom — Email + Role + Logout */}
+      {/* Bottom — User Info + Settings Dropdown + Logout */}
       <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
 
-        {/* Email */}
-        <div style={{
-          fontSize: 11,
-          color: 'rgba(255,255,255,0.35)',
-          wordBreak: 'break-all',
-          marginBottom: isSuperUser ? 6 : 8
-        }}>
-          {user?.email}
-        </div>
-
-        {/* Administrator Badge — แสดงเฉพาะ Super User */}
-        {isSuperUser && (
-          <div style={{ marginBottom: 8 }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: 'rgba(59,130,246,0.15)',
-              border: '1px solid rgba(59,130,246,0.3)',
-              borderRadius: 20, padding: '3px 10px'
-            }}>
-              <span style={{ fontSize: 10 }}>⭐</span>
-              <span style={{ fontSize: 10, color: '#60a5fa', fontWeight: 600, letterSpacing: 0.3 }}>
-                Administrator
-              </span>
+        {/* User Info Row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ minWidth: 0 }}>
+            {/* Username */}
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {profile?.full_name || user?.email?.split('@')[0] || 'User'}
             </div>
+            {/* Role Badge */}
+            {isSuperUser ? (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 20, padding: '2px 8px' }}>
+                <span style={{ fontSize: 9 }}>⭐</span>
+                <span style={{ fontSize: 9, color: '#60a5fa', fontWeight: 600, letterSpacing: 0.3 }}>Administrator</span>
+              </div>
+            ) : profile?.role === 'visitor' ? (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(156,163,175,0.15)', border: '1px solid rgba(156,163,175,0.3)', borderRadius: 20, padding: '2px 8px' }}>
+                <span style={{ fontSize: 9 }}>👁</span>
+                <span style={{ fontSize: 9, color: '#9ca3af', fontWeight: 600, letterSpacing: 0.3 }}>Visitor</span>
+              </div>
+            ) : (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 20, padding: '2px 8px' }}>
+                <span style={{ fontSize: 9 }}>👤</span>
+                <span style={{ fontSize: 9, color: '#34d399', fontWeight: 600, letterSpacing: 0.3 }}>User</span>
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Gear Icon */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              onClick={() => setSettingsMenuOpen(prev => !prev)}
+              style={{
+                background: settingsMenuOpen ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 6, width: 30, height: 30,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', fontSize: 14, transition: 'all 0.2s',
+                color: 'rgba(255,255,255,0.6)'
+              }}
+              title="Settings"
+            >
+              ⚙
+            </button>
+
+            {/* Dropdown Menu */}
+            {settingsMenuOpen && (
+              <>
+                <div onClick={() => setSettingsMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
+                <div style={{
+                  position: 'absolute', bottom: '100%', right: 0, marginBottom: 8,
+                  background: '#1e2d3d', border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: 10, overflow: 'hidden',
+                  boxShadow: '0 -8px 24px rgba(0,0,0,0.4)', minWidth: 180, zIndex: 99
+                }}>
+                  <div style={{ padding: '8px 12px 6px', fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                    บัญชีของฉัน
+                  </div>
+                  {/* User Profile */}
+                  <button
+                    onClick={() => {
+                      setSettingsMenuOpen(false)
+                      router.push(`/dashboard/profile`)
+                    }}
+                    style={{
+                      width: '100%', padding: '10px 14px', background: 'none',
+                      border: 'none', borderTop: '1px solid rgba(255,255,255,0.06)',
+                      color: 'rgba(255,255,255,0.75)', fontSize: 13, textAlign: 'left',
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      transition: 'background 0.15s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    <span style={{ fontSize: 15 }}>👤</span>
+                    <div>
+                      <div style={{ fontWeight: 500 }}>User Profile</div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>แก้ไขข้อมูลส่วนตัว</div>
+                    </div>
+                  </button>
+                  {/* Change Password */}
+                  <button
+                    onClick={() => {
+                      setSettingsMenuOpen(false)
+                      router.push('/dashboard/profile?tab=security')
+                    }}
+                    style={{
+                      width: '100%', padding: '10px 14px', background: 'none',
+                      border: 'none', borderTop: '1px solid rgba(255,255,255,0.06)',
+                      color: 'rgba(255,255,255,0.75)', fontSize: 13, textAlign: 'left',
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      transition: 'background 0.15s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    <span style={{ fontSize: 15 }}>🔑</span>
+                    <div>
+                      <div style={{ fontWeight: 500 }}>Change Password</div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>เปลี่ยนรหัสผ่าน</div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
 
         {/* Logout */}
         <button

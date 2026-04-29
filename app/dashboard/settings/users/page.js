@@ -229,6 +229,7 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
                     style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, background: isSelf ? '#f3f4f6' : '#fff' }}>
                     <option value="user">User</option>
                     <option value="superuser">Administrator</option>
+                    <option value="visitor">Visitor (Read-only)</option>
                   </select>
                 </div>
               </div>
@@ -550,7 +551,25 @@ export default function UsersPage() {
     </div>
   )
 
+  const isVisitor = currentUser?.role === 'visitor'
+
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลด...</div>
+
+  if (isVisitor) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 64, marginBottom: 20 }}>🔐</div>
+        <h2 style={{ fontSize: 24, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Access Denied</h2>
+        <p style={{ color: '#6b7280', maxWidth: 450, fontSize: 16, lineHeight: 1.5 }}>
+          ไม่สามารถเข้าถึงหน้าจอนี้ได้เนื่องจากเหตุผลด้านความปลอดภัย <br/> 
+          สิทธิ์ <b>Visitor</b> ของคุณไม่ได้รับอนุญาตให้ดูหรือจัดการข้อมูลในส่วนนี้
+        </p>
+        <button onClick={() => window.location.href = '/dashboard'} style={{ marginTop: 32, padding: '10px 24px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
+          กลับสู่หน้า Dashboard
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ padding: 24 }}>
