@@ -120,23 +120,47 @@ export async function updateAdminUser({ id, full_name, role, can_be_assignee, is
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
-    // 1. อัปเดตข้อมูลใน Auth Metadata (เลือกทำ)
-    await adminClient.auth.admin.updateUserById(id, {
-      user_metadata: { full_name }
-    })
+    // 0. ตรวจสอบจาก Registry ก่อนว่าเป็น User ประเภทไหน
+    const { data: regEntry } = await adminClient
+      .from('user_registry')
+      .select('*')
+      .or(`supabase_user_id.eq.${id},external_user_id.eq.${id},id.eq.${id}`)
+      .single()
 
-    // 2. อัปเดตข้อมูลใน user_profiles (ต้อง Map กลับเป็น superuser/user เพื่อไม่ให้ติด Constraint)
-    const legacyRole = (role === 'administrator' || role === 'superuser') ? 'superuser' : 'user'
-    const { error: profileUpdateError } = await adminClient.from('user_profiles').update({
-      full_name,
-      role: legacyRole,
-      can_be_assignee,
-      is_active
-    }).eq('id', id)
+    if (!regEntry) throw new Error('ไม่พบข้อมูลผู้ใช้ในระบบ')
 
-    if (profileUpdateError) throw profileUpdateError
+    const isInternal = !!regEntry.supabase_user_id
+    const targetId = regEntry.supabase_user_id || regEntry.external_user_id
 
-    // 3. Sync ลง user_registry
+    if (isInternal) {
+      // --- กรณีผู้ใช้ภายใน (Tier 1 & 2) ---
+      // 1. อัปเดต Auth Metadata
+      await adminClient.auth.admin.updateUserById(targetId, {
+        user_metadata: { full_name }
+      })
+
+      // 2. อัปเดต user_profiles
+      const legacyRole = (role === 'administrator' || role === 'superuser') ? 'superuser' : 'user'
+      const { error: profileError } = await adminClient.from('user_profiles').update({
+        full_name,
+        role: legacyRole,
+        can_be_assignee,
+        is_active
+      }).eq('id', targetId)
+      if (profileError) throw profileError
+
+    } else {
+      // --- กรณีผู้ใช้ภายนอก (Tier 3 & 4) ---
+      // อัปเดตตาราง external_users
+      const { error: externalError } = await adminClient.from('external_users').update({
+        full_name,
+        role,
+        is_active
+      }).eq('id', targetId)
+      if (externalError) throw externalError
+    }
+
+    // 3. Sync ข้อมูลลง user_registry เสมอ
     const normalizedRole = (role === 'superuser' || role === 'administrator') ? 'administrator' : 
                            (role === 'user' || role === 'supervisor') ? 'supervisor' : role
 
@@ -144,9 +168,9 @@ export async function updateAdminUser({ id, full_name, role, can_be_assignee, is
       full_name,
       user_role: normalizedRole,
       is_active,
-      can_be_assignee,
+      can_be_assignee: isInternal ? can_be_assignee : false, // ภายนอกไม่รับเคส
       last_role_changed_at: new Date().toISOString()
-    }).eq('supabase_user_id', id).eq('external_user_id', null)
+    }).eq('id', regEntry.id)
 
     return { success: true }
   } catch (err) {
