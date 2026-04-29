@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { normalizeRole, ROLE_BADGE, canAccess } from '@/lib/auth'
 import Link from 'next/link'
 
 export default function DashboardLayout({ children }) {
@@ -9,7 +10,7 @@ export default function DashboardLayout({ children }) {
   const pathname = usePathname()
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
-  const [isSuperUser, setIsSuperUser] = useState(false)
+  const [role, setRole] = useState('supervisor') // normalized role
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [expandedSection, setExpandedSection] = useState(null)
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
@@ -26,7 +27,12 @@ export default function DashboardLayout({ children }) {
           .eq('id', session.user.id)
           .single()
         setProfile(profileData)
-        setIsSuperUser(profileData?.role === 'superuser')
+        const normalized = normalizeRole(profileData?.role)
+        setRole(normalized)
+        // Redirect if no access to current page
+        if (!canAccess(normalized, pathname)) {
+          router.push('/dashboard?error=access_denied')
+        }
       }
     })
 
@@ -69,16 +75,16 @@ export default function DashboardLayout({ children }) {
   }
 
   const navItems = [
-    // Operations
-    { href: '/dashboard',                          label: 'Dashboard',       icon: '▦', section: 'operations' },
-    { href: '/dashboard/incidents',                label: 'Incident',        icon: '⚠', section: 'operations' },
-    { href: '/dashboard/reports/sla',             label: 'SLA Report',      icon: '📊', section: 'operations' },
-    { href: '/dashboard/backup',                   label: 'Backup Log',      icon: '☁', section: 'operations' },
-    { href: '/dashboard/checklist',                label: 'IT Checklist',    icon: '✅', section: 'operations' },
-    // Settings
-    { href: '/dashboard/settings/no-series',       label: 'No. Series',      icon: '⚙', section: 'settings' },
-    { href: '/dashboard/settings/master-data',     label: 'Master Data',     icon: '📋', section: 'settings' },
-    { href: '/dashboard/settings/users',           label: 'Users',           icon: '👤', section: 'settings' },
+    // Operations — ทุก role ที่ login ได้เห็น
+    { href: '/dashboard',                          label: 'Dashboard',       icon: '▦', section: 'operations', roles: ['administrator','supervisor','guest'] },
+    { href: '/dashboard/incidents',                label: 'Incident',        icon: '⚠', section: 'operations', roles: ['administrator','supervisor','guest'] },
+    { href: '/dashboard/reports/sla',             label: 'SLA Report',      icon: '📊', section: 'operations', roles: ['administrator','supervisor'] },
+    { href: '/dashboard/backup',                   label: 'Backup Log',      icon: '☁', section: 'operations', roles: ['administrator','supervisor','guest'] },
+    { href: '/dashboard/checklist',                label: 'IT Checklist',    icon: '✅', section: 'operations', roles: ['administrator','supervisor','guest'] },
+    // Settings — เฉพาะ administrator
+    { href: '/dashboard/settings/no-series',       label: 'No. Series',      icon: '⚙', section: 'settings',   roles: ['administrator'] },
+    { href: '/dashboard/settings/master-data',     label: 'Master Data',     icon: '📋', section: 'settings',   roles: ['administrator'] },
+    { href: '/dashboard/settings/users',           label: 'Users',           icon: '👤', section: 'settings',   roles: ['administrator'] },
   ]
 
   const isActive = (href) => {
@@ -121,7 +127,7 @@ export default function DashboardLayout({ children }) {
           maxHeight: expandedSection === 'operations' ? '500px' : '0', 
           overflow: 'hidden', transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
         }}>
-          {navItems.filter(i => i.section === 'operations').map(item => (
+          {navItems.filter(i => i.section === 'operations' && i.roles.includes(role)).map(item => (
             <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
               <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
               {item.label}
@@ -129,34 +135,38 @@ export default function DashboardLayout({ children }) {
           ))}
         </div>
 
-        {/* Settings Section */}
-        <div 
-          onClick={() => toggleSection('settings')}
-          style={{ 
-            fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: 1, padding: '16px 16px 8px', 
-            textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            cursor: 'pointer', transition: 'background 0.2s'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <span>Settings</span>
-          <span style={{ 
-            fontSize: 10, transition: 'transform 0.3s', 
-            transform: expandedSection === 'settings' ? 'rotate(0deg)' : 'rotate(-90deg)' 
-          }}>▼</span>
-        </div>
-        <div style={{ 
-          maxHeight: expandedSection === 'settings' ? '500px' : '0', 
-          overflow: 'hidden', transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
-        }}>
-          {navItems.filter(i => i.section === 'settings').map(item => (
-            <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
-              <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
-              {item.label}
-            </Link>
-          ))}
-        </div>
+        {/* Settings Section — เฉพาะ administrator */}
+        {role === 'administrator' && (
+          <>
+            <div 
+              onClick={() => toggleSection('settings')}
+              style={{ 
+                fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: 1, padding: '16px 16px 8px', 
+                textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                cursor: 'pointer', transition: 'background 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <span>Settings</span>
+              <span style={{ 
+                fontSize: 10, transition: 'transform 0.3s', 
+                transform: expandedSection === 'settings' ? 'rotate(0deg)' : 'rotate(-90deg)' 
+              }}>▼</span>
+            </div>
+            <div style={{ 
+              maxHeight: expandedSection === 'settings' ? '500px' : '0', 
+              overflow: 'hidden', transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
+            }}>
+              {navItems.filter(i => i.section === 'settings').map(item => (
+                <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
+                  <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
       </nav>
 
       {/* Bottom — User Info + Settings Dropdown + Logout */}
@@ -169,23 +179,23 @@ export default function DashboardLayout({ children }) {
             <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {profile?.full_name || user?.email?.split('@')[0] || 'User'}
             </div>
-            {/* Role Badge */}
-            {isSuperUser ? (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 20, padding: '2px 8px' }}>
-                <span style={{ fontSize: 9 }}>⭐</span>
-                <span style={{ fontSize: 9, color: '#60a5fa', fontWeight: 600, letterSpacing: 0.3 }}>Administrator</span>
-              </div>
-            ) : profile?.role === 'visitor' ? (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(156,163,175,0.15)', border: '1px solid rgba(156,163,175,0.3)', borderRadius: 20, padding: '2px 8px' }}>
-                <span style={{ fontSize: 9 }}>👁</span>
-                <span style={{ fontSize: 9, color: '#9ca3af', fontWeight: 600, letterSpacing: 0.3 }}>Visitor</span>
-              </div>
-            ) : (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 20, padding: '2px 8px' }}>
-                <span style={{ fontSize: 9 }}>👤</span>
-                <span style={{ fontSize: 9, color: '#34d399', fontWeight: 600, letterSpacing: 0.3 }}>User</span>
-              </div>
-            )}
+            {/* Role Badge — รองรับ 4 roles */}
+            {(() => {
+              const badge = ROLE_BADGE[role] || ROLE_BADGE.supervisor
+              const colorMap = {
+                administrator: { bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.3)', color: '#60a5fa' },
+                supervisor:    { bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.3)', color: '#34d399' },
+                approval:      { bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)', color: '#fbbf24' },
+                guest:         { bg: 'rgba(156,163,175,0.15)',border: 'rgba(156,163,175,0.3)',color: '#9ca3af' },
+              }
+              const c = colorMap[role] || colorMap.supervisor
+              return (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 20, padding: '2px 8px' }}>
+                  <span style={{ fontSize: 9 }}>{badge.emoji}</span>
+                  <span style={{ fontSize: 9, color: c.color, fontWeight: 600, letterSpacing: 0.3 }}>{badge.label}</span>
+                </div>
+              )
+            })()}
           </div>
 
           {/* Gear Icon */}
