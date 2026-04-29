@@ -262,8 +262,8 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
                   <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }}>Role</label>
                   <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} disabled={isSelf}
                     style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, background: isSelf ? '#f3f4f6' : '#fff' }}>
-                    <option value="user">Supervisor (Tier 2)</option>
-                    <option value="superuser">Administrator (Tier 1)</option>
+                    <option value="administrator">Administrator (Tier 1)</option>
+                    <option value="supervisor">Supervisor (Tier 2)</option>
                     <option value="approval">Approver (Tier 3)</option>
                     <option value="guest">Guest (Tier 4)</option>
                   </select>
@@ -498,15 +498,18 @@ export default function UsersPage() {
 
   // ===== Safety Checks =====
 
-  // จำนวน Active Admin ทั้งหมด
-  const activeAdminCount = users.filter(u => u.role === 'superuser' && u.is_active).length
+  // จำนวน Active Admin ทั้งหมด (นับทั้งชื่อเก่าและชื่อใหม่)
+  const activeAdminCount = users.filter(u => 
+    (u.role === 'superuser' || u.role === 'administrator') && u.is_active
+  ).length
 
   // เช็คว่า Deactivate ได้ไหม
   const canDeactivate = (user) => {
     // ห้าม Deactivate ตัวเอง
     if (user.id === currentUser?.id) return { allowed: false, reason: 'ไม่สามารถ Deactivate ตัวเองได้' }
     // ถ้าเป็น Admin และ Active Admin เหลือแค่ 1 คน
-    if (user.role === 'superuser' && user.is_active && activeAdminCount <= 1) {
+    const isAdminUser = user.role === 'superuser' || user.role === 'administrator'
+    if (isAdminUser && user.is_active && activeAdminCount <= 1) {
       return { allowed: false, reason: 'ต้องมี Administrator ที่ Active อย่างน้อย 1 Account' }
     }
     return { allowed: true, reason: '' }
@@ -532,7 +535,19 @@ export default function UsersPage() {
     const { targetId, currentValue } = confirmDialog
     setConfirmDialog(null)
     setToggling(targetId + '_active')
-    await supabase.from('user_profiles').update({ is_active: !currentValue }).eq('id', targetId)
+    
+    // ค้นหา user เพื่อดึงข้อมูลเดิมมาอัปเดต
+    const targetUser = users.find(u => u.id === targetId)
+    if (targetUser) {
+      await updateAdminUser({
+        id: targetId,
+        full_name: targetUser.full_name,
+        role: targetUser.role,
+        can_be_assignee: targetUser.can_be_assignee,
+        is_active: !currentValue
+      })
+    }
+
     setMsg({ text: `${currentValue ? 'Deactivate' : 'Activate'} User สำเร็จแล้ว`, type: 'success' })
     await fetchUsers()
     setToggling(null)
@@ -540,14 +555,24 @@ export default function UsersPage() {
 
   const handleToggleAssignee = async (id, current) => {
     setToggling(id + '_assignee')
-    await supabase.from('user_profiles').update({ can_be_assignee: !current }).eq('id', id)
+    const targetUser = users.find(u => u.id === id)
+    if (targetUser) {
+      await updateAdminUser({
+        id: id,
+        full_name: targetUser.full_name,
+        role: targetUser.role,
+        can_be_assignee: !current,
+        is_active: targetUser.is_active
+      })
+    }
     await fetchUsers()
     setToggling(null)
   }
 
   const handleToggleRole = async (id, currentRole) => {
-    // ถ้าจะเปลี่ยนจาก superuser → user และ admin เหลือแค่ 1 คน
-    if (currentRole === 'superuser' && activeAdminCount <= 1) {
+    const isAdminUser = currentRole === 'superuser' || currentRole === 'administrator'
+    // ถ้าจะเปลี่ยนจาก admin → supervisor และ admin เหลือแค่ 1 คน
+    if (isAdminUser && activeAdminCount <= 1) {
       setMsg({ text: 'ต้องมี Administrator อย่างน้อย 1 Account ไม่สามารถลด Role ได้', type: 'error' })
       return
     }
@@ -762,8 +787,10 @@ export default function UsersPage() {
                     <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>Role</label>
                     <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}
                       style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', fontFamily: 'inherit' }}>
-                      <option value="user">Supervisor</option>
-                      <option value="superuser">Administrator</option>
+                      <option value="supervisor">Supervisor (Tier 2)</option>
+                      <option value="administrator">Administrator (Tier 1)</option>
+                      <option value="approval">Approver (Tier 3)</option>
+                      <option value="guest">Guest (Tier 4)</option>
                     </select>
                   </div>
                 </div>
@@ -796,7 +823,7 @@ export default function UsersPage() {
           <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
             {[
               { label: 'User ทั้งหมด', value: users.length, color: '#374151', bg: '#f9fafb' },
-              { label: 'Administrator', value: users.filter(u => u.role === 'superuser').length, color: '#1e40af', bg: '#eff6ff' },
+              { label: 'Administrator', value: users.filter(u => u.role === 'superuser' || u.role === 'administrator').length, color: '#1e40af', bg: '#eff6ff' },
               { label: 'Active Admin', value: activeAdminCount, color: activeAdminCount <= 1 ? '#dc2626' : '#059669', bg: activeAdminCount <= 1 ? '#fef2f2' : '#f0fdf4' },
               { label: 'Assignee', value: users.filter(u => u.can_be_assignee).length, color: '#1d4ed8', bg: '#eff6ff' },
             ].map(s => (
@@ -878,13 +905,6 @@ export default function UsersPage() {
                                 u.role === 'approval' ? '📜 Approver' : 
                                 u.role === 'guest' ? '👤 Guest' : '👤 ' + u.role }
                             </span>
-                            {!isSelf && (
-                              <button onClick={() => handleToggleRole(u.id, u.role)} disabled={toggling === u.id + '_role'}
-                                title={u.role === 'superuser' ? 'เปลี่ยนเป็น Supervisor' : 'เปลี่ยนเป็น Administrator'}
-                                style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 4, padding: '2px 6px', fontSize: 10, cursor: 'pointer', color: '#6b7280', whiteSpace: 'nowrap' }}>
-                                {toggling === u.id + '_role' ? '...' : '⇄'}
-                              </button>
-                            )}
                           </div>
                         </td>
 

@@ -106,14 +106,15 @@ export async function updateAdminUser({ id, full_name, role, can_be_assignee, is
     })
 
     // 1. อัปเดตข้อมูลใน Auth Metadata (เลือกทำ)
-    await supabaseAdmin.auth.admin.updateUserById(id, {
+    await adminClient.auth.admin.updateUserById(id, {
       user_metadata: { full_name }
     })
 
-    // 2. อัปเดตข้อมูลใน user_profiles
-    const { error: profileUpdateError } = await supabaseAdmin.from('user_profiles').update({
+    // 2. อัปเดตข้อมูลใน user_profiles (ต้อง Map กลับเป็น superuser/user เพื่อไม่ให้ติด Constraint)
+    const legacyRole = (role === 'administrator' || role === 'superuser') ? 'superuser' : 'user'
+    const { error: profileUpdateError } = await adminClient.from('user_profiles').update({
       full_name,
-      role,
+      role: legacyRole,
       can_be_assignee,
       is_active
     }).eq('id', id)
@@ -121,13 +122,15 @@ export async function updateAdminUser({ id, full_name, role, can_be_assignee, is
     if (profileUpdateError) throw profileUpdateError
 
     // 3. Sync ลง user_registry
-    const normalizedRole = role === 'superuser' ? 'administrator' : 'supervisor'
-    await supabaseAdmin.from('user_registry').update({
+    const normalizedRole = (role === 'superuser' || role === 'administrator') ? 'administrator' : 
+                           (role === 'user' || role === 'supervisor') ? 'supervisor' : role
+
+    await adminClient.from('user_registry').update({
       full_name,
       user_role: normalizedRole,
       is_active,
       last_role_changed_at: new Date().toISOString()
-    }).eq('supabase_user_id', id)
+    }).eq('supabase_user_id', id).eq('external_user_id', null)
 
     return { success: true }
   } catch (err) {
