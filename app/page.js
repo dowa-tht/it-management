@@ -1,7 +1,7 @@
 'use client'
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { unifiedLogin } from '@/app/actions/auth'
+import { unifiedLogin } from '@/app/actions/login'
 import { checkUserTier } from '@/app/actions/status'
 import { requestRecovery } from '@/app/actions/recovery'
 

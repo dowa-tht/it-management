@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/dateFormat'
-import { getCurrentUserSession, changeExternalPIN } from '@/app/actions/auth'
+import { getCurrentUserSession, changeExternalPIN } from '@/app/actions/user'
 import { ROLE_BADGE, normalizeRole } from '@/lib/auth'
 
 function ProfileContent() {
