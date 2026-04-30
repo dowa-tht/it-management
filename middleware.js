@@ -61,23 +61,14 @@ export async function middleware(req) {
     return NextResponse.redirect(new URL('/?error=unauthorized', req.url))
   }
 
-  // 6. Role Caching Logic
-  // Check if we have the role cached in a cookie to avoid DB query
-  let role = req.cookies.get('user-role-cache')?.value
+  // 6. Get Role from user_profiles (Source of Truth)
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
 
-  if (!role) {
-    // Cache miss -> Query Database
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    role = normalizeRole(profile?.role)
-    
-    // Set cache cookie (expires in 1 hour for security/freshness)
-    res.cookies.set('user-role-cache', role, { maxAge: 3600, path: '/' })
-  }
+  const role = normalizeRole(profile?.role)
 
   // 7. Access Control
   const isAllowed = canAccess(role, pathname)
