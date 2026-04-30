@@ -6,13 +6,17 @@ export async function checkUserTier(email) {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     
     if (!supabaseUrl || !serviceKey) {
-      return { success: false, error: 'Configuration Missing (Env)' }
+      console.error('MISSING ENV:', { url: !!supabaseUrl, key: !!serviceKey })
+      return { success: false, error: 'ระบบขัดข้อง: ไม่พบการตั้งค่า Environment Variables (URL/Key) กรุณา Redeploy บน Vercel' }
     }
 
-    const cleanUrl = supabaseUrl.endsWith('/') ? supabaseUrl.slice(0, -1) : supabaseUrl;
+    const cleanUrl = String(supabaseUrl).endsWith('/') ? String(supabaseUrl).slice(0, -1) : String(supabaseUrl);
+    const safeEmail = String(email || '').trim();
+
+    if (!safeEmail) return { success: false, error: 'กรุณาระบุอีเมล' }
 
     // Use Native Fetch to call Supabase REST API (No Library dependency)
-    const response = await fetch(`${cleanUrl}/rest/v1/user_registry?email=eq.${encodeURIComponent(email)}&is_active=eq.true&select=user_role`, {
+    const response = await fetch(`${cleanUrl}/rest/v1/user_registry?email=eq.${encodeURIComponent(safeEmail)}&is_active=eq.true&select=user_role`, {
       method: 'GET',
       headers: {
         'apikey': serviceKey,
