@@ -2,8 +2,10 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import bcrypt from 'bcryptjs'
 import { createServerClient } from '@supabase/ssr'
+
+// Move heavy node-only imports inside functions or use require if needed
+// to prevent issues in specific environments
 
 export async function unifiedLogin(email, password) {
   const cookieStore = await cookies()
@@ -31,6 +33,7 @@ export async function unifiedLogin(email, password) {
   }
 
   // 2. ถ้าล้มเหลว ลองเช็คในระบบ External PIN (Tier 3-4)
+  const bcrypt = require('bcryptjs')
   const adminClient = createClient(supabaseUrl, serviceKey)
   const { data: extUser, error: extError } = await adminClient
     .from('external_users')
@@ -70,6 +73,11 @@ export async function checkUserTier(email) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    if (!supabaseUrl || !serviceKey) {
+      return { success: false, error: 'ระบบขัดข้อง: กรุณาตั้งค่า Environment Variables (Missing URL/Key)' }
+    }
+    
     const adminClient = createClient(supabaseUrl, serviceKey)
 
     const { data: registry, error } = await adminClient
@@ -157,6 +165,7 @@ export async function changeExternalPIN({ currentPIN, newPIN }) {
     }
 
     // 3. Hash PIN ใหม่
+    const bcrypt = require('bcryptjs')
     const salt = await bcrypt.genSalt(10)
     const pinHash = await bcrypt.hash(newPIN, salt)
 
