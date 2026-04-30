@@ -73,27 +73,15 @@
 ---
 ## 📜 Change Logs (บันทึกการเปลี่ยนแปลง)
 
-### [2026-04-29] - Stabilizing Multi-Tier & SLA Performance Upgrade
-- **Unified Multi-Tier Creation:** ปรับปรุง `createAdminUser` ให้รองรับการสร้าง User ทั้ง 4 Tier (แยก Logic ระหว่าง Supabase Auth และ External PIN)
-- **Admin Security Update:** 
-  - เพิ่มปุ่ม **Reset PIN 6 หลัก** ในหน้า Setup User สำหรับ Approver/Guest
-  - แก้ไข Bug ตัวแปร `supabaseAdmin` ในฟังก์ชันเปลี่ยนรหัสผ่าน
-- **Self-Service PIN:** 
-  - เพิ่มฟังก์ชันให้ผู้ใช้ Tier 3/4 สามารถ **เปลี่ยน PIN เองได้** ในหน้า Profile
-- **SLA Reliability Fix:** แก้ไข Race Condition ในการมอบหมายงาน โดยประทับตราเวลา `assigned_at` ทันทีที่กดบันทึก ป้องกันปัญหา SLA Response ค้างสถานะ Paused
-- **Data Repair:** กู้คืนข้อมูลเคส `DTT-INC-2604-004` ให้แสดงค่า SLA ที่ถูกต้องตาม Log จริง
-- **Professional Emailing:** ปรับปรุง Template อีเมลเป็นภาษาอังกฤษระดับทางการ พร้อมระบุชื่อบริษัท DOWA Thermotech (Thailand) Co., Ltd. เพื่อความน่าเชื่อถือ
-- **Automated Onboarding:** เพิ่มระบบส่ง Welcome Email อัตโนมัติทันทีที่สร้าง User (Staff ใช้ Supabase Invite / Guest ใช้ Resend API)
-- **Validation Fix:** แยกกฎการตรวจสอบรหัสผ่าน (Staff: 8 ตัวอักษรความซับซ้อนสูง / Guest: PIN 6 หลัก) เพื่อความยืดหยุ่นในการใช้งาน
-- **Testing Utility:** เพิ่มฟังก์ชัน **Clean Remove (⚡)** สำหรับ Administrator เพื่อใช้ล้างข้อมูล User ทดสอบออกจากทุกตารางรวมถึง Auth อย่างสมบูรณ์ (Log-less Removal)
-- **Infrastructure Integrity:** แก้ไข Bug การ Sync ข้อมูล `user_registry` โดยตัดคอลัมน์ `can_be_assignee` ออกเพื่อให้สอดคล้องกับ Schema จริงในฐานข้อมูล
-- **Performance Optimization (🚀):**
-  - **Middleware to Proxy Migration:** อัปเกรดระบบ Middleware เป็น `proxy.js` ตามมาตรฐาน Next.js 16.2.4 เพื่อประสิทธิภาพสูงสุด
-  - **Role Caching:** เพิ่มระบบ Cookie Cache สำหรับเก็บสิทธิ์ผู้ใช้ (Role) ช่วยลดการ Query ฐานข้อมูล `user_profiles` ในทุกๆ Request ทำให้การเปลี่ยนหน้าเร็วขึ้นกว่าเดิม (~150ms -> 8ms)
-  - **SLA Logic Optimization:** ปรับปรุงอัลกอริทึมการคำนวณ SLA ใน `lib/slaUtils.js` ให้ใช้ทรัพยากร CPU ลดลง ช่วยให้หน้า Dashboard โหลดข้อมูลได้รวดเร็วขึ้น
-- **Critical Fix (🛠️):**
-  - **Vercel Compatibility:** ย้ายไฟล์กลับมาชื่อ `middleware.js` และใช้ `supabase.auth.getUser()` แทน `getSession()` เพื่อแก้ปัญหา Login ไม่ได้บน Vercel Production
-  - **Stability First:** ยกเลิกระบบ Role Caching ชั่วคราวเพื่อป้องกันปัญหา Cookie ค้างหรือสิทธิ์ทับซ้อน ทำให้ระบบ Login กลับมาเสถียร 100%
+### [2026-04-30] - Vercel Production Stability & Action Restructuring
+- **Login Reliability Fix (Vercel):** แก้ไขปัญหา Login ไม่ได้บน Vercel Production โดยการเปลี่ยนจากการใช้ Server Action มาเป็น **API-based Auth (`/api/auth/check-tier`)** เพื่อความเสถียรสูงสุด
+- **Action Restructuring:** แยกไฟล์ Server Action ออกเป็นส่วนๆ เพื่อลดปัญหา Dependency Conflict บน Serverless Environment:
+  - `status.js`: ตรวจสอบประเภทผู้ใช้ (Native Fetch)
+  - `login.js`: จัดการการเข้าสู่ระบบ (Isolated Bcrypt)
+  - `user.js`: จัดการ Session และข้อมูล Profile
+- **Infrastructure Security:** เพิ่มหน้า **System Diagnostic (`/debug-env`)** สำหรับตรวจสอบสถานะ Environment Variables บน Vercel โดยไม่เปิดเผยค่าความลับ
+- **Auth Hardening:** เพิ่มระบบดักจับ Error และตรวจสอบตัวแปรสภาพแวดล้อมก่อนเริ่มทำงาน เพื่อป้องกันปัญหา Error 500
+- **Test User Sync:** กู้คืนและซิงค์บัญชี `Antigravity` (exam@123.com) ให้สามารถใช้งานบนระบบจริงได้สำหรับการทดสอบ
 
 ---
 
@@ -109,4 +97,4 @@
 3.  **Sender Identity:** เมื่อทำการ Verify เสร็จแล้ว ให้เปลี่ยนค่าผู้ส่งจาก `onboarding@resend.dev` เป็นเมลบริษัท (เช่น `it-support@dowa-tht.co.th`) ในไฟล์ `app/actions/admin.js` และ `app/actions/recovery.js`
 
 ---
-*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-04-29 (Evening) โดย Antigravity AI*
+*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-04-30 โดย Antigravity AI*
