@@ -50,18 +50,24 @@ export default function DashboardPage() {
     return () => clearInterval(timer)
   }, [])
 
-  useEffect(() => { 
-    const offset = new Date().getTimezoneOffset()
-    getDashboardData(offset)
-      .then(res => {
-        setData(res)
-        setLoading(false)
-      })
-      .catch(err => {
-        console.error("Dashboard Load Error:", err)
-        setData({ error: err.message || String(err) })
-        setLoading(false)
-      })
+  const loadDashboardData = async () => {
+    try {
+      const offset = new Date().getTimezoneOffset()
+      const res = await getDashboardData(offset)
+      setData(res)
+      setLoading(false)
+    } catch (err) {
+      console.error("Dashboard Load Error:", err)
+      setData({ error: err.message || String(err) })
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadDashboardData()
+    // Auto-refresh dashboard every 5 minutes
+    const interval = setInterval(loadDashboardData, 5 * 60 * 1000)
+    return () => clearInterval(interval)
   }, [])
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลดข้อมูล...</div>

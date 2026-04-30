@@ -104,7 +104,12 @@ export default function BackupPage() {
   })
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => { fetchLogs() }, [filterMonth])
+  useEffect(() => {
+    fetchLogs()
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(fetchLogs, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [filterMonth])
 
   useEffect(() => {
     const getUser = async () => {
@@ -123,7 +128,11 @@ export default function BackupPage() {
     setLoading(true)
     const [year, month] = filterMonth.split('-')
     const start = `${year}-${month}-01`
-    const end = new Date(year, month, 0).toISOString().split('T')[0]
+    
+    // Fix: Use local date instead of toISOString to avoid timezone shifting
+    const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
+    const end = `${year}-${month}-${String(lastDay).padStart(2, '0')}`
+
     const { data } = await supabase.from('backup_logs').select('*')
       .gte('log_date', start).lte('log_date', end)
       .order('log_date', { ascending: false })
@@ -136,11 +145,15 @@ export default function BackupPage() {
     setSaving(true)
 
     // Check duplicate
-    const { data: existing } = await supabase.from('backup_logs')
+    const { data: existing, error: checkError } = await supabase.from('backup_logs')
       .select('id')
       .eq('log_date', form.log_date)
       .eq('system_name', form.system_name)
-      .single()
+      .maybeSingle()
+
+    if (checkError) {
+      console.error('Check Duplicate Error:', checkError)
+    }
 
     if (existing) {
       alert(`มีบันทึกของระบบ ${form.system_name} ในวันที่กำหนดอยู่แล้วครับ (1 ระบบบันทึกได้ 1 ครั้งต่อวัน)`)
@@ -150,7 +163,8 @@ export default function BackupPage() {
 
     const { error } = await supabase.from('backup_logs').insert([form])
     if (error) {
-      alert(`บันทึกข้อมูลไม่สำเร็จ: ${error.message}`)
+      console.error('Insert Error:', error)
+      alert(`บันทึกข้อมูลไม่สำเร็จ: ${error.message} (${error.code})`)
       setSaving(false)
       return
     }
@@ -164,7 +178,8 @@ export default function BackupPage() {
     if (!confirm('ต้องการลบรายการนี้ใช่ไหม?')) return
     const { error } = await supabase.from('backup_logs').delete().eq('id', id)
     if (error) {
-      alert(`ลบข้อมูลไม่สำเร็จ: ${error.message}`)
+      console.error('Delete Error:', error)
+      alert(`ลบข้อมูลไม่สำเร็จ: ${error.message} (${error.code})`)
       return
     }
     await fetchLogs()
