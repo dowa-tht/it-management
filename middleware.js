@@ -3,16 +3,11 @@ import { createServerClient } from '@supabase/ssr'
 import { canAccess, normalizeRole } from '@/lib/auth'
 
 /**
- * Next.js 16 Proxy (formerly Middleware)
- * Optimized with Role Caching to reduce Supabase DB queries.
+ * DOWA IT System Middleware
+ * Optimized with Role Caching & using getUser() for production reliability.
  */
-/**
- * Next.js 16 Proxy (formerly Middleware)
- * Optimized with Role Caching to reduce Supabase DB queries.
- */
-export default async function proxy(req) {
+export async function middleware(req) {
   const pathname = req.nextUrl.pathname
-
   const res = NextResponse.next()
 
   // 1. Skip public routes
@@ -42,8 +37,10 @@ export default async function proxy(req) {
     }
   )
 
-  // 4. Get Supabase Session (Tier 1/2)
-  const { data: { session } } = await supabase.auth.getSession()
+  // 4. Get Authenticated User (Tier 1/2)
+  // Use getUser() for security & reliability on Production/Vercel
+  const { data: { user } } = await supabase.auth.getUser()
+  const session = !!user
 
   // 5. If no Supabase Session, check Guest Session (Tier 4)
   if (!session) {
@@ -73,7 +70,7 @@ export default async function proxy(req) {
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('role')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
 
     role = normalizeRole(profile?.role)
