@@ -1,7 +1,8 @@
 'use client'
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { checkUserTier, unifiedLogin } from '@/app/actions/auth'
+import { unifiedLogin } from '@/app/actions/auth'
+import { checkUserTier } from '@/app/actions/status'
 import { requestRecovery } from '@/app/actions/recovery'
 
 export default function LoginPage() {
