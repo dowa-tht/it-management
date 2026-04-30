@@ -1,0 +1,88 @@
+// ---------- ค่าคงที่ ----------
+const BUSINESS_START = '08:30';   // สามารถดึงจาก WorkingHours
+const BUSINESS_END   = '17:30';
+const DAILY_MINUTES  =  (StrToTime(BUSINESS_END) - StrToTime(BUSINESS_START)) * 1440; // นาทีทำงานต่อวัน
+
+// ---------- ฟังก์ชันช่วย ----------
+function IsWorkingDay(D: TDateTime; WH: TWorkingHours; Holidays: array of THoliday): boolean;
+begin
+  // 1. ตรวจสอบว่าวันนั้นเป็นวันทำงานตาม WH.WorkDays
+  // 2. ตรวจสอบว่าไม่ตรงกับวันหยุดใน Holidays
+end;
+
+function NetBusinessMinutes(StartDt, EndDt: TDateTime;
+                            WH: TWorkingHours; Holidays: array of THoliday;
+                            Excls: array of TExclusion): integer;
+var
+  cur    : TDateTime;
+  total  : integer;
+  i      : integer;
+begin
+  total := 0;
+  cur   := StartDt;
+  while cur < EndDt do
+  begin
+    if IsWorkingDay(cur, WH, Holidays) then
+    begin
+      // คำนวณช่วงเวลาที่ทำงานในวันนั้น
+      // ตัวอย่างง่าย: ใช้ BUSINESS_START‑BUSINESS_END เป็นช่วงเต็ม
+      // หากช่วงเริ่ม/จบอยู่ในวันทำงาน ให้ตัดส่วนที่อยู่นอกเวลา
+      // (รายละเอียดสามารถขยายตามความต้องการ)
+      total := total + DAILY_MINUTES;
+    end;
+    cur := cur + 1; // ไปวันถัดไป (อาจใช้ 1/1440 = 1 นาที)
+  end;
+
+  // ลบช่วง Manual Exclusion
+  for i := 0 to Length(Excls)-1 do
+  begin
+    // คำนวณจำนวนนาทีที่ Excls[i] อยู่ภายใน [StartDt, EndDt]
+    // แล้วลบจาก total
+  end;
+  Result := total;
+end;
+
+// ---------- คำนวณ SLA Deadline ----------
+function SLA_CalcDeadline(Inc: TIncident): TDateTime;
+var
+  WH        : TWorkingHours;
+  Holidays  : array of THoliday;
+  Excls     : array of TExclusion;
+  netMins   : integer;
+begin
+  WH        := Service_GetWorkingHours;
+  Holidays  := Service_GetAllHolidays;
+  Excls     := Inc.Exclusions;
+  netMins   := NetBusinessMinutes(Inc.SLAStartAt, Inc.SLAStartAt + 365, WH, Holidays, Excls);
+  // สมมติ SLA target = 95% compliance → เช่น 8 ชั่วโมงทำงานต่อวัน × 5 วัน = 2400 min
+  // เราตั้งค่าจำนวนนาทีเป้าหมายเป็น 2400 * 0.95 = 2280 min (หรือค่าที่กำหนดในระบบ)
+  Result := Inc.SLAStartAt + (netMins / (24*60)); // แปลงนาทีเป็นวัน
+end;
+
+// ---------- Pause / Resume ----------
+function Service_AddExclusion(IncId: string; Excl: TExclusion): boolean;
+var
+  Inc: TIncident;
+begin
+  Inc := Service_GetIncidentById(IncId);
+  SetLength(Inc.Exclusions, Length(Inc.Exclusions)+1);
+  Inc.Exclusions[High(Inc.Exclusions)] := Excl;
+  // หลังเพิ่ม Exclusion ต้องคำนวณ Deadline ใหม่
+  Inc.SLADeadline := SLA_CalcDeadline(Inc);
+  Result := Service_SaveIncident(Inc);
+end;
+
+function Service_ResumeSLA(IncId: string): boolean;
+var
+  Inc: TIncident;
+  i  : integer;
+begin
+  Inc := Service_GetIncidentById(IncId);
+  // ปิดทุก Exclusion ที่ยังเปิดอยู่ (EndAt = null)
+  for i := 0 to Length(Inc.Exclusions)-1 do
+    if Inc.Exclusions[i].EndAt = 0 then
+      Inc.Exclusions[i].EndAt := Now;
+  // คำนวณ Deadline ใหม่
+  Inc.SLADeadline := SLA_CalcDeadline(Inc);
+  Result := Service_SaveIncident(Inc);
+end;

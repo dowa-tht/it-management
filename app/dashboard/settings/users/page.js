@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/dateFormat'
 import { normalizeRole, ROLE_BADGE } from '@/lib/auth'
-import { createAdminUser, getAdminUsers, updateAdminUser, updateAdminUserPassword } from '@/app/actions/admin'
+import { createAdminUser, getAdminUsers, updateAdminUser, updateAdminUserPassword, updateAdminUserPIN, cleanDeleteUser } from '@/app/actions/admin'
 
 // ===== Password Confirm Dialog =====
 function PasswordConfirmDialog({ onConfirm, onCancel, targetName, action }) {
@@ -120,7 +120,10 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
 
   const handleUpdateGeneral = async () => {
     setLoading(true)
-    const res = await updateAdminUser(formData)
+    const res = await updateAdminUser({
+      ...formData,
+      email: formData.email
+    })
     if (res.success) {
       setMsg({ text: 'อัปเดตข้อมูลสำเร็จ', type: 'success' })
       onRefresh()
@@ -165,26 +168,45 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
   }
 
   const handleUpdatePassword = async () => {
-    if (pwdForm.newPass !== pwdForm.confirm) {
-      setMsg({ text: 'รหัสผ่านไม่ตรงกัน', type: 'error' })
-      return
-    }
-    // Complexity check (same as creation)
-    const pwd = pwdForm.newPass
-    if (pwd.length < 8 || !/[A-Z]/.test(pwd) || !/[a-z]/.test(pwd) || !/[0-9]/.test(pwd) || !/[^A-Za-z0-9]/.test(pwd)) {
-      setMsg({ text: 'รหัสผ่านไม่ผ่านเกณฑ์ความปลอดภัย', type: 'error' })
-      return
-    }
-
-    setLoading(true)
-    const res = await updateAdminUserPassword(user.id, pwd)
-    if (res.success) {
-      setMsg({ text: 'เปลี่ยนรหัสผ่านสำเร็จ', type: 'success' })
-      setPwdForm({ newPass: '', confirm: '' })
+    const isExternal = user.role === 'approval' || user.role === 'guest'
+    
+    if (isExternal) {
+      // --- Reset PIN 6 หลัก ---
+      if (!/^\d{6}$/.test(pwdForm.newPass)) {
+        setMsg({ text: 'PIN ต้องเป็นตัวเลข 6 หลักเท่านั้น', type: 'error' })
+        return
+      }
+      setLoading(true)
+      const res = await updateAdminUserPIN({ email: user.email, newPIN: pwdForm.newPass })
+      if (res.success) {
+        setMsg({ text: 'Reset PIN สำเร็จแล้ว', type: 'success' })
+        setPwdForm({ newPass: '', confirm: '' })
+      } else {
+        setMsg({ text: res.error, type: 'error' })
+      }
+      setLoading(false)
     } else {
-      setMsg({ text: res.error, type: 'error' })
+      // --- เปลี่ยน Password ปกติ ---
+      if (pwdForm.newPass !== pwdForm.confirm) {
+        setMsg({ text: 'รหัสผ่านไม่ตรงกัน', type: 'error' })
+        return
+      }
+      const pwd = pwdForm.newPass
+      if (pwd.length < 8 || !/[A-Z]/.test(pwd) || !/[a-z]/.test(pwd) || !/[0-9]/.test(pwd) || !/[^A-Za-z0-9]/.test(pwd)) {
+        setMsg({ text: 'รหัสผ่านไม่ผ่านเกณฑ์ความปลอดภัย', type: 'error' })
+        return
+      }
+
+      setLoading(true)
+      const res = await updateAdminUserPassword(user.id, pwd)
+      if (res.success) {
+        setMsg({ text: 'เปลี่ยนรหัสผ่านสำเร็จ', type: 'success' })
+        setPwdForm({ newPass: '', confirm: '' })
+      } else {
+        setMsg({ text: res.error, type: 'error' })
+      }
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const generatePwd = () => {
@@ -336,40 +358,77 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
           {activeTab === 'security' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>ตั้งรหัสผ่านใหม่</div>
-                <button onClick={generatePwd} style={{ fontSize: 12, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '6px 12px', borderRadius: 6, cursor: 'pointer' }}>
-                  🎲 Generate Password
-                </button>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                  {(user.role === 'approval' || user.role === 'guest') ? 'Reset PIN 6 หลัก' : 'ตั้งรหัสผ่านใหม่'}
+                </div>
+                {!(user.role === 'approval' || user.role === 'guest') && (
+                  <button onClick={generatePwd} style={{ fontSize: 12, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '6px 12px', borderRadius: 6, cursor: 'pointer' }}>
+                    🎲 Generate Password
+                  </button>
+                )}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: (user.role === 'approval' || user.role === 'guest') ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }}>รหัสผ่านใหม่</label>
+                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }}>
+                    {(user.role === 'approval' || user.role === 'guest') ? 'PIN ใหม่ (ตัวเลข 6 หลัก) *' : 'รหัสผ่านใหม่'}
+                  </label>
                   <div style={{ position: 'relative' }}>
-                    <input type={showPwd ? "text" : "password"} value={pwdForm.newPass} onChange={e => setPwdForm({ ...pwdForm, newPass: e.target.value })} 
-                      style={{ width: '100%', padding: '10px 12px', paddingRight: '40px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }} />
+                    <input 
+                      type={showPwd ? "text" : "password"} 
+                      value={pwdForm.newPass} 
+                      onChange={e => {
+                        const val = e.target.value
+                        if (user.role === 'approval' || user.role === 'guest') {
+                          if (/^\d*$/.test(val) && val.length <= 6) setPwdForm({ ...pwdForm, newPass: val })
+                        } else {
+                          setPwdForm({ ...pwdForm, newPass: val })
+                        }
+                      }} 
+                      placeholder={(user.role === 'approval' || user.role === 'guest') ? 'ตัวเลข 6 หลักเท่านั้น' : 'ระบุรหัสผ่านใหม่'}
+                      style={{ width: '100%', padding: '10px 12px', paddingRight: '40px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }} 
+                    />
                     <button onClick={() => setShowPwd(!showPwd)} style={{ position: 'absolute', right: 10, top: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' }}>{showPwd ? '👁️' : '🙈'}</button>
                   </div>
+                  {(user.role === 'approval' || user.role === 'guest') && pwdForm.newPass && pwdForm.newPass.length < 6 && (
+                    <div style={{ color: '#dc2626', fontSize: 11, marginTop: 4 }}>⚠️ กรุณาระบุให้ครบ 6 หลัก (ปัจจุบัน: {pwdForm.newPass.length})</div>
+                  )}
                 </div>
-                <div>
-                  <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }}>ยืนยันรหัสผ่านใหม่</label>
-                  <input type={showPwd ? "text" : "password"} value={pwdForm.confirm} onChange={e => setPwdForm({ ...pwdForm, confirm: e.target.value })} 
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }} />
-                </div>
+
+                {/* Confirm Field (ซ่อนถ้าเป็น PIN) */}
+                {!(user.role === 'approval' || user.role === 'guest') && (
+                  <div>
+                    <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 6 }}>ยืนยันรหัสผ่านใหม่</label>
+                    <input type={showPwd ? "text" : "password"} value={pwdForm.confirm} onChange={e => setPwdForm({ ...pwdForm, confirm: e.target.value })} 
+                      style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }} />
+                  </div>
+                )}
               </div>
-              <div style={{ background: '#f9fafb', padding: 16, borderRadius: 10, marginBottom: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 10 }}>เกณฑ์ความปลอดภัย:</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {pwdChecks.map((c, i) => (
-                    <div key={i} style={{ fontSize: 11, color: c.met ? '#059669' : '#9ca3af', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {c.met ? '✅' : '⚪'} {c.label}
-                    </div>
-                  ))}
+
+              {/* Password Checklist (ซ่อนถ้าเป็น PIN) */}
+              {!(user.role === 'approval' || user.role === 'guest') && (
+                <div style={{ background: '#f9fafb', padding: 16, borderRadius: 10, marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 10 }}>เกณฑ์ความปลอดภัย:</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {pwdChecks.map((c, i) => (
+                      <div key={i} style={{ fontSize: 11, color: c.met ? '#059669' : '#9ca3af', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {c.met ? '✅' : '⚪'} {c.label}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={handleUpdatePassword} disabled={loading || !pwdChecks.every(c => c.met)} 
-                  style={{ padding: '10px 24px', background: loading || !pwdChecks.every(c => c.met) ? '#93c5fd' : '#dc2626', color: '#fff', border: 'none', borderRadius: 8, cursor: loading || !pwdChecks.every(c => c.met) ? 'not-allowed' : 'pointer', fontWeight: 600 }}>
-                  {loading ? 'กำลังบันทึก...' : 'อัปเดตรหัสผ่าน'}
+                <button 
+                  onClick={handleUpdatePassword} 
+                  disabled={loading || !pwdForm.newPass || (!(user.role === 'approval' || user.role === 'guest') && !pwdChecks.every(c => c.met)) || ((user.role === 'approval' || user.role === 'guest') && pwdForm.newPass.length < 6)} 
+                  style={{ 
+                    padding: '10px 24px', 
+                    background: (loading || !pwdForm.newPass || (!(user.role === 'approval' || user.role === 'guest') && !pwdChecks.every(c => c.met)) || ((user.role === 'approval' || user.role === 'guest') && pwdForm.newPass.length < 6)) ? '#93c5fd' : '#dc2626', 
+                    color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 
+                  }}>
+                  {loading ? 'กำลังบันทึก...' : (user.role === 'approval' || user.role === 'guest') ? 'ยืนยันการ Reset PIN' : 'อัปเดตรหัสผ่าน'}
                 </button>
               </div>
             </div>
@@ -544,6 +603,7 @@ export default function UsersPage() {
     if (targetUser) {
       await updateAdminUser({
         id: targetId,
+        email: targetUser.email,
         full_name: targetUser.full_name,
         role: targetUser.role,
         can_be_assignee: targetUser.can_be_assignee,
@@ -562,6 +622,7 @@ export default function UsersPage() {
     if (targetUser) {
       await updateAdminUser({
         id: id,
+        email: targetUser.email,
         full_name: targetUser.full_name,
         role: targetUser.role,
         can_be_assignee: !current,
@@ -596,18 +657,44 @@ export default function UsersPage() {
     await fetchUsers()
   }
 
+  const handleCleanDelete = async (email) => {
+    if (!confirm(`⚡ [CLEAN REMOVE]\n\nคุณกำลังจะลบ User: "${email}" ออกจากระบบอย่างสมบูรณ์แบบไม่เก็บ Log ใดๆ\n\nการดำเนินการนี้ไม่สามารถกู้คืนได้ ยืนยันใช่หรือไม่?`)) return
+    
+    setLoading(true)
+    const res = await cleanDeleteUser(email)
+    if (res.success) {
+      setMsg({ text: `⚡ Clean Remove "${email}" สำเร็จแล้ว`, type: 'success' })
+      await fetchUsers()
+    } else {
+      setMsg({ text: `เกิดข้อผิดพลาด: ${res.error}`, type: 'error' })
+    }
+    setLoading(false)
+  }
+
   const handleCreateUser = async (e) => {
     e.preventDefault()
     setSaving(true)
     setMsg({ text: '', type: '' })
 
-    // Validate Password Complexity
+    // Validate based on Role
+    const isExternal = newUser.role === 'approval' || newUser.role === 'guest'
     const pwd = newUser.password
-    if (pwd.length < 8) { setMsg({ text: 'Password ต้องมีอย่างน้อย 8 ตัวอักษร', type: 'error' }); setSaving(false); return }
-    if (!/[A-Z]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวพิมพ์ใหญ่ (A-Z) อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
-    if (!/[a-z]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวพิมพ์เล็ก (a-z) อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
-    if (!/[0-9]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวเลข (0-9) อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
-    if (!/[^A-Za-z0-9]/.test(pwd)) { setMsg({ text: 'Password ต้องมีอักขระพิเศษ อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
+
+    if (isExternal) {
+      // --- Validate PIN 6 หลัก ---
+      if (!/^\d{6}$/.test(pwd)) {
+        setMsg({ text: 'PIN ต้องเป็นตัวเลข 6 หลักเท่านั้น', type: 'error' })
+        setSaving(false)
+        return
+      }
+    } else {
+      // --- Validate Password Complexity (Tier 1-2) ---
+      if (pwd.length < 8) { setMsg({ text: 'Password ต้องมีอย่างน้อย 8 ตัวอักษร', type: 'error' }); setSaving(false); return }
+      if (!/[A-Z]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวพิมพ์ใหญ่ (A-Z) อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
+      if (!/[a-z]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวพิมพ์เล็ก (a-z) อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
+      if (!/[0-9]/.test(pwd)) { setMsg({ text: 'Password ต้องมีตัวเลข (0-9) อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
+      if (!/[^A-Za-z0-9]/.test(pwd)) { setMsg({ text: 'Password ต้องมีอักขระพิเศษ อย่างน้อย 1 ตัว', type: 'error' }); setSaving(false); return }
+    }
 
     const result = await createAdminUser({
       email: newUser.email,
@@ -621,7 +708,7 @@ export default function UsersPage() {
       setMsg({ text: `เกิดข้อผิดพลาด: ${result.error}`, type: 'error' })
     } else {
       setMsg({ text: `สร้าง User "${newUser.full_name}" สำเร็จแล้ว`, type: 'success' })
-      setNewUser({ email: '', password: '', full_name: '', role: 'user', can_be_assignee: false })
+      setNewUser({ email: '', password: '', full_name: '', role: '', can_be_assignee: false })
       setShowNew(false)
       await fetchUsers()
     }
@@ -742,59 +829,95 @@ export default function UsersPage() {
               <div style={{ fontSize: 13, fontWeight: 600, color: '#1d4ed8', marginBottom: 16 }}>➕ สร้าง User ใหม่</div>
               <form onSubmit={handleCreateUser}>
                 <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  {/* Role (ย้ายขึ้นบนสุด) */}
                   <div>
-                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>ชื่อ-นามสกุล *</label>
+                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>1. เลือกบทบาท (Role) *</label>
+                    <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value, password: '' })}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', fontFamily: 'inherit', fontWeight: newUser.role ? 600 : 400 }}>
+                      <option value="">-- กรุณาเลือกบทบาท --</option>
+                      <option value="administrator">👑 Administrator (Tier 1)</option>
+                      <option value="supervisor">🛡️ Supervisor (Tier 2)</option>
+                      <option value="approval">📜 Approver (Tier 3)</option>
+                      <option value="guest">👤 Guest (Tier 4)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>2. ชื่อ-นามสกุล *</label>
                     <input value={newUser.full_name} onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} required placeholder="ชื่อ นามสกุล"
-                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
+                      disabled={!newUser.role}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', background: !newUser.role ? '#f9fafb' : '#fff' }} />
                   </div>
+
                   <div>
-                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>Email *</label>
+                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>3. Email *</label>
                     <input type="email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required
-                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} />
+                      disabled={!newUser.role}
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', background: !newUser.role ? '#f9fafb' : '#fff' }} />
                   </div>
+
                   <div>
-                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>Password เริ่มต้น *</label>
+                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4, opacity: !newUser.role ? 0.5 : 1 }}>
+                      4. {(newUser.role === 'approval' || newUser.role === 'guest') ? 'ตั้งรหัส PIN (6 หลัก) *' : 'ตั้งรหัสผ่านเริ่มต้น *'}
+                    </label>
                     <div style={{ position: 'relative' }}>
                       <input 
                         type={showNewPassword ? "text" : "password"} 
                         value={newUser.password} 
-                        onChange={e => setNewUser({ ...newUser, password: e.target.value })} 
+                        onChange={e => {
+                          const val = e.target.value
+                          if ((newUser.role === 'approval' || newUser.role === 'guest')) {
+                            if (/^\d*$/.test(val) && val.length <= 6) {
+                              setNewUser({ ...newUser, password: val })
+                            }
+                          } else {
+                            setNewUser({ ...newUser, password: val })
+                          }
+                        }}
+                        disabled={!newUser.role}
                         required 
-                        minLength={8}
-                        style={{ width: '100%', padding: '8px 10px', paddingRight: '36px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }} 
+                        minLength={(newUser.role === 'approval' || newUser.role === 'guest') ? 6 : 8}
+                        maxLength={(newUser.role === 'approval' || newUser.role === 'guest') ? 6 : undefined}
+                        placeholder={!newUser.role ? 'กรุณาเลือก Role ก่อน' : (newUser.role === 'approval' || newUser.role === 'guest') ? 'ตัวเลข 6 หลักเท่านั้น' : 'ตั้งรหัสผ่านเริ่มต้น'}
+                        style={{ 
+                          width: '100%', padding: '8px 10px', paddingRight: '36px', 
+                          border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, 
+                          fontFamily: 'inherit', background: !newUser.role ? '#f9fafb' : '#fff'
+                        }} 
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        tabIndex="-1"
-                        style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 14, color: '#9ca3af' }}
-                      >
-                        {showNewPassword ? '👁️' : '🙈'}
-                      </button>
+                      {newUser.role && (
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          tabIndex="-1"
+                          style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 14, color: '#9ca3af' }}
+                        >
+                          {showNewPassword ? '👁️' : '🙈'}
+                        </button>
+                      )}
                     </div>
-                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {[
-                        { label: 'อย่างน้อย 8 ตัวอักษร', met: newUser.password.length >= 8 },
-                        { label: 'ตัวพิมพ์ใหญ่ (A-Z)', met: /[A-Z]/.test(newUser.password) },
-                        { label: 'ตัวพิมพ์เล็ก (a-z)', met: /[a-z]/.test(newUser.password) },
-                        { label: 'ตัวเลข (0-9)', met: /[0-9]/.test(newUser.password) },
-                        { label: 'อักขระพิเศษ', met: /[^A-Za-z0-9]/.test(newUser.password) }
-                      ].map((c, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: c.met ? '#059669' : '#9ca3af' }}>
-                          <span style={{ fontSize: 12 }}>{c.met ? '✅' : '⚪'}</span> {c.label}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>Role</label>
-                    <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}
-                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', fontFamily: 'inherit' }}>
-                      <option value="supervisor">Supervisor (Tier 2)</option>
-                      <option value="administrator">Administrator (Tier 1)</option>
-                      <option value="approval">Approver (Tier 3)</option>
-                      <option value="guest">Guest (Tier 4)</option>
-                    </select>
+
+                    {/* PIN Validation Hint */}
+                    {(newUser.role === 'approval' || newUser.role === 'guest') && newUser.password && newUser.password.length < 6 && (
+                      <div style={{ color: '#dc2626', fontSize: 11, marginTop: 4 }}>⚠️ กรุณาระบุให้ครบ 6 หลัก (ปัจจุบัน: {newUser.password.length})</div>
+                    )}
+                    
+                    {/* Password Checklist (ซ่อนถ้าเป็น PIN) */}
+                    {!(newUser.role === 'approval' || newUser.role === 'guest' || !newUser.role) && (
+                      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {[
+                          { label: 'อย่างน้อย 8 ตัวอักษร', met: newUser.password.length >= 8 },
+                          { label: 'ตัวพิมพ์ใหญ่ (A-Z)', met: /[A-Z]/.test(newUser.password) },
+                          { label: 'ตัวพิมพ์เล็ก (a-z)', met: /[a-z]/.test(newUser.password) },
+                          { label: 'ตัวเลข (0-9)', met: /[0-9]/.test(newUser.password) },
+                          { label: 'อักขระพิเศษ', met: /[^A-Za-z0-9]/.test(newUser.password) }
+                        ].map((c, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: c.met ? '#059669' : '#9ca3af' }}>
+                            <span style={{ fontSize: 12 }}>{c.met ? '✅' : '⚪'}</span> {c.label}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 {/* Assignee (ซ่อนสำหรับ Approval/Guest) */}
@@ -811,7 +934,7 @@ export default function UsersPage() {
                   </div>
                 )}
                 <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#92400e', marginBottom: 12 }}>
-                  ⚠️ User ใหม่จะ Login ได้ทันที กรุณาแจ้ง Password เริ่มต้นให้ User เปลี่ยนเองในครั้งแรก
+                  ⚠️ User ใหม่จะ Login ได้ทันที กรุณาแจ้ง {(newUser.role === 'approval' || newUser.role === 'guest') ? 'รหัส PIN 6 หลัก' : 'Password เริ่มต้น'} ให้ User ทราบเพื่อใช้งานในครั้งแรก
                 </div>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   <button type="button" onClick={() => { setShowNew(false); setMsg({ text: '', type: '' }) }}
@@ -973,6 +1096,14 @@ export default function UsersPage() {
                               <button onClick={() => handleDeleteUser(u.id, u.full_name)}
                                 style={{ padding: '4px 10px', border: 'none', borderRadius: 6, fontSize: 11, background: '#fee2e2', color: '#991b1b', cursor: 'pointer', fontFamily: 'inherit' }}>
                                 🗑 ลบ
+                              </button>
+                            )}
+                            {isAdmin && !isSelf && (
+                              <button onClick={() => handleCleanDelete(u.email)}
+                                style={{ padding: '4px 10px', border: '1px solid #fca5a5', borderRadius: 6, fontSize: 11, background: '#fff', color: '#dc2626', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}
+                                title="ลบข้อมูลออกจากระบบอย่างสมบูรณ์ (Clean Remove - สำหรับเทส)"
+                              >
+                                ⚡ Clean
                               </button>
                             )}
                           </div>

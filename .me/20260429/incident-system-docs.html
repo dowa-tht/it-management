@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบจัดการ Incident & SLA — System Overview</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;600&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0b0f1a;
+    --surface: #131929;
+    --surface2: #1a2235;
+    --border: #1e2d47;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --accent3: #10b981;
+    --danger: #ef4444;
+    --warn: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+
+  body {
+    font-family: 'Sarabun', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    position: relative;
+    padding: 60px 40px 50px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, #0b0f1a 0%, #0d1b2e 60%, #111827 100%);
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 300px at 80% 50%, rgba(0,212,255,0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 400px 200px at 20% 80%, rgba(124,58,237,0.07) 0%, transparent 70%);
+  }
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    border: 1px solid rgba(0,212,255,0.3);
+    padding: 3px 10px;
+    border-radius: 3px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(26px, 4vw, 42px);
+    font-weight: 700;
+    line-height: 1.2;
+    position: relative;
+  }
+  h1 span { color: var(--accent); }
+  .subtitle {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 600px;
+    position: relative;
+  }
+
+  /* ─── LAYOUT ─── */
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+  .main { padding: 40px 24px; max-width: 1200px; margin: 0 auto; }
+
+  /* ─── TABS ─── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 24px 24px 0;
+    max-width: 1200px;
+    margin: 0 auto;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tab {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 20px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    color: var(--muted);
+    background: transparent;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+  }
+  .tab:hover { color: var(--text); border-color: var(--border); }
+  .tab.active {
+    color: var(--accent);
+    background: var(--surface);
+    border-color: var(--border);
+    border-bottom-color: var(--surface);
+    margin-bottom: -1px;
+  }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ─── SECTION ─── */
+  .section-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ─── CARDS ─── */
+  .grid { display: grid; gap: 16px; }
+  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    position: relative;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .card:hover { border-color: rgba(0,212,255,0.3); transform: translateY(-2px); }
+  .card-icon {
+    font-size: 24px;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .card h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .card p { font-size: 13.5px; color: var(--muted); line-height: 1.7; }
+  .card-accent { border-left: 3px solid var(--accent); }
+  .card-green  { border-left: 3px solid var(--accent3); }
+  .card-purple { border-left: 3px solid var(--accent2); }
+  .card-red    { border-left: 3px solid var(--danger); }
+  .card-yellow { border-left: 3px solid var(--warn); }
+
+  /* ─── FLOW STEPS ─── */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .step {
+    display: flex;
+    gap: 20px;
+    position: relative;
+  }
+  .step:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 44px;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--accent2), transparent);
+  }
+  .step-num {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 2px solid var(--accent2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent2);
+    position: relative;
+    z-index: 1;
+  }
+  .step-body {
+    padding: 6px 0 28px;
+    flex: 1;
+  }
+  .step-body h4 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .step-body p { font-size: 13px; color: var(--muted); line-height: 1.65; }
+  .step-body code {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(0,212,255,0.08);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+
+  /* ─── DATA MODEL TABLE ─── */
+  .model-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .model-header {
+    background: var(--surface2);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .model-header .type-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    background: rgba(124,58,237,0.2);
+    color: var(--accent2);
+    border: 1px solid rgba(124,58,237,0.4);
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+  }
+  .model-name {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .model-desc { font-size: 12px; color: var(--muted); margin-left: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th {
+    padding: 10px 20px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  th {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--surface2);
+  }
+  tr:last-child td { border-bottom: none; }
+  .field-name { font-family: var(--mono); font-size: 12px; color: var(--accent3); }
+  .field-type { font-family: var(--mono); font-size: 11px; color: var(--accent2); }
+  td:last-child { color: var(--muted); }
+
+  /* ─── LAYER DIAGRAM ─── */
+  .arch { display: flex; flex-direction: column; gap: 8px; }
+  .layer {
+    border-radius: 8px;
+    padding: 16px 22px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .layer-ui    { background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.25); }
+  .layer-svc   { background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.25); }
+  .layer-db    { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); }
+  .layer-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    min-width: 90px;
+  }
+  .layer-ui   .layer-label { color: var(--accent); }
+  .layer-svc  .layer-label { color: var(--accent2); }
+  .layer-db   .layer-label { color: var(--accent3); }
+  .layer-items { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill {
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    white-space: nowrap;
+  }
+  .arrow {
+    text-align: center;
+    color: var(--muted);
+    font-size: 20px;
+    line-height: 1;
+    padding: 2px 0;
+  }
+
+  /* ─── SLA VISUAL ─── */
+  .sla-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .sla-timeline {
+    position: relative;
+    height: 56px;
+    background: var(--surface2);
+    border-radius: 6px;
+    margin: 16px 0;
+    overflow: hidden;
+  }
+  .sla-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent3), #059669);
+    border-radius: 6px 0 0 6px;
+    display: flex;
+    align-items: center;
+    padding-left: 12px;
+    font-size: 12px;
+    font-family: var(--mono);
+    font-weight: 600;
+    color: #fff;
+    transition: width 0.8s ease;
+  }
+  .sla-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .formula {
+    background: var(--surface2);
+    border-left: 3px solid var(--accent);
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--accent);
+    margin-top: 12px;
+    line-height: 1.8;
+  }
+
+  /* ─── ROLE CARDS ─── */
+  .role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .role-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    text-align: center;
+  }
+  .role-icon { font-size: 36px; margin-bottom: 10px; }
+  .role-card h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .perm-list { list-style: none; text-align: left; }
+  .perm-list li {
+    font-size: 12.5px;
+    color: var(--muted);
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .perm-list li:last-child { border: none; }
+  .perm-list li::before { content: '▹'; color: var(--accent); flex-shrink: 0; }
+
+  /* ─── MISC ─── */
+  .spacer { height: 32px; }
+  .highlight { color: var(--accent); font-weight: 600; }
+  .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    margin-right: 4px;
+    margin-bottom: 4px;
+  }
+  .tag-open   { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+  .tag-prog   { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+  .tag-res    { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+  .tag-closed { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
+
+  @media (max-width: 640px) {
+    header { padding: 36px 20px 32px; }
+    .tabs { padding: 16px 16px 0; }
+    .main { padding: 24px 16px; }
+    .step:not(:last-child)::before { left: 17px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="badge">System Documentation v1.0</div>
+    <h1>ระบบจัดการ <span>Incident</span> & SLA</h1>
+    <p class="subtitle">วิเคราะห์และสรุปฟังก์ชันการทำงานจาก Pseudo-Code — ครอบคลุมทุก Layer ตั้งแต่ UI ถึง Database</p>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" onclick="switchTab('overview')">🏠 ภาพรวม</button>
+  <button class="tab" onclick="switchTab('modules')">📦 โมดูลหลัก</button>
+  <button class="tab" onclick="switchTab('flow')">🔄 การไหลของข้อมูล</button>
+  <button class="tab" onclick="switchTab('datamodel')">🗄️ Data Model</button>
+  <button class="tab" onclick="switchTab('sla')">⏱️ SLA Engine</button>
+  <button class="tab" onclick="switchTab('roles')">👤 Roles</button>
+</nav>
+
+<!-- ════ TAB 1 : OVERVIEW ════ -->
+<div class="main panel active" id="tab-overview">
+
+  <div class="section-title">สถาปัตยกรรมระบบ (3-Layer Architecture)</div>
+  <div class="arch">
+    <div class="layer layer-ui">
+      <span class="layer-label">UI Layer</span>
+      <div class="layer-items">
+        <span class="pill">Dashboard</span>
+        <span class="pill">Incident List</span>
+        <span class="pill">Incident Detail</span>
+        <span class="pill">Working Hours</span>
+        <span class="pill">Holidays</span>
+        <span class="pill">Checklist</span>
+        <span class="pill">Notifications</span>
+      </div>
+    </div>
+    <div class="arrow">↕</div>
+    <div class="layer layer-svc">
+      <span class="layer-label">Service Layer</span>
+      <div class="layer-items">
+        <span class="pill">SLA Engine</span>
+        <span class="pill">Incident CRUD</span>
+        <span class="pill">Working Hours Service</span>
+        <span class="pill">Holiday Service</span>
+        <span class="pill">Checklist Service</span>
+        <span class="pill">KPI / Stats Service</span>
+        <span class="pill">Notification Service</span>
+      </div>
+    </div>
+    <div class="arrow">↕</div>
+    <div class="layer layer-db">
+      <span class="layer-label">DB Layer</span>
+      <div class="layer-items">
+        <span class="pill">Supabase (PostgreSQL)</span>
+        <span class="pill">incidents</span>
+        <span class="pill">holidays</span>
+        <span class="pill">system_settings</span>
+        <span class="pill">checklist</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="section-title">KPI Cards หลักบน Dashboard</div>
+  <div class="grid grid-3">
+    <div class="card card-red">
+      <span class="card-icon">🚨</span>
+      <h3>Open Incidents</h3>
+      <p>นับจำนวน Incident ที่ยังเปิดอยู่ แสดงเป็น Stat Card สีแดง พร้อม Link ไปหน้า Incident List ที่ filter status=open</p>
+    </div>
+    <div class="card card-green">
+      <span class="card-icon">✅</span>
+      <h3>Resolved Today</h3>
+      <p>นับ Incident ที่ปิดในวันนี้ แสดงสีเขียว เป็นตัวชี้วัดประสิทธิภาพรายวัน</p>
+    </div>
+    <div class="card card-accent">
+      <span class="card-icon">📊</span>
+      <h3>SLA Compliance Rate</h3>
+      <p>เปอร์เซ็นต์ Incident ที่ resolve ทันกำหนด SLA เทียบกับ Target (ปกติ 95%) แสดงเป็น Gauge Chart</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════ TAB 2 : MODULES ════ -->
+<div class="main panel" id="tab-modules">
+
+  <div class="section-title">โมดูลการทำงาน</div>
+  <div class="grid grid-2">
+
+    <div class="card card-accent">
+      <span class="card-icon">📋</span>
+      <h3>Dashboard Module</h3>
+      <p>แสดงสรุปภาพรวมระบบ ประกอบด้วย <span class="highlight">Stat Cards</span> (KPI), <span class="highlight">SLA Gauge Chart</span>, รายการ Incident ล่าสุด 5 รายการ และ Quick-Action Buttons เช่น "สร้าง Incident" และ "Import วันหยุด" — อัปเดตอัตโนมัติทุกครั้งที่มีการเปลี่ยนแปลงข้อมูล</p>
+    </div>
+
+    <div class="card card-purple">
+      <span class="card-icon">⚙️</span>
+      <h3>Master Data / Settings</h3>
+      <p>จัดการข้อมูลตั้งต้นของระบบ ได้แก่ <span class="highlight">Working Hours</span> (วันและเวลาทำงาน), <span class="highlight">Holidays</span> (วันหยุดนักขัตฤกษ์), Incident Categories และ Checklist Templates — รองรับการ Import วันหยุดจาก CSV</p>
+    </div>
+
+    <div class="card card-yellow">
+      <span class="card-icon">🗂️</span>
+      <h3>Incident Management</h3>
+      <p>สร้าง แก้ไข และติดตาม Incident แต่ละรายการ ระบบจะออก <span class="highlight">Case Number</span> อัตโนมัติ กำหนด Severity (High/Medium/Low) และ Status (Open → InProgress → Resolved → Closed) พร้อมระบุผู้รายงานและผู้รับผิดชอบ</p>
+    </div>
+
+    <div class="card card-red">
+      <span class="card-icon">⏱️</span>
+      <h3>SLA Engine</h3>
+      <p>คำนวณ <span class="highlight">SLA Deadline</span> โดยนับเฉพาะเวลาทำงานจริง (ไม่รวมวันหยุดและนอกเวลา) รองรับการ <span class="highlight">Pause/Resume SLA</span> ด้วย Manual Exclusion และคำนวณ Compliance Rate อัตโนมัติ</p>
+    </div>
+
+    <div class="card card-green">
+      <span class="card-icon">✔️</span>
+      <h3>Checklist System</h3>
+      <p>รายการตรวจสอบแนบกับ Incident แต่ละรายการ แบ่งเป็น <span class="highlight">Daily / Weekly / Monthly</span> แต่ละรายการมี 3 สถานะ: Pending, Done, Skipped — เชื่อมโยงกับ KPI บน Dashboard</p>
+    </div>
+
+    <div class="card card-accent">
+      <span class="card-icon">🔔</span>
+      <h3>Notification System (Optional)</h3>
+      <p>Scheduler รันทุก 5 นาที ตรวจสอบ Incident ที่ใกล้หมด SLA (เหลือ &lt;10% ของเวลาที่กำหนด) แล้วส่ง <span class="highlight">Alert Toast</span> แจ้งผู้ใช้งานแบบ Real-time</p>
+    </div>
+
+  </div>
+
+  <div class="spacer"></div>
+  <div class="section-title">ฟีเจอร์ Holiday Import CSV</div>
+  <div class="card">
+    <h3>📥 นำเข้าวันหยุดจาก CSV</h3>
+    <p style="margin-bottom:12px;">ระบบรองรับการ Import วันหยุดแบบ Bulk ผ่านไฟล์ CSV รูปแบบ UTF-8 (รองรับภาษาไทย)</p>
+    <div class="formula">
+      รูปแบบ CSV:<br>
+      คอลัมน์ที่ 1 : Date (dd/mm/yyyy)<br>
+      คอลัมน์ที่ 2 : ชื่อวันหยุดภาษาไทย<br>
+      คอลัมน์ที่ 3 : ชื่อวันหยุดภาษาอังกฤษ<br><br>
+      ตัวอย่าง: 01/01/2567, วันขึ้นปีใหม่, New Year's Day
+    </div>
+  </div>
+
+</div>
+
+<!-- ════ TAB 3 : DATA FLOW ════ -->
+<div class="main panel" id="tab-flow">
+
+  <div class="section-title">การไหลของข้อมูลในระบบ (13 ขั้นตอนหลัก)</div>
+  <div class="flow">
+
+    <div class="step">
+      <div class="step-num">01</div>
+      <div class="step-body">
+        <h4>เปิด Dashboard</h4>
+        <p>ผู้ใช้เปิดหน้า Dashboard → <code>ShowDashboard()</code> เรียก Service Layer ดึง KPI Stat Cards, SLA Gauge (Compliance Rate vs Target), Incident ล่าสุด 5 รายการ และ Quick-Action list → Render UI ทั้งหมด</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">02</div>
+      <div class="step-body">
+        <h4>เข้าเมนู Master Data</h4>
+        <p><code>OpenMasterData()</code> แสดงแท็บย่อย: Working Hours, Holidays, Incident Categories, Checklist Templates</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">03</div>
+      <div class="step-body">
+        <h4>ตั้งค่าเวลาทำงาน</h4>
+        <p>กรอก Start/End Time + วันทำงาน → <code>UI_SaveWorkingHours()</code> → <code>Service_SaveWorkingHours()</code> → <code>DB_Upsert('system_settings')</code> → Toast "บันทึกสำเร็จ" — ค่านี้ถูกใช้โดย SLA Engine ทุกครั้งที่คำนวณ</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">04–05</div>
+      <div class="step-body">
+        <h4>จัดการวันหยุด (Manual + CSV Import)</h4>
+        <p>เพิ่ม/แก้ไข/ลบ วันหยุดทีละรายการ หรือ Import จาก CSV — แต่ละแถว CSV ถูกแปลงเป็น <code>THoliday</code> แล้วเรียก <code>Service_AddHoliday()</code> ซ้ำจนครบ → บันทึกลง DB ตาราง <code>holidays</code></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">06</div>
+      <div class="step-body">
+        <h4>แสดงรายการ Incident</h4>
+        <p><code>ShowIncidentList(Filter)</code> รองรับ Filter หลายมิติ: Status (All/Open/InProgress/Resolved/Closed) และ Severity (All/High/Medium/Low) → ส่ง SQL แบบ dynamic ไป Query DB → แสดงตาราง</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">07</div>
+      <div class="step-body">
+        <h4>เปิด Incident Detail</h4>
+        <p><code>OpenIncidentDetail(IncId)</code> ดึงข้อมูล Incident + Exclusions (ประวัติ Pause SLA) + Checklist ทั้งหมดพร้อมกัน → แสดง Detail View พร้อม Timeline SLA และรายการ Checklist</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">08</div>
+      <div class="step-body">
+        <h4>แก้ไข Incident</h4>
+        <p>ปรับ Status / มอบหมายผู้รับผิดชอบ / แก้ข้อมูล → <code>UI_UpdateIncident()</code> → <code>Service_SaveIncident()</code> → <strong>คำนวณ SLADeadline ใหม่</strong> (<code>SLA_CalcDeadline()</code>) ทุกครั้งที่บันทึก → <code>DB_Upsert</code></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">09</div>
+      <div class="step-body">
+        <h4>Pause SLA (Manual Exclusion)</h4>
+        <p>เพิ่ม Exclusion ระบุเหตุผลและเวลาเริ่ม → <code>UI_AddExclusion()</code> → <code>Service_AddExclusion()</code> → เพิ่ม record ใน Exclusions array ของ Incident → คำนวณ Deadline ใหม่ (หักเวลา pause ออก) → บันทึกและ Refresh UI</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">10</div>
+      <div class="step-body">
+        <h4>Resume SLA</h4>
+        <p><code>UI_ResumeSLA()</code> → <code>Service_ResumeSLA()</code> → ปิด Exclusion ที่ยังเปิดอยู่ทั้งหมด (ตั้งค่า EndAt = Now) → คำนวณ Deadline ใหม่ → บันทึกและ Refresh UI</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">11</div>
+      <div class="step-body">
+        <h4>ทำ Checklist</h4>
+        <p><code>ShowChecklist(IncId)</code> → แสดงรายการ Daily/Weekly/Monthly → ผู้ใช้เปลี่ยน Status (Pending/Done/Skipped) → <code>UI_UpdateChecklistItem()</code> → <code>Service_SaveChecklistItem()</code> → Dashboard KPI อัปเดตอัตโนมัติ</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">12</div>
+      <div class="step-body">
+        <h4>Dashboard Auto-Refresh</h4>
+        <p>ทุกครั้งที่ Incident หรือ Checklist เปลี่ยนแปลง → เรียก <code>Service_GetStatCards()</code> และ <code>Service_GetSLAComplianceInfo()</code> ใหม่ → อัปเดต UI แบบ Real-time</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">13</div>
+      <div class="step-body">
+        <h4>SLA Notification</h4>
+        <p>Scheduler รันทุก 5 นาที → <code>Service_CheckSLAThreshold()</code> → ดึง Incident ที่ Status=Open → ตรวจสอบว่า <code>SLADeadline - Now &lt; 10%</code> → ถ้าใช่ → Push Alert Toast ไปแสดงที่ UI</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════ TAB 4 : DATA MODEL ════ -->
+<div class="main panel" id="tab-datamodel">
+
+  <div class="section-title">โครงสร้างข้อมูลหลัก (Data Models)</div>
+
+  <div class="model-block">
+    <div class="model-header">
+      <span class="type-badge">RECORD</span>
+      <span class="model-name">TIncident</span>
+      <span class="model-desc">ตารางหลัก — เคส Incident แต่ละรายการ</span>
+    </div>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>คำอธิบาย</th></tr>
+      <tr><td class="field-name">id</td><td class="field-type">string</td><td>Primary Key (UUID)</td></tr>
+      <tr><td class="field-name">caseNumber</td><td class="field-type">string</td><td>เลขที่เคสที่ระบบออกให้อัตโนมัติ</td></tr>
+      <tr><td class="field-name">title / description</td><td class="field-type">string</td><td>หัวเรื่องและรายละเอียด</td></tr>
+      <tr><td class="field-name">severity</td><td class="field-type">enum</td><td><span class="tag tag-open">High</span><span class="tag tag-prog">Medium</span><span class="tag tag-res">Low</span></td></tr>
+      <tr><td class="field-name">status</td><td class="field-type">enum</td><td><span class="tag tag-open">Open</span><span class="tag tag-prog">InProgress</span><span class="tag tag-res">Resolved</span><span class="tag tag-closed">Closed</span></td></tr>
+      <tr><td class="field-name">reportedBy / assignedTo</td><td class="field-type">TUser</td><td>Nested object ของผู้ใช้</td></tr>
+      <tr><td class="field-name">slaStartAt</td><td class="field-type">TDateTime</td><td>เวลาเริ่มนับ SLA (createdAt + 1 min)</td></tr>
+      <tr><td class="field-name">slaDeadline</td><td class="field-type">TDateTime</td><td>วันที่ต้อง Resolve (คำนวณอัตโนมัติ)</td></tr>
+      <tr><td class="field-name">slaComplianceRate</td><td class="field-type">real</td><td>% ความสำเร็จ SLA (0-100)</td></tr>
+      <tr><td class="field-name">exclusions</td><td class="field-type">TExclusion[]</td><td>รายการ Pause SLA</td></tr>
+    </table>
+  </div>
+
+  <div class="model-block">
+    <div class="model-header">
+      <span class="type-badge">RECORD</span>
+      <span class="model-name">TWorkingHours</span>
+      <span class="model-desc">ตั้งค่าใน system_settings</span>
+    </div>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>คำอธิบาย</th></tr>
+      <tr><td class="field-name">startTime</td><td class="field-type">string HH:MM</td><td>เวลาเริ่มงาน เช่น '08:30'</td></tr>
+      <tr><td class="field-name">endTime</td><td class="field-type">string HH:MM</td><td>เวลาเลิกงาน เช่น '17:30'</td></tr>
+      <tr><td class="field-name">workDays</td><td class="field-type">set of enum</td><td>วันทำงาน เช่น Mon–Fri (เลือกได้หลายวัน)</td></tr>
+    </table>
+  </div>
+
+  <div class="model-block">
+    <div class="model-header">
+      <span class="type-badge">RECORD</span>
+      <span class="model-name">TExclusion</span>
+      <span class="model-desc">ประวัติการ Pause SLA</span>
+    </div>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>คำอธิบาย</th></tr>
+      <tr><td class="field-name">id</td><td class="field-type">string</td><td>UUID</td></tr>
+      <tr><td class="field-name">reason</td><td class="field-type">string</td><td>เหตุผลที่ Pause</td></tr>
+      <tr><td class="field-name">startAt</td><td class="field-type">TDateTime</td><td>เวลาเริ่ม Pause</td></tr>
+      <tr><td class="field-name">endAt</td><td class="field-type">TDateTime?</td><td>เวลาสิ้นสุด Pause (null = ยัง Pause อยู่)</td></tr>
+    </table>
+  </div>
+
+  <div class="model-block">
+    <div class="model-header">
+      <span class="type-badge">RECORD</span>
+      <span class="model-name">TStatCard</span>
+      <span class="model-desc">KPI Widget บน Dashboard</span>
+    </div>
+    <table>
+      <tr><th>Field</th><th>Type</th><th>คำอธิบาย</th></tr>
+      <tr><td class="field-name">label</td><td class="field-type">string</td><td>ชื่อ KPI เช่น 'Open Incidents'</td></tr>
+      <tr><td class="field-name">value</td><td class="field-type">integer</td><td>ตัวเลข</td></tr>
+      <tr><td class="field-name">color</td><td class="field-type">string (hex)</td><td>สีของ Card เช่น #EF4444</td></tr>
+      <tr><td class="field-name">link</td><td class="field-type">string (URL)</td><td>ลิงก์ไปหน้าที่เกี่ยวข้อง</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- ════ TAB 5 : SLA ENGINE ════ -->
+<div class="main panel" id="tab-sla">
+
+  <div class="section-title">SLA Engine — การคำนวณและตรรกะ</div>
+
+  <div class="sla-box">
+    <h3 style="font-family:'Space Grotesk',sans-serif;margin-bottom:8px;">ขั้นตอนคำนวณ SLA Deadline</h3>
+    <div class="sla-timeline">
+      <div class="sla-fill" style="width:72%">Business Time ✓</div>
+    </div>
+    <div class="sla-labels">
+      <span>slaStartAt (createdAt + 1min)</span>
+      <span>slaDeadline</span>
+    </div>
+    <div class="formula">
+      SLADeadline = slaStartAt + NetBusinessMinutes<br><br>
+      NetBusinessMinutes = Σ(นาทีทำงานจริง)<br>
+      &nbsp;&nbsp;&nbsp;- ไม่นับ: วันหยุดสุดสัปดาห์ (ตาม WorkDays)<br>
+      &nbsp;&nbsp;&nbsp;- ไม่นับ: วันหยุดนักขัตฤกษ์ (holidays table)<br>
+      &nbsp;&nbsp;&nbsp;- ไม่นับ: ช่วงนอกเวลา (ก่อน startTime / หลัง endTime)<br>
+      &nbsp;&nbsp;&nbsp;- ไม่นับ: ช่วง Manual Exclusion (Pause SLA)
+    </div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card card-yellow">
+      <span class="card-icon">⏸️</span>
+      <h3>Pause SLA (AddExclusion)</h3>
+      <p>เมื่อเพิ่ม Exclusion ใหม่ → ระบบบันทึก <code>startAt = now</code>, <code>endAt = null</code> → คำนวณ Deadline ใหม่โดยหักช่วง Pause ออก → SLA Deadline จะ "ขยาย" ออกไปตามเวลาที่ Pause</p>
+    </div>
+    <div class="card card-green">
+      <span class="card-icon">▶️</span>
+      <h3>Resume SLA</h3>
+      <p>เมื่อ Resume → ปิด Exclusion ทั้งหมดที่ <code>endAt = null</code> โดยตั้ง <code>endAt = now</code> → คำนวณ Deadline ใหม่ → SLA นับต่อจากตรงนี้</p>
+    </div>
+    <div class="card card-accent">
+      <span class="card-icon">📈</span>
+      <h3>SLA Compliance Rate</h3>
+      <p>คำนวณจาก Incident ที่ปิดแล้ว (Resolved/Closed) ที่ <code>slaComplianceRate ≥ Target (95%)</code> หารด้วยจำนวน Incident ที่ปิดทั้งหมด × 100</p>
+    </div>
+    <div class="card card-red">
+      <span class="card-icon">⚠️</span>
+      <h3>SLA Alert Threshold</h3>
+      <p>Scheduler ตรวจทุก 5 นาที: ถ้า <code>SLADeadline - Now &lt; 10%</code> ของเวลาทั้งหมด → Push Alert ชื่อ Incident ให้ผู้ใช้รับทราบก่อนหมดเวลา</p>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="section-title">ฟังก์ชัน SLA หลัก</div>
+  <div class="model-block">
+    <table>
+      <tr><th>Function</th><th>Input</th><th>Output / หน้าที่</th></tr>
+      <tr><td class="field-name">IsWorkingDay()</td><td>D, WorkingHours, Holidays</td><td>boolean — ตรวจว่าวันนั้นเป็นวันทำงานหรือไม่</td></tr>
+      <tr><td class="field-name">NetBusinessMinutes()</td><td>StartDt, EndDt, WH, Holidays, Exclusions</td><td>integer — นาทีทำงานสุทธิระหว่างช่วงเวลา</td></tr>
+      <tr><td class="field-name">SLA_CalcDeadline()</td><td>TIncident</td><td>TDateTime — วันที่ต้อง Resolve</td></tr>
+      <tr><td class="field-name">Service_AddExclusion()</td><td>IncId, TExclusion</td><td>boolean — บันทึก Pause + คำนวณ Deadline ใหม่</td></tr>
+      <tr><td class="field-name">Service_ResumeSLA()</td><td>IncId</td><td>boolean — ปิด Pause + คำนวณ Deadline ใหม่</td></tr>
+      <tr><td class="field-name">Service_CheckSLAThreshold()</td><td>—</td><td>void — Scheduler ตรวจและส่ง Alert</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ════ TAB 6 : ROLES ════ -->
+<div class="main panel" id="tab-roles">
+
+  <div class="section-title">บทบาทผู้ใช้งาน (User Roles)</div>
+  <div class="role-grid">
+    <div class="role-card">
+      <div class="role-icon">👑</div>
+      <h3 style="color:var(--warn)">SuperUser</h3>
+      <ul class="perm-list">
+        <li>เข้าถึงและแก้ไขได้ทุกส่วน</li>
+        <li>จัดการ Master Data ทั้งหมด</li>
+        <li>กำหนด Working Hours & Holidays</li>
+        <li>ดู/แก้ไข Incident ทุกรายการ</li>
+        <li>จัดการ User & Role</li>
+        <li>ดู Report & KPI ทั้งหมด</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-icon">🛡️</div>
+      <h3 style="color:var(--accent)">Admin</h3>
+      <ul class="perm-list">
+        <li>จัดการ Incident (Create/Edit)</li>
+        <li>มอบหมาย Incident ให้ทีม</li>
+        <li>Pause/Resume SLA</li>
+        <li>Import Holiday CSV</li>
+        <li>ดู Dashboard & KPI</li>
+        <li>จัดการ Checklist</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-icon">👤</div>
+      <h3 style="color:var(--accent3)">User</h3>
+      <ul class="perm-list">
+        <li>ดู Incident ที่รับผิดชอบ</li>
+        <li>อัปเดต Status ของตัวเอง</li>
+        <li>ทำ Checklist</li>
+        <li>ดู Dashboard (read-only)</li>
+        <li>รับ Notification / Alert</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="section-title">DB Functions พื้นฐาน (Supabase)</div>
+  <div class="model-block">
+    <table>
+      <tr><th>Function</th><th>Parameters</th><th>หน้าที่</th></tr>
+      <tr><td class="field-name">DB_Query()</td><td>sql: string</td><td>SELECT — ดึงข้อมูล คืน RecordSet</td></tr>
+      <tr><td class="field-name">DB_Insert()</td><td>table, data</td><td>INSERT — เพิ่มข้อมูลใหม่</td></tr>
+      <tr><td class="field-name">DB_Upsert()</td><td>table, pk, data</td><td>INSERT or UPDATE — บันทึก / อัปเดต</td></tr>
+      <tr><td class="field-name">DB_Delete()</td><td>table, pk</td><td>DELETE — ลบข้อมูล</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<script>
+  function switchTab(id) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('tab-' + id).classList.add('active');
+  }
+</script>
+</body>
+</html>

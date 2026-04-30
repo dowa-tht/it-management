@@ -1,0 +1,14 @@
+function Service_SaveWorkingHours(WH: TWorkingHours): boolean;
+begin
+  // บันทึกเป็น JSON ใน system_settings
+  Result := DB_Upsert('system_settings', 'working_hours',
+                 JSON_Serialize(WH));
+end;
+
+function Service_GetWorkingHours: TWorkingHours;
+var
+  rec: variant;
+begin
+  rec := DB_Query('SELECT value FROM system_settings WHERE key = ''working_hours''');
+  Result := JSON_Deserialize<TWorkingHours>(rec.value);
+end;

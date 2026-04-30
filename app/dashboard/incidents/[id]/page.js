@@ -543,8 +543,18 @@ export default function IncidentDetailPage() {
     setSaving(true)
     const oldAssignee = incident.assigned_to
     const newAssignee = form.assigned_to
+    const now = new Date().toISOString()
 
-    const { error } = await supabase.from('incidents').update(form).eq('id', id)
+    // Create a copy of form to ensure we don't miss fields
+    let updatedForm = { ...form }
+
+    // Hard check: If assignee is set but assigned_at is missing, set it now
+    if (newAssignee && !updatedForm.assigned_at) {
+      updatedForm.assigned_at = now
+      updatedForm.status = updatedForm.status === 'Open' ? 'In Progress' : updatedForm.status
+    }
+
+    const { error } = await supabase.from('incidents').update(updatedForm).eq('id', id)
     if (error) {
       alert(`บันทึกข้อมูลไม่สำเร็จ: ${error.message}`)
       setSaving(false)
@@ -565,7 +575,7 @@ export default function IncidentDetailPage() {
       await addLog('แก้ไขข้อมูล', oldStatus, oldStatus, 'อัปเดตรายละเอียด')
     }
 
-    setIncident(form); setEditing(false); setSaving(false)
+    setIncident(updatedForm); setEditing(false); setSaving(false)
   }
 
   const handleResolve = async (sigIT, sigReporter, sigManager, isDraft) => {

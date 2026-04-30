@@ -3,6 +3,8 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/dateFormat'
+import { getCurrentUserSession, changeExternalPIN } from '@/app/actions/auth'
+import { ROLE_BADGE, normalizeRole } from '@/lib/auth'
 
 function ProfileContent() {
   const searchParams = useSearchParams()
@@ -12,6 +14,7 @@ function ProfileContent() {
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('general')
   const [fullName, setFullName] = useState('')
+  const [sessionType, setSessionType] = useState('internal') // 'internal' or 'external'
   const [loginLogs, setLoginLogs] = useState([])
   const [msg, setMsg] = useState({ text: '', type: '' })
 
@@ -29,30 +32,36 @@ function ProfileContent() {
   }, [searchParams])
 
   const init = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
-    setUser(session.user)
-
-    const { data: profileData } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .single()
+    const sessionInfo = await getCurrentUserSession()
+    if (!sessionInfo) return
     
-    if (profileData) {
-      setProfile(profileData)
-      setFullName(profileData.full_name || '')
+    setSessionType(sessionInfo.type)
+    const u = sessionInfo.user
+    setUser(u)
+
+    // ดึงข้อมูลจาก registry เพื่อความชัวร์เรื่อง Role
+    const { data: regData } = await supabase
+      .from('user_registry')
+      .select('*')
+      .eq('email', u.email)
+      .single()
+
+    if (regData) {
+      setProfile(regData)
+      setFullName(regData.full_name || '')
     }
 
-    // Fetch own login logs
-    const { data: logs } = await supabase
-      .from('login_logs')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false })
-      .limit(10)
+    // Fetch login logs (เฉพาะ internal เพราะ external ใช้ cookie session)
+    if (sessionInfo.type === 'internal') {
+      const { data: logs } = await supabase
+        .from('login_logs')
+        .select('*')
+        .eq('user_id', u.id)
+        .order('created_at', { ascending: false })
+        .limit(10)
+      setLoginLogs(logs || [])
+    }
     
-    setLoginLogs(logs || [])
     setLoading(false)
   }
 
@@ -79,42 +88,55 @@ function ProfileContent() {
     e.preventDefault()
     setMsg({ text: '', type: '' })
 
-    if (pwdForm.newPass !== pwdForm.confirm) {
-      setMsg({ text: 'รหัสผ่านใหม่ไม่ตรงกัน', type: 'error' })
-      return
-    }
-
-    // Complexity check
-    const pwd = pwdForm.newPass
-    if (pwd.length < 8 || !/[A-Z]/.test(pwd) || !/[a-z]/.test(pwd) || !/[0-9]/.test(pwd) || !/[^A-Za-z0-9]/.test(pwd)) {
-      setMsg({ text: 'รหัสผ่านใหม่ไม่ผ่านเกณฑ์ความปลอดภัย', type: 'error' })
-      return
-    }
-
-    setPwdLoading(true)
-
-    // Verify current password
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: pwdForm.current
-    })
-
-    if (signInError) {
-      setMsg({ text: 'รหัสผ่านปัจจุบันไม่ถูกต้อง', type: 'error' })
+    if (sessionType === 'external') {
+      // --- เปลี่ยน PIN (External) ---
+      if (!/^\d{6}$/.test(pwdForm.newPass)) {
+        setMsg({ text: 'PIN ใหม่ต้องเป็นตัวเลข 6 หลัก', type: 'error' })
+        return
+      }
+      setPwdLoading(true)
+      const res = await changeExternalPIN({ currentPIN: pwdForm.current, newPIN: pwdForm.newPass })
+      if (res.success) {
+        setMsg({ text: '✅ เปลี่ยน PIN สำเร็จแล้ว', type: 'success' })
+        setPwdForm({ current: '', newPass: '', confirm: '' })
+      } else {
+        setMsg({ text: `เกิดข้อผิดพลาด: ${res.error}`, type: 'error' })
+      }
       setPwdLoading(false)
-      return
-    }
-
-    // Update password
-    const { error } = await supabase.auth.updateUser({ password: pwdForm.newPass })
-
-    if (error) {
-      setMsg({ text: `เกิดข้อผิดพลาด: ${error.message}`, type: 'error' })
     } else {
-      setMsg({ text: '✅ เปลี่ยนรหัสผ่านสำเร็จแล้ว', type: 'success' })
-      setPwdForm({ current: '', newPass: '', confirm: '' })
+      // --- เปลี่ยนรหัสผ่าน (Internal) ---
+      if (pwdForm.newPass !== pwdForm.confirm) {
+        setMsg({ text: 'รหัสผ่านใหม่ไม่ตรงกัน', type: 'error' })
+        return
+      }
+
+      const pwd = pwdForm.newPass
+      if (pwd.length < 8 || !/[A-Z]/.test(pwd) || !/[a-z]/.test(pwd) || !/[0-9]/.test(pwd) || !/[^A-Za-z0-9]/.test(pwd)) {
+        setMsg({ text: 'รหัสผ่านใหม่ไม่ผ่านเกณฑ์ความปลอดภัย', type: 'error' })
+        return
+      }
+
+      setPwdLoading(true)
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: pwdForm.current
+      })
+
+      if (signInError) {
+        setMsg({ text: 'รหัสผ่านปัจจุบันไม่ถูกต้อง', type: 'error' })
+        setPwdLoading(false)
+        return
+      }
+
+      const { error } = await supabase.auth.updateUser({ password: pwdForm.newPass })
+      if (error) {
+        setMsg({ text: `เกิดข้อผิดพลาด: ${error.message}`, type: 'error' })
+      } else {
+        setMsg({ text: '✅ เปลี่ยนรหัสผ่านสำเร็จแล้ว', type: 'success' })
+        setPwdForm({ current: '', newPass: '', confirm: '' })
+      }
+      setPwdLoading(false)
     }
-    setPwdLoading(false)
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลด...</div>
@@ -181,11 +203,11 @@ function ProfileContent() {
                   <div style={{ fontSize: 13, color: '#6b7280' }}>{user?.email}</div>
                   <div style={{ marginTop: 8 }}>
                     <span style={{ 
-                      background: profile?.role === 'superuser' ? '#eff6ff' : '#f3f4f6', 
-                      color: profile?.role === 'superuser' ? '#1d4ed8' : '#374151', 
+                      background: ROLE_BADGE[normalizeRole(profile?.user_role)]?.bg || '#f3f4f6', 
+                      color: ROLE_BADGE[normalizeRole(profile?.user_role)]?.color || '#374151', 
                       padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600
                     }}>
-                      {profile?.role === 'superuser' ? 'Administrator' : profile?.role === 'visitor' ? 'Visitor' : 'Standard User'}
+                      {ROLE_BADGE[normalizeRole(profile?.user_role)]?.emoji} {ROLE_BADGE[normalizeRole(profile?.user_role)]?.label || 'User'}
                     </span>
                   </div>
                 </div>
@@ -228,62 +250,84 @@ function ProfileContent() {
           {activeTab === 'security' && (
             <form onSubmit={handleUpdatePassword}>
               <div style={{ marginBottom: 24 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 8px' }}>เปลี่ยนรหัสผ่าน</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 8px' }}>
+                  {sessionType === 'external' ? 'เปลี่ยนรหัส PIN 6 หลัก' : 'เปลี่ยนรหัสผ่าน'}
+                </h3>
                 <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
-                  กรุณากรอกรหัสผ่านปัจจุบันและรหัสผ่านใหม่เพื่อทำการเปลี่ยนแปลง
+                  {sessionType === 'external' 
+                    ? 'กรุณากรอกรหัส PIN เดิมและ PIN ใหม่ 6 หลักเพื่อทำการเปลี่ยนแปลง' 
+                    : 'กรุณากรอกรหัสผ่านปัจจุบันและรหัสผ่านใหม่เพื่อทำการเปลี่ยนแปลง'}
                 </p>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 480 }}>
                 {[
-                  { label: 'รหัสผ่านปัจจุบัน', key: 'current' },
-                  { label: 'รหัสผ่านใหม่', key: 'newPass' },
-                  { label: 'ยืนยันรหัสผ่านใหม่', key: 'confirm' },
-                ].map(f => (
-                  <div key={f.key}>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>{f.label}</label>
-                    <div style={{ position: 'relative' }}>
-                      <input 
-                        type={showPwd[f.key] ? "text" : "password"}
-                        value={pwdForm[f.key]}
-                        onChange={e => setPwdForm({ ...pwdForm, [f.key]: e.target.value })}
-                        required
-                        style={{ width: '100%', padding: '10px 14px', paddingRight: '44px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
-                      />
-                      <button 
-                        type="button"
-                        onClick={() => setShowPwd({ ...showPwd, [f.key]: !showPwd[f.key] })}
-                        style={{ position: 'absolute', right: 12, top: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 16 }}
-                      >
-                        {showPwd[f.key] ? '👁️' : '🙈'}
-                      </button>
-                    </div>
-                    {f.key === 'newPass' && (
-                      <div style={{ marginTop: 12, background: '#f9fafb', padding: 12, borderRadius: 8, border: '1px solid #f3f4f6' }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8 }}>เกณฑ์ความปลอดภัย:</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                          {pwdChecks.map((c, i) => (
-                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: c.met ? '#059669' : '#9ca3af' }}>
-                              <span>{c.met ? '✅' : '⚪'}</span> {c.label}
-                            </div>
-                          ))}
-                        </div>
+                  { label: sessionType === 'external' ? 'รหัส PIN ปัจจุบัน' : 'รหัสผ่านปัจจุบัน', key: 'current' },
+                  { label: sessionType === 'external' ? 'รหัส PIN ใหม่ (6 หลัก)' : 'รหัสผ่านใหม่', key: 'newPass' },
+                  { label: sessionType === 'external' ? 'ยืนยันรหัส PIN ใหม่' : 'ยืนยันรหัสผ่านใหม่', key: 'confirm' },
+                ].map(f => {
+                  // ข้าม Confirm Field สำหรับ PIN เพื่อความง่าย หรือจะเก็บไว้ก็ได้
+                  if (sessionType === 'external' && f.key === 'confirm') return null
+                  
+                  return (
+                    <div key={f.key}>
+                      <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>{f.label}</label>
+                      <div style={{ position: 'relative' }}>
+                        <input 
+                          type={showPwd[f.key] ? "text" : "password"}
+                          value={pwdForm[f.key]}
+                          onChange={e => {
+                            const val = e.target.value
+                            if (sessionType === 'external') {
+                              if (/^\d*$/.test(val) && val.length <= 6) setPwdForm({ ...pwdForm, [f.key]: val })
+                            } else {
+                              setPwdForm({ ...pwdForm, [f.key]: val })
+                            }
+                          }}
+                          required
+                          placeholder={sessionType === 'external' ? 'ตัวเลข 6 หลัก' : ''}
+                          style={{ width: '100%', padding: '10px 14px', paddingRight: '44px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => setShowPwd({ ...showPwd, [f.key]: !showPwd[f.key] })}
+                          style={{ position: 'absolute', right: 12, top: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 16 }}
+                        >
+                          {showPwd[f.key] ? '👁️' : '🙈'}
+                        </button>
                       </div>
-                    )}
-                  </div>
-                ))}
+                      
+                      {sessionType === 'external' && f.key === 'newPass' && pwdForm.newPass && pwdForm.newPass.length < 6 && (
+                        <div style={{ color: '#dc2626', fontSize: 11, marginTop: 4 }}>⚠️ กรุณาระบุให้ครบ 6 หลัก</div>
+                      )}
+
+                      {sessionType === 'internal' && f.key === 'newPass' && (
+                        <div style={{ marginTop: 12, background: '#f9fafb', padding: 12, borderRadius: 8, border: '1px solid #f3f4f6' }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8 }}>เกณฑ์ความปลอดภัย:</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                            {pwdChecks.map((c, i) => (
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: c.met ? '#059669' : '#9ca3af' }}>
+                                <span>{c.met ? '✅' : '⚪'}</span> {c.label}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 16 }}>
                   <button 
                     type="submit" 
-                    disabled={pwdLoading || !pwdChecks.every(c => c.met)}
+                    disabled={pwdLoading || (sessionType === 'internal' && !pwdChecks.every(c => c.met)) || (sessionType === 'external' && (!pwdForm.current || pwdForm.newPass.length < 6))}
                     style={{ 
-                      padding: '10px 24px', background: pwdLoading || !pwdChecks.every(c => c.met) ? '#93c5fd' : '#dc2626', 
+                      padding: '10px 24px', background: (pwdLoading || (sessionType === 'internal' && !pwdChecks.every(c => c.met)) || (sessionType === 'external' && (!pwdForm.current || pwdForm.newPass.length < 6))) ? '#93c5fd' : '#dc2626', 
                       color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, 
-                      cursor: pwdLoading || !pwdChecks.every(c => c.met) ? 'not-allowed' : 'pointer', fontFamily: 'inherit' 
+                      cursor: 'pointer', fontFamily: 'inherit' 
                     }}
                   >
-                    {pwdLoading ? 'กำลังบันทึก...' : 'เปลี่ยนรหัสผ่าน'}
+                    {pwdLoading ? 'กำลังบันทึก...' : sessionType === 'external' ? 'เปลี่ยนรหัส PIN' : 'เปลี่ยนรหัสผ่าน'}
                   </button>
                 </div>
               </div>

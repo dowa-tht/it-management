@@ -1,0 +1,39 @@
+function Service_CreateIncident(Inc: TIncident): boolean;
+begin
+  // กำหนด SLAStartAt = now + 1 min (เพื่อให้ UI แสดงได้)
+  Inc.SLAStartAt := Now + (1/1440);
+  // คำนวณ SLADeadline เริ่มต้น (ขั้นตอน 3.5)
+  Inc.SLADeadline := SLA_CalcDeadline(Inc);
+  Result := DB_Insert('incidents', JSON_Serialize(Inc));
+end;
+
+function Service_GetIncidentById(Id: string): TIncident;
+var
+  rec: variant;
+begin
+  rec := DB_Query('SELECT * FROM incidents WHERE id = '''+Id+'''');
+  Result := JSON_Deserialize<TIncident>(rec[0].json);
+end;
+
+function Service_SaveIncident(Inc: TIncident): boolean;
+begin
+  // คำนวณ SLADeadline ใหม่เมื่อมีการอัปเดต WorkingHours / Holidays
+  Inc.SLADeadline := SLA_CalcDeadline(Inc);
+  Result := DB_Upsert('incidents', Inc.Id, JSON_Serialize(Inc));
+end;
+
+function Service_GetIncidents(Filter: record
+                               Status   : (All, Open, InProgress, Resolved, Closed);
+                               Severity : (All, High, Medium, Low);
+                               Limit    : integer = 0);
+var
+  sql: string;
+begin
+  sql := 'SELECT * FROM incidents WHERE 1=1';
+  if Filter.Status <> All then
+    sql := sql + ' AND status = '''+GetEnumName(Filter.Status)+'''';
+  if Filter.Severity <> All then
+    sql := sql + ' AND severity = '''+GetEnumName(Filter.Severity)+'''';
+  if Limit>0 then sql := sql + ' ORDER BY created_at DESC LIMIT '+IntToStr(Limit);
+  Result := DB_Query(sql);
+end;

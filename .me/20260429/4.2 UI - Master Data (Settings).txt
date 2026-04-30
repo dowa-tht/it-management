@@ -1,0 +1,8 @@
+procedure OpenMasterData(CurrentUser: TUser);
+begin
+  // แสดงแท็บย่อย
+  ShowTab('Incident Categories');
+  ShowTab('Checklist Templates');
+  ShowTab('Working Hours');
+  ShowTab('Holidays');
+end;

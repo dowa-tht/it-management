@@ -1,0 +1,16 @@
+procedure ShowDashboard(CurrentUser: TUser);
+begin
+  // 1️⃣ ดึงสถิติ KPI
+  StatCards   := Service_GetStatCards();                 // → API
+  SLAInfo     := Service_GetSLAComplianceInfo();        // → API
+
+  // 2️⃣ ดึง Incident ล่าสุด 5 รายการ
+  RecentInc   := Service_GetRecentIncidents(5);
+
+  // 3️⃣ ดึงรายการ Quick‑Action (Create Incident, Import Holiday ฯลฯ)
+  QuickActs   := Service_GetQuickActions();
+
+  // 4️⃣ Render หน้า Dashboard (React component)
+  Render('Dashboard',
+    {StatCards, SLAInfo, RecentInc, QuickActs});
+end;

@@ -2,6 +2,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { checkUserTier, unifiedLogin } from '@/app/actions/auth'
+import { requestRecovery } from '@/app/actions/recovery'
 
 export default function LoginPage() {
   const [step, setStep] = useState('email') // 'email' or 'auth'
@@ -11,6 +12,11 @@ export default function LoginPage() {
   const [tier, setTier] = useState(null) // 'internal' or 'external'
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showRecovery, setShowRecovery] = useState(false)
+  const [recoveryEmail, setRecoveryEmail] = useState('')
+  const [recoveryLoading, setRecoveryLoading] = useState(false)
+  const [recoveryMsg, setRecoveryMsg] = useState({ text: '', type: '' })
+  const [cooldown, setCooldown] = useState(0)
   const router = useRouter()
   const pinRefs = [useRef(null), useRef(null), useRef(null), useRef(null), useRef(null), useRef(null)]
 
@@ -71,6 +77,32 @@ export default function LoginPage() {
     if (e.key === 'Backspace' && !pin[index] && index > 0) {
       pinRefs[index - 1].current?.focus()
     }
+  }
+
+  const handleRecovery = async (e) => {
+    e.preventDefault()
+    if (cooldown > 0) return
+    
+    setRecoveryLoading(true)
+    setRecoveryMsg({ text: '', type: '' })
+    
+    const res = await requestRecovery(recoveryEmail || email)
+    if (res.success) {
+      setRecoveryMsg({ text: res.message, type: 'success' })
+      setCooldown(60)
+      const timer = setInterval(() => {
+        setCooldown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    } else {
+      setRecoveryMsg({ text: res.error, type: 'error' })
+    }
+    setRecoveryLoading(false)
   }
 
   return (
@@ -151,6 +183,12 @@ export default function LoginPage() {
               <button type="submit" disabled={loading} style={{ width: '100%', padding: '14px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
                 {loading ? 'Authenticating...' : tier === 'internal' ? 'Sign In' : 'Access System'}
               </button>
+
+              <div style={{ textAlign: 'center' }}>
+                <button type="button" onClick={() => { setShowRecovery(true); setRecoveryEmail(email) }} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
+                  Forgot Password or PIN?
+                </button>
+              </div>
             </form>
           )}
         </div>
@@ -159,6 +197,46 @@ export default function LoginPage() {
           DOWA IT System v2.0 · RBAC Protected Architecture
         </div>
       </div>
+
+      {/* Recovery Modal */}
+      {showRecovery && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
+          <div style={{ background: '#131929', border: '1px solid #1e2d47', borderRadius: 24, padding: 40, width: '100%', maxWidth: 400, position: 'relative' }}>
+            <button onClick={() => setShowRecovery(false)} style={{ position: 'absolute', right: 20, top: 20, background: 'none', border: 'none', color: '#94a3b8', fontSize: 24, cursor: 'pointer' }}>×</button>
+            
+            <h3 style={{ fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 8 }}>Recovery Account</h3>
+            <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 24 }}>ระบุอีเมลของคุณเพื่อรับลิงก์กู้คืนรหัสผ่านหรือ PIN</p>
+
+            {recoveryMsg.text && (
+              <div style={{ padding: '12px 16px', borderRadius: 12, fontSize: 13, marginBottom: 20, background: recoveryMsg.type === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: recoveryMsg.type === 'success' ? '#10b981' : '#ef4444', border: `1px solid ${recoveryMsg.type === 'success' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}` }}>
+                {recoveryMsg.text}
+              </div>
+            )}
+
+            <form onSubmit={handleRecovery} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Email Address</label>
+                <input 
+                  type="email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)}
+                  placeholder="name@example.com" required
+                  style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 14 }}
+                />
+              </div>
+              <button 
+                type="submit" 
+                disabled={recoveryLoading || cooldown > 0}
+                style={{ 
+                  width: '100%', padding: '14px', background: (recoveryLoading || cooldown > 0) ? '#1e293b' : '#1d4ed8', 
+                  color: (recoveryLoading || cooldown > 0) ? '#64748b' : '#fff', border: 'none', borderRadius: 10, 
+                  fontSize: 14, fontWeight: 600, cursor: (recoveryLoading || cooldown > 0) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {recoveryLoading ? 'Sending...' : cooldown > 0 ? `ส่งอีเมลอีกครั้งใน (${cooldown}s)` : 'ส่งอีเมลลิงก์กู้คืน'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

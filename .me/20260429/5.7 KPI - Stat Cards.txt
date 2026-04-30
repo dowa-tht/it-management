@@ -1,0 +1,16 @@
+function Service_GetStatCards: array of TStatCard;
+begin
+  // ตัวอย่าง:
+  Result[0] := (Label:'Open Incidents';   Value:CountIncidents(Status:Open);       Color:'#EF4444'; Link:'/dashboard/incidents?status=open');
+  Result[1] := (Label:'Resolved Today';  Value:CountIncidents(ResolvedToday);    Color:'#10B981'; Link:'/dashboard/incidents?status=resolved');
+  // … เพิ่มตามต้องการ
+end;
+
+function Service_GetSLAComplianceInfo: record
+    Rate   : real;   // % ของ SLA ที่ทำสำเร็จ
+    Target : real;   // เป้าหมาย (เช่น 95)
+  end;
+begin
+  // คำนวณจาก incidents ที่ปิดแล้วและ SLAComplianceRate >= Target
+  // Rate = (จำนวน incidents ที่ SLAComplianceRate >= Target) / (จำนวน incidents ที่ปิด) * 100
+end;

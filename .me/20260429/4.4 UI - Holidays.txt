@@ -1,0 +1,41 @@
+procedure UI_AddHoliday(NewHoliday: THoliday);
+begin
+  if Service_AddHoliday(NewHoliday) then
+    ShowToast('เพิ่มวันหยุดสำเร็จ')
+  else
+    ShowError('เพิ่มวันหยุดล้มเหลว');
+end;
+
+procedure UI_EditHoliday(Id: string; UpdatedHoliday: THoliday);
+begin
+  if Service_UpdateHoliday(Id, UpdatedHoliday) then
+    ShowToast('แก้ไขวันหยุดสำเร็จ')
+  else
+    ShowError('แก้ไขวันหยุดล้มเหลว');
+end;
+
+procedure UI_DeleteHoliday(Id: string);
+begin
+  if Service_DeleteHoliday(Id) then
+    ShowToast('ลบวันหยุดสำเร็จ')
+  else
+    ShowError('ลบวันหยุดล้มเหลว');
+end;
+
+// CSV Import (รองรับภาษาไทย)
+procedure UI_ImportHolidayCSV(FilePath: string);
+var
+  Rows: array of array of string;
+  i   : integer;
+  H   : THoliday;
+begin
+  Rows := CSV_Read(FilePath);               // แยกคอมม่า, รองรับ UTF‑8
+  for i := 1 to Length(Rows)-1 do          // ข้ามแถวหัวตาราง
+  begin
+    H.Date   := StrToDate(Rows[i][0]);      // รูปแบบ dd/mm/yyyy
+    H.NameTH := Rows[i][1];
+    H.NameEN := Rows[i][2];
+    UI_AddHoliday(H);
+  end;
+  ShowToast('นำเข้าข้อมูลวันหยุดจาก CSV เสร็จสิ้น');
+end;

@@ -1,0 +1,38 @@
+// ---------- Dashboard ----------
+procedure ShowDashboard(User: TUser);
+begin
+  // 1️⃣ ดึงสถิติ KPI (จาก API)
+  StatCards := GetStatCards();               // → Dashboard page
+  SLAInfo   := GetSLAComplianceInfo();       // → Gauge chart
+
+  // 2️⃣ ดึงรายการ Incident ล่าสุด (limit 5)
+  RecentIncidents := GetRecentIncidents(5);
+
+  // 3️⃣ แสดง Quick‑Action cards (เช่น “Create Incident”, “Import Holidays”)
+  QuickActions := GetQuickActionList();
+
+  // 4️⃣ Render UI (React component) ด้วยข้อมูลข้างต้น
+  RenderDashboard(StatCards, SLAInfo, RecentIncidents, QuickActions);
+end;
+
+
+// ---------- Master Data ----------
+procedure OpenMasterData(User: TUser);
+begin
+  // เข้าถึงเมนูตั้งค่าต่าง ๆ
+  ShowTab('Incident Categories');
+  ShowTab('Checklist Templates');
+  ShowTab('Working Hours');
+  ShowTab('Holidays');
+end;
+
+// Working Hours -------------------------------------------------
+procedure SaveWorkingHours(WH: TWorkingHours);
+begin
+  // บันทึกลง Supabase (INSERT / UPDATE)
+  UpsertRecord('system_settings', 'working_hours', WH);
+  // แจ้ง UI success
+  ShowToast('บันทึกเวลาทำงานเรียบร้อย');
+end;
+
+// Holidays -------------------------------------------------------

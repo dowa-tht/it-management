@@ -1,0 +1,4 @@
+function DB_Query(sql: string): variant;   // คืนค่า RecordSet
+function DB_Insert(table: string; data: variant): boolean;
+function DB_Upsert(table: string; pk: string; data: variant): boolean;
+function DB_Delete(table: string; pk: string): boolean;

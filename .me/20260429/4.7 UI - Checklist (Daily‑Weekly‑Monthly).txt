@@ -1,0 +1,20 @@
+procedure ShowChecklist(IncId: string);
+var
+  List : array of record
+           Id        : string;
+           Type      : (Daily, Weekly, Monthly);
+           Status    : (Pending, Done, Skipped);
+           Label     : string;
+         end;
+begin
+  List := Service_GetChecklist(IncId);
+  Render('Checklist', List);
+end;
+
+procedure UI_UpdateChecklistItem(ChkId: string; NewStatus: (Pending, Done, Skipped));
+begin
+  if Service_SaveChecklistItem(ChkId, NewStatus) then
+    ShowToast('บันทึก Checklist สำเร็จ')
+  else
+    ShowError('บันทึก Checklist ไม่สำเร็จ');
+end;
