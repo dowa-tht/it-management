@@ -92,7 +92,8 @@
   - **Role Caching:** เพิ่มระบบ Cookie Cache สำหรับเก็บสิทธิ์ผู้ใช้ (Role) ช่วยลดการ Query ฐานข้อมูล `user_profiles` ในทุกๆ Request ทำให้การเปลี่ยนหน้าเร็วขึ้นกว่าเดิม (~150ms -> 8ms)
   - **SLA Logic Optimization:** ปรับปรุงอัลกอริทึมการคำนวณ SLA ใน `lib/slaUtils.js` ให้ใช้ทรัพยากร CPU ลดลง ช่วยให้หน้า Dashboard โหลดข้อมูลได้รวดเร็วขึ้น
 - **Critical Fix (🛠️):**
-  - **Vercel Compatibility:** ย้ายไฟล์กลับมาชื่อ `middleware.js` และใช้ `supabase.auth.getUser()` แทน `getSession()` เพื่อแก้ปัญหา Login ไม่ได้บน Vercel Production โดยยังคงระบบ Role Caching ไว้เพื่อประสิทธิภาพ
+  - **Vercel Compatibility:** ย้ายไฟล์กลับมาชื่อ `middleware.js` และใช้ `supabase.auth.getUser()` แทน `getSession()` เพื่อแก้ปัญหา Login ไม่ได้บน Vercel Production
+  - **Stability First:** ยกเลิกระบบ Role Caching ชั่วคราวเพื่อป้องกันปัญหา Cookie ค้างหรือสิทธิ์ทับซ้อน ทำให้ระบบ Login กลับมาเสถียร 100%
 
 ---
 
