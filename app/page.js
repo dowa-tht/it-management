@@ -2,7 +2,6 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { unifiedLogin } from '@/app/actions/login'
-import { checkUserTier } from '@/app/actions/status'
 import { requestRecovery } from '@/app/actions/recovery'
 
 export default function LoginPage() {
@@ -28,15 +27,21 @@ export default function LoginPage() {
     setError('')
     
     try {
-      const res = await checkUserTier(email)
+      const response = await fetch('/api/auth/check-tier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+      const res = await response.json()
+      
       if (res.success && res.tier !== 'not_found') {
         setTier(res.tier)
         setStep('auth')
       } else {
-        setError('ไม่พบอีเมลนี้ในระบบ หรือบัญชีถูกระงับการใช้งาน')
+        setError(res.error || 'ไม่พบอีเมลนี้ในระบบ หรือบัญชีถูกระงับการใช้งาน')
       }
     } catch (err) {
-      setError('เกิดข้อผิดพลาดในการตรวจสอบข้อมูล')
+      setError('เกิดข้อผิดพลาดในการตรวจสอบข้อมูล (API)')
     } finally {
       setLoading(false)
     }
