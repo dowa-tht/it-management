@@ -5,6 +5,8 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { CHECKLIST_TEMPLATES } from '@/lib/checklistItems'
+import { submitRequest, getEligibleApprovers, isSubstituteOf } from '@/lib/workflow'
+import { SignatureModal } from '../components/SignatureModal'
 
 // ===== Instruction Dialog =====
 function InstructionDialog({ item, onCancel }) {
@@ -68,6 +70,12 @@ export default function ChecklistDetailPage() {
   const [templates, setTemplates] = useState([]) // Master List from DB
   const [userEmail, setUserEmail] = useState(null)
   const [currentUser, setCurrentUser] = useState(null)
+  const [showSignatureModal, setShowSignatureModal] = useState(false)
+  const [showDelegateModal, setShowDelegateModal] = useState(false)
+  const [approvalLoading, setApprovalLoading] = useState(false)
+  const [eligibleApprovers, setEligibleApproversList] = useState([])
+  const [isSub, setIsSub] = useState(false)
+  const [allApprovers, setAllApprovers] = useState([])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -92,7 +100,13 @@ export default function ChecklistDetailPage() {
       supabase.from('checklist_templates').select('*') // Get all templates to map categories/instructions
     ])
 
-    if (docData) setDoc(docData)
+    if (docData) {
+      setDoc(docData)
+      if (currentUser?.id && docData.assigned_approver_id) {
+        const subCheck = await isSubstituteOf(currentUser.id, docData.assigned_approver_id)
+        setIsSub(subCheck)
+      }
+    }
     if (itemsData) setItems(itemsData)
     if (logsData) setLogs(logsData)
     if (templateData) setTemplates(templateData)
@@ -103,7 +117,138 @@ export default function ChecklistDetailPage() {
       if (incs) setIncidents(incs)
     }
 
+    // Fetch all potential approvers for delegation
+    const { data: apprs } = await supabase.from('user_profiles').select('id, full_name, role').in('role', ['administrator', 'supervisor', 'approval']).eq('is_active', true)
+    if (apprs) setAllApprovers(apprs)
+
     setLoading(false)
+  }
+
+  const handleDelegate = async (newApproverId) => {
+    setSaving(true)
+    const { error } = await supabase.from('checklist_docs').update({ assigned_approver_id: newApproverId }).eq('id', id)
+    if (!error) {
+      await supabase.from('checklist_logs').insert({ doc_id: id, action: 'Delegated', details: `ส่งต่องานอนุมัติให้: ${allApprovers.find(a => a.id === newApproverId)?.full_name}` })
+      setShowDelegateModal(false)
+      fetchData()
+    }
+    setSaving(false)
+  }
+
+  // Helper for Auto-OK Logic
+  const checkAutoOk = (item, type, config, data) => {
+    // ... (existing logic) ...
+  }
+
+  const handleSubmitApproval = async () => {
+    if (!confirm('ยืนยันการส่งใบงานนี้เพื่อขออนุมัติ? เมื่อส่งแล้วจะไม่สามารถแก้ไขข้อมูลได้')) return
+    setSaving(true)
+    const res = await submitRequest(id, 'checklist', doc.freq_type)
+    if (res.success) {
+      setDoc({ ...doc, workflow_status: 'pending' })
+      fetchData()
+    } else {
+      alert(`เกิดข้อผิดพลาด: ${res.error}`)
+    }
+    setSaving(false)
+  }
+
+  const handleApprove = async (pin, signatureData) => {
+    setApprovalLoading(true)
+    try {
+      // 1. Verify PIN via API
+      const verifyRes = await fetch('/api/auth/verify-pin', {
+        method: 'POST',
+        body: JSON.stringify({ userId: currentUser.id, pin })
+      }).then(r => r.json())
+
+      if (!verifyRes.success) {
+        alert(verifyRes.error)
+        setApprovalLoading(false)
+        return
+      }
+
+      // 2. Update Document Status
+      const { error } = await supabase
+        .from('checklist_docs')
+        .update({
+          workflow_status: 'approved',
+          approved_by: currentUser.id,
+          approved_at: new Date().toISOString(),
+          status: 'closed' // Auto-close when approved
+        })
+        .eq('id', id)
+
+      if (error) throw error
+
+      // 3. Log the approval with signature
+      await supabase.from('checklist_logs').insert({
+        doc_id: id,
+        action: 'Approved',
+        details: `อนุมัติใบงานโดย ${currentUser.full_name} (เซ็นหน้างาน)`,
+        created_by: currentUser.id,
+        metadata: { signature: signatureData }
+      })
+
+      setShowSignatureModal(false)
+      fetchData()
+    } catch (err) {
+      alert(`เกิดข้อผิดพลาด: ${err.message}`)
+    }
+    setApprovalLoading(false)
+  }
+
+  const handleReject = async () => {
+    const reason = prompt('กรุณาระบุเหตุผลที่ตีกลับงานนี้:')
+    if (reason === null) return // Cancel
+    if (!reason.trim()) return alert('กรุณาระบุเหตุผล')
+
+    setSaving(true)
+    const { error } = await supabase
+      .from('checklist_docs')
+      .update({
+        workflow_status: 'rejected',
+        approval_comment: reason
+      })
+      .eq('id', id)
+
+    if (!error) {
+      await supabase.from('checklist_logs').insert({
+        doc_id: id,
+        action: 'Rejected',
+        details: `ตีกลับงาน: ${reason}`,
+        created_by: currentUser.id
+      })
+      fetchData()
+    }
+    setSaving(false)
+  }
+
+  const updateItemData = async (itemId, newData) => {
+    const itemIndex = items.findIndex(i => i.id === itemId)
+    if (itemIndex === -1) return
+
+    const item = items[itemIndex]
+    const template = templates.find(t => t.item_key === item.item_key || t.item_label === item.item_label)
+    const snapshot = item.template_data?._snapshot || {}
+    const type = snapshot.ui_template_type ?? template?.ui_template_type ?? 0
+    const config = snapshot.config ?? template?.template_config ?? {}
+
+    const updatedItems = [...items]
+    updatedItems[itemIndex].template_data = newData
+    
+    // Auto-OK logic
+    if (checkAutoOk(item, type, config, newData)) {
+      updatedItems[itemIndex].status = 'OK'
+    }
+
+    setItems(updatedItems)
+    
+    // Instant save for template data to prevent loss
+    await supabase.from('checklist_items').update({ 
+      template_data: newData,
+      status: updatedItems[itemIndex].status 
+    }).eq('id', itemId)
   }
 
   const handleStatusClick = (index, newStatus) => {
@@ -139,7 +284,8 @@ export default function ChecklistDetailPage() {
         item_key: item.item_key,
         item_label: item.item_label,
         status: item.status,
-        notes: item.notes || ''
+        notes: item.notes || '',
+        template_data: item.template_data || {}
       }))
 
     if (itemsToUpdate.length > 0) {
@@ -202,7 +348,7 @@ export default function ChecklistDetailPage() {
               </span>
             </div>
             <div style={{ fontSize: 13, color: '#6b7280' }}>
-              ประเภท: <strong>{doc.freq_type}</strong> | ประจำวันที่: <strong>{formatDate(doc.period_date, false)}</strong>
+              ประเภท: <strong>{doc.freq_type}</strong> | ประจำวันที่: <strong>{formatDate(doc.period_date)}</strong>
             </div>
           </div>
           
@@ -229,8 +375,9 @@ export default function ChecklistDetailPage() {
           // Fallback to static if not found in DB yet
           const staticTemplate = CHECKLIST_TEMPLATES[doc.freq_type]?.find(t => t.key === item.item_key)
           
-          const category = dbTemplate?.category || staticTemplate?.category || 'General'
-          const instruction = dbTemplate?.instruction || staticTemplate?.instruction
+          const snapshot = item.template_data?._snapshot || {}
+          const category = snapshot.category ?? dbTemplate?.category ?? staticTemplate?.category ?? 'General'
+          const instruction = snapshot.instruction ?? dbTemplate?.instruction ?? staticTemplate?.instruction
 
           return (
             <div key={item.id} style={{
@@ -250,6 +397,18 @@ export default function ChecklistDetailPage() {
                     📄
                   </button>
                 </div>
+                
+                {/* Template Content Area */}
+                <div style={{ marginTop: 12, width: '100%' }}>
+                  <TemplateRenderer 
+                    item={item} 
+                    template={dbTemplate} 
+                    onUpdate={(data) => updateItemData(item.id, data)}
+                    isClosed={isClosed}
+                    isVisitor={isVisitor}
+                  />
+                </div>
+
                 {item.status === 'NG' && item.notes && (() => {
                   const relatedInc = incidents.find(inc => inc.ref_id === item.id)
                   return (
@@ -338,56 +497,386 @@ export default function ChecklistDetailPage() {
         </div>
       </div>
 
-      {/* Floating Save Button */}
+      {/* Floating Action Bar */}
       <div style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 24px',
-        background: '#fff', borderTop: '1px solid #e5e7eb', boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.05)',
-        display: 'flex', justifyContent: 'flex-end', zIndex: 100
+        background: '#fff', borderTop: '1px solid #e5e7eb', boxShadow: '0 -10px 15px -3px rgba(0, 0, 0, 0.05)',
+        zIndex: 100
       }}>
-        {!isVisitor && (
-          <div style={{ width: '100%', maxWidth: 1000, margin: '0 auto', display: 'flex', justifyContent: 'flex-end', gap: 12, paddingLeft: 220 }}>
-            {isClosed ? (
-              <button 
-                onClick={handleReopen} 
-                disabled={saving}
-                style={{ 
-                  padding: '10px 24px', border: '1px solid #dc2626', borderRadius: 8, fontSize: 14, fontWeight: 600, 
-                  background: '#fff', color: '#dc2626', cursor: saving ? 'not-allowed' : 'pointer', 
-                  fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8
-                }}>
-                🔓 Reopen (เปิดเอกสารใหม่)
-              </button>
-            ) : (
+        <div style={{ width: '100%', maxWidth: 1000, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 220 }}>
+          <div style={{ fontSize: 13, color: '#6b7280' }}>
+            สถานะเวิร์กโฟลว์: <span style={{ fontWeight: 700, color: '#111827', textTransform: 'uppercase' }}>{doc.workflow_status || 'Draft'}</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12 }}>
+            {/* 1. Assignee Actions (Draft/Rejected) */}
+            {(doc.workflow_status === 'draft' || doc.workflow_status === 'rejected' || !doc.workflow_status) && (
               <>
-                <button 
-                  onClick={() => handleSaveAll(false)} 
-                  disabled={saving || loading}
-                  style={{ 
-                    padding: '10px 24px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontWeight: 600, 
-                    background: '#fff', color: '#374151', cursor: saving ? 'not-allowed' : 'pointer', 
-                    fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8
-                  }}>
-                  💾 Save Draft (บันทึก)
+                <button onClick={() => handleSaveAll(false)} disabled={saving} style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', cursor: 'pointer' }}>
+                  💾 บันทึกร่าง
                 </button>
                 <button 
-                  onClick={() => {
-                    if(confirm('ยืนยันการปิดเอกสาร? จะไม่สามารถแก้ไขได้อีกนอกจากจะกด Reopen')) {
-                      handleSaveAll(true)
-                    }
-                  }} 
-                  disabled={saving || loading || progress < 100}
-                  style={{ 
-                    padding: '10px 24px', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, 
-                    background: (progress < 100) ? '#9ca3af' : '#1d4ed8', color: '#fff', cursor: (saving || progress < 100) ? 'not-allowed' : 'pointer', 
-                    fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8
-                  }}>
-                  ✅ Submit & Close (ยืนยันปิดงาน)
+                  onClick={handleSubmitApproval} 
+                  disabled={saving || progress < 100}
+                  style={{ padding: '10px 24px', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, background: progress < 100 ? '#9ca3af' : '#1d4ed8', color: '#fff', cursor: progress < 100 ? 'not-allowed' : 'pointer' }}
+                >
+                  🚀 ส่งขออนุมัติงาน
                 </button>
               </>
             )}
+
+            {/* 2. Approver Actions (Pending) */}
+            {doc.workflow_status === 'pending' && (
+              <>
+                {!isVisitor && (
+                  currentUser?.id === doc.assigned_approver_id || 
+                  isSub ||
+                  currentUser?.role === 'administrator' || 
+                  currentUser?.role === 'supervisor'
+                ) ? (
+                  <>
+                    <button onClick={() => setShowDelegateModal(true)} style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 10, fontSize: 14, background: '#fff', cursor: 'pointer' }}>
+                      ↪️ ส่งต่อ (Delegate)
+                    </button>
+                    <button onClick={handleReject} style={{ padding: '10px 24px', border: '1px solid #dc2626', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#dc2626', cursor: 'pointer' }}>
+                      ❌ ตีกลับ (Reject)
+                    </button>
+                    <button onClick={() => setShowSignatureModal(true)} style={{ padding: '10px 24px', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, background: '#059669', color: '#fff', cursor: 'pointer', boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)' }}>
+                      ✅ อนุมัติงาน (Approve)
+                    </button>
+                  </>
+                ) : (
+                  <div style={{ color: '#6b7280', fontSize: 13, background: '#f3f4f6', padding: '8px 16px', borderRadius: 8 }}>
+                    ⏳ รอการตรวจสอบและอนุมัติ {doc.assigned_approver_id ? `โดย ${allApprovers.find(a => a.id === doc.assigned_approver_id)?.full_name}` : ''}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* 3. Approved Actions */}
+            {doc.workflow_status === 'approved' && (
+              <div style={{ color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                ✅ งานนี้ได้รับการอนุมัติแล้ว
+                {isAdmin && (
+                  <button onClick={handleReopen} style={{ marginLeft: 16, padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#fff', cursor: 'pointer' }}>
+                    ปลดล็อคเพื่อแก้ไข
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
+
+      {/* Signature Modal */}
+      <SignatureModal 
+        isOpen={showSignatureModal}
+        onCancel={() => setShowSignatureModal(false)}
+        onConfirm={handleApprove}
+        approverName={currentUser?.full_name}
+        userEmail={currentUser?.email}
+        loading={approvalLoading}
+      />
+
+      {/* Delegate Modal */}
+      {showDelegateModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>↪️ ส่งต่องานอนุมัติ (Delegate)</h3>
+            <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>เลือกผู้ที่จะมารับผิดชอบการอนุมัติใบงานนี้แทนคุณ</p>
+            
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8 }}>เลือกผู้อนุมัติคนใหม่</label>
+              <select 
+                id="delegate-select"
+                style={{ width: '100%', padding: '12px', borderRadius: 10, border: '1px solid #d1d5db', fontSize: 14 }}
+              >
+                <option value="">-- เลือกรายชื่อ --</option>
+                {allApprovers.filter(a => a.id !== currentUser?.id).map(u => (
+                  <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowDelegateModal(false)} style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 10, background: '#fff', cursor: 'pointer' }}>ยกเลิก</button>
+              <button 
+                onClick={() => {
+                  const select = document.getElementById('delegate-select');
+                  if (select.value) handleDelegate(select.value);
+                }} 
+                style={{ padding: '10px 24px', border: 'none', borderRadius: 10, background: '#1d4ed8', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
+              >
+                ยืนยันการส่งต่อ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ==========================================
+// Component: TemplateRenderer
+// ==========================================
+function TemplateRenderer({ item, template, onUpdate, isClosed, isVisitor }) {
+  const snapshot = item.template_data?._snapshot || {}
+  const type = snapshot.ui_template_type ?? template?.ui_template_type ?? 0
+  const config = snapshot.config ?? template?.template_config ?? {}
+  const data = item.template_data || {}
+
+  switch (type) {
+    case 1: return <PhotoTemplate item={item} config={config} data={data} onUpdate={onUpdate} disabled={isClosed || isVisitor} />
+    case 2: return <ProcedureTemplate item={item} config={config} data={data} onUpdate={onUpdate} disabled={isClosed || isVisitor} />
+    case 3: return <MeasureTemplate item={item} config={config} data={data} onUpdate={onUpdate} disabled={isClosed || isVisitor} />
+    case 4: return <LinkTemplate item={item} config={config} data={data} onUpdate={onUpdate} disabled={isClosed || isVisitor} />
+    case 5: return <SignoffTemplate item={item} config={config} data={data} onUpdate={onUpdate} disabled={isClosed || isVisitor} />
+    default: return null
+  }
+}
+
+// --- T1: Photo ---
+function PhotoTemplate({ config, data, onUpdate, disabled }) {
+  const points = config.photo_points || ["ภาพยืนยัน"]
+  
+  const handleUpload = async (pointIdx, e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    // Simple canvas compression
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const MAX_WIDTH = 1200
+        const scale = MAX_WIDTH / img.width
+        canvas.width = MAX_WIDTH
+        canvas.height = img.height * scale
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        
+        // Add Timestamp if required
+        if (config.require_timestamp) {
+          ctx.font = "bold 24px Arial"
+          ctx.fillStyle = "rgba(0, 0, 0, 0.5)"
+          ctx.fillRect(10, canvas.height - 45, 300, 35)
+          ctx.fillStyle = "yellow"
+          ctx.fillText(new Date().toLocaleString(), 20, canvas.height - 18)
+        }
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7) // 70% quality ~ < 150kb
+        const newData = { ...data, photos: { ...(data.photos || {}), [pointIdx]: dataUrl } }
+        onUpdate(newData)
+      }
+      img.src = event.target.result
+    }
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
+      {points.map((p, idx) => (
+        <div key={idx} style={{ textAlign: 'center' }}>
+          <div style={{ 
+            width: '100%', aspectRatio: '1/1', background: '#f3f4f6', borderRadius: 8, 
+            border: '2px dashed #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'relative', overflow: 'hidden'
+          }}>
+            {data.photos?.[idx] ? (
+              <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                <img src={data.photos[idx]} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                {!disabled && (
+                  <button 
+                    onClick={() => {
+                      const newPhotos = { ...data.photos }
+                      delete newPhotos[idx]
+                      onUpdate({ ...data, photos: newPhotos })
+                    }}
+                    style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(220, 38, 38, 0.8)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14 }}
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
+            ) : (
+              <label style={{ cursor: disabled ? 'default' : 'pointer', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
+                <span style={{ fontSize: 24 }}>📷</span>
+                <span style={{ fontSize: 10, color: '#6b7280', textAlign: 'center' }}>{p}</span>
+                {!disabled && <input type="file" accept="image/*" onChange={(e) => handleUpload(idx, e)} style={{ display: 'none' }} />}
+              </label>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// --- T2: Procedure ---
+function ProcedureTemplate({ config, data, onUpdate, disabled }) {
+  const [steps, setSteps] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (config.plan_id) {
+       setLoading(true)
+       supabase.from('checklist_procedure_plans').select('steps').eq('id', config.plan_id).single()
+       .then(({data}) => {
+         setSteps(data?.steps || { columns: [], rows: [] })
+         setLoading(false)
+       })
+    }
+  }, [config.plan_id])
+
+  const toggleStep = (stepIdx) => {
+    if (disabled) return
+    const newSteps = { ...(data.steps || {}) }
+    if (newSteps[stepIdx]) delete newSteps[stepIdx]
+    else newSteps[stepIdx] = new Date().toISOString()
+    onUpdate({ ...data, steps: newSteps })
+  }
+
+  const stepsData = steps?.rows || (Array.isArray(steps) ? steps : [])
+  const columns = steps?.columns
+
+  if (loading) return <div style={{ fontSize: 12, color: '#94a3b8' }}>Loading steps...</div>
+
+  return (
+    <div style={{ background: '#f8fafc', padding: columns ? 0 : 12, borderRadius: 8, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+      {stepsData.length === 0 ? <div style={{ fontSize: 12, color: '#94a3b8', padding: 12 }}>ไม่มีขั้นตอนระบุไว้</div> : (
+        columns ? (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: '#f1f5f9' }}>
+                  <th style={{ width: 40, padding: 10 }}></th>
+                  {columns.map(c => <th key={c} style={{ padding: 10, textAlign: 'left', fontWeight: 700, color: '#475569' }}>{c}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {stepsData.map((row, idx) => (
+                  <tr key={idx} onClick={() => toggleStep(idx)} style={{ cursor: disabled ? 'default' : 'pointer', borderTop: '1px solid #e2e8f0', background: data.steps?.[idx] ? '#ecfdf5' : '#fff' }}>
+                    <td style={{ padding: 10, textAlign: 'center' }}>
+                      <input type="checkbox" checked={!!data.steps?.[idx]} readOnly style={{ cursor: disabled ? 'default' : 'pointer' }} />
+                    </td>
+                    {columns.map(c => (
+                      <td key={c} style={{ padding: 10, color: data.steps?.[idx] ? '#059669' : '#334155', fontWeight: data.steps?.[idx] ? 600 : 400 }}>
+                        {row[c]}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {stepsData.map((step, idx) => (
+              <label key={idx} style={{ display: 'flex', gap: 10, fontSize: 13, alignItems: 'flex-start', cursor: disabled ? 'default' : 'pointer' }}>
+                <input type="checkbox" checked={!!data.steps?.[idx]} onChange={() => toggleStep(idx)} disabled={disabled} style={{ marginTop: 3 }} />
+                <span style={{ color: !!data.steps?.[idx] ? '#059669' : '#334155', fontWeight: !!data.steps?.[idx] ? 600 : 400 }}>{step}</span>
+              </label>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  )
+}
+
+// --- T3: Measure ---
+function MeasureTemplate({ config, data, onUpdate, disabled }) {
+  const val = parseFloat(data.value)
+  const isInvalid = !isNaN(val) && ( (config.min && val < config.min) || (config.max && val > config.max) )
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ position: 'relative', flex: 1, maxWidth: 200 }}>
+        <input 
+          type="number" 
+          value={data.value || ""} 
+          onChange={e => onUpdate({...data, value: e.target.value})}
+          disabled={disabled}
+          placeholder={`ระบุค่า (${config.unit || ""})`}
+          style={{ 
+            width: '100%', padding: '8px 12px', borderRadius: 8, 
+            border: isInvalid ? '2px solid #ef4444' : '1px solid #d1d5db',
+            background: isInvalid ? '#fef2f2' : '#fff',
+            outline: 'none', fontFamily: 'inherit'
+          }}
+        />
+        {config.unit && <span style={{ position: 'absolute', right: 12, top: 8, color: '#94a3b8', fontSize: 12 }}>{config.unit}</span>}
+      </div>
+      <div style={{ fontSize: 11, color: isInvalid ? '#ef4444' : '#6b7280', fontWeight: isInvalid ? 600 : 400 }}>
+        เกณฑ์: {config.min || "—"} ถึง {config.max || "—"}
+      </div>
+    </div>
+  )
+}
+
+// --- T4: Link ---
+function LinkTemplate({ config, data, onUpdate, disabled }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <a 
+          href={config.url} target="_blank" rel="noreferrer"
+          onClick={() => !data.clicked && onUpdate({...data, clicked: true})}
+          style={{ 
+            padding: '8px 16px', background: data.clicked ? '#ecfdf5' : '#1d4ed8', 
+            color: data.clicked ? '#059669' : '#fff', borderRadius: 8, fontSize: 13, 
+            textDecoration: 'none', fontWeight: 600, border: data.clicked ? '1px solid #10b981' : 'none'
+          }}
+        >
+          {data.clicked ? '✅ ตรวจสอบแล้ว' : '🌐 เปิดลิงก์ตรวจสอบ'}
+        </a>
+      </div>
+      {config.note_required && (
+        <input 
+          placeholder="ระบุหมายเหตุการตรวจสอบ (บังคับ)..."
+          value={data.note || ""}
+          onChange={e => onUpdate({...data, note: e.target.value})}
+          disabled={disabled}
+          style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, width: '100%', maxWidth: 400 }}
+        />
+      )}
+    </div>
+  )
+}
+
+// --- T5: Sign-off ---
+function SignoffTemplate({ config, data, onUpdate, disabled }) {
+  const signers = config.signers || []
+  
+  const handleSign = (role) => {
+    if (disabled) return
+    const newData = { ...data, signatures: { ...(data.signatures || {}), [role]: { signed_at: new Date().toISOString(), user: 'Current User' } } }
+    onUpdate(newData)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {signers.map(role => {
+        const isSigned = !!data.signatures?.[role]
+        return (
+          <button 
+            key={role}
+            onClick={() => handleSign(role)}
+            disabled={disabled || isSigned}
+            style={{ 
+              padding: '6px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+              background: isSigned ? '#ecfdf5' : '#f3f4f6', 
+              color: isSigned ? '#059669' : '#4b5563',
+              border: isSigned ? '1px solid #10b981' : '1px solid #d1d5db',
+              cursor: (disabled || isSigned) ? 'default' : 'pointer'
+            }}
+          >
+            {isSigned ? `🖋️ ${role} (Signed)` : `✍️ Sign as ${role}`}
+          </button>
+        )
+      })}
     </div>
   )
 }

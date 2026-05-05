@@ -35,11 +35,9 @@ export async function POST(request) {
     if (updateError) return Response.json({ error: updateError.message }, { status: 400 })
 
     // 4. ส่ง Email แจ้ง PIN ใหม่
-    const { Resend } = await import('resend')
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const { sendEmail } = await import('@/lib/resend')
 
-    const { error: emailError } = await resend.emails.send({
-      from: 'DOWA IT System <no-reply@dowa-it.com>',
+    const { error: emailError } = await sendEmail({
       to: email,
       subject: '[DOWA IT] รหัส PIN ใหม่ของคุณสำหรับ Guest Access',
       html: `

@@ -241,6 +241,7 @@ export default function BackupPage() {
                   <label style={{ fontSize: 12, color: '#374151', display: 'block', marginBottom: 4 }}>วันที่</label>
                   <div style={{ position: 'relative' }}>
                     <input type="date" value={form.log_date} onChange={e => setForm({ ...form, log_date: e.target.value })}
+                      onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
                       style={{ 
                         position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', 
                         cursor: 'pointer', zIndex: 2 
@@ -306,7 +307,7 @@ export default function BackupPage() {
                   <tr><td colSpan={6} style={{ padding: 30, textAlign: 'center', color: '#9ca3af' }}>ยังไม่มีข้อมูล Backup Log ในเดือนนี้</td></tr>
                 ) : logs.map(log => (
                   <tr key={log.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '11px 16px', color: '#374151', whiteSpace: 'nowrap' }}>{formatDate(log.log_date).replaceAll('-', '/')}</td>
+                    <td style={{ padding: '11px 16px', color: '#374151', whiteSpace: 'nowrap' }}>{formatDate(log.log_date)}</td>
                     <td style={{ padding: '11px 16px', color: '#374151' }}>{log.system_name}</td>
                     <td style={{ padding: '11px 16px', color: '#6b7280', fontSize: 12 }}>{log.backup_type}</td>
                     <td style={{ padding: '11px 16px', whiteSpace: 'nowrap' }}>

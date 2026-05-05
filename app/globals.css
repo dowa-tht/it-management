@@ -13,6 +13,18 @@ html, body {
   font-family: var(--font-noto-thai), var(--font-noto), 'Noto Sans Thai', 'Noto Sans', sans-serif;
   background: #f0f2f5;
   -webkit-font-smoothing: antialiased;
+  color: #1f2937;
+}
+
+/* บังคับให้ทุกองค์ประกอบใช้ Font ชุดเดียวกัน */
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+/* แก้ไข Font ของ Placeholder ให้ตรงกัน */
+::placeholder {
+  font-family: inherit;
+  opacity: 0.6;
 }
 
 /* ===== SIDEBAR ===== */

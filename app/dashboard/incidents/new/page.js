@@ -256,17 +256,11 @@ function NewIncidentForm() {
 
         <div style={sectionStyle}>
           {sectionTitle('📋', 'เลขที่เอกสาร')}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>Case Number{req}</label>
-              <input value={caseNo} onChange={e => setCaseNo(e.target.value)} readOnly={!manualNos}
-                style={{ ...inputStyle('caseNo'), background: manualNos ? '#fff' : '#f9fafb', fontFamily: 'monospace', fontWeight: 600 }} />
-              {errMsg('caseNo')}
-            </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>อ้างอิงเอกสาร</label>
-              <input value="FR-IT-01" readOnly style={{ ...inputStyle(''), background: '#f9fafb', color: '#6b7280', fontFamily: 'monospace' }} />
-            </div>
+          <div style={{ maxWidth: 350 }}>
+            <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>Case Number{req}</label>
+            <input value={caseNo} onChange={e => setCaseNo(e.target.value)} readOnly={!manualNos}
+              style={{ ...inputStyle('caseNo'), background: manualNos ? '#fff' : '#f9fafb', fontFamily: 'monospace', fontWeight: 600 }} />
+            {errMsg('caseNo')}
           </div>
         </div>
 

@@ -1,639 +1,392 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { generateNextNo } from '@/lib/noSeries'
 import { formatDate } from '@/lib/dateFormat'
+import { useWorkingDate } from '@/lib/context/WorkingDateContext'
 
-const LINKED_FORMS = ['FR-IT-01', 'FR-IT-02', 'ไม่ผูกกับเอกสาร']
+const LINKED_FORMS = ['FR-IT-02', 'ไม่ผูกกับเอกสาร']
+
+// --- Modern Action Button Component ---
+const ActionButton = ({ onClick, icon, color, title, disabled }) => {
+  const [hover, setHover] = useState(false)
+  const colors = {
+    blue: { bg: '#eff6ff', icon: '#2563eb', hover: '#dbeafe' },
+    red: { bg: '#fef2f2', icon: '#dc2626', hover: '#fee2e2' },
+    gray: { bg: '#f8fafc', icon: '#64748b', hover: '#f1f5f9' },
+    green: { bg: '#f0fdf4', icon: '#16a34a', hover: '#dcfce7' }
+  }
+  const theme = colors[color] || colors.gray
+  return (
+    <button
+      title={title}
+      disabled={disabled}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        width: 32, height: 32, borderRadius: 10, border: 'none',
+        background: disabled ? '#f1f5f9' : (hover ? theme.hover : theme.bg),
+        color: disabled ? '#cbd5e1' : theme.icon, cursor: disabled ? 'not-allowed' : 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 14, transition: 'all 0.2s',
+        transform: hover && !disabled ? 'translateY(-2px)' : 'none'
+      }}
+    >
+      {icon}
+    </button>
+  )
+}
 
 export default function NoSeriesPage() {
+  const { workingDate, getFormattedDate } = useWorkingDate()
   const [series, setSeries] = useState([])
+  const [lines, setLines] = useState([])
   const [loading, setLoading] = useState(true)
+  const [expandedId, setExpandedId] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [showNew, setShowNew] = useState(false)
-  const [hasDuplicate, setHasDuplicate] = useState(false)
-  const [duplicateForms, setDuplicateForms] = useState([])
-  const [form, setForm] = useState({
-    code: '', description: '', format: '', starting_no: '',
-    ending_no: '', starting_date: '', ending_date: '',
-    last_no_used: '', manual_nos: false, linked_form: 'ไม่ผูกกับเอกสาร'
-  })
+  const [form, setForm] = useState({ code: '', description: '', format: '', linked_form: 'ไม่ผูกกับเอกสาร' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState({ text: '', type: '' })
   const [currentUser, setCurrentUser] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef(null)
 
-  useEffect(() => { fetchSeries() }, [])
+  useEffect(() => { init() }, [])
 
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', user.id).single()
-        setCurrentUser(profile)
-      }
+  const init = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single()
+      setCurrentUser(profile || session.user)
     }
-    getUser()
-  }, [])
-
-  const isVisitor = currentUser?.role === 'visitor'
-
-  const fetchSeries = async () => {
-    setLoading(true)
-    const { data } = await supabase.from('no_series').select('*').order('code')
-    const list = data || []
-    setSeries(list)
-    checkDuplicates(list)
+    await fetchData()
     setLoading(false)
   }
 
-  const checkDuplicates = (list) => {
-    const countMap = {}
-    list.forEach(s => {
-      if (s.linked_form && s.linked_form !== 'ไม่ผูกกับเอกสาร') {
-        countMap[s.linked_form] = (countMap[s.linked_form] || 0) + 1
-      }
-    })
-    const dupes = Object.entries(countMap)
-      .filter(([_, count]) => count > 1)
-      .map(([form]) => form)
-    setDuplicateForms(dupes)
-    setHasDuplicate(dupes.length > 0)
+  const fetchData = async () => {
+    const { data: headerData } = await supabase.from('no_series').select('*').order('code')
+    const { data: lineData } = await supabase.from('no_series_lines').select('*').order('starting_date', { ascending: false })
+    setSeries(headerData || [])
+    setLines(lineData || [])
   }
 
-  const handleSaveNew = async () => {
-    if (!form.code.trim() || !form.format.trim()) {
-      setMsg({ text: 'กรุณากรอก Code และ Format', type: 'error' })
+  const handleSaveHeader = async () => {
+    if (!form.code.trim() || !form.format.trim()) { setMsg({ text: 'กรอก Code และ Format', type: 'error' }); return }
+    setSaving(true)
+    const { error } = await supabase.from('no_series').insert([{ ...form, code: form.code.toUpperCase().trim() }])
+    if (error) setMsg({ text: error.message, type: 'error' })
+    else { setShowNew(false); setForm({ code: '', description: '', format: '', linked_form: 'ไม่ผูกกับเอกสาร' }); fetchData(); }
+    setSaving(false)
+  }
+
+  const handleAddLine = async (code) => {
+    const lastLine = lines.find(l => l.series_code === code)
+    const nextDate = lastLine ? new Date(lastLine.starting_date) : new Date()
+    if (lastLine) nextDate.setMonth(nextDate.getMonth() + 1)
+    nextDate.setDate(1)
+
+    const newLine = {
+      series_code: code,
+      starting_date: nextDate.toISOString().split('T')[0],
+      format: null,
+      starting_no: lastLine ? lastLine.starting_no : '',
+      increment_by: 1,
+      is_open: true
+    }
+
+    const { error } = await supabase.from('no_series_lines').insert([newLine])
+    if (error) setMsg({ text: error.message, type: 'error' })
+    else fetchData()
+  }
+
+  const handleDownloadTemplate = () => {
+    const headers = ['code', 'format', 'starting_date', 'last_no_used']
+    const todayStr = new Date().toISOString().split('T')[0]
+    const csvBody = headers.join(',') + '\n' + 
+      `INC,DTT-INC-YYMM-###,${todayStr},0\n` +
+      `CHK,DTT-CHK-YYMM-###,${todayStr},0`
+    const encodedUri = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(csvBody)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute('download', 'no_series_template.csv')
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setImporting(true)
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      const text = event.target.result
+      await processImport(text)
+      setImporting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+    reader.readAsText(file)
+  }
+
+  const processImport = async (csvText) => {
+    const rows = csvText.split(/\r?\n/).filter(r => r.trim() !== '')
+    if (rows.length < 2) { setMsg({ text: 'ไฟล์ CSV ไม่มีข้อมูล', type: 'error' }); return }
+    
+    // Check headers
+    const headers = rows[0].split(',').map(h => h.trim().toLowerCase())
+    const required = ['code', 'format', 'starting_date', 'last_no_used']
+    const missing = required.filter(r => !headers.includes(r))
+    if (missing.length > 0) {
+      setMsg({ text: `ไฟล์ CSV ขาดคอลัมน์: ${missing.join(', ')}`, type: 'error' })
       return
     }
-    setSaving(true)
-    setMsg({ text: '', type: '' })
 
-    const { error } = await supabase.from('no_series').insert([{
-      ...form,
-      code: form.code.toUpperCase().trim()
-    }])
+    let successCount = 0
+    let errorCount = 0
 
-    if (error) {
-      if (error.code === '23505') {
-        setMsg({ text: `Code "${form.code}" มีอยู่แล้วในระบบ`, type: 'error' })
-      } else if (error.message?.includes('no_series_linked_form_unique')) {
-        setMsg({ text: `Linked Form "${form.linked_form}" ถูกใช้แล้วใน Series อื่น`, type: 'error' })
-      } else {
-        setMsg({ text: `เกิดข้อผิดพลาด: ${error.message}`, type: 'error' })
+    for (let i = 1; i < rows.length; i++) {
+      const cols = rows[i].split(',').map(c => c.trim())
+      if (cols.length < required.length) continue
+      
+      const rowData = {}
+      headers.forEach((h, idx) => { rowData[h] = cols[idx] })
+      
+      const code = rowData.code.toUpperCase()
+      if (!code) continue
+
+      try {
+        // 1. Check or Insert Header
+        const { data: header } = await supabase.from('no_series').select('id').eq('code', code).single()
+        if (!header) {
+          const { error: hErr } = await supabase.from('no_series').insert([{
+            code,
+            description: code,
+            format: rowData.format || `${code}-YYMM-###`,
+            linked_form: 'ไม่ผูกกับเอกสาร',
+            manual_nos: false
+          }])
+          if (hErr) throw hErr
+        }
+
+        // 2. Insert Line
+        const startingDate = rowData.starting_date || new Date().toISOString().split('T')[0]
+        const lastNo = rowData.last_no_used && !isNaN(parseInt(rowData.last_no_used)) ? parseInt(rowData.last_no_used) : 0
+
+        // Check if line exists for this date
+        const { data: existingLine } = await supabase.from('no_series_lines').select('id').eq('series_code', code).eq('starting_date', startingDate).maybeSingle()
+        if (existingLine) {
+           await supabase.from('no_series_lines').update({ last_no_used: lastNo, format: rowData.format || null }).eq('id', existingLine.id)
+        } else {
+           await supabase.from('no_series_lines').insert([{
+             series_code: code,
+             starting_date: startingDate,
+             format: rowData.format || null,
+             starting_no: '',
+             last_no_used: lastNo,
+             increment_by: 1,
+             is_open: true
+           }])
+        }
+        successCount++
+      } catch (err) {
+        console.error('Import error row ' + i, err)
+        errorCount++
       }
-    } else {
-      setShowNew(false)
-      setForm({
-        code: '', description: '', format: '', starting_no: '',
-        ending_no: '', starting_date: '', ending_date: '',
-        last_no_used: '', manual_nos: false, linked_form: 'ไม่ผูกกับเอกสาร'
-      })
-      setMsg({ text: 'สร้าง No. Series สำเร็จแล้ว', type: 'success' })
-      await fetchSeries()
     }
+    
+    setMsg({ text: `นำเข้าข้อมูลเสร็จสิ้น: สำเร็จ ${successCount} รายการ, ผิดพลาด ${errorCount} รายการ`, type: successCount > 0 ? 'success' : 'error' })
+    fetchData()
+  }
+
+  const handleDeleteLine = async (id) => {
+    if (confirm('ลบบรรทัดนี้?')) {
+      await supabase.from('no_series_lines').delete().eq('id', id)
+      fetchData()
+    }
+  }
+
+  const handleUpdateLine = async (id, field, value) => {
+    setLines(prev => prev.map(l => l.id === id ? { ...l, [field]: value } : l))
+  }
+
+  const toDisplayDate = (dateStr) => {
+    if (!dateStr) return ''
+    const parts = dateStr.split('-')
+    if (parts.length !== 3) return dateStr
+    return `${parts[2]} / ${parts[1]} / ${parts[0]}`
+  }
+
+  const fromDisplayDate = (displayStr) => {
+    const clean = displayStr.replace(/\s/g, '')
+    const parts = clean.split('/')
+    if (parts.length !== 3) return null
+    const [d, m, y] = parts
+    if (y.length !== 4 || m.length > 2 || d.length > 2) return null
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  }
+
+  const saveLine = async (line) => {
+    setSaving(true)
+    const { error } = await supabase.from('no_series_lines').update(line).eq('id', line.id)
+    if (error) setMsg({ text: error.message, type: 'error' })
+    else { setMsg({ text: 'บันทึกสำเร็จ', type: 'success' }); fetchData(); }
     setSaving(false)
   }
 
-  const handleSaveEdit = async (id) => {
+  const handleDeleteSeries = async (id, code) => {
+    if (!confirm(`Are you sure you want to delete the entire series [${code}]? This will delete all associated lines.`)) return
     setSaving(true)
-    setMsg({ text: '', type: '' })
-    const editing = series.find(s => s.id === id)
-
-    const { error } = await supabase.from('no_series').update(editing).eq('id', id)
-
-    if (error) {
-      if (error.message?.includes('no_series_linked_form_unique')) {
-        setMsg({ text: `Linked Form "${editing.linked_form}" ถูกใช้แล้วใน Series อื่น`, type: 'error' })
-      } else {
-        setMsg({ text: `เกิดข้อผิดพลาด: ${error.message}`, type: 'error' })
-      }
-    } else {
-      setEditingId(null)
-      setMsg({ text: 'บันทึกสำเร็จแล้ว', type: 'success' })
-      await fetchSeries()
-    }
-    setSaving(false)
-  }
-
-  const handleDelete = async (id, code) => {
-    if (!confirm(`ต้องการลบ No. Series "${code}" ใช่ไหม?`)) return
+    await supabase.from('no_series_lines').delete().eq('series_code', code)
     const { error } = await supabase.from('no_series').delete().eq('id', id)
-    if (error) {
-      setMsg({ text: `ลบไม่สำเร็จ: ${error.message}`, type: 'error' })
-    } else {
-      setMsg({ text: `ลบ "${code}" สำเร็จแล้ว`, type: 'success' })
-      await fetchSeries()
-    }
+    if (error) setMsg({ text: error.message, type: 'error' })
+    else { setMsg({ text: `ลบ Series ${code} สำเร็จ`, type: 'success' }); fetchData(); }
+    setSaving(false)
   }
 
-  const handleCancelEdit = (id) => {
-    setEditingId(null)
-    fetchSeries()
+  const getPreview = (s) => {
+    const sLines = lines.filter(l => l.series_code === s.code)
+    const activeLine = sLines.find(l => new Date(l.starting_date) <= (workingDate || new Date()))
+    if (activeLine) return generateNextNo(s.format, activeLine.last_no_used, workingDate)
+    return generateNextNo(s.format, s.last_no_used, workingDate)
   }
 
-  const updateField = (id, field, value) => {
-    setSeries(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s))
-  }
-
-  const previewNo = (fmt, lastNo) => {
-    if (!fmt) return '—'
-    try { return generateNextNo(fmt, lastNo) } catch { return '—' }
-  }
-
-  const isExpired = (s) => s.ending_date && new Date(s.ending_date) < new Date()
-  const isNotStarted = (s) => s.starting_date && new Date(s.starting_date) > new Date()
-  const isDuplicateLinked = (s) => duplicateForms.includes(s.linked_form)
-
-  const getStatusBadge = (s) => {
-    if (isExpired(s)) return { label: 'หมดอายุ', bg: '#fee2e2', color: '#991b1b' }
-    if (isNotStarted(s)) return { label: 'ยังไม่เริ่ม', bg: '#f3f4f6', color: '#6b7280' }
-    return { label: 'Active', bg: '#d1fae5', color: '#065f46' }
-  }
-
-  const inputStyle = {
-    padding: '6px 8px', border: '1px solid #d1d5db',
-    borderRadius: 6, fontSize: 12, fontFamily: 'inherit', width: '100%'
-  }
-  const readStyle = { fontSize: 13, color: '#374151', padding: '4px 0', minHeight: 28 }
-
-  if (loading) return (
-    <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลด...</div>
-  )
-
-  if (isVisitor) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 24px', textAlign: 'center' }}>
-        <div style={{ fontSize: 64, marginBottom: 20 }}>🔐</div>
-        <h2 style={{ fontSize: 24, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Access Denied</h2>
-        <p style={{ color: '#6b7280', maxWidth: 450, fontSize: 16, lineHeight: 1.5 }}>
-          ไม่สามารถเข้าถึงหน้าจอนี้ได้เนื่องจากเหตุผลด้านความปลอดภัย <br/> 
-          สิทธิ์ <b>Visitor</b> ของคุณไม่ได้รับอนุญาตให้ดูหรือจัดการข้อมูลในส่วนนี้
-        </p>
-        <button onClick={() => window.location.href = '/dashboard'} style={{ marginTop: 32, padding: '10px 24px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
-          กลับสู่หน้า Dashboard
-        </button>
-      </div>
-    )
-  }
+  if (loading) return <div style={{ padding: 100, textAlign: 'center' }}>กำลังโหลด...</div>
 
   return (
-    <div style={{ padding: 24 }}>
-
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+    <div style={{ padding: 24, background: '#f8fafc', minHeight: '100vh' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>No. Series</h1>
-          <div style={{ fontSize: 12, color: '#6b7280' }}>
-            ตั้งค่าเลขที่เอกสารและผูกกับฟอร์มแต่ละประเภท
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
+            No. Series Management <span style={{ fontSize: 12, background: '#1d4ed8', color: '#fff', padding: '2px 10px', borderRadius: 20 }}>Enterprise</span>
+          </h1>
+          <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
+            ตั้งค่าเลขที่เอกสารแบบ Header & Lines อ้างอิง Working Date: <strong style={{ color: '#1d4ed8' }}>{getFormattedDate().split('-').reverse().join(' / ')}</strong>
           </div>
         </div>
-        <button
-          onClick={() => { setShowNew(true); setMsg({ text: '', type: '' }) }}
-          style={{
-            background: '#1d4ed8', color: '#fff', padding: '8px 16px',
-            borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer', fontFamily: 'inherit'
-          }}
-        >
-          + New Series
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={handleDownloadTemplate} style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', padding: '10px 16px', borderRadius: 12, cursor: 'pointer', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+            📄 Template
+          </button>
+          
+          <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} />
+          <button onClick={() => fileInputRef.current?.click()} disabled={importing} style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', padding: '10px 16px', borderRadius: 12, cursor: importing ? 'wait' : 'pointer', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+            {importing ? '⏳ Importing...' : '📥 Import CSV'}
+          </button>
+          
+          <button onClick={() => setShowNew(true)} style={{ background: '#1d4ed8', color: '#fff', padding: '10px 24px', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
+            + New Series
+          </button>
+        </div>
       </div>
 
-      {/* Duplicate Warning Banner */}
-      {hasDuplicate && (
-        <div style={{
-          background: '#fef3c7', border: '1px solid #fcd34d',
-          borderRadius: 10, padding: '14px 18px',
-          marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-start'
-        }}>
-          <span style={{ fontSize: 20, flexShrink: 0 }}>⚠️</span>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>
-              พบ Linked Form ซ้ำกัน — อาจทำให้เลขที่เอกสารซ้ำกันได้
-            </div>
-            <div style={{ fontSize: 12, color: '#92400e', marginBottom: 8 }}>
-              Form ต่อไปนี้ถูกผูกกับ No. Series มากกว่า 1 รายการ:
-              {duplicateForms.map(f => (
-                <span key={f} style={{
-                  display: 'inline-block', margin: '0 4px',
-                  background: '#fbbf24', color: '#78350f',
-                  padding: '1px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600
-                }}>
-                  {f}
-                </span>
-              ))}
-            </div>
-            <div style={{ fontSize: 12, color: '#92400e' }}>
-              กรุณาแก้ไขให้แต่ละ Form มี No. Series เพียง 1 รายการเท่านั้น
-              มิฉะนั้นเลขที่เอกสารอาจซ้ำกันและทำให้ระบบบันทึกข้อมูลไม่ได้
-            </div>
-          </div>
-        </div>
-      )}
+      {msg.text && <div style={{ padding: '14px 20px', borderRadius: 14, fontSize: 14, marginBottom: 24, background: msg.type === 'success' ? '#f0fdf4' : '#fef2f2', color: msg.type === 'success' ? '#166534' : '#991b1b', border: '1px solid #e2e8f0' }}>{msg.text}</div>}
 
-      {/* Success / Error Message */}
-      {msg.text && (
-        <div style={{
-          padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16,
-          background: msg.type === 'success' ? '#d1fae5' : '#fee2e2',
-          color: msg.type === 'success' ? '#065f46' : '#991b1b',
-          display: 'flex', alignItems: 'center', gap: 8
-        }}>
-          {msg.type === 'success' ? '✅' : '❌'} {msg.text}
-        </div>
-      )}
-
-      {/* New Series Form */}
       {showNew && (
-        <div style={{
-          background: '#fff', borderRadius: 10,
-          border: '2px solid #3b82f6', padding: 20, marginBottom: 16
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#1d4ed8', marginBottom: 16 }}>
-            ➕ สร้าง No. Series ใหม่
-          </div>
-
-          {/* Row 1 */}
-          <div className="form-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
-            <div>
-              <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Code *</label>
-              <input
-                value={form.code}
-                onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                placeholder="เช่น INC"
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Description</label>
-              <input
-                value={form.description}
-                onChange={e => setForm({ ...form, description: e.target.value })}
-                placeholder="คำอธิบาย"
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Format *</label>
-              <input
-                value={form.format}
-                onChange={e => setForm({ ...form, format: e.target.value })}
-                placeholder="DTT-INC-YYMM-###"
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Linked Form</label>
-              <select
-                value={form.linked_form}
-                onChange={e => setForm({ ...form, linked_form: e.target.value })}
-                style={{ ...inputStyle, background: '#fff', cursor: 'pointer' }}
-              >
-                {LINKED_FORMS.map(f => <option key={f}>{f}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Row 2 */}
-          <div className="form-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
-            <div>
-              <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Starting No.</label>
-              <input
-                value={form.starting_no}
-                onChange={e => setForm({ ...form, starting_no: e.target.value })}
-                placeholder="DTT-INC-2601-001"
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Ending No.</label>
-              <input
-                value={form.ending_no}
-                onChange={e => setForm({ ...form, ending_no: e.target.value })}
-                placeholder="DTT-INC-9912-999"
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Starting Date</label>
-              <input
-                type="date"
-                value={form.starting_date}
-                onChange={e => setForm({ ...form, starting_date: e.target.value })}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>Ending Date</label>
-              <input
-                type="date"
-                value={form.ending_date}
-                onChange={e => setForm({ ...form, ending_date: e.target.value })}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          {/* Manual Nos */}
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={form.manual_nos}
-                onChange={e => setForm({ ...form, manual_nos: e.target.checked })}
-                style={{ width: 16, height: 16, accentColor: '#1d4ed8' }}
-              />
-              <span>Manual Nos.</span>
-              <span style={{ fontSize: 11, color: '#6b7280' }}>— อนุญาตให้แก้ไขเลขที่เอกสารได้ในฟอร์ม</span>
-            </label>
-          </div>
-
-          {/* Preview */}
-          {form.format && (
-            <div style={{
-              background: '#eff6ff', border: '1px solid #bfdbfe',
-              borderRadius: 8, padding: '10px 14px',
-              fontSize: 13, color: '#1e40af', marginBottom: 14
-            }}>
-              ตัวอย่างเลขถัดไป: <strong style={{ fontFamily: 'monospace', fontSize: 14 }}>
-                {previewNo(form.format, form.last_no_used)}
-              </strong>
-            </div>
-          )}
-
-          {/* Buttons */}
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button
-              onClick={() => { setShowNew(false); setMsg({ text: '', type: '' }) }}
-              style={{
-                padding: '7px 16px', border: '1px solid #d1d5db', borderRadius: 7,
-                fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit'
-              }}
-            >
-              ยกเลิก
-            </button>
-            <button
-              onClick={handleSaveNew}
-              disabled={saving}
-              style={{
-                padding: '7px 16px', border: 'none', borderRadius: 7,
-                fontSize: 13, background: saving ? '#93c5fd' : '#1d4ed8',
-                color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit'
-              }}
-            >
-              {saving ? 'กำลังบันทึก...' : 'บันทึก'}
-            </button>
+        <div style={{ background: '#fff', borderRadius: 24, padding: 32, marginBottom: 32, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0' }}>
+          <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 24 }}>➕ สร้าง Series Header ใหม่</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
+            <input value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="Series Code (e.g. SO)" style={{ padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} />
+            <input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Description" style={{ padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} />
+            <input value={form.format} onChange={e => setForm({ ...form, format: e.target.value })} placeholder="Format (e.g. SO-YYMM-###)" style={{ padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} />
+            <button onClick={handleSaveHeader} style={{ background: '#1d4ed8', color: '#fff', borderRadius: 12, border: 'none', fontWeight: 700 }}>บันทึก Header</button>
           </div>
         </div>
       )}
 
-      {/* Series List */}
-      {series.length === 0 && !showNew ? (
-        <div style={{
-          background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb',
-          padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 14
-        }}>
-          ยังไม่มี No. Series กด "+ New Series" เพื่อสร้างครับ
-        </div>
-      ) : series.map(s => {
-        const status = getStatusBadge(s)
-        const isDupe = isDuplicateLinked(s)
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {series.map(s => {
+          const sLines = lines.filter(l => l.series_code === s.code)
+          const isExpanded = expandedId === s.id
+          const nextNo = getPreview(s)
 
-        return (
-          <div key={s.id} style={{
-            background: '#fff', borderRadius: 10,
-            border: `1px solid ${isDupe ? '#fcd34d' : editingId === s.id ? '#3b82f6' : '#e5e7eb'}`,
-            padding: 20, marginBottom: 12,
-            transition: 'border-color 0.2s'
-          }}>
-            {/* Card Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{s.code}</div>
-                <div style={{ fontSize: 13, color: '#6b7280' }}>{s.description}</div>
-
-                {/* Status Badge */}
-                <span style={{
-                  background: status.bg, color: status.color,
-                  padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 500
-                }}>
-                  {status.label}
-                </span>
-
-                {/* Linked Form Badge */}
-                {s.linked_form && s.linked_form !== 'ไม่ผูกกับเอกสาร' && (
-                  <span style={{
-                    background: isDupe ? '#fef3c7' : '#eff6ff',
-                    color: isDupe ? '#92400e' : '#1e40af',
-                    padding: '2px 8px', borderRadius: 20, fontSize: 11,
-                    border: isDupe ? '1px solid #fcd34d' : 'none'
-                  }}>
-                    {isDupe ? '⚠️ ' : ''}{s.linked_form}
-                  </span>
-                )}
-
-                {/* Manual Badge */}
-                {s.manual_nos && (
-                  <span style={{
-                    background: '#fef3c7', color: '#92400e',
-                    padding: '2px 8px', borderRadius: 20, fontSize: 11
-                  }}>
-                    Manual
-                  </span>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                {editingId === s.id ? (
-                  <>
-                    <button
-                      onClick={() => handleCancelEdit(s.id)}
-                      style={{
-                        padding: '5px 12px', border: '1px solid #d1d5db',
-                        borderRadius: 6, fontSize: 12, background: '#fff',
-                        cursor: 'pointer', fontFamily: 'inherit'
-                      }}
-                    >
-                      ยกเลิก
-                    </button>
-                    <button
-                      onClick={() => handleSaveEdit(s.id)}
-                      disabled={saving}
-                      style={{
-                        padding: '5px 12px', border: 'none', borderRadius: 6,
-                        fontSize: 12, background: saving ? '#93c5fd' : '#1d4ed8',
-                        color: '#fff', cursor: saving ? 'not-allowed' : 'pointer',
-                        fontFamily: 'inherit'
-                      }}
-                    >
-                      {saving ? 'บันทึก...' : '💾 บันทึก'}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => { setEditingId(s.id); setMsg({ text: '', type: '' }) }}
-                      style={{
-                        padding: '5px 12px', border: '1px solid #d1d5db',
-                        borderRadius: 6, fontSize: 12, background: '#fff',
-                        cursor: 'pointer', fontFamily: 'inherit'
-                      }}
-                    >
-                      ✏️ แก้ไข
-                    </button>
-                    <button
-                      onClick={() => handleDelete(s.id, s.code)}
-                      style={{
-                        padding: '5px 12px', border: 'none', borderRadius: 6,
-                        fontSize: 12, background: '#fee2e2',
-                        color: '#991b1b', cursor: 'pointer', fontFamily: 'inherit'
-                      }}
-                    >
-                      🗑 ลบ
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Duplicate Warning สำหรับ Card นี้ */}
-            {isDupe && (
-              <div style={{
-                background: '#fef3c7', border: '1px solid #fcd34d',
-                borderRadius: 7, padding: '8px 12px', marginBottom: 14,
-                fontSize: 12, color: '#92400e',
-                display: 'flex', alignItems: 'center', gap: 8
-              }}>
-                ⚠️ <strong>{s.linked_form}</strong> ถูกใช้ใน Series อื่นด้วย — กรุณาแก้ไขเพื่อป้องกันเลขซ้ำ
-              </div>
-            )}
-
-            {/* Fields Grid */}
-            <div className="form-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-
-              {/* Format */}
-              <div>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Format</div>
-                {editingId === s.id ? (
-                  <input value={s.format || ''} onChange={e => updateField(s.id, 'format', e.target.value)} style={inputStyle} />
-                ) : (
-                  <div style={{ ...readStyle, fontFamily: 'monospace' }}>{s.format || '—'}</div>
-                )}
-              </div>
-
-              {/* Starting No */}
-              <div>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Starting No.</div>
-                {editingId === s.id ? (
-                  <input value={s.starting_no || ''} onChange={e => updateField(s.id, 'starting_no', e.target.value)} style={inputStyle} />
-                ) : (
-                  <div style={readStyle}>{s.starting_no || '—'}</div>
-                )}
-              </div>
-
-              {/* Ending No */}
-              <div>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Ending No.</div>
-                {editingId === s.id ? (
-                  <input value={s.ending_no || ''} onChange={e => updateField(s.id, 'ending_no', e.target.value)} style={inputStyle} />
-                ) : (
-                  <div style={readStyle}>{s.ending_no || '—'}</div>
-                )}
-              </div>
-
-              {/* Linked Form */}
-              <div>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Linked Form</div>
-                {editingId === s.id ? (
-                  <select
-                    value={s.linked_form || 'ไม่ผูกกับเอกสาร'}
-                    onChange={e => updateField(s.id, 'linked_form', e.target.value)}
-                    style={{ ...inputStyle, background: '#fff', cursor: 'pointer' }}
-                  >
-                    {LINKED_FORMS.map(f => <option key={f}>{f}</option>)}
-                  </select>
-                ) : (
-                  <div style={readStyle}>{s.linked_form || '—'}</div>
-                )}
-              </div>
-
-              {/* Starting Date */}
-              <div>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Starting Date</div>
-                {editingId === s.id ? (
-                  <input type="date" value={s.starting_date || ''} onChange={e => updateField(s.id, 'starting_date', e.target.value)} style={inputStyle} />
-                ) : (
-                  <div style={readStyle}>{formatDate(s.starting_date)}</div>
-                )}
-              </div>
-
-              {/* Ending Date */}
-              <div>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Ending Date</div>
-                {editingId === s.id ? (
-                  <input type="date" value={s.ending_date || ''} onChange={e => updateField(s.id, 'ending_date', e.target.value)} style={inputStyle} />
-                ) : (
-                  <div style={{ ...readStyle, color: isExpired(s) ? '#dc2626' : '#374151' }}>
-                    {formatDate(s.ending_date)}
-                    {isExpired(s) && <span style={{ fontSize: 11, marginLeft: 6, color: '#dc2626' }}>(หมดอายุแล้ว)</span>}
+          return (
+            <div key={s.id} style={{ background: '#fff', borderRadius: 24, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div onClick={() => setExpandedId(isExpanded ? null : s.id)} style={{ padding: '24px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: isExpanded ? '#f8fafc' : '#fff' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+                  <div style={{ width: 50, height: 50, background: '#eff6ff', color: '#1d4ed8', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800 }}>{s.code}</div>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>{s.description || s.code}</div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Format: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{s.format}</span></div>
                   </div>
-                )}
-              </div>
-
-              {/* Last No Used */}
-              <div>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Last No. Used</div>
-                {editingId === s.id ? (
-                  <input value={s.last_no_used || ''} onChange={e => updateField(s.id, 'last_no_used', e.target.value)} style={{ ...inputStyle, fontFamily: 'monospace' }} />
-                ) : (
-                  <div style={{ ...readStyle, color: s.last_no_used ? '#1d4ed8' : '#d1d5db', fontWeight: s.last_no_used ? 600 : 400, fontFamily: 'monospace' }}>
-                    {s.last_no_used || '—'}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 40 }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Next Number for {getFormattedDate().split('-').reverse().join(' / ')}</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: '#10b981', fontFamily: 'monospace' }}>{nextNo}</div>
                   </div>
-                )}
+                  <div style={{ width: 32, display: 'flex', justifyContent: 'center', color: '#94a3b8' }}>{isExpanded ? '▲' : '▼'}</div>
+                </div>
               </div>
 
-              {/* Last Date Used */}
-              <div>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Last Date Used</div>
-                <div style={readStyle}>{formatDate(s.last_date_used)}</div>
-              </div>
+              {isExpanded && (
+                <div style={{ padding: '0 32px 32px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 16, borderTop: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Series Lines</div>
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteSeries(s.id, s.code) }} style={{ fontSize: 12, color: '#ef4444', background: '#fef2f2', border: '1px solid #fecaca', padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>🗑️ Delete Series</button>
+                    </div>
+                    <button onClick={() => handleAddLine(s.code)} style={{ fontSize: 12, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #dbeafe', padding: '6px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 700 }}>+ Add Line</button>
+                  </div>
+                  
+                  <div style={{ border: '1px solid #f1f5f9', borderRadius: 16, overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                        <tr>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b' }}>Starting Date</th>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b' }}>Format (Override)</th>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b' }}>Starting No.</th>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b' }}>Last No. Used</th>
+                          <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b' }}>Status</th>
+                          <th style={{ padding: '12px 16px', textAlign: 'right', color: '#64748b' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sLines.length === 0 ? (
+                          <tr><td colSpan="6" style={{ padding: 24, textAlign: 'center', color: '#94a3b8' }}>No lines defined. Using legacy header logic.</td></tr>
+                        ) : sLines.map(line => (
+                          <tr key={line.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                            <td style={{ padding: '12px 16px' }}>
+                              <input 
+                                type="text" 
+                                value={toDisplayDate(line.starting_date)} 
+                                onChange={e => {
+                                  const val = e.target.value
+                                  handleUpdateLine(line.id, 'starting_date', val)
+                                }}
+                                onBlur={e => {
+                                  const iso = fromDisplayDate(e.target.value)
+                                  if (iso) handleUpdateLine(line.id, 'starting_date', iso)
+                                  else fetchData() // revert if invalid
+                                }}
+                                placeholder="DD / MM / YYYY"
+                                style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, width: 110 }} 
+                              />
+                            </td>
+                            <td style={{ padding: '12px 16px' }}><input type="text" value={line.format || ''} placeholder="Use Header" onChange={e => handleUpdateLine(line.id, 'format', e.target.value)} style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, width: 140 }} /></td>
+                            <td style={{ padding: '12px 16px' }}><input value={line.starting_no} onChange={e => handleUpdateLine(line.id, 'starting_no', e.target.value)} style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, fontFamily: 'monospace' }} /></td>
+                            <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 600, color: '#1d4ed8' }}>{line.last_no_used || '—'}</td>
+                            <td style={{ padding: '12px 16px' }}>
+                              {new Date(line.starting_date) <= (workingDate || new Date()) ? <span style={{ color: '#16a34a', fontWeight: 700 }}>● Active</span> : <span style={{ color: '#94a3b8' }}>○ Scheduled</span>}
+                            </td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                <ActionButton icon="💾" color="green" onClick={() => saveLine(line)} title="Save Line" />
+                                <ActionButton icon="🗑" color="red" onClick={() => handleDeleteLine(line.id)} title="Delete Line" />
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
-
-            {/* Manual Nos Toggle */}
-            {editingId === s.id && (
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f3f4f6' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={s.manual_nos || false}
-                    onChange={e => updateField(s.id, 'manual_nos', e.target.checked)}
-                    style={{ width: 16, height: 16, accentColor: '#1d4ed8' }}
-                  />
-                  <span>Manual Nos.</span>
-                  <span style={{ fontSize: 11, color: '#6b7280' }}>— อนุญาตให้แก้ไขเลขที่เอกสารได้ในฟอร์ม</span>
-                </label>
-              </div>
-            )}
-
-            {/* Footer: Preview + Date Range */}
-            <div style={{
-              marginTop: 14, paddingTop: 14, borderTop: '1px solid #f3f4f6',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              flexWrap: 'wrap', gap: 8
-            }}>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>
-                เลขถัดไป:{' '}
-                <strong style={{ color: '#1d4ed8', fontFamily: 'monospace', fontSize: 13 }}>
-                  {previewNo(s.format, s.last_no_used)}
-                </strong>
-              </div>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>
-                ช่วงเวลา: {formatDate(s.starting_date)} — {formatDate(s.ending_date)}
-              </div>
-            </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }

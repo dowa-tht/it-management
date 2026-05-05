@@ -71,11 +71,54 @@ export async function changeExternalPIN({ currentPIN, newPIN }) {
       .update({ pin_hash: pinHash })
       .eq('id', extUser.id)
 
-    if (updateError) throw updateError
-
     return { success: true }
   } catch (err) {
     console.error('changeExternalPIN error:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+/**
+ * 📧 ส่งคำขอรีเซ็ตรหัส PIN ไปยังอีเมลผู้ใช้
+ */
+export async function requestSignaturePinReset(email) {
+  try {
+    const { sendEmail } = await import('@/lib/resend')
+    
+    // ดึงข้อมูลชื่อผู้ใช้
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const adminClient = createClient(supabaseUrl, serviceKey)
+    const { data: profile } = await adminClient.from('user_profiles').select('full_name').eq('email', email).single()
+    
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+
+    await sendEmail({
+      to: [email],
+      subject: '[DOWA IT System] Signature PIN Reset Request',
+      html: `
+        <div style="font-family: sans-serif; padding: 40px; color: #1e293b; background-color: #f8fafc;">
+          <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+            <h1 style="color: #1d4ed8; margin-top: 0;">Signature PIN Reset</h1>
+            <p>Hello <strong>${profile?.full_name || 'User'}</strong>,</p>
+            <p>We received a request to reset your Signature PIN for the DOWA IT System.</p>
+            <div style="background-color: #fffbeb; padding: 20px; border-radius: 12px; margin: 24px 0; border: 1px solid #fcd34d;">
+              <p style="margin: 0; font-size: 14px; color: #92400e;">
+                <strong>Instructions:</strong><br/>
+                Please contact your <strong>System Administrator</strong> to reset your PIN or unlock your account. 
+                Once reset, you can set a new 6-digit PIN in your Profile settings.
+              </p>
+            </div>
+            <p style="font-size: 13px; color: #64748b;">If you didn't request this, please ignore this email or notify IT support if you're concerned about your account security.</p>
+            <div style="text-align: center; margin-top: 32px;"><a href="${siteUrl}/dashboard/profile" style="display: inline-block; padding: 14px 28px; background-color: #1d4ed8; color: white; text-decoration: none; border-radius: 10px; font-weight: bold;">Go to Profile Settings</a></div>
+          </div>
+        </div>
+      `
+    })
+
+    return { success: true }
+  } catch (err) {
+    console.error('requestSignaturePinReset error:', err)
     return { success: false, error: err.message }
   }
 }

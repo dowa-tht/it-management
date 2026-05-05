@@ -36,14 +36,15 @@ export async function getDashboardData(timezoneOffset = -420) {
     streakStart.setDate(streakStart.getDate() - 35)
     const streakStartStr = streakStart.toISOString().split('T')[0]
 
-    const [incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes, slaLimitsRes] = await Promise.all([
+    const [incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes, slaLimitsRes, yearlyRes] = await Promise.all([
       supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system').gte('created_at', startIso).order('created_at', { ascending: false }),
       supabaseAdmin.from('backup_logs').select('id, log_date, system_name, status, notes').gte('log_date', startIso.split('T')[0]).order('log_date', { ascending: false }),
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').gte('period_date', streakStartStr),
       supabaseAdmin.from('holidays').select('holiday_date').gte('holiday_date', streakStartStr),
       supabaseAdmin.from('system_settings').select('value').eq('key', 'working_hours').maybeSingle(),
       supabaseAdmin.from('incident_exclusions').select('*').gte('start_time', startIso),
-      supabaseAdmin.from('system_settings').select('value').eq('key', 'sla_limits').maybeSingle()
+      supabaseAdmin.from('system_settings').select('value').eq('key', 'sla_limits').maybeSingle(),
+      supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').eq('freq_type', 'Yearly').gte('period_date', `${todayStr.substring(0, 4)}-01-01`)
     ])
 
     if (incRes.error) console.error('Incidents Fetch Error:', incRes.error)
@@ -55,6 +56,9 @@ export async function getDashboardData(timezoneOffset = -420) {
     const allChecklists = chkRes.error ? [] : (chkRes.data || [])
     const holidays = holidayRes.error ? [] : (holidayRes.data?.map(h => h.holiday_date) || [])
 
+    // Extract settings needed for calculations
+    const wh = settingsRes.data?.value || { start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] }
+
     // Filter checklists for "Today" to keep backward compatibility
     const checklists = allChecklists.filter(c => c.period_date === todayStr)
 
@@ -65,18 +69,24 @@ export async function getDashboardData(timezoneOffset = -420) {
     // We go backwards to find 7 valid working days
     while (streak.length < 7 && cursorDate >= streakStart) {
       const dStr = cursorDate.toISOString().split('T')[0]
-      const dayOfWeek = cursorDate.getDay() // 0 = Sun, 6 = Sat
+      const dayOfWeek = cursorDate.getUTCDay() // Use UTC because we adjusted the timestamp manually to the user's local time
       
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+      const isWorkingDay = wh.work_days.includes(dayOfWeek)
       const isHoliday = holidays.includes(dStr)
 
-      if (isWeekend || isHoliday) {
-        streak.unshift({ date: dStr, status: 'skip', label: isWeekend ? 'Weekend' : 'Holiday', ngCount: 0 })
+      if (!isWorkingDay || isHoliday) {
+        streak.unshift({ date: dStr, status: 'skip', label: isHoliday ? 'Holiday' : 'Weekend', ngCount: 0 })
       } else {
         // It's a working day
         const dailyDoc = allChecklists.find(c => c.period_date === dStr && c.freq_type === 'Daily')
         if (!dailyDoc) {
-          streak.unshift({ date: dStr, status: 'missed', label: 'Missed', ngCount: 0 })
+          const isToday = dStr === todayStr
+          streak.unshift({ 
+            date: dStr, 
+            status: isToday ? 'pending' : 'missed', 
+            label: isToday ? 'รอตรวจสอบ' : 'Missed', 
+            ngCount: 0 
+          })
         } else {
           const items = dailyDoc.checklist_items || []
           const hasNG = items.some(i => i.status === 'NG')
@@ -95,7 +105,7 @@ export async function getDashboardData(timezoneOffset = -420) {
           }
         }
       }
-      cursorDate.setDate(cursorDate.getDate() - 1)
+      cursorDate.setUTCDate(cursorDate.getUTCDate() - 1)
     }
 
     // Keep only the last 7 to be exact
@@ -119,11 +129,13 @@ export async function getDashboardData(timezoneOffset = -420) {
 
     const weeklyDoc = allChecklists.find(c => c.freq_type === 'Weekly' && new Date(c.period_date) >= new Date(todayDate.getTime() - 7*24*60*60*1000))
     const monthlyDoc = allChecklists.find(c => c.freq_type === 'Monthly' && c.period_date.startsWith(todayStr.substring(0, 7)))
+    const yearlyDoc = yearlyRes?.data ? yearlyRes.data.find(c => c.period_date.startsWith(todayStr.substring(0, 4))) : null
 
     const checklistActions = {
       dailyStatus: finalStreak[finalStreak.length - 1], // Today
       weeklyStatus: getCardStatus(weeklyDoc),
       monthlyStatus: getCardStatus(monthlyDoc),
+      yearlyStatus: getCardStatus(yearlyDoc),
       streak: finalStreak
     }
 
@@ -138,7 +150,6 @@ export async function getDashboardData(timezoneOffset = -420) {
       : 0
 
     // SLA KPI Calculation (Average of Response & Resolution)
-    const wh = settingsRes.data?.value || { start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] }
     const allExclusions = exclusionsRes.data || []
     const dynamicSlaLimits = slaLimitsRes.data?.value || SLA_LIMITS
     const responseLimits = dynamicSlaLimits.Response || { High: 15, Medium: 60, Low: 240 }

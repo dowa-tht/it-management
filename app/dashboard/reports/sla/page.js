@@ -2,7 +2,16 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { getSLAReportData, saveSLASettings } from '@/app/actions/reports'
-import { formatDate } from '@/lib/dateFormat'
+import { formatDate, formatDateNumeric } from '@/lib/dateFormat'
+
+const DATE_FILTERS = [
+  { label: 'วันนี้', value: 'today' },
+  { label: '7 วัน', value: '7days' },
+  { label: '30 วัน', value: '30days' },
+  { label: 'เดือนนี้', value: 'month' },
+  { label: '3 เดือน', value: '3months' },
+  { label: 'ปีนี้', value: 'year' },
+]
 
 export default function SLAReportPage() {
   const [loading, setLoading] = useState(true)
@@ -11,8 +20,9 @@ export default function SLAReportPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
   const [editedSettings, setEditedSettings] = useState(null)
+  const [activeFilter, setActiveFilter] = useState('30days')
   const [dateRange, setDateRange] = useState({
-    start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0]
   })
 
@@ -33,10 +43,10 @@ export default function SLAReportPage() {
     getUser()
   }, [])
 
-  const fetchData = async () => {
+  const fetchData = async (overrideStart, overrideEnd) => {
     setLoading(true)
     try {
-      const res = await getSLAReportData(dateRange.start, dateRange.end)
+      const res = await getSLAReportData(overrideStart || dateRange.start, overrideEnd || dateRange.end)
       if (res.success) {
         setData(res)
       } else {
@@ -46,6 +56,32 @@ export default function SLAReportPage() {
       setData({ data: [], summary: { total: 0, resolved: 0, passed: 0, failed: 0, complianceRate: 0 } })
     }
     setLoading(false)
+  }
+
+  const applyQuickFilter = (filter) => {
+    setActiveFilter(filter)
+    const now = new Date()
+    const end = now.toISOString().split('T')[0]
+    let start = new Date()
+
+    if (filter === 'today') {
+      // today
+    } else if (filter === '7days') {
+      start.setDate(now.getDate() - 7)
+    } else if (filter === '30days') {
+      start.setDate(now.getDate() - 30)
+    } else if (filter === 'month') {
+      start.setDate(1)
+    } else if (filter === '3months') {
+      start.setMonth(now.getMonth() - 3)
+    } else if (filter === 'year') {
+      start.setMonth(0)
+      start.setDate(1)
+    }
+
+    const newStart = start.toISOString().split('T')[0]
+    setDateRange({ start: newStart, end })
+    fetchData(newStart, end)
   }
 
   const calculateDiffMinutes = (start, end) => {
@@ -234,21 +270,75 @@ export default function SLAReportPage() {
           </div>
           <div style={{ fontSize: 13, color: '#6b7280' }}>วิเคราะห์ประสิทธิภาพการตอบสนองและการแก้ไขปัญหา</div>
         </div>
+      </div>
 
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: '#fff', padding: '8px 12px', borderRadius: 10, border: '1px solid #e5e7eb', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input type="date" value={dateRange.start} onChange={e => setDateRange({ ...dateRange, start: e.target.value })}
-              style={{ padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12, fontFamily: 'inherit' }} />
-            <span style={{ color: '#9ca3af' }}>—</span>
-            <input type="date" value={dateRange.end} onChange={e => setDateRange({ ...dateRange, end: e.target.value })}
-              style={{ padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12, fontFamily: 'inherit' }} />
+      {/* Filters */}
+      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: '16px', marginBottom: 24, display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-end', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>ช่วงเวลา (DATE RANGE)</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {DATE_FILTERS.map(f => (
+                <button key={f.value} onClick={() => applyQuickFilter(f.value)} style={{
+                  padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                  border: activeFilter === f.value ? 'none' : '1px solid #d1d5db',
+                  background: activeFilter === f.value ? '#1d4ed8' : '#fff',
+                  color: activeFilter === f.value ? '#fff' : '#374151', fontFamily: 'inherit'
+                }}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <button onClick={fetchData} disabled={loading}
-            style={{ padding: '7px 16px', background: loading ? '#93c5fd' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' }}>
-            {loading ? 'กำลังโหลด...' : 'กรองข้อมูล'}
-          </button>
+
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>กำหนดเอง (CUSTOM)</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Start Date */}
+            <div style={{ position: 'relative' }}>
+                <input type="date" value={dateRange.start} onChange={e => { setActiveFilter('custom'); setDateRange({ ...dateRange, start: e.target.value }) }}
+                onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
+                style={{ 
+                  position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', 
+                  cursor: 'pointer', zIndex: 2 
+                }} 
+              />
+              <div style={{ 
+                padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 8, 
+                fontSize: 13, background: '#fff', display: 'flex', justifyContent: 'space-between', 
+                alignItems: 'center', minWidth: 130, gap: 10
+              }}>
+                <span style={{ color: '#374151', fontWeight: 500 }}>{formatDateNumeric(dateRange.start)}</span>
+                <span style={{ fontSize: 14, color: '#6b7280' }}>📅</span>
+              </div>
+            </div>
+
+            <span style={{ color: '#9ca3af', fontWeight: 500 }}>—</span>
+
+            {/* End Date */}
+            <div style={{ position: 'relative' }}>
+              <input type="date" value={dateRange.end} onChange={e => { setActiveFilter('custom'); setDateRange({ ...dateRange, end: e.target.value }) }}
+                onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
+                style={{ 
+                  position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', 
+                  cursor: 'pointer', zIndex: 2 
+                }} 
+              />
+              <div style={{ 
+                padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 8, 
+                fontSize: 13, background: '#fff', display: 'flex', justifyContent: 'space-between', 
+                alignItems: 'center', minWidth: 130, gap: 10
+              }}>
+                <span style={{ color: '#374151', fontWeight: 500 }}>{formatDateNumeric(dateRange.end)}</span>
+                <span style={{ fontSize: 14, color: '#6b7280' }}>📅</span>
+              </div>
+            </div>
+          </div>
         </div>
+
+        <button onClick={() => fetchData()} disabled={loading}
+          style={{ padding: '8px 20px', background: loading ? '#93c5fd' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', height: 35, display: 'flex', alignItems: 'center' }}>
+          {loading ? 'กำลังโหลด...' : 'กรองข้อมูล'}
+        </button>
       </div>
 
       {/* Summary Stats */}
@@ -313,7 +403,7 @@ export default function SLAReportPage() {
                       <div style={{ fontWeight: 600, color: '#111827', fontSize: 12 }}>{inc.title}</div>
                     </td>
                     <td style={{ padding: '14px 20px', color: '#6b7280', fontSize: 11, whiteSpace: 'nowrap' }}>
-                      {formatDate(inc.created_at).replaceAll('-', '/')}
+                      {formatDateNumeric(inc.created_at)}
                     </td>
                     <td style={{ padding: '14px 20px' }}>
                       {inc.responseMin !== null ? (

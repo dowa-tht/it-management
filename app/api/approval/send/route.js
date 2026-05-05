@@ -65,11 +65,9 @@ export async function POST(request) {
     const approvalUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/approve?token=${tokenData.token}`
 
     // ส่ง Email ผ่าน Resend
-    const { Resend } = await import('resend')
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const { sendEmail } = await import('@/lib/resend')
 
-    const { error: emailError } = await resend.emails.send({
-      from: 'DOWA IT System <no-reply@dowa-it.com>',
+    const { error: emailError } = await sendEmail({
       to: approverEmail,
       subject: `[อนุมัติ] ${documentTitle || 'เอกสาร IT'}`,
       html: `

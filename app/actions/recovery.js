@@ -1,11 +1,11 @@
 'use server'
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
 import crypto from 'crypto'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Note: We use import('@/lib/resend') inside functions to avoid server action dependency issues
+
 
 export async function requestRecovery(email) {
   try {
@@ -13,19 +13,39 @@ export async function requestRecovery(email) {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
-    // 1. ตรวจสอบประเภทผู้ใช้จาก registry
-    const { data: reg, error: regError } = await supabaseAdmin
-      .from('user_registry')
-      .select('user_role')
+    // 1. ตรวจสอบประเภทผู้ใช้และสถานะจาก user_profiles
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, role, full_name, is_active')
       .eq('email', email)
       .single()
-
-    if (regError || !reg) {
-      // เพื่อความปลอดภัย ไม่ควรบอกว่าไม่พบเมล แต่ให้บอกว่าระบบส่งข้อมูลไปแล้ว (ถ้ามี)
+    
+    if (profileError || !profile) {
+      // เพื่อความปลอดภัย ไม่ควรบอกว่าไม่พบเมล
       return { success: true, message: 'หากพบอีเมลนี้ในระบบ เราจะส่งลิงก์กู้คืนให้คุณทางอีเมล' }
     }
 
-    const isExternal = ['approval', 'guest'].includes(reg.user_role)
+    // 🛡️ Security Check 1: ต้องเป็นผู้ใช้งานที่ยัง Active อยู่เท่านั้น
+    if (!profile.is_active) {
+      return { success: false, error: 'บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ' }
+    }
+
+    // 🛡️ Security Check 2: ตรวจสอบทะเบียนขาว (Double-Lock Whitelist)
+    const { hashEmail } = await import('@/lib/auth')
+    const emailHash = hashEmail(email)
+    const { data: whitelistData } = await supabaseAdmin
+      .from('user_whitelist')
+      .select('id')
+      .eq('email_hash', emailHash)
+      .single()
+
+    if (!whitelistData) {
+      console.log(`🚫 Security: Recovery requested for ${email} but not in whitelist.`)
+      return { success: false, error: 'อีเมลนี้ไม่มีสิทธิ์ใช้งานระบบ กรุณาติดต่อผู้ดูแลระบบ' }
+    }
+
+    const isExternal = ['approval', 'guest'].includes(profile.role)
+
 
     if (!isExternal) {
       // --- กรณี Staff: ใช้ Supabase Auth (Password) ---
@@ -40,22 +60,22 @@ export async function requestRecovery(email) {
       const token = crypto.randomBytes(32).toString('hex')
       const expires = new Date(Date.now() + 3600000) // หมดอายุใน 1 ชม.
 
-      // 2. บันทึกลง external_users
+      // 2. บันทึกลง user_profiles (Unified Table)
       const { error: updateError } = await supabaseAdmin
-        .from('external_users')
+        .from('user_profiles')
         .update({ 
           pin_reset_token: token, 
           pin_reset_expires: expires.toISOString() 
         })
-        .eq('email', email)
+        .eq('id', profile.id)
 
       if (updateError) throw updateError
 
       // 3. ส่งอีเมลผ่าน Resend
+      const { sendEmail } = await import('@/lib/resend')
       const resetLink = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/reset-pin?token=${token}`
       
-      const { data, error: sendError } = await resend.emails.send({
-        from: 'DOWA IT System <onboarding@resend.dev>',
+      const { error: sendError } = await sendEmail({
         to: [email],
         subject: '[DOWA IT System] Account Security Recovery Request',
         html: `
@@ -68,7 +88,7 @@ export async function requestRecovery(email) {
               
               <div style="padding: 40px;">
                 <h2 style="font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 16px;">Account Recovery Request</h2>
-                <p style="margin-bottom: 24px;">Hello,</p>
+                <p style="margin-bottom: 24px;">Hello ${profile.full_name || ''},</p>
                 <p style="margin-bottom: 24px;">
                   We received a request to reset the security credentials (PIN) for your account associated with the 
                   <strong>DOWA IT Incident Management System</strong>. To proceed with setting up a new 6-digit PIN, 
@@ -122,14 +142,17 @@ export async function resetPINWithToken({ token, newPIN }) {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
     const bcrypt = require('bcryptjs')
 
-    // 1. ตรวจสอบ Token
+    // 1. ตรวจสอบ Token จาก user_profiles
     const { data: user, error: findError } = await supabaseAdmin
-      .from('external_users')
-      .select('id, pin_reset_expires')
+      .from('user_profiles')
+      .select('id, pin_reset_expires, is_active')
       .eq('pin_reset_token', token)
       .single()
 
     if (findError || !user) throw new Error('ลิงก์กู้คืนไม่ถูกต้องหรือถูกใช้งานไปแล้ว')
+
+    // 🛡️ Security Check: ต้องเป็นผู้ใช้งานที่ยัง Active
+    if (!user.is_active) throw new Error('บัญชีนี้ถูกระงับการใช้งาน')
 
     // 2. ตรวจสอบวันหมดอายุ
     if (new Date(user.pin_reset_expires) < new Date()) {
@@ -140,13 +163,15 @@ export async function resetPINWithToken({ token, newPIN }) {
     const salt = await bcrypt.genSalt(10)
     const pinHash = await bcrypt.hash(newPIN, salt)
 
-    // 4. อัปเดต PIN และล้าง Token
+    // 4. อัปเดต PIN และล้าง Token ใน user_profiles
     const { error: updateError } = await supabaseAdmin
-      .from('external_users')
+      .from('user_profiles')
       .update({
-        pin_hash: pinHash,
+        signature_pin: pinHash,
         pin_reset_token: null,
-        pin_reset_expires: null
+        pin_reset_expires: null,
+        pin_attempts: 0,
+        pin_locked_until: null
       })
       .eq('id', user.id)
 

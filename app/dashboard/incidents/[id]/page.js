@@ -2,9 +2,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
-import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { calculateNetBusinessMinutes, SLA_LIMITS } from '@/lib/slaUtils'
+import { SignatureModal } from '../../checklist/components/SignatureModal'
+import { isSubstituteOf } from '@/lib/workflow'
+import Link from 'next/link'
 
 const SEVERITY_COLORS = {
   High:   { bg: '#fee2e2', color: '#991b1b' },
@@ -27,14 +29,6 @@ const SLA_LABELS = {
   Low:    { response: 'ภายใน 6 ชั่วโมง',         resolve: 'ภายใน 3 วันทำการ' },
 }
 
-function calcMinutes(from, to) {
-  if (!from || !to) return null
-  return Math.floor((new Date(to) - new Date(from)) / 60000)
-}
-function calcElapsedNow(from) {
-  if (!from) return null
-  return Math.floor((new Date() - new Date(from)) / 60000)
-}
 function formatElapsed(minutes) {
   if (minutes === null || minutes === undefined) return '—'
   if (minutes < 60) return `${minutes} นาที`
@@ -349,6 +343,9 @@ export default function IncidentDetailPage() {
   const [exclusionReasons, setExclusionReasons] = useState([])
   const [addingExclusion, setAddingExclusion] = useState(false)
   const [newExclusion, setNewExclusion] = useState({ reason_id: '', start_time: '', end_time: '', notes: '' })
+  const [showSignatureModal, setShowSignatureModal] = useState(false)
+  const [approvalLoading, setApprovalLoading] = useState(false)
+  const [isSub, setIsSub] = useState(false)
 
   // Master Data
   const [categories, setCategories] = useState([])
@@ -412,7 +409,15 @@ export default function IncidentDetailPage() {
 
   const fetchIncident = async () => {
     const { data } = await supabase.from('incidents').select('*').eq('id', id).single()
-    setIncident(data); setForm(data||{}); setLoading(false)
+    if (data) {
+      setIncident(data)
+      setForm(data)
+      if (currentUser?.id && data.assigned_approver_id) {
+        const subCheck = await isSubstituteOf(currentUser.id, data.assigned_approver_id)
+        setIsSub(subCheck)
+      }
+    }
+    setLoading(false)
   }
 
   const fetchLogs = async () => {
@@ -582,6 +587,40 @@ export default function IncidentDetailPage() {
     setSaving(true)
     const now = new Date().toISOString()
     
+    const isHigh = incident.severity === 'High'
+    
+    // Check if we need approval for High cases
+    const { data: config } = await supabase
+      .from('approval_configs')
+      .select('primary_approver_id')
+      .eq('target_type', 'incident')
+      .eq('freq_type', 'Incident')
+      .single()
+
+    const needsApproval = isHigh && config?.primary_approver_id
+
+    if (needsApproval && !isDraft) {
+      // Instead of closing, submit for approval
+      const updateData = { 
+        ...form, 
+        workflow_status: 'pending',
+        assigned_approver_id: config.primary_approver_id,
+        signature_it: sigIT,
+        signature_reporter: sigReporter,
+        // Manager signature remains null until approved
+      }
+      const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
+      if (error) {
+        alert(`ส่งขออนุมัติไม่สำเร็จ: ${error.message}`)
+      } else {
+        await addLog('ส่งขออนุมัติ (Pending Approval)', incident.status, incident.status, `รอการอนุมัติโดย: ${config.primary_approver_id}`)
+        setIncident(updateData)
+        setShowResolveDialog(false)
+      }
+      setSaving(false)
+      return
+    }
+
     if (isDraft) {
       const updateData = { 
         ...form,
@@ -606,11 +645,12 @@ export default function IncidentDetailPage() {
       return
     }
 
-    const slaMin = SLA_MINUTES[incident.severity] || SLA_MINUTES['Medium']
+    const slaLimit = SLA_LIMITS[incident?.severity] || SLA_LIMITS.Medium
+    const responseLimit = SLA_MINUTES[incident?.severity]?.response || 60
+    
     // SLA Calculation (Business Hours)
     const defaultWH = { start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] }
     const wh = workingHours || defaultWH
-    const slaLimit = SLA_LIMITS[incident?.severity] || SLA_LIMITS.Medium
     const respTime = incident?.acknowledged_at || incident?.assigned_at
     const responseMin = respTime 
       ? calculateNetBusinessMinutes(incident.created_at, respTime, wh, holidays, []) 
@@ -667,6 +707,59 @@ export default function IncidentDetailPage() {
     setIncident(updateData); setForm(updateData); setEditing(false); setShowResolveDialog(false); setSaving(false)
   }
 
+  const handleApproveIncident = async (pin, signatureData) => {
+    setApprovalLoading(true)
+    try {
+      // 1. Verify PIN
+      const verifyRes = await fetch('/api/auth/verify-pin', {
+        method: 'POST',
+        body: JSON.stringify({ userId: currentUser.id, pin })
+      }).then(r => r.json())
+
+      if (!verifyRes.success) {
+        alert(verifyRes.error)
+        setApprovalLoading(false)
+        return
+      }
+
+      // 2. Resolve Incident
+      const now = new Date().toISOString()
+      const updateData = {
+        status: 'Resolved',
+        workflow_status: 'approved',
+        is_locked: true,
+        resolved_at: now,
+        resolved_by: incident.resolved_by || currentUser?.email,
+        signature_manager: signatureData // Store the PIN-confirmed signature
+      }
+
+      const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
+      if (error) throw error
+
+      await addLog('อนุมัติปิดเคส (Approved)', incident.status, 'Resolved', `อนุมัติโดย: ${currentUser?.full_name}`)
+      setShowSignatureModal(false)
+      fetchIncident()
+    } catch (err) {
+      alert(`การอนุมัติล้มเหลว: ${err.message}`)
+    }
+    setApprovalLoading(false)
+  }
+
+  const handleRejectIncident = async () => {
+    const reason = prompt('กรุณาระบุเหตุผลที่ตีกลับ:')
+    if (reason === null) return
+
+    const { error } = await supabase.from('incidents').update({
+      workflow_status: 'draft',
+      assigned_approver_id: null
+    }).eq('id', id)
+
+    if (!error) {
+      await addLog('ตีกลับการปิดเคส (Rejected)', incident.status, incident.status, `เหตุผล: ${reason}`)
+      fetchIncident()
+    }
+  }
+
   const handleReopen = async () => {
     setSaving(true)
     const updateData = { 
@@ -700,6 +793,7 @@ export default function IncidentDetailPage() {
     }
     router.push('/dashboard/incidents')
   }
+
   if (loading) return <div style={{ padding:40, textAlign:'center', color:'#9ca3af' }}>กำลังโหลด...</div>
   if (!incident) return <div style={{ padding:40, textAlign:'center', color:'#9ca3af' }}>ไม่พบข้อมูล</div>
 
@@ -763,16 +857,13 @@ export default function IncidentDetailPage() {
     </div>
   )
 
-
   return (
     <>
-      <style>{`@media print{.no-print{display:none!important}.print-only{display:block!important}body{background:white!important;margin:0}}@media screen{.print-only{display:none!important}}`}</style>
-
       {showResolveDialog && <ResolveDialog incident={incident} form={form} setForm={setForm} onConfirm={handleResolve} onCancel={() => setShowResolveDialog(false)} />}
       {showReopenDialog && <ReopenDialog onConfirm={handleReopen} onCancel={() => setShowReopenDialog(false)} />}
 
       {/* SCREEN VIEW */}
-      <div className="no-print" style={{ padding:24, maxWidth:900, margin:'0 auto' }}>
+      <div style={{ padding:24, maxWidth:900, margin:'0 auto' }}>
 
         {/* Topbar */}
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:10 }}>
@@ -782,12 +873,26 @@ export default function IncidentDetailPage() {
             {isLocked && <span style={{ background:'#d1fae5', color:'#065f46', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:500 }}>🔒 Resolved</span>}
           </div>
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            <button onClick={() => window.print()} style={{ padding:'7px 14px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>🖨 Print FR-IT-01</button>
             {!isLocked && !incident.acknowledged_at && (
               <button onClick={handleAcknowledge} disabled={saving} style={{ padding:'7px 20px', border:'none', borderRadius:7, fontSize:13, background:'#1d4ed8', color:'#fff', cursor:'pointer', fontFamily:'inherit', fontWeight:600, boxShadow:'0 2px 4px rgba(29,78,216,0.3)' }}>
                 ✅ รับเรื่อง (Acknowledge)
               </button>
             )}
+            
+            {incident.workflow_status === 'pending' && !isLocked && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', padding: '6px 12px', borderRadius: 8, fontSize: 13, color: '#92400e' }}>
+                  ⏳ รอการอนุมัติปิดเคส (High Priority)
+                </div>
+                {(currentUser?.id === incident.assigned_approver_id || isSub || currentUser?.role === 'administrator') && (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={handleRejectIncident} style={{ padding: '7px 14px', border: '1px solid #dc2626', borderRadius: 7, fontSize: 13, background: '#fff', color: '#dc2626', cursor: 'pointer' }}>❌ ตีกลับ</button>
+                    <button onClick={() => setShowSignatureModal(true)} style={{ padding: '7px 14px', border: 'none', borderRadius: 7, fontSize: 13, background: '#059669', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>✅ อนุมัติและปิดงาน</button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {isLocked ? (
               isSuperUser && !isVisitor && <button onClick={() => setShowReopenDialog(true)} style={{ padding:'7px 14px', border:'none', borderRadius:7, fontSize:13, background:'#fef3c7', color:'#92400e', cursor:'pointer', fontFamily:'inherit' }}>🔓 Reopen</button>
             ) : !editing ? (
@@ -1079,132 +1184,15 @@ export default function IncidentDetailPage() {
         </div>
       </div>
 
-      {/* PRINT VIEW */}
-      <div className="print-only" style={{ padding:'20mm 15mm', fontFamily:'Noto Sans Thai, sans-serif' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16, borderBottom:'2px solid #000', paddingBottom:12 }}>
-          <div><div style={{ fontSize:20, fontWeight:700 }}>DOWA</div><div style={{ fontSize:10, color:'#666' }}>บริษัท ดาว่า ไทยแลนด์ จำกัด</div></div>
-          <div style={{ textAlign:'center', flex:1 }}><div style={{ fontSize:16, fontWeight:700 }}>บันทึก IT Incident</div><div style={{ fontSize:12, color:'#444' }}>IT Incident Log Form</div></div>
-          <div style={{ textAlign:'right', fontSize:11 }}><div>เอกสารเลขที่: <strong>FR-IT-01</strong></div><div>Rev: 00</div></div>
-        </div>
-
-        <table style={{ width:'100%', borderCollapse:'collapse', marginBottom:10 }}>
-          <tbody>
-            <tr>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11, width:130 }}>Case Number</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:12 }}>{incident.case_number}</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11, width:130 }}>วันที่แจ้ง</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:12 }}>{formatDateTime(incident.created_at)}</td>
-            </tr>
-            <tr>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11 }}>ผู้แจ้ง</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:12 }}>{incident.reported_by||'—'}</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11 }}>ผู้รับผิดชอบ</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:12 }}>{incident.assigned_to||'—'}</td>
-            </tr>
-            <tr>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11 }}>ระบบที่เกิดเหตุ</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:12 }}>{incident.affected_system||'—'}</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11 }}>ประเภท</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:12 }}>{incident.category||'—'}</td>
-            </tr>
-            <tr>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11 }}>ระดับความรุนแรง</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:11 }}>
-                <strong>{incident.severity}</strong> | Response SLA: {slaLabelText.response} | Actual: {formatElapsed(responseMin)} {responseState==='done_ok'?'✅':'⏰'}
-              </td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11 }}>สถานะ</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:12 }}><strong>{incident.status}</strong></td>
-            </tr>
-            {incident.resolved_at && (
-              <tr>
-                <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11 }}>Resolution SLA</td>
-                <td colSpan={3} style={{ border:'1px solid #000', padding:'5px 8px', fontSize:11 }}>
-                  เป้าหมาย: {slaLabelText.resolve} | Actual: {formatElapsed(resolveMin)} {resolveState==='done_ok'?'✅ (ใน SLA)':'⏰ (เกิน SLA)'}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-
-        {[
-          { label:'หัวข้อ', value:incident.title, height:30 },
-          { label:'รายละเอียด / Description', value:incident.description, height:50 },
-          { label:'Root Cause Analysis', value:incident.root_cause, height:50 },
-          { label:'วิธีการแก้ไข / Resolution', value:incident.resolution, height:50 },
-          ...(incident.require_ca ? [{ label:'Corrective Action (มาตรการแก้ไขป้องกัน)', value:incident.corrective_action, height:60 }] : []),
-        ].map((item,i) => (
-          <div key={i} style={{ border:'1px solid #000', borderTop:i===0?'1px solid #000':'none' }}>
-            <div style={{ background:'#f0f0f0', padding:'4px 8px', fontWeight:700, fontSize:11, borderBottom:'1px solid #000' }}>{item.label}</div>
-            <div style={{ padding:'6px 10px', fontSize:12, minHeight:item.height, whiteSpace:'pre-wrap' }}>{item.value||'—'}</div>
-          </div>
-        ))}
-
-        <div style={{ border:'1px solid #000', borderTop:'none' }}>
-          <div style={{ background:'#f0f0f0', padding:'4px 8px', fontWeight:700, fontSize:11, borderBottom:'1px solid #000' }}>Transaction Log</div>
-          <table style={{ width:'100%', borderCollapse:'collapse' }}>
-            <thead>
-              <tr style={{ background:'#f9f9f9' }}>
-                {['วันที่/เวลา','การดำเนินการ','สถานะ','โดย','หมายเหตุ'].map(h => (
-                  <th key={h} style={{ border:'1px solid #ddd', padding:'3px 6px', fontSize:10, fontWeight:600, textAlign:'left' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map(log => (
-                <tr key={log.id}>
-                  <td style={{ border:'1px solid #ddd', padding:'3px 6px', fontSize:10, whiteSpace:'nowrap' }}>{formatDateTime(log.created_at)}</td>
-                  <td style={{ border:'1px solid #ddd', padding:'3px 6px', fontSize:10 }}>{log.action}</td>
-                  <td style={{ border:'1px solid #ddd', padding:'3px 6px', fontSize:10, whiteSpace:'nowrap' }}>{log.from_status!==log.to_status?`${log.from_status} → ${log.to_status}`:log.to_status}</td>
-                  <td style={{ border:'1px solid #ddd', padding:'3px 6px', fontSize:10 }}>{log.user_email}</td>
-                  <td style={{ border:'1px solid #ddd', padding:'3px 6px', fontSize:10 }}>{log.note||''}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <table style={{ width:'100%', borderCollapse:'collapse', marginTop:10 }}>
-          <tbody>
-            <tr>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11, width:130 }}>วันที่/เวลาแจ้ง</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:12 }}>{formatDateTime(incident.created_at)}</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', background:'#f5f5f5', fontWeight:600, fontSize:11, width:130 }}>วันที่/เวลาปิด</td>
-              <td style={{ border:'1px solid #000', padding:'5px 8px', fontSize:12 }}>{formatDateTime(incident.resolved_at)}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <table style={{ width:'100%', borderCollapse:'collapse', marginTop:10 }}>
-          <tbody>
-            <tr>
-              <td style={{ border:'1px solid #000', padding:'8px', width:'50%', verticalAlign:'top' }}>
-                <div style={{ fontSize:11, color:'#666', marginBottom:6 }}>ลายเซ็นต์ IT Officer</div>
-                {incident.signature_it ? (
-                  <>
-                    <img src={incident.signature_it} alt="sig" style={{ height:60, display:'block' }} />
-                    <div style={{ fontSize:10, color:'#666', marginTop:4 }}>{incident.resolved_by}</div>
-                    <div style={{ fontSize:10, color:'#666' }}>{formatDateTime(incident.resolved_at)}</div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ minHeight:50 }}></div>
-                    <div style={{ fontSize:11, borderTop:'1px dotted #999', paddingTop:4, marginTop:8 }}>ชื่อ: .................................................. วันที่: ....................</div>
-                  </>
-                )}
-              </td>
-              <td style={{ border:'1px solid #000', padding:'8px', width:'50%', verticalAlign:'top' }}>
-                <div style={{ fontSize:11, color:'#666', marginBottom:6 }}>ผู้จัดการรับทราบ / Senior Manager (High only)</div>
-                <div style={{ minHeight:50 }}></div>
-                <div style={{ fontSize:11, borderTop:'1px dotted #999', paddingTop:4, marginTop:8 }}>ชื่อ: .................................................. วันที่: ....................</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div style={{ marginTop:10, textAlign:'right', fontSize:10, color:'#999' }}>
-          พิมพ์เมื่อ: {formatDateTime(new Date().toISOString())} | DOWA IT System | FR-IT-01 Rev.00
-        </div>
-      </div>
+      {/* Signature Modal for PIN Approval */}
+      <SignatureModal 
+        isOpen={showSignatureModal}
+        onCancel={() => setShowSignatureModal(false)}
+        onConfirm={handleApproveIncident}
+        approverName={currentUser?.full_name}
+        userEmail={currentUser?.email}
+        loading={approvalLoading}
+      />
     </>
   )
 }

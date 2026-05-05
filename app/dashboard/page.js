@@ -93,6 +93,7 @@ export default function DashboardPage() {
       case 'ok': return '#10b981'
       case 'ng': return '#ef4444'
       case 'missed': return '#f87171'
+      case 'in-progress': return '#facc15' // Yellow-400
       case 'pending': return '#f59e0b'
       case 'skip': return '#e5e7eb'
       default: return '#e5e7eb'
@@ -133,10 +134,10 @@ export default function DashboardPage() {
           </div>
 
           {/* Action Cards */}
-          <div className="grid-3-2-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          <div className="grid-4-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
             {/* Daily */}
-            <Link href={ca?.dailyStatus?.ngCount > 0 ? "/dashboard/checklist?filter=ng&freq_type=Daily" : "/dashboard/checklist"} style={{ textDecoration: 'none' }}>
-              <div style={{ background: ca?.dailyStatus?.status === 'ok' ? '#ecfdf5' : ca?.dailyStatus?.status === 'ng' ? '#fef2f2' : ca?.dailyStatus?.status === 'in-progress' ? '#eff6ff' : ca?.dailyStatus?.status === 'skip' ? '#f9fafb' : '#fffbeb', border: `1px solid ${ca?.dailyStatus?.status === 'ok' ? '#a7f3d0' : ca?.dailyStatus?.status === 'ng' ? '#fecaca' : ca?.dailyStatus?.status === 'in-progress' ? '#bfdbfe' : ca?.dailyStatus?.status === 'skip' ? '#e5e7eb' : '#fde68a'}`, borderRadius: 10, padding: 12, transition: 'transform 0.15s', cursor: 'pointer' }}>
+            <Link href={`/dashboard/checklist?freq_type=Daily${ca?.dailyStatus?.ngCount > 0 ? '&filter=ng' : ''}`} style={{ textDecoration: 'none' }}>
+              <div style={{ background: ca?.dailyStatus?.status === 'ok' ? '#ecfdf5' : ca?.dailyStatus?.status === 'ng' ? '#fef2f2' : ca?.dailyStatus?.status === 'in-progress' ? '#fefce8' : ca?.dailyStatus?.status === 'skip' ? '#f9fafb' : '#fffbeb', border: `1px solid ${ca?.dailyStatus?.status === 'ok' ? '#a7f3d0' : ca?.dailyStatus?.status === 'ng' ? '#fecaca' : ca?.dailyStatus?.status === 'in-progress' ? '#fde047' : ca?.dailyStatus?.status === 'skip' ? '#e5e7eb' : '#fde68a'}`, borderRadius: 10, padding: 12, transition: 'transform 0.15s', cursor: 'pointer' }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>Daily</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 18 }}>{ca?.dailyStatus?.status === 'ok' ? '✅' : ca?.dailyStatus?.status === 'ng' || ca?.dailyStatus?.status === 'missed' ? '⚠️' : ca?.dailyStatus?.status === 'in-progress' ? '🔄' : ca?.dailyStatus?.status === 'skip' ? '🌴' : '⏳'}</span>
@@ -145,8 +146,9 @@ export default function DashboardPage() {
               </div>
             </Link>
             
-            <Link href="/dashboard/checklist" style={{ textDecoration: 'none' }}>
-              <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12 }}>
+            {/* Weekly */}
+            <Link href="/dashboard/checklist?freq_type=Weekly" style={{ textDecoration: 'none' }}>
+              <div style={{ background: ca?.weeklyStatus?.status === 'done' ? '#ecfdf5' : '#f9fafb', border: `1px solid ${ca?.weeklyStatus?.status === 'done' ? '#a7f3d0' : '#e5e7eb'}`, borderRadius: 10, padding: 12, transition: 'transform 0.15s', cursor: 'pointer' }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>Weekly</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 18 }}>{ca?.weeklyStatus?.status === 'done' ? '✅' : '📅'}</span>
@@ -155,12 +157,24 @@ export default function DashboardPage() {
               </div>
             </Link>
 
-            <Link href="/dashboard/checklist" style={{ textDecoration: 'none' }}>
-              <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12 }}>
+            {/* Monthly */}
+            <Link href="/dashboard/checklist?freq_type=Monthly" style={{ textDecoration: 'none' }}>
+              <div style={{ background: ca?.monthlyStatus?.status === 'done' ? '#ecfdf5' : '#f9fafb', border: `1px solid ${ca?.monthlyStatus?.status === 'done' ? '#a7f3d0' : '#e5e7eb'}`, borderRadius: 10, padding: 12, transition: 'transform 0.15s', cursor: 'pointer' }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>Monthly</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 18 }}>{ca?.monthlyStatus?.status === 'done' ? '✅' : '📊'}</span>
                   <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{ca?.monthlyStatus?.label || 'รอตรวจ'}</span>
+                </div>
+              </div>
+            </Link>
+
+            {/* Yearly */}
+            <Link href="/dashboard/checklist?freq_type=Yearly" style={{ textDecoration: 'none' }}>
+              <div style={{ background: ca?.yearlyStatus?.status === 'done' ? '#ecfdf5' : '#f9fafb', border: `1px solid ${ca?.yearlyStatus?.status === 'done' ? '#a7f3d0' : '#e5e7eb'}`, borderRadius: 10, padding: 12, transition: 'transform 0.15s', cursor: 'pointer' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>Yearly</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 18 }}>{ca?.yearlyStatus?.status === 'done' ? '✅' : '🏆'}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{ca?.yearlyStatus?.label || 'รอตรวจ'}</span>
                 </div>
               </div>
             </Link>

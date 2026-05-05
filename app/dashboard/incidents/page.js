@@ -30,7 +30,7 @@ function IncidentsContent() {
   const searchParams = useSearchParams()
   const [incidents, setIncidents] = useState([])
   const [loading, setLoading] = useState(true)
-  const [dateFilter, setDateFilter] = useState(searchParams.get('date') || 'month')
+  const [dateFilter, setDateFilter] = useState(searchParams.get('date') || '30days')
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all')
   const [severityFilter, setSeverityFilter] = useState(searchParams.get('severity') || 'all')
   const [currentUser, setCurrentUser] = useState(null)

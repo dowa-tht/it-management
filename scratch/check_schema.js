@@ -1,32 +1,28 @@
-
 const { createClient } = require('@supabase/supabase-js');
-const fs = require('fs');
-const path = require('path');
+require('dotenv').config({ path: '.env.local' });
 
-// Manually parse .env.local
-const envFile = fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8');
-const env = {};
-envFile.split('\n').forEach(line => {
-  const [key, ...value] = line.split('=');
-  if (key && value) env[key.trim()] = value.join('=').trim().replace(/^"|"$/g, '');
-});
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
-const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = env.SUPABASE_SERVICE_ROLE_KEY;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-async function checkSchema() {
+async function checkColumns() {
   const { data, error } = await supabase
-    .from('external_users')
+    .from('user_profiles')
     .select('*')
     .limit(1);
 
   if (error) {
     console.error('Error:', error);
+    return;
+  }
+
+  if (data && data.length > 0) {
+    console.log('Columns:', Object.keys(data[0]));
   } else {
-    console.log('Columns:', Object.keys(data[0] || {}));
+    // If table is empty, we might need another way or just try to insert/update dummy
+    console.log('Table is empty. Cannot determine columns via select * limit 1');
   }
 }
 
-checkSchema();
+checkColumns();

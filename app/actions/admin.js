@@ -2,7 +2,11 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache'
+import { hashEmail } from '@/lib/auth'
 
+/**
+ * 🚀 ยกระดับการสร้าง User เป็นระบบ Unified Auth (Supabase Auth 100%)
+ */
 export async function createAdminUser({ email, password, full_name, role, can_be_assignee }) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -11,68 +15,58 @@ export async function createAdminUser({ email, password, full_name, role, can_be
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
+    // 1. นำสิทธิ์มาทำความสะอาด (Normalization)
     const normalizedRole = (role === 'administrator' || role === 'superuser') ? 'administrator' : 
                            (role === 'supervisor' || role === 'user') ? 'supervisor' : role
-    const isInternal = normalizedRole === 'administrator' || normalizedRole === 'supervisor'
 
-    const { Resend } = await import('resend')
-    const resend = new Resend(process.env.RESEND_API_KEY)
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    // 2. สร้าง User ใน Supabase Auth
+    const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name, role: normalizedRole }
+    })
+    
+    if (authError) {
+      console.error('Auth Creation Error:', authError)
+      throw new Error(`Auth Error: ${authError.message}`)
+    }
 
-    if (isInternal) {
-      // --- กรณีผู้ใช้ภายใน (Tier 1 & 2) ---
-      // ใช้ inviteUserByEmail เพื่อให้ Supabase ส่งเมลเชิญพร้อมลิงก์ยืนยันตัวตน
-      const { data: authData, error: authError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-        data: { full_name, role: normalizedRole },
-        redirectTo: `${siteUrl}/dashboard`
-      })
-      
-      if (authError) throw authError
+    const userId = authData.user.id
 
-      const legacyRole = normalizedRole === 'administrator' ? 'superuser' : 'user'
-      const { error: profileError } = await adminClient.from('user_profiles').upsert({
-        id: authData.user.id,
-        full_name,
-        role: legacyRole,
-        is_active: true,
-        can_be_assignee: can_be_assignee || false
-      })
-      if (profileError) throw profileError
+    // 🛡️ 2.1 เพิ่มตราประทับลับในทะเบียนขาว (Double-Lock Whitelist)
+    // มาตรฐาน: บันทึก SHA-256 Hash ของอีเมล
+    const emailHash = hashEmail(email)
+    const { error: whitelistError } = await adminClient
+      .from('user_whitelist')
+      .upsert({ email_hash: emailHash }, { onConflict: 'email_hash' })
+    
+    if (whitelistError) {
+      console.error('Whitelist Error:', whitelistError)
+      throw new Error(`Whitelist Error: ${whitelistError.message}`)
+    }
 
-      await adminClient.from('user_registry').upsert({
-        email,
-        full_name,
-        user_role: normalizedRole,
-        supabase_user_id: authData.user.id,
-        is_active: true
-      }, { onConflict: 'email' })
+    // 3. บันทึกข้อมูลลงใน user_profiles (Source of Truth)
+    const { error: profileError } = await adminClient.from('user_profiles').upsert({
+      id: userId,
+      full_name,
+      email: email,
+      role: normalizedRole,
+      is_active: true,
+      can_be_assignee: can_be_assignee || false
+    }, { onConflict: 'id' })
 
-    } else {
-      // --- กรณีผู้ใช้ภายนอก (Tier 3 & 4 - ใช้ PIN) ---
-      const bcrypt = require('bcryptjs')
-      const salt = await bcrypt.genSalt(10)
-      const pinHash = await bcrypt.hash(password, salt)
+    if (profileError) {
+      console.error('Profile Error:', profileError)
+      throw new Error(`Profile Error: ${profileError.message}`)
+    }
 
-      const { data: extData, error: extError } = await adminClient.from('external_users').insert({
-        email,
-        full_name,
-        role: normalizedRole,
-        pin_hash: pinHash,
-        is_active: true
-      }).select().single()
-      if (extError) throw extError
+    // 4. ส่ง Welcome Email
+    try {
+      const { sendEmail } = await import('@/lib/resend')
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
-      await adminClient.from('user_registry').upsert({
-        email,
-        full_name,
-        user_role: normalizedRole,
-        external_user_id: extData.id,
-        is_active: true
-      }, { onConflict: 'email' })
-
-      // --- ส่ง Welcome Email สำหรับ Guest/Approval ผ่าน Resend ---
-      await resend.emails.send({
-        from: 'DOWA IT System <onboarding@resend.dev>',
+      await sendEmail({
         to: [email],
         subject: '[DOWA IT System] Your account has been created',
         html: `
@@ -80,32 +74,17 @@ export async function createAdminUser({ email, password, full_name, role, can_be
             <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
               <h1 style="color: #1d4ed8; margin-top: 0;">Welcome to DOWA IT System</h1>
               <p>Hello <strong>${full_name}</strong>,</p>
-              <p>Your account has been successfully created in the <strong>DOWA IT Incident Management System</strong>.</p>
-              
+              <p>Your account has been created by the system administrator.</p>
               <div style="background-color: #f1f5f9; padding: 20px; border-radius: 12px; margin: 24px 0;">
-                <p style="margin: 0; font-size: 14px;"><strong>Account Details:</strong></p>
-                <p style="margin: 8px 0 0 0; font-size: 14px;">Role: <span style="text-transform: capitalize;">${normalizedRole}</span></p>
-                <p style="margin: 4px 0 0 0; font-size: 14px;">Login Email: ${email}</p>
+                <p style="margin: 0; font-size: 14px;">Email: ${email}</p>
+                <p style="margin: 4px 0 0 0; font-size: 14px;">Role: <span style="text-transform: capitalize;">${normalizedRole}</span></p>
               </div>
-              
-              <p>You can now access the system using your email and the PIN provided by your administrator.</p>
-              
-              <div style="text-align: center; margin-top: 32px;">
-                <a href="${siteUrl}" style="display: inline-block; padding: 14px 28px; background-color: #1d4ed8; color: white; text-decoration: none; border-radius: 10px; font-weight: bold;">
-                  Go to Login Page
-                </a>
-              </div>
-              
-              <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 32px 0;">
-              <p style="font-size: 12px; color: #94a3b8; text-align: center;">
-                DOWA Thermotech (Thailand) Co., Ltd.<br>
-                This is an automated invitation email.
-              </p>
+              <div style="text-align: center; margin-top: 32px;"><a href="${siteUrl}" style="display: inline-block; padding: 14px 28px; background-color: #1d4ed8; color: white; text-decoration: none; border-radius: 10px; font-weight: bold;">Go to Login Page</a></div>
             </div>
           </div>
         `
       })
-    }
+    } catch (e) {}
 
     revalidatePath('/dashboard/settings/users')
     return { success: true }
@@ -115,6 +94,9 @@ export async function createAdminUser({ email, password, full_name, role, can_be
   }
 }
 
+/**
+ * 📋 ดึงข้อมูลผู้ใช้จาก Source of Truth เดียว (user_profiles)
+ */
 export async function getAdminUsers() {
   noStore()
   try {
@@ -122,119 +104,43 @@ export async function getAdminUsers() {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 
-    // 1. ดึงข้อมูลจาก user_registry ทั้งหมด
-    const { data: registryUsers, error: regError } = await adminClient
-      .from('user_registry')
+    const { data: profiles, error } = await adminClient
+      .from('user_profiles')
       .select('*')
       .order('created_at', { ascending: false })
 
-    if (regError) throw regError
+    if (error) throw error
 
-    // 2. ดึงข้อมูลจาก user_profiles เพื่อเอา can_be_assignee และ is_active
-    const { data: profiles, error: profError } = await adminClient
-      .from('user_profiles')
-      .select('id, can_be_assignee, is_active')
-
-    if (profError) throw profError
-
-    // สร้าง Map เพื่อให้ค้นหา profile ได้ไวขึ้น
-    const profileMap = {}
-    profiles.forEach(p => { profileMap[p.id] = p })
-
-    // 3. แปลงข้อมูลและประกอบร่างรวมกัน
-    const formatted = registryUsers.map(u => {
-      const p = u.supabase_user_id ? profileMap[u.supabase_user_id] : null
-      return {
-        id: u.supabase_user_id || u.external_user_id || u.id,
-        email: u.email,
-        full_name: u.full_name,
-        role: u.user_role,
-        is_active: p ? p.is_active : u.is_active,
-        can_be_assignee: p ? p.can_be_assignee : (u.can_be_assignee || false),
-        created_at: u.created_at,
-        is_external: !!u.external_user_id
-      }
-    })
-
-    return { success: true, data: formatted }
+    return { success: true, data: profiles }
   } catch (err) {
     return { success: false, error: err.message }
   }
 }
 
+/**
+ * 🛠️ อัปเดตข้อมูลผู้ใช้
+ */
 export async function updateAdminUser({ id, email, full_name, role, can_be_assignee, is_active }) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return { success: false, error: 'เกิดข้อผิดพลาดที่ Server: ไม่พบ SUPABASE_SERVICE_ROLE_KEY' }
-    }
-
     const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
-    // 0. ตรวจสอบจาก Registry โดยใช้ Email เป็นหลักเพื่อความแม่นยำสูงสุด
-    // หากไม่มี Email ให้ใช้ ID ตามเดิม (fallback)
-    const query = adminClient.from('user_registry').select('*')
-    if (email) {
-      query.eq('email', email)
-    } else {
-      query.or(`supabase_user_id.eq.${id},external_user_id.eq.${id},id.eq.${id}`)
-    }
-    
-    const { data: regEntry } = await query.single()
+    await adminClient.auth.admin.updateUserById(id, {
+      user_metadata: { full_name, role }
+    })
 
-    if (!regEntry) throw new Error(`ไม่พบผู้ใช้ในระบบ (Email: ${email || 'N/A'}, ID: ${id})`)
-
-    const isInternal = !!regEntry.supabase_user_id
-    const targetId = regEntry.supabase_user_id || regEntry.external_user_id
-
-    console.log(`Updating User: ${email} (Internal: ${isInternal})`)
-    
-    if (isInternal) {
-      // --- กรณีผู้ใช้ภายใน (Tier 1 & 2) ---
-      // 1. อัปเดต Auth Metadata
-      await adminClient.auth.admin.updateUserById(targetId, {
-        user_metadata: { full_name }
-      })
-
-      // 2. อัปเดต user_profiles
-      const legacyRole = (role === 'administrator' || role === 'superuser') ? 'superuser' : 'user'
-      const { error: profileError } = await adminClient.from('user_profiles').update({
-        full_name,
-        role: legacyRole,
-        can_be_assignee,
-        is_active
-      }).eq('id', targetId)
-      if (profileError) throw profileError
-
-    } else {
-      // --- กรณีผู้ใช้ภายนอก (Tier 3 & 4) ---
-      // อัปเดตตาราง external_users
-      const { error: externalError } = await adminClient.from('external_users').update({
-        full_name,
-        role,
-        is_active
-      }).eq('id', targetId)
-      if (externalError) throw externalError
-    }
-
-    // 3. Sync ข้อมูลลง user_registry เสมอ
-    const normalizedRole = (role === 'superuser' || role === 'administrator') ? 'administrator' : 
-                           (role === 'user' || role === 'supervisor') ? 'supervisor' : role
-
-    const { error: regSyncError } = await adminClient.from('user_registry').update({
+    const { error } = await adminClient.from('user_profiles').update({
       full_name,
-      user_role: normalizedRole,
-      is_active,
-      last_role_changed_at: new Date().toISOString()
-    }).eq('email', regEntry.email)
+      role,
+      can_be_assignee,
+      is_active
+    }).eq('id', id)
 
-    if (regSyncError) throw regSyncError
+    if (error) throw error
 
-    console.log(`Update Success for ${email}`)
     revalidatePath('/dashboard/settings/users')
     return { success: true }
   } catch (err) {
@@ -242,6 +148,9 @@ export async function updateAdminUser({ id, email, full_name, role, can_be_assig
   }
 }
 
+/**
+ * 🔐 อัปเดตรหัสผ่าน
+ */
 export async function updateAdminUserPassword(userId, newPassword) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -262,41 +171,9 @@ export async function updateAdminUserPassword(userId, newPassword) {
   }
 }
 
-export async function updateAdminUserPIN({ email, newPIN }) {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
-
-    // 1. ตรวจสอบจาก Registry ก่อนเพื่อให้แน่ใจว่ามีตัวตน
-    const { data: regEntry } = await adminClient
-      .from('user_registry')
-      .select('*')
-      .eq('email', email)
-      .single()
-
-    if (!regEntry || !regEntry.external_user_id) throw new Error('ไม่พบข้อมูลผู้ใช้ภายนอก (External User) ในระบบ')
-
-    // 2. Hash PIN ใหม่
-    const bcrypt = require('bcryptjs')
-    const salt = await bcrypt.genSalt(10)
-    const pinHash = await bcrypt.hash(newPIN, salt)
-
-    // 3. อัปเดตลงตาราง external_users
-    const { error: updateError } = await adminClient
-      .from('external_users')
-      .update({ pin_hash: pinHash })
-      .eq('id', regEntry.external_user_id)
-
-    if (updateError) throw updateError
-
-    return { success: true }
-  } catch (err) {
-    console.error('updateAdminUserPIN error:', err)
-    return { success: false, error: err.message }
-  }
-}
-
+/**
+ * 🗑️ ลบผู้ใช้อย่างหมดจด
+ */
 export async function cleanDeleteUser(email) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -305,34 +182,85 @@ export async function cleanDeleteUser(email) {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
-    // 1. ค้นหาข้อมูลใน Registry ก่อน
-    const { data: user } = await adminClient.from('user_registry').select('*').eq('email', email).single()
-    if (!user) return { success: false, error: 'User not found' }
+    const { data: profile } = await adminClient.from('user_profiles').select('id, email').eq('email', email).single()
+    if (!profile) throw new Error('User not found')
 
-    console.log(`⚡ [Clean Remove] Processing: ${email}`)
+    // 🛡️ ลบตราประทับลับออกจาก Whitelist
+    const emailHash = hashEmail(email)
+    await adminClient.from('user_whitelist').delete().eq('email_hash', emailHash)
 
-    // 2. ลบข้อมูลตามลำดับความสัมพันธ์
-    // ลบจาก user_registry
-    await adminClient.from('user_registry').delete().eq('email', email)
-
-    // ลบจาก user_profiles (ถ้าเป็น Staff)
-    if (user.supabase_user_id) {
-      await adminClient.from('user_profiles').delete().eq('id', user.supabase_user_id)
-      // ลบจาก Auth (Supabase)
-      await adminClient.auth.admin.deleteUser(user.supabase_user_id)
-    }
-
-    // ลบจาก external_users (ถ้าเป็น Guest/Approval)
-    if (user.external_user_id) {
-      await adminClient.from('external_users').delete().eq('id', user.external_user_id)
-    }
-
-    // หมายเหตุ: ไม่มีการบันทึก addLog ที่นี่ เพื่อให้เป็นการ Clean Remove จริงๆ
+    await adminClient.from('user_profiles').delete().eq('id', profile.id)
+    await adminClient.auth.admin.deleteUser(profile.id)
 
     revalidatePath('/dashboard/settings/users')
     return { success: true }
   } catch (err) {
     console.error('cleanDeleteUser error:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+/**
+ * 🆔 ตรวจสอบ Identities (SSO) ของผู้ใช้
+ */
+export async function getUserIdentities(userId) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+
+    const { data: { user }, error } = await adminClient.auth.admin.getUserById(userId)
+    if (error) throw error
+
+    return { success: true, identities: user.identities || [] }
+  } catch (err) {
+    console.error('getUserIdentities error:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+/**
+ * 🔒 อัปเดต Signature PIN โดย Admin
+ */
+export async function updateAdminUserPin(userId, newPin) {
+  try {
+    const bcrypt = await import('bcryptjs')
+    const hashedPin = await bcrypt.hash(newPin, 10)
+    
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+
+    const { error } = await adminClient.from('user_profiles').update({
+      signature_pin: hashedPin,
+      pin_attempts: 0,
+      pin_locked_until: null
+    }).eq('id', userId)
+
+    if (error) throw error
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+}
+
+/**
+ * 🔓 ปลดล็อค PIN (Clear Attempts/Lockout)
+ */
+export async function unlockUserPin(userId) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+
+    const { error } = await adminClient.from('user_profiles').update({
+      pin_attempts: 0,
+      pin_locked_until: null
+    }).eq('id', userId)
+
+    if (error) throw error
+    return { success: true }
+  } catch (err) {
     return { success: false, error: err.message }
   }
 }

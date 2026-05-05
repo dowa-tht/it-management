@@ -1,0 +1,73 @@
+import { NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+
+/**
+ * 🛡️ DOWA IT System Middleware (Edge Compatible)
+ * ปรับปรุงใหม่: ลดการ Import ภายนอกเพื่อป้องกัน Runtime Error
+ */
+export async function middleware(req) {
+  const pathname = req.nextUrl.pathname
+  const res = NextResponse.next()
+
+  // 1. เส้นทางสาธารณะ
+  const publicPaths = ['/', '/approve', '/guest-access', '/reset-pin', '/auth/callback']
+  if (publicPaths.some(p => pathname === p || pathname.startsWith(p + '?'))) {
+    return res
+  }
+
+  // 2. ตั้งค่า Supabase
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() { return req.cookies.getAll() },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            req.cookies.set(name, value)
+            res.cookies.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+
+  // 3. ตรวจสอบ User
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    const guestSession = req.cookies.get('guest-session')?.value
+    if (guestSession) return res // ปล่อยให้ไปเช็คสิทธิ์ในเพจ (ป้องกัน Middleware พัง)
+    return NextResponse.redirect(new URL('/?error=unauthorized', req.url))
+  }
+
+  // 4. ตรวจสอบโปรไฟล์ (Source of Truth)
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  // 👮‍♂️ ด่านตรวจ: ถ้าไม่พบโปรไฟล์ (คนแปลกหน้า) ให้เตะออกทันที
+  if (!profile) {
+    const errorMsg = encodeURIComponent('บัญชีของคุณไม่ได้รับอนุญาตให้เข้าใช้งานระบบ')
+    return NextResponse.redirect(new URL(`/?error=${errorMsg}`, req.url))
+  }
+
+  // 5. สิทธิ์การเข้าถึง (Simple Check ใน Middleware)
+  // ถ้าพยายามเข้าหน้า settings แต่ไม่ใช่ administrator ให้ดีดกลับไปหน้าหลัก
+  if (pathname.startsWith('/dashboard/settings') && profile.role !== 'administrator' && profile.role !== 'superuser') {
+    return NextResponse.redirect(new URL('/dashboard?error=access_denied', req.url))
+  }
+
+  return res
+}
+
+export const config = {
+  matcher: [
+    '/dashboard/:path*',
+    '/approve/:path*',
+    '/guest-access/:path*',
+    '/reset-pin/:path*',
+  ],
+}

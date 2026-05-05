@@ -4,60 +4,63 @@ import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { normalizeRole, ROLE_BADGE, canAccess } from '@/lib/auth'
 import Link from 'next/link'
+import { formatDateMMM } from '@/lib/dateFormat'
+import { useWorkingDate } from '@/lib/context/WorkingDateContext'
 
 export default function DashboardLayout({ children }) {
+  const { workingDate, setWorkingDate, getFormattedDate } = useWorkingDate()
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
-  const [role, setRole] = useState('supervisor') // normalized role
+  const [role, setRole] = useState(null) 
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [expandedSection, setExpandedSection] = useState(null)
+  const [expandedSection, setExpandedSection] = useState('operations') // ✅ กาง Operations ไว้เป็นค่าเริ่มต้น
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
+  const [initializing, setInitializing] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const checkAccess = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      
       if (!session) {
-        // ลองเช็ค Guest Session (Tier 4) จาก Cookie
-        const cookies = document.cookie.split('; ').reduce((prev, current) => {
-          const [name, value] = current.split('=')
-          prev[name] = value
-          return prev
-        }, {})
-
-        const guestSession = cookies['guest-session']
-        if (guestSession) {
-          try {
-            const guestData = JSON.parse(atob(guestSession))
-            setRole('guest')
-            setProfile({ full_name: guestData.name, role: 'guest' })
-            setUser({ email: guestData.email, id: guestData.id })
-            
-            if (!canAccess('guest', pathname)) {
-              router.push('/dashboard?error=access_denied')
-            }
-          } catch (e) {
-            router.push('/')
-          }
-        } else {
-          router.push('/')
-        }
-      } else {
-        setUser(session.user)
-        const { data: profileData } = await supabase
-          .from('user_profiles')
-          .select('role, full_name')
-          .eq('id', session.user.id)
-          .single()
-        setProfile(profileData)
-        const normalized = normalizeRole(profileData?.role)
-        setRole(normalized)
-        // Redirect if no access to current page
-        if (!canAccess(normalized, pathname)) {
-          router.push('/dashboard?error=access_denied')
-        }
+        router.push('/')
+        return
       }
-    })
+
+      const sessionUser = session.user
+      setUser(sessionUser)
+
+      const { data: profileData, error } = await supabase
+        .from('user_profiles')
+        .select('role, full_name, is_active')
+        .eq('id', sessionUser.id)
+        .single()
+
+      if (error || !profileData || profileData.is_active === false) {
+        await supabase.auth.signOut()
+        router.push('/?error=' + encodeURIComponent('บัญชีของคุณไม่ได้รับอนุญาต'))
+        return
+      }
+
+      setProfile(profileData)
+      const normalized = normalizeRole(profileData.role, sessionUser.email)
+      
+      if (!normalized) {
+        await supabase.auth.signOut()
+        router.push('/?error=' + encodeURIComponent('บัญชีถูกระงับ'))
+        return
+      }
+
+      setRole(normalized)
+      setInitializing(false)
+
+      if (!canAccess(normalized, pathname)) {
+        router.push('/dashboard?error=access_denied')
+      }
+    }
+
+    checkAccess()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
@@ -65,12 +68,10 @@ export default function DashboardLayout({ children }) {
       }
     })
 
-    return () => {
-      subscription?.unsubscribe()
-    }
-  }, [])
+    return () => subscription?.unsubscribe()
+  }, [pathname, router])
 
-  // Auto-expand current section on first load or path change
+  // Auto-expand current section
   useEffect(() => {
     setSidebarOpen(false)
     if (pathname.includes('/settings/')) {
@@ -88,287 +89,186 @@ export default function DashboardLayout({ children }) {
           user_id: currentUser.id,
           user_email: currentUser.email,
           action: 'logout',
-          ip_address: null,
           user_agent: navigator.userAgent.slice(0, 200)
         }])
       } catch {}
     }
-    // ลบ Guest Cookie ด้วย
-    document.cookie = "guest-session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
     await supabase.auth.signOut()
     router.push('/')
   }
 
   const navItems = [
-    // Operations — ทุก role ที่ login ได้เห็น
-    { href: '/dashboard',                          label: 'Dashboard',       icon: '▦', section: 'operations', roles: ['administrator','supervisor','guest'] },
-    { href: '/dashboard/incidents',                label: 'Incident',        icon: '⚠', section: 'operations', roles: ['administrator','supervisor','guest'] },
+    { href: '/dashboard',                          label: 'Dashboard',       icon: '▦', section: 'operations', roles: ['administrator','supervisor','guest','approval'] },
+    { href: '/dashboard/incidents',                label: 'Incident',        icon: '⚠', section: 'operations', roles: ['administrator','supervisor','guest','approval'] },
     { href: '/dashboard/reports/sla',             label: 'SLA Report',      icon: '📊', section: 'operations', roles: ['administrator','supervisor'] },
-    { href: '/dashboard/backup',                   label: 'Backup Log',      icon: '☁', section: 'operations', roles: ['administrator','supervisor','guest'] },
-    { href: '/dashboard/checklist',                label: 'IT Checklist',    icon: '✅', section: 'operations', roles: ['administrator','supervisor','guest'] },
-    // Settings — เฉพาะ administrator
+    { href: '/dashboard/backup',                   label: 'Backup Log',      icon: '☁', section: 'operations', roles: ['administrator','supervisor','guest','approval'] },
+    { href: '/dashboard/checklist',                label: 'IT Checklist',    icon: '✅', section: 'operations', roles: ['administrator','supervisor','guest','approval'] },
     { href: '/dashboard/settings/no-series',       label: 'No. Series',      icon: '⚙', section: 'settings',   roles: ['administrator'] },
     { href: '/dashboard/settings/master-data',     label: 'Master Data',     icon: '📋', section: 'settings',   roles: ['administrator'] },
     { href: '/dashboard/settings/users',           label: 'Users',           icon: '👤', section: 'settings',   roles: ['administrator'] },
   ]
 
-  const isActive = (href) => {
-    if (href === '/dashboard') return pathname === '/dashboard'
-    return pathname.startsWith(href)
-  }
+  const isActive = (href) => (href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href))
 
-  const toggleSection = (section) => {
-    setExpandedSection(prev => prev === section ? null : section)
-  }
+  const toggleSection = (section) => setExpandedSection(prev => prev === section ? null : section)
+
+  if (initializing) return <div style={{ minHeight: '100vh', background: '#0f1923', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Checking Security...</div>
 
   const SidebarContent = () => (
     <>
-      {/* Logo */}
       <Link href="/dashboard" style={{ display: 'block', padding: '20px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', textDecoration: 'none' }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: 0.3 }}>DOWA IT</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>DOWA IT</div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>Management System</div>
       </Link>
-
-      {/* Navigation */}
       <nav style={{ padding: '8px 0', flex: 1, overflowY: 'auto' }}>
-        {/* Operations Section */}
-        <div 
-          onClick={() => toggleSection('operations')}
-          style={{ 
-            fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: 1, padding: '12px 16px 8px', 
-            textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            cursor: 'pointer', transition: 'background 0.2s'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-        >
-          <span>Operations</span>
-          <span style={{ 
-            fontSize: 10, transition: 'transform 0.3s', 
-            transform: expandedSection === 'operations' ? 'rotate(0deg)' : 'rotate(-90deg)' 
-          }}>▼</span>
+        <div onClick={() => toggleSection('operations')} className="nav-section-title">
+          <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>OPERATIONS</span>
+          <span style={{ transition: 'transform 0.3s', transform: expandedSection === 'operations' ? 'rotate(0deg)' : 'rotate(-90deg)', color: 'rgba(255,255,255,0.4)' }}>▼</span>
         </div>
-        <div style={{ 
-          maxHeight: expandedSection === 'operations' ? '500px' : '0', 
-          overflow: 'hidden', transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
-        }}>
-          {navItems.filter(i => i.section === 'operations' && i.roles.includes(role)).map(item => (
+        <div style={{ maxHeight: expandedSection === 'operations' ? '500px' : '0', overflow: 'hidden', transition: 'max-height 0.4s' }}>
+          {navItems.filter(i => i.section === 'operations' && (role ? i.roles.includes(role) : false)).map(item => (
             <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
-              <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
-              {item.label}
+              <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span> {item.label}
             </Link>
           ))}
         </div>
-
-        {/* Settings Section — เฉพาะ administrator */}
-        {role === 'administrator' && (
+        {(role === 'administrator') && (
           <>
-            <div 
-              onClick={() => toggleSection('settings')}
-              style={{ 
-                fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: 1, padding: '16px 16px 8px', 
-                textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                cursor: 'pointer', transition: 'background 0.2s'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              <span>Settings</span>
-              <span style={{ 
-                fontSize: 10, transition: 'transform 0.3s', 
-                transform: expandedSection === 'settings' ? 'rotate(0deg)' : 'rotate(-90deg)' 
-              }}>▼</span>
+            <div onClick={() => toggleSection('settings')} className="nav-section-title">
+              <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>SETTINGS</span>
+              <span style={{ transition: 'transform 0.3s', transform: expandedSection === 'settings' ? 'rotate(0deg)' : 'rotate(-90deg)', color: 'rgba(255,255,255,0.4)' }}>▼</span>
             </div>
-            <div style={{ 
-              maxHeight: expandedSection === 'settings' ? '500px' : '0', 
-              overflow: 'hidden', transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
-            }}>
+            <div style={{ maxHeight: expandedSection === 'settings' ? '500px' : '0', overflow: 'hidden', transition: 'max-height 0.4s' }}>
               {navItems.filter(i => i.section === 'settings').map(item => (
                 <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
-                  <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
-                  {item.label}
+                  <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span> {item.label}
                 </Link>
               ))}
             </div>
           </>
         )}
       </nav>
-
-      {/* Bottom — User Info + Settings Dropdown + Logout */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-
-        {/* User Info Row */}
+      <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={{ minWidth: 0 }}>
-            {/* Username */}
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {profile?.full_name || user?.email?.split('@')[0] || 'User'}
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {profile?.full_name || 'User'}
             </div>
-            {/* Role Badge — รองรับ 4 roles */}
             {(() => {
-              const badge = ROLE_BADGE[role] || ROLE_BADGE.supervisor
-              const colorMap = {
-                administrator: { bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.3)', color: '#60a5fa' },
-                supervisor:    { bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.3)', color: '#34d399' },
-                approval:      { bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)', color: '#fbbf24' },
-                guest:         { bg: 'rgba(156,163,175,0.15)',border: 'rgba(156,163,175,0.3)',color: '#9ca3af' },
-              }
-              const c = colorMap[role] || colorMap.supervisor
+              const badge = ROLE_BADGE[role] || ROLE_BADGE.guest
               return (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 20, padding: '2px 8px' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: '2px 8px', marginTop: 4 }}>
                   <span style={{ fontSize: 9 }}>{badge.emoji}</span>
-                  <span style={{ fontSize: 9, color: c.color, fontWeight: 600, letterSpacing: 0.3 }}>{badge.label}</span>
+                  <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>{badge.label}</span>
                 </div>
               )
             })()}
           </div>
-
-          {/* Gear Icon */}
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <button
-              onClick={() => setSettingsMenuOpen(prev => !prev)}
-              style={{
-                background: settingsMenuOpen ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 6, width: 30, height: 30,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', fontSize: 14, transition: 'all 0.2s',
-                color: 'rgba(255,255,255,0.6)'
-              }}
-              title="Settings"
-            >
-              ⚙
-            </button>
-
-            {/* Dropdown Menu */}
-            {settingsMenuOpen && (
-              <>
-                <div onClick={() => setSettingsMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
-                <div style={{
-                  position: 'absolute', bottom: '100%', right: 0, marginBottom: 8,
-                  background: '#1e2d3d', border: '1px solid rgba(255,255,255,0.12)',
-                  borderRadius: 10, overflow: 'hidden',
-                  boxShadow: '0 -8px 24px rgba(0,0,0,0.4)', minWidth: 180, zIndex: 99
-                }}>
-                  <div style={{ padding: '8px 12px 6px', fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                    บัญชีของฉัน
-                  </div>
-                  {/* User Profile */}
-                  <button
-                    onClick={() => {
-                      setSettingsMenuOpen(false)
-                      router.push(`/dashboard/profile`)
-                    }}
-                    style={{
-                      width: '100%', padding: '10px 14px', background: 'none',
-                      border: 'none', borderTop: '1px solid rgba(255,255,255,0.06)',
-                      color: 'rgba(255,255,255,0.75)', fontSize: 13, textAlign: 'left',
-                      cursor: 'pointer', fontFamily: 'inherit',
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      transition: 'background 0.15s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                  >
-                    <span style={{ fontSize: 15 }}>👤</span>
-                    <div>
-                      <div style={{ fontWeight: 500 }}>User Profile</div>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>แก้ไขข้อมูลส่วนตัว</div>
-                    </div>
-                  </button>
-                  {/* Change Password */}
-                  <button
-                    onClick={() => {
-                      setSettingsMenuOpen(false)
-                      router.push('/dashboard/profile?tab=security')
-                    }}
-                    style={{
-                      width: '100%', padding: '10px 14px', background: 'none',
-                      border: 'none', borderTop: '1px solid rgba(255,255,255,0.06)',
-                      color: 'rgba(255,255,255,0.75)', fontSize: 13, textAlign: 'left',
-                      cursor: 'pointer', fontFamily: 'inherit',
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      transition: 'background 0.15s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                  >
-                    <span style={{ fontSize: 15 }}>🔑</span>
-                    <div>
-                      <div style={{ fontWeight: 500 }}>Change Password</div>
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>เปลี่ยนรหัสผ่าน</div>
-                    </div>
-                  </button>
-                </div>
-              </>
-            )}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button onClick={() => setSettingsMenuOpen(!settingsMenuOpen)} className="gear-btn">⚙</button>
           </div>
-        </div>
+          {settingsMenuOpen && (
+            <div style={{ position: 'absolute', bottom: '100%', left: 16, right: 16, background: '#1e2d3d', borderRadius: 12, boxShadow: '0 -8px 24px rgba(0,0,0,0.5)', zIndex: 100, marginBottom: 8, border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+              <button onClick={() => { setSettingsMenuOpen(false); router.push('/dashboard/profile') }} className="dropdown-item">👤 My Profile</button>
+              
+              <div 
+                onClick={(e) => {
+                  const input = e.currentTarget.querySelector('input');
+                  if (input) input.showPicker();
+                }}
+                style={{ 
+                  position: 'relative', 
+                  borderTop: '1px solid rgba(255,255,255,0.08)', 
+                  background: 'rgba(59, 130, 246, 0.05)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  padding: '12px 16px'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.05)'}
+              >
+                <input 
+                  type="date" 
+                  value={getFormattedDate()}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setWorkingDate(new Date(e.target.value));
+                    }
+                  }}
+                  style={{ position: 'absolute', opacity: 0, inset: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 1 }} 
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#fff', opacity: 0.9 }}>
+                    <span style={{ fontSize: 16 }}>📅</span> WORKING DATE
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 24 }}>
+                    <div style={{ 
+                      fontSize: 11, 
+                      fontWeight: 700, 
+                      color: '#60a5fa', 
+                      background: 'rgba(59, 130, 246, 0.1)', 
+                      padding: '5px 10px', 
+                      borderRadius: 6,
+                      border: '1px solid rgba(59, 130, 246, 0.2)',
+                      whiteSpace: 'nowrap',
+                      lineHeight: 1
+                    }}>
+                      {formatDateMMM(getFormattedDate())}
+                    </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setWorkingDate(new Date());
+                      }}
+                      title="Reset to current date"
+                      style={{
+                        position: 'relative',
+                        zIndex: 10,
+                        background: 'none',
+                        border: 'none',
+                        color: 'rgba(255,255,255,0.3)',
+                        fontSize: 16,
+                        cursor: 'pointer',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s',
+                        borderRadius: 6,
+                        lineHeight: 1
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#60a5fa'; e.currentTarget.style.transform = 'rotate(180deg)' }}
+                      onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; e.currentTarget.style.transform = 'rotate(0deg)' }}
+                    >
+                      ↻
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
-        {/* Logout */}
-        <button
-          onClick={handleLogout}
-          style={{
-            width: '100%', padding: '7px',
-            background: 'rgba(255,255,255,0.06)',
-            color: 'rgba(255,255,255,0.6)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 6, fontSize: 12,
-            cursor: 'pointer', fontFamily: 'inherit'
-          }}
-        >
-          ออกจากระบบ
-        </button>
+        </div>
+        <button onClick={handleLogout} className="logout-btn">ออกจากระบบ</button>
       </div>
     </>
   )
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-
-      {/* Desktop Sidebar */}
-      <div className="sidebar" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-        <SidebarContent />
-      </div>
-
-      {/* Mobile Overlay */}
-      <div
-        className={`mobile-overlay ${sidebarOpen ? 'open' : ''}`}
-        onClick={() => setSidebarOpen(false)}
-      />
-
-      {/* Mobile Sidebar */}
-      <div style={{
-        display: 'flex', flexDirection: 'column',
-        height: '100vh', position: 'fixed', zIndex: 50,
-        background: '#0f1923', width: 220,
-        transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 0.3s ease'
-      }}>
-        <SidebarContent />
-      </div>
-
-      {/* Main Content */}
-      <div style={{ flex: 1, overflow: 'auto', background: '#f0f2f5', display: 'flex', flexDirection: 'column' }}>
-
-        {/* Mobile Topbar */}
-        <div
-          style={{ display: 'none', background: '#0f1923', padding: '12px 16px', alignItems: 'center', gap: 12, flexShrink: 0 }}
-          className="mobile-topbar"
-        >
-          <button
-            onClick={() => setSidebarOpen(true)}
-            style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer', padding: 0, lineHeight: 1 }}
-          >
-            ☰
-          </button>
-          <Link href="/dashboard" style={{ fontSize: 14, fontWeight: 600, color: '#fff', textDecoration: 'none' }}>DOWA IT System</Link>
-        </div>
-
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          {children}
-        </div>
-      </div>
+      <style>{`
+        .sidebar { background: #0f1923; width: 220px; flex-shrink: 0; color: #fff; display: flex; flex-direction: column; transition: all 0.3s; }
+        .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; color: rgba(255,255,255,0.7); text-decoration: none; font-size: 13px; transition: all 0.2s; }
+        .nav-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .nav-item.active { background: #1d4ed8; color: #fff; font-weight: 700; border-right: 4px solid #fff; }
+        .nav-section-title { font-size: 10px; color: #fff; padding: 16px 16px 8px; text-transform: uppercase; display: flex; justify-content: space-between; cursor: pointer; letter-spacing: 1px; opacity: 0.8; }
+        .gear-btn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; width: 30px; height: 30px; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .dropdown-item { width: 100%; padding: 12px 16px; background: none; border: none; color: #fff; text-align: left; cursor: pointer; font-size: 13px; }
+        .dropdown-item:hover { background: rgba(255,255,255,0.1); }
+        .logout-btn { width: 100%; padding: 8px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px; cursor: pointer; margin-top: 8px; }
+      `}</style>
+      <div className="sidebar mobile-hide"><SidebarContent /></div>
+      <div style={{ flex: 1, overflow: 'auto', background: '#f0f2f5' }}>{children}</div>
     </div>
   )
 }
