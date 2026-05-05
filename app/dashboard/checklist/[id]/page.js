@@ -591,12 +591,10 @@ export default function ChecklistDetailPage() {
                   </button>
                 ) : (
                   <>
-                    {/* 2.2 Approver Role: Approve / Reject / Delegate */}
+                    {/* 2.2 Approver Role: Strictly only Assigned Approver or their Substitute */}
                     {(!isVisitor && (
                       currentUser?.id === doc.assigned_approver_id || 
-                      isSub ||
-                      currentUser?.role === 'administrator' || 
-                      currentUser?.role === 'supervisor'
+                      isSub
                     )) ? (
                       <>
                         <button onClick={() => setShowDelegateModal(true)} style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 10, fontSize: 14, background: '#fff', cursor: 'pointer' }}>
