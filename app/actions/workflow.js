@@ -277,6 +277,7 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail) {
       .from('checklist_docs')
       .update({
         workflow_status: isAutoApprove ? 'approved' : 'pending',
+        status: isAutoApprove ? 'Closed' : 'In Progress', // Update main status
         assigned_approver_id: config?.primary_approver_id || null,
         approval_comment: isAutoApprove ? 'ระบบอนุมัติอัตโนมัติ (ตามการตั้งค่า)' : null
       })

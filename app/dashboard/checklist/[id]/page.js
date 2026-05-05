@@ -226,7 +226,7 @@ export default function ChecklistDetailPage() {
           workflow_status: 'approved',
           approved_by: currentUser.id,
           approved_at: new Date().toISOString(),
-          status: 'closed' // Auto-close when approved
+          status: 'Closed' // Auto-close when approved
         })
         .eq('id', id)
 
