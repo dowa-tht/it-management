@@ -15,7 +15,7 @@ export default function DashboardLayout({ children }) {
   const [profile, setProfile] = useState(null)
   const [role, setRole] = useState(null) 
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [expandedSection, setExpandedSection] = useState('operations') // ✅ กาง Operations ไว้เป็นค่าเริ่มต้น
+  const [expandedSection, setExpandedSection] = useState('operations')
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
   const [initializing, setInitializing] = useState(true)
 
@@ -71,9 +71,8 @@ export default function DashboardLayout({ children }) {
     return () => subscription?.unsubscribe()
   }, [pathname, router])
 
-  // Auto-expand current section
   useEffect(() => {
-    setSidebarOpen(false)
+    setSidebarOpen(false) // Auto close on navigation
     if (pathname.includes('/settings/')) {
       setExpandedSection('settings')
     } else if (pathname.startsWith('/dashboard/incidents') || pathname === '/dashboard' || pathname.includes('/backup') || pathname.includes('/checklist')) {
@@ -109,7 +108,6 @@ export default function DashboardLayout({ children }) {
   ]
 
   const isActive = (href) => (href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href))
-
   const toggleSection = (section) => setExpandedSection(prev => prev === section ? null : section)
 
   if (initializing) return <div style={{ minHeight: '100vh', background: '#0f1923', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Checking Security...</div>
@@ -170,84 +168,21 @@ export default function DashboardLayout({ children }) {
           {settingsMenuOpen && (
             <div style={{ position: 'absolute', bottom: '100%', left: 16, right: 16, background: '#1e2d3d', borderRadius: 12, boxShadow: '0 -8px 24px rgba(0,0,0,0.5)', zIndex: 100, marginBottom: 8, border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
               <button onClick={() => { setSettingsMenuOpen(false); router.push('/dashboard/profile') }} className="dropdown-item">👤 My Profile</button>
-              
               <div 
                 onClick={(e) => {
                   const input = e.currentTarget.querySelector('input');
                   if (input) input.showPicker();
                 }}
-                style={{ 
-                  position: 'relative', 
-                  borderTop: '1px solid rgba(255,255,255,0.08)', 
-                  background: 'rgba(59, 130, 246, 0.05)',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  padding: '12px 16px'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.05)'}
+                style={{ position: 'relative', borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(59, 130, 246, 0.05)', cursor: 'pointer', padding: '12px 16px' }}
               >
-                <input 
-                  type="date" 
-                  value={getFormattedDate()}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setWorkingDate(new Date(e.target.value));
-                    }
-                  }}
-                  style={{ position: 'absolute', opacity: 0, inset: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 1 }} 
-                />
+                <input type="date" value={getFormattedDate()} onChange={(e) => e.target.value && setWorkingDate(new Date(e.target.value))} style={{ position: 'absolute', opacity: 0, inset: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 1 }} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#fff', opacity: 0.9 }}>
-                    <span style={{ fontSize: 16 }}>📅</span> WORKING DATE
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 24 }}>
-                    <div style={{ 
-                      fontSize: 11, 
-                      fontWeight: 700, 
-                      color: '#60a5fa', 
-                      background: 'rgba(59, 130, 246, 0.1)', 
-                      padding: '5px 10px', 
-                      borderRadius: 6,
-                      border: '1px solid rgba(59, 130, 246, 0.2)',
-                      whiteSpace: 'nowrap',
-                      lineHeight: 1
-                    }}>
-                      {formatDateMMM(getFormattedDate())}
-                    </div>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setWorkingDate(new Date());
-                      }}
-                      title="Reset to current date"
-                      style={{
-                        position: 'relative',
-                        zIndex: 10,
-                        background: 'none',
-                        border: 'none',
-                        color: 'rgba(255,255,255,0.3)',
-                        fontSize: 16,
-                        cursor: 'pointer',
-                        padding: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.2s',
-                        borderRadius: 6,
-                        lineHeight: 1
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.color = '#60a5fa'; e.currentTarget.style.transform = 'rotate(180deg)' }}
-                      onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; e.currentTarget.style.transform = 'rotate(0deg)' }}
-                    >
-                      ↻
-                    </button>
-                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#fff', opacity: 0.9 }}>📅 WORKING DATE</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#60a5fa' }}>{formatDateMMM(getFormattedDate())}</div>
                 </div>
               </div>
             </div>
           )}
-
         </div>
         <button onClick={handleLogout} className="logout-btn">ออกจากระบบ</button>
       </div>
@@ -255,20 +190,71 @@ export default function DashboardLayout({ children }) {
   )
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', position: 'relative' }}>
       <style>{`
-        .sidebar { background: #0f1923; width: 220px; flex-shrink: 0; color: #fff; display: flex; flex-direction: column; transition: all 0.3s; }
-        .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; color: rgba(255,255,255,0.7); text-decoration: none; font-size: 13px; transition: all 0.2s; }
+        .sidebar { background: #0f1923; width: 240px; flex-shrink: 0; color: #fff; display: flex; flex-direction: column; transition: all 0.3s; z-index: 1000; }
+        .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; color: rgba(255,255,255,0.7); text-decoration: none; font-size: 13px; transition: all 0.2s; border-left: 4px solid transparent; }
         .nav-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
-        .nav-item.active { background: #1d4ed8; color: #fff; font-weight: 700; border-right: 4px solid #fff; }
+        .nav-item.active { background: rgba(29, 78, 216, 0.15); color: #fff; font-weight: 700; border-left-color: #3b82f6; }
         .nav-section-title { font-size: 10px; color: #fff; padding: 16px 16px 8px; text-transform: uppercase; display: flex; justify-content: space-between; cursor: pointer; letter-spacing: 1px; opacity: 0.8; }
         .gear-btn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; width: 30px; height: 30px; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .dropdown-item { width: 100%; padding: 12px 16px; background: none; border: none; color: #fff; text-align: left; cursor: pointer; font-size: 13px; }
         .dropdown-item:hover { background: rgba(255,255,255,0.1); }
         .logout-btn { width: 100%; padding: 8px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 12px; cursor: pointer; margin-top: 8px; }
+        
+        .mobile-hamburger { display: none; }
+
+        @media (max-width: 1024px) {
+          .sidebar { 
+            position: absolute; 
+            left: ${sidebarOpen ? '0' : '-240px'}; 
+            top: 0; 
+            bottom: 0; 
+            box-shadow: ${sidebarOpen ? '20px 0 50px rgba(0,0,0,0.5)' : 'none'};
+          }
+          .mobile-hamburger { 
+            display: flex; 
+            position: absolute; 
+            top: 16px; 
+            left: 16px; 
+            z-index: 50; 
+            background: #fff; 
+            width: 40px; 
+            height: 40px; 
+            border-radius: 10px; 
+            align-items: center; 
+            justify-content: center; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+            border: none; 
+            cursor: pointer;
+            font-size: 20px;
+          }
+          .main-content { padding-top: 60px !important; }
+        }
+
+        .backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.5);
+          backdrop-filter: blur(2px);
+          z-index: 900;
+          display: ${sidebarOpen ? 'block' : 'none'};
+        }
       `}</style>
-      <div className="sidebar mobile-hide"><SidebarContent /></div>
-      <div style={{ flex: 1, overflow: 'auto', background: '#f0f2f5' }}>{children}</div>
+
+      {/* Mobile Toggle Button */}
+      <button className="mobile-hamburger" onClick={() => setSidebarOpen(true)}>☰</button>
+
+      {/* Backdrop for Mobile */}
+      <div className="backdrop" onClick={() => setSidebarOpen(false)}></div>
+
+      {/* Sidebar */}
+      <div className="sidebar"><SidebarContent /></div>
+
+      {/* Main Content Area */}
+      <div className="main-content" style={{ flex: 1, overflow: 'auto', background: '#f0f2f5', transition: 'all 0.3s' }}>
+        {children}
+      </div>
     </div>
   )
 }
