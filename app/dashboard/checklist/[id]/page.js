@@ -660,13 +660,27 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
         const ctx = canvas.getContext('2d')
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
         
-        // Add Watermark
+        // Add Bottom Watermark (System & Time)
         ctx.font = "bold 24px Arial"
+        ctx.textAlign = "left"
         ctx.fillStyle = "rgba(0, 0, 0, 0.4)"
         ctx.fillRect(10, canvas.height - 45, 450, 35)
         ctx.fillStyle = "#ffffff"
         const stamp = `DOWA IT SYSTEM | ${new Date().toLocaleString('th-TH')}`
         ctx.fillText(stamp, 20, canvas.height - 18)
+
+        // Add Top-Right Watermark (Point Label)
+        const pointLabel = points[pointIdx] || "ภาพยืนยัน"
+        ctx.font = "bold 28px Arial"
+        ctx.textAlign = "right"
+        const textWidth = ctx.measureText(pointLabel).width
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)"
+        ctx.fillRect(canvas.width - textWidth - 40, 10, textWidth + 30, 45)
+        ctx.fillStyle = "#00ff00" // Use Green/Yellow for visibility
+        ctx.fillText(pointLabel, canvas.width - 25, 42)
+        
+        // Reset textAlign for safety
+        ctx.textAlign = "left"
 
         const dataUrl = canvas.toDataURL('image/jpeg', 0.5) // Reduced from 0.7
         const base64Data = dataUrl.split(',')[1]
