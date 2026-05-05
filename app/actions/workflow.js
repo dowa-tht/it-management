@@ -33,7 +33,7 @@ export async function getUnifiedPendingApprovals() {
         assigned_approver_id,
         user_profiles!checklist_docs_created_by_fkey(full_name)
       `)
-      .eq('status', 'Pending Approval')
+      .eq('workflow_status', 'pending')
       .or(`assigned_approver_id.eq.${profile.id},assigned_approver_id.is.null`)
 
     // 3. Fetch Pending Incidents
@@ -127,7 +127,7 @@ export async function getSystemLogs(type = 'audit') {
 
     if (type === 'approval') {
       // Find all approval-related actions in logs
-      const approvalActions = ['Submitted', 'Approved', 'Rejected', 'Delegated', 'Auto-Approved']
+      const approvalActions = ['Submitted', 'Approved', 'Rejected', 'Delegated', 'Auto-Approved', 'ปิดเอกสาร (Closed)', 'บันทึกร่าง', 'ส่งเอกสารเพื่อขออนุมัติ']
       
       const { data: chkLogs } = await supabaseAdmin
         .from('checklist_logs')
