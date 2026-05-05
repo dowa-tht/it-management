@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { CHECKLIST_TEMPLATES } from '@/lib/checklistItems'
-import { submitRequest, getEligibleApprovers, isSubstituteOf } from '@/lib/workflow'
+import { submitRequest, getEligibleApprovers, isSubstituteOf, recordLog } from '@/lib/workflow'
 import { SignatureModal } from '../components/SignatureModal'
 
 // ===== Instruction Dialog =====
@@ -163,15 +163,8 @@ export default function ChecklistDetailPage() {
       }
 
       // 2. Submit Request
-      const res = await submitRequest(id, 'checklist', doc.freq_type)
+      const res = await submitRequest(id, 'checklist', doc.freq_type, currentUser.email)
       if (res.success) {
-        // Explicitly update log for sender info since submitRequest uses admin client
-        await supabase.from('checklist_logs').insert({
-          doc_id: id,
-          action: 'Submitted',
-          details: `ส่งเอกสารขออนุมัติ`,
-          user_email: currentUser.email
-        })
         fetchData()
       } else {
         alert(`เกิดข้อผิดพลาด: ${res.error}`)
@@ -191,12 +184,7 @@ export default function ChecklistDetailPage() {
       .eq('id', id)
     
     if (!error) {
-      await supabase.from('checklist_logs').insert({
-        doc_id: id,
-        action: 'Cancelled',
-        details: 'ยกเลิกการส่งอนุมัติโดยผู้แจ้ง',
-        user_email: currentUser.email
-      })
+      await recordLog(id, 'checklist', 'Cancelled', 'ยกเลิกการส่งอนุมัติโดยผู้แจ้ง', currentUser.email)
       fetchData()
     }
     setSaving(false)
@@ -596,31 +584,31 @@ export default function ChecklistDetailPage() {
             {/* 2. Pending Workflow Actions */}
             {doc.workflow_status === 'pending' && (
               <>
-                {/* 2.1 Approver Role: Approve / Reject / Delegate */}
-                {(!isVisitor && (
-                  currentUser?.id === doc.assigned_approver_id || 
-                  isSub ||
-                  currentUser?.role === 'administrator' || 
-                  currentUser?.role === 'supervisor'
-                )) ? (
-                  <>
-                    <button onClick={() => setShowDelegateModal(true)} style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 10, fontSize: 14, background: '#fff', cursor: 'pointer' }}>
-                      ↪️ ส่งต่อ (Delegate)
-                    </button>
-                    <button onClick={handleReject} style={{ padding: '10px 24px', border: '1px solid #dc2626', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#dc2626', cursor: 'pointer' }}>
-                      ❌ ตีกลับ (Reject)
-                    </button>
-                    <button onClick={() => setShowSignatureModal(true)} style={{ padding: '10px 24px', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, background: '#059669', color: '#fff', cursor: 'pointer', boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)' }}>
-                      ✅ อนุมัติงาน (Approve)
-                    </button>
-                  </>
+                {/* 2.1 Sender Role (Priority): If I am the sender, I only see Cancel, even if I am an Admin */}
+                {currentUser?.id === doc.created_by ? (
+                  <button onClick={handleCancelApproval} disabled={saving} style={{ padding: '10px 24px', border: '1px solid #6b7280', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#4b5563', cursor: 'pointer' }}>
+                    🔄 ดึงเอกสารกลับ (Cancel)
+                  </button>
                 ) : (
                   <>
-                    {/* 2.2 Sender Role: Cancel Approval */}
-                    {currentUser?.id === doc.created_by ? (
-                      <button onClick={handleCancelApproval} disabled={saving} style={{ padding: '10px 24px', border: '1px solid #6b7280', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#4b5563', cursor: 'pointer' }}>
-                        🔄 ดึงเอกสารกลับ (Cancel)
-                      </button>
+                    {/* 2.2 Approver Role: Approve / Reject / Delegate */}
+                    {(!isVisitor && (
+                      currentUser?.id === doc.assigned_approver_id || 
+                      isSub ||
+                      currentUser?.role === 'administrator' || 
+                      currentUser?.role === 'supervisor'
+                    )) ? (
+                      <>
+                        <button onClick={() => setShowDelegateModal(true)} style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 10, fontSize: 14, background: '#fff', cursor: 'pointer' }}>
+                          ↪️ ส่งต่อ (Delegate)
+                        </button>
+                        <button onClick={handleReject} style={{ padding: '10px 24px', border: '1px solid #dc2626', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#dc2626', cursor: 'pointer' }}>
+                          ❌ ตีกลับ (Reject)
+                        </button>
+                        <button onClick={() => setShowSignatureModal(true)} style={{ padding: '10px 24px', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, background: '#059669', color: '#fff', cursor: 'pointer', boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)' }}>
+                          ✅ อนุมัติงาน (Approve)
+                        </button>
+                      </>
                     ) : (
                       /* 2.3 Other Role: Just Info */
                       <div style={{ color: '#6b7280', fontSize: 13, background: '#f3f4f6', padding: '8px 16px', borderRadius: 8 }}>
