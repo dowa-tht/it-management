@@ -284,7 +284,13 @@ All tiers now use standard authentication protocols.
   - Created a centralized **OneDrive Utility** for background file uploads to specialized application folders (`/Apps/Dowa-IT-System`).
   - Added a reusable `ChecklistImageUpload` component for seamless integration into operational workflows.
 
+- [2026-05-05] **System Stabilization & UI Responsiveness**:
+  - **Auth Refactor**: Replaced deprecated `@supabase/auth-helpers-nextjs` with `@supabase/supabase-js` to fix production build errors.
+  - **SLA Precision**: Normalized all business minutes calculations to Bangkok Time (UTC+7) to ensure consistency between Vercel and Localhost.
+  - **Mobile Layout**: Implemented a responsive Sidebar with a Hamburger Menu and optimized the SLA Report table for small screens.
+  - **Security**: Synchronized `user_whitelist` with all existing `user_profiles` to resolve access control issues.
+
 ---
-*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-05-05 (Session Update: OneDrive Integration) โดย Antigravity AI*
+*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-05-05 (Session Update: OneDrive Integration & Build Fixes) โดย Antigravity AI*
 
 

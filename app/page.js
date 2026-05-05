@@ -70,10 +70,18 @@ function LoginContent() {
     
     setLoading(true)
     setError('')
+
+    // กำหนด Redirect URL ให้ถูกต้องตาม Environment
+    // ถ้าอยู่บน Vercel ให้ใช้ค่าจาก window.location.origin ซึ่งควรเป็น URL ของ Vercel
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const redirectTo = `${origin}/auth/callback`;
+
+    console.log('Redirecting to:', redirectTo);
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'azure',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: redirectTo,
         scopes: 'openid profile email'
       }
     })
