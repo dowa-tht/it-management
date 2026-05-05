@@ -402,6 +402,13 @@ export default function ChecklistDetailPage() {
 
   return (
     <div style={{ padding: 24, paddingBottom: 100, maxWidth: 1000, margin: '0 auto' }}>
+      <style>{`
+        .photo-box:hover {
+          border-color: #3b82f6 !important;
+          transform: translateY(-2px);
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+        }
+      `}</style>
       {activeNgItem && <NgDialog item={activeNgItem} onConfirm={handleNgConfirm} onCancel={() => setActiveNgItem(null)} />}
       {activeInstruction && <InstructionDialog item={activeInstruction} onCancel={() => setActiveInstruction(null)} />}
 
@@ -825,7 +832,7 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
 
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 16 }}>
         {points.map((p, idx) => {
           const fileRef = data.photos?.[idx]
           const isLocalBase64 = fileRef?.startsWith('data:image')
@@ -834,15 +841,18 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
           
           return (
             <div key={idx} style={{ textAlign: 'center' }}>
-              <div style={{ 
-                width: '100%', aspectRatio: '1/1', background: '#f3f4f6', borderRadius: 8, 
-                border: '2px dashed #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                position: 'relative', overflow: 'hidden'
-              }}>
+              <div 
+                className="photo-box"
+                style={{ 
+                  width: '100%', aspectRatio: '1/1', background: '#f8fafc', borderRadius: 12, 
+                  border: '2px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  position: 'relative', overflow: 'hidden', transition: 'all 0.2s ease',
+                  boxShadow: fileRef ? '0 4px 6px -1px rgba(0,0,0,0.1)' : 'none'
+                }}>
                 {uploading[idx] ? (
-                  <div style={{ padding: 10, textAlign: 'center' }}>
-                    <div style={{ fontSize: 10, color: '#1d4ed8', fontWeight: 700, marginBottom: 4 }}>กำลังอัปโหลด...</div>
-                    <div style={{ width: '100%', height: 4, background: '#e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ padding: 10, textAlign: 'center', width: '100%' }}>
+                    <div style={{ fontSize: 10, color: '#1d4ed8', fontWeight: 700, marginBottom: 8 }}>กำลังอัปโหลด...</div>
+                    <div style={{ width: '80%', height: 4, background: '#e2e8f0', borderRadius: 2, overflow: 'hidden', margin: '0 auto' }}>
                       <div style={{ width: '60%', height: '100%', background: '#1d4ed8', borderRadius: 2 }}></div>
                     </div>
                   </div>
@@ -851,13 +861,26 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
                     <img 
                       src={fullImageUrl} 
                       onClick={() => setPreviewUrl(fullImageUrl)}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} 
+                      style={{ 
+                        width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in',
+                        display: 'block'
+                      }} 
                       alt={p}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
                     />
+                    {/* Error Placeholder */}
+                    <div style={{ display: 'none', width: '100%', height: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#fee2e2', color: '#dc2626', padding: 8 }}>
+                      <span style={{ fontSize: 20 }}>🖼️❌</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, textAlign: 'center', marginTop: 4 }}>โหลดรูปไม่สำเร็จ<br/>(เช็คเครื่องเซิร์ฟเวอร์)</span>
+                    </div>
+
                     {!disabled && (
                       <button 
                         onClick={() => handleDelete(idx)}
-                        style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(220, 38, 38, 0.8)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
+                        style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(220, 38, 38, 0.9)', color: '#fff', border: 'none', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
                       >
                         &times;
                       </button>
@@ -865,8 +888,9 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
                   </div>
                 ) : (
                   <label style={{ cursor: disabled ? 'default' : 'pointer', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
-                    <span style={{ fontSize: 24, marginBottom: 4 }}>📷</span>
-                    <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600 }}>{p}</span>
+                    <span style={{ fontSize: 32, marginBottom: 8, filter: 'grayscale(1)', opacity: 0.5 }}>📷</span>
+                    <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700, textAlign: 'center' }}>{p}</span>
+                    <span style={{ fontSize: 9, color: '#94a3b8', marginTop: 4 }}>คลิกเพื่ออัปโหลด</span>
                     {!disabled && (
                       <input 
                         type="file" 
