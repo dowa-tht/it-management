@@ -5,8 +5,8 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { CHECKLIST_TEMPLATES } from '@/lib/checklistItems'
-import { submitRequest, getEligibleApprovers, isSubstituteOf } from '@/lib/workflow'
-import { recordLog } from '@/app/actions/workflow'
+import { getEligibleApprovers, isSubstituteOf } from '@/lib/workflow'
+import { recordLog, submitRequest } from '@/app/actions/workflow'
 import { SignatureModal } from '../components/SignatureModal'
 
 // ===== Instruction Dialog =====

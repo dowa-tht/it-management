@@ -209,3 +209,43 @@ export async function getSystemLogs(type = 'audit') {
     return { error: err.message }
   }
 }
+
+export async function submitRequest(docId, targetType, triggerKey, userEmail) {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return { error: 'Unauthorized' }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    const { data: config } = await supabaseAdmin
+      .from('approval_configs')
+      .select('primary_approver_id')
+      .eq('target_type', targetType)
+      .eq('freq_type', triggerKey)
+      .single()
+
+    const isAutoApprove = !config || !config.primary_approver_id
+
+    const { error } = await supabaseAdmin
+      .from('checklist_docs')
+      .update({
+        workflow_status: isAutoApprove ? 'approved' : 'pending',
+        assigned_approver_id: config?.primary_approver_id || null,
+        approval_comment: isAutoApprove ? 'ระบบอนุมัติอัตโนมัติ (ตามการตั้งค่า)' : null
+      })
+      .eq('id', docId)
+    
+    if (error) throw error
+
+    await recordLog(docId, targetType, isAutoApprove ? 'Auto-Approved' : 'Submitted', isAutoApprove 
+      ? 'ระบบอนุมัติงานให้อัตโนมัติตามการตั้งค่า' 
+      : `ส่งเอกสารเพื่อขออนุมัติ (ผู้อนุมัติหลัก: ${config?.primary_approver_id || 'ระบบ Pool'})`, userEmail)
+
+    return { success: true, autoApproved: isAutoApprove }
+  } catch (err) {
+    console.error('submitRequest Error:', err)
+    return { success: false, error: err.message }
+  }
+}
