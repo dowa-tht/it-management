@@ -121,7 +121,18 @@ export async function getSystemLogs(type = 'audit') {
         .order('created_at', { ascending: false })
         .limit(200)
       if (error) throw error
-      return { data }
+
+      // Map names for login logs
+      const emails = [...new Set(data.map(l => l.user_email).filter(Boolean))]
+      const { data: profiles } = await supabaseAdmin.from('user_profiles').select('email, full_name').in('email', emails)
+      const nameMap = Object.fromEntries(profiles?.map(p => [p.email, p.full_name]) || [])
+
+      const mapped = data.map(l => ({
+        ...l,
+        full_name: nameMap[l.user_email] || l.user_email
+      }))
+
+      return { data: mapped }
     }
 
     if (type === 'audit') {
@@ -140,9 +151,19 @@ export async function getSystemLogs(type = 'audit') {
       const combined = [
         ...(chkLogs || []).map(l => ({ ...l, category: 'Checklist' })),
         ...(incLogs || []).map(l => ({ ...l, category: 'Incident' }))
-      ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      ]
 
-      return { data: combined }
+      // Fetch names for all emails
+      const emails = [...new Set(combined.map(l => l.user_email).filter(Boolean))]
+      const { data: profiles } = await supabaseAdmin.from('user_profiles').select('email, full_name').in('email', emails)
+      const nameMap = Object.fromEntries(profiles?.map(p => [p.email, p.full_name]) || [])
+
+      const mapped = combined.map(l => ({
+        ...l,
+        full_name: nameMap[l.user_email] || l.user_email
+      })).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+      return { data: mapped }
     }
 
     if (type === 'approval') {
@@ -189,8 +210,15 @@ export async function getSystemLogs(type = 'audit') {
         }))
       ]
       
-      // Filter by approval actions
-      const filtered = combined.filter(l => 
+      // Fetch names for all emails
+      const emails = [...new Set(combined.map(l => l.user).filter(Boolean))]
+      const { data: profiles } = await supabaseAdmin.from('user_profiles').select('email, full_name').in('email', emails)
+      const nameMap = Object.fromEntries(profiles?.map(p => [p.email, p.full_name]) || [])
+
+      const filtered = combined.map(l => ({
+        ...l,
+        user: nameMap[l.user] || l.user
+      })).filter(l => 
         approvalActions.includes(l.action) || 
         l.action.startsWith('Submitted:') || 
         l.action.startsWith('Cancelled:') ||

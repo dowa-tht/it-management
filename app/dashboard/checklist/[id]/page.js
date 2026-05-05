@@ -109,7 +109,12 @@ export default function ChecklistDetailPage() {
       }
     }
     if (itemsData) setItems(itemsData)
-    if (logsData) setLogs(logsData)
+    if (logsData) {
+      const emails = [...new Set(logsData.map(l => l.user_email).filter(Boolean))]
+      const { data: profiles } = await supabase.from('user_profiles').select('email, full_name').in('email', emails)
+      const nameMap = Object.fromEntries(profiles?.map(p => [p.email, p.full_name]) || [])
+      setLogs(logsData.map(l => ({ ...l, user_full_name: nameMap[l.user_email] || l.user_email })))
+    }
     if (templateData) setTemplates(templateData)
 
     if (itemsData && itemsData.length > 0) {
@@ -539,7 +544,7 @@ export default function ChecklistDetailPage() {
                   <div style={{ color: '#6b7280', width: 140, flexShrink: 0 }}>{formatDateTime(log.created_at)}</div>
                   <div style={{ flex: 1, color: '#111827' }}>
                     <strong>{log.action}</strong>
-                    <span style={{ color: '#6b7280', marginLeft: 8 }}>โดย {log.user_email || 'System'}</span>
+                    <span style={{ color: '#6b7280', marginLeft: 8 }}>โดย {log.user_full_name || 'System'}</span>
                   </div>
                 </div>
               ))}

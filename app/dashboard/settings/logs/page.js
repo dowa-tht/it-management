@@ -141,7 +141,7 @@ export default function LogsPage() {
                       </>
                     ) : activeTab === 'login' ? (
                       <>
-                        <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{log.user_email}</td>
+                        <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{log.full_name || log.user_email}</td>
                         <td style={{ padding: '16px 20px' }}>
                           <span style={{ padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: log.action === 'login' ? '#dcfce7' : '#f1f5f9', color: log.action === 'login' ? '#166534' : '#475569' }}>
                             {log.action.toUpperCase()}
@@ -160,7 +160,7 @@ export default function LogsPage() {
                         </td>
                         <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{log.action}</td>
                         <td style={{ padding: '16px 20px', fontSize: 13, color: '#4b5563' }}>{log.details}</td>
-                        <td style={{ padding: '16px 20px', fontSize: 13, color: '#6b7280' }}>{log.user_email}</td>
+                        <td style={{ padding: '16px 20px', fontSize: 13, color: '#6b7280' }}>{log.full_name || log.user_email}</td>
                       </>
                     )}
                   </tr>
