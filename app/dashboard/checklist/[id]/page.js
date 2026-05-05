@@ -585,7 +585,7 @@ export default function ChecklistDetailPage() {
             {doc.workflow_status === 'pending' && (
               <>
                 {/* 2.1 Sender Role (Priority): If I am the sender, I only see Cancel, even if I am an Admin */}
-                {currentUser?.id === doc.created_by ? (
+                {(currentUser?.id === doc.created_by || currentUser?.email === doc.created_by) ? (
                   <button onClick={handleCancelApproval} disabled={saving} style={{ padding: '10px 24px', border: '1px solid #6b7280', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#4b5563', cursor: 'pointer' }}>
                     🔄 ดึงเอกสารกลับ (Cancel)
                   </button>
