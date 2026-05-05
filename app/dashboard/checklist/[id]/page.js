@@ -77,6 +77,7 @@ export default function ChecklistDetailPage() {
   const [eligibleApprovers, setEligibleApproversList] = useState([])
   const [isSub, setIsSub] = useState(false)
   const [allApprovers, setAllApprovers] = useState([])
+  const [isAutoApprove, setIsAutoApprove] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -115,6 +116,13 @@ export default function ChecklistDetailPage() {
       const nameMap = Object.fromEntries(profiles?.map(p => [p.email, p.full_name]) || [])
       setLogs(logsData.map(l => ({ ...l, user_full_name: nameMap[l.user_email] || l.user_email })))
     }
+    const { data: config } = await supabase.from('approval_configs')
+      .select('primary_approver_id')
+      .eq('target_type', 'checklist')
+      .eq('freq_type', docData.freq_type)
+      .single()
+    setIsAutoApprove(!config || !config.primary_approver_id)
+
     if (templateData) setTemplates(templateData)
 
     if (itemsData && itemsData.length > 0) {
@@ -577,7 +585,7 @@ export default function ChecklistDetailPage() {
                     disabled={saving || progress < 100}
                     style={{ padding: '10px 24px', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, background: progress < 100 ? '#9ca3af' : '#1d4ed8', color: '#fff', cursor: progress < 100 ? 'not-allowed' : 'pointer' }}
                   >
-                    🚀 ส่งขออนุมัติงาน
+                    {isAutoApprove ? '🚀 ส่งบันทึกและปิดงาน' : '🚀 ส่งขออนุมัติงาน'}
                   </button>
                 </>
               ) : (

@@ -136,7 +136,7 @@ function ReopenDialog({ onConfirm, onCancel }) {
 }
 
 // ===== Resolve Dialog =====
-function ResolveDialog({ incident, form, setForm, onConfirm, onCancel }) {
+function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApprove }) {
   const [step, setStep] = useState(1)
   const [sigIT, setSigIT] = useState(form.signature_it || null)
   const [sigReporter, setSigReporter] = useState(form.signature_reporter || null)
@@ -313,7 +313,9 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel }) {
               <div style={{ display:'flex', gap:8 }}>
                 <button onClick={handleDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor:'pointer', fontFamily:'inherit', color:'#374151' }}>💾 Save Draft</button>
                 <button onClick={() => onConfirm(sigIT, sigReporter, sigManager, false)}
-                  style={{ padding:'8px 20px', border:'none', borderRadius:7, fontSize:13, background:'#059669', color:'#fff', cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>✅ ยืนยันปิดเคส</button>
+                  style={{ padding:'8px 20px', border:'none', borderRadius:7, fontSize:13, background:'#059669', color:'#fff', cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>
+                  {incident.severity === 'High' && !isAutoApprove ? '🚀 ส่งขออนุมัติงาน' : '🚀 ส่งบันทึกและปิดงาน'}
+                </button>
               </div>
             </div>
           </>
@@ -346,6 +348,7 @@ export default function IncidentDetailPage() {
   const [showSignatureModal, setShowSignatureModal] = useState(false)
   const [approvalLoading, setApprovalLoading] = useState(false)
   const [isSub, setIsSub] = useState(false)
+  const [isAutoApprove, setIsAutoApprove] = useState(false)
 
   // Master Data
   const [categories, setCategories] = useState([])
@@ -417,6 +420,17 @@ export default function IncidentDetailPage() {
         setIsSub(subCheck)
       }
     }
+    const { data: config } = await supabase
+      .from('approval_configs')
+      .select('primary_approver_id')
+      .eq('target_type', 'incident')
+      .eq('freq_type', 'Incident')
+      .single()
+    
+    // For incident, auto-approve if NOT high severity OR no approver set
+    const isHigh = data.severity === 'High'
+    setIsAutoApprove(!isHigh || !config?.primary_approver_id)
+
     setLoading(false)
   }
 
@@ -859,7 +873,7 @@ export default function IncidentDetailPage() {
 
   return (
     <>
-      {showResolveDialog && <ResolveDialog incident={incident} form={form} setForm={setForm} onConfirm={handleResolve} onCancel={() => setShowResolveDialog(false)} />}
+      {showResolveDialog && <ResolveDialog incident={incident} form={form} setForm={setForm} onConfirm={handleResolve} onCancel={() => setShowResolveDialog(false)} isAutoApprove={isAutoApprove} />}
       {showReopenDialog && <ReopenDialog onConfirm={handleReopen} onCancel={() => setShowReopenDialog(false)} />}
 
       {/* SCREEN VIEW */}
