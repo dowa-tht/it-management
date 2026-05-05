@@ -1,13 +1,20 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { formatDateTime } from '@/lib/dateFormat'
-import { getSystemLogs } from '@/app/actions/workflow'
+import { getSystemLogs, adminResetWorkflow } from '@/app/actions/workflow'
 
 export default function LogsPage() {
   const [activeTab, setActiveTab] = useState('audit')
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  
+  // Admin Reset States
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [selectedLog, setSelectedLog] = useState(null)
+  const [adminPassword, setAdminPassword] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetError, setResetError] = useState(null)
 
   const loadLogs = async (type) => {
     setLoading(true)
@@ -27,8 +34,43 @@ export default function LogsPage() {
     loadLogs(activeTab)
   }, [activeTab])
 
+  const handleOpenReset = (log) => {
+    setSelectedLog(log)
+    setShowResetModal(true)
+    setAdminPassword('')
+    setResetError(null)
+  }
+
+  const handleResetWorkflow = async () => {
+    if (!adminPassword) {
+      setResetError('กรุณากรอกรหัสผ่านเพื่อยืนยัน')
+      return
+    }
+    
+    setResetLoading(true)
+    setResetError(null)
+    try {
+      // Find the actual doc UUID if available, or use the one from log
+      // In getSystemLogs, we should ensure we have the doc ID. 
+      // Looking at getSystemLogs, the 'approval' type returns log.id but not doc_id directly in the mapped object?
+      // Wait, let's check getSystemLogs mapping again.
+      
+      const res = await adminResetWorkflow(selectedLog.doc_id || selectedLog.id, selectedLog.category, adminPassword)
+      if (res.error) throw new Error(res.error)
+      
+      alert('Reset Workflow สำเร็จ! สถานะเอกสารกลับเป็น Open เรียบร้อย')
+      setShowResetModal(false)
+      loadLogs(activeTab)
+    } catch (err) {
+      setResetError(err.message)
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+      {/* ... previous header and tabs ... */}
       <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>System Logs</h1>
@@ -96,6 +138,7 @@ export default function LogsPage() {
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Doc No.</th>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Action</th>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>User</th>
+                      <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase', textAlign: 'center' }}>Manage</th>
                     </>
                   ) : activeTab === 'login' ? (
                     <>
@@ -138,6 +181,14 @@ export default function LogsPage() {
                           </span>
                         </td>
                         <td style={{ padding: '16px 20px', fontSize: 13, color: '#4b5563' }}>{log.user}</td>
+                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                          <button 
+                            onClick={() => handleOpenReset(log)}
+                            style={{ padding: '6px 12px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            Reset
+                          </button>
+                        </td>
                       </>
                     ) : activeTab === 'login' ? (
                       <>
@@ -170,6 +221,47 @@ export default function LogsPage() {
           </div>
         )}
       </div>
+
+      {/* Admin Reset Password Modal */}
+      {showResetModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+          <div style={{ background: '#fff', padding: 32, borderRadius: 16, width: '100%', maxWidth: 400, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ width: 64, height: 64, background: '#fee2e2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24 }}>🛡️</div>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>Reset Workflow?</h2>
+              <p style={{ fontSize: 14, color: '#6b7280' }}>การดำเนินการนี้จะดีดเอกสาร <strong>{selectedLog?.docNo}</strong> กลับไปเป็นสถานะ Open เพื่อให้แก้ไขได้ใหม่</p>
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Confirm Admin Password</label>
+              <input 
+                type="password" 
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                placeholder="กรอกรหัสผ่านของคุณ"
+                style={{ width: '100%', padding: '12px 16px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }}
+              />
+              {resetError && <p style={{ color: '#dc2626', fontSize: 12, marginTop: 8 }}>{resetError}</p>}
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button 
+                onClick={() => setShowResetModal(false)}
+                style={{ flex: 1, padding: '12px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleResetWorkflow}
+                disabled={resetLoading}
+                style={{ flex: 1, padding: '12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: resetLoading ? 'not-allowed' : 'pointer', opacity: resetLoading ? 0.7 : 1 }}
+              >
+                {resetLoading ? 'Processing...' : 'Confirm Reset'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

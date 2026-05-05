@@ -192,6 +192,7 @@ export async function getSystemLogs(type = 'audit') {
       const combined = [
         ...(chkLogs || []).map(l => ({
           id: l.id,
+          doc_id: l.doc_id,
           category: 'Checklist',
           docNo: l.checklist_docs?.doc_no || 'N/A',
           subject: `${l.checklist_docs?.freq_type} - ${l.checklist_docs?.period_date}`,
@@ -201,6 +202,7 @@ export async function getSystemLogs(type = 'audit') {
         })),
         ...(incLogs || []).map(l => ({
           id: l.id,
+          doc_id: l.doc_id,
           category: 'Incident',
           docNo: l.incidents?.case_number || 'N/A',
           subject: l.incidents?.title || 'N/A',
@@ -286,5 +288,60 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail) {
   } catch (err) {
     console.error('submitRequest Error:', err)
     return { success: false, error: err.message }
+  }
+}
+
+export async function adminResetWorkflow(docId, docType, password) {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session || session.type !== 'internal') return { error: 'Unauthorized' }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    // 1. Verify Admin Role
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('role, full_name')
+      .eq('id', session.user.id)
+      .single()
+
+    if (profile?.role !== 'administrator') return { error: 'Access Denied: Administrator role required.' }
+
+    // 2. Verify Password (by trying to sign in with a fresh client)
+    const { error: authError } = await createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      .auth.signInWithPassword({
+        email: session.user.email,
+        password: password
+      })
+
+    if (authError) return { error: 'รหัสผ่านไม่ถูกต้อง การยืนยันตัวตนล้มเหลว' }
+
+    // 3. Reset Workflow
+    const table = docType === 'Checklist' ? 'checklist_docs' : 'incidents'
+    const updateData = {
+      workflow_status: null,
+      status: 'Open',
+      assigned_approver_id: null,
+      approved_by: null,
+      approved_at: null,
+      approval_comment: null
+    }
+
+    const { error: resetError } = await supabaseAdmin
+      .from(table)
+      .update(updateData)
+      .eq('id', docId)
+
+    if (resetError) throw resetError
+
+    // 4. Record Log
+    await recordLog(docId, docType.toLowerCase(), 'Admin Override', `ยกเลิกการอนุมัติ (Workflow Reset) โดย ${profile.full_name} ผ่านหน้าจอ Approval Logs`, session.user.email)
+
+    return { success: true }
+  } catch (err) {
+    console.error('adminResetWorkflow Error:', err)
+    return { error: err.message }
   }
 }
