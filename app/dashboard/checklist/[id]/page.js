@@ -677,7 +677,7 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
             body: JSON.stringify({
               fileName: `checklist_${item.id}_${pointIdx}_${Date.now()}.jpg`,
               base64Data: base64Data,
-              folderPath: 'Checklist_Evidence'
+              folderPath: 'Apps/Dowa-IT-System/Checklist_Evidence'
             })
           })
 
