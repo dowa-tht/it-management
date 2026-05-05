@@ -144,7 +144,7 @@ export default function DashboardPage() {
       {/* IT Checklist Tracking Section */}
       <div className="dashboard-grid" style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+        gridTemplateColumns: '3fr 1.2fr', 
         gap: 16, 
         marginBottom: 20 
       }}>
@@ -173,7 +173,7 @@ export default function DashboardPage() {
           {/* Action Cards */}
           <div style={{ 
             display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
+            gridTemplateColumns: 'repeat(4, 1fr)', 
             gap: 10 
           }}>
             {/* Daily */}
