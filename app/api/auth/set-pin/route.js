@@ -1,10 +1,12 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
 export async function POST(req) {
-  const supabase = createRouteHandlerClient({ cookies })
+  const supabase = createClient(supabaseUrl, supabaseKey)
   const { userId, pin } = await req.json()
 
   // Validate PIN (Must be 6 digits)
