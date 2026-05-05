@@ -84,3 +84,98 @@ export async function getUnifiedPendingApprovals() {
     return { error: err.message }
   }
 }
+
+export async function getSystemLogs(type = 'audit') {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return { error: 'Unauthorized' }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    if (type === 'login') {
+      const { data, error } = await supabaseAdmin
+        .from('login_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200)
+      if (error) throw error
+      return { data }
+    }
+
+    if (type === 'audit') {
+      const { data: chkLogs } = await supabaseAdmin
+        .from('checklist_logs')
+        .select('id, action, details, created_at, user_email')
+        .order('created_at', { ascending: false })
+        .limit(100)
+      
+      const { data: incLogs } = await supabaseAdmin
+        .from('incident_logs')
+        .select('id, action, details, created_at, user_email')
+        .order('created_at', { ascending: false })
+        .limit(100)
+
+      const combined = [
+        ...(chkLogs || []).map(l => ({ ...l, category: 'Checklist' })),
+        ...(incLogs || []).map(l => ({ ...l, category: 'Incident' }))
+      ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+      return { data: combined }
+    }
+
+    if (type === 'approval') {
+      // Find all approval-related actions in logs
+      const approvalActions = ['Submitted', 'Approved', 'Rejected', 'Delegated', 'Auto-Approved']
+      
+      const { data: chkLogs } = await supabaseAdmin
+        .from('checklist_logs')
+        .select(`
+          id, action, details, created_at, user_email,
+          checklist_docs(doc_no, period_date, freq_type)
+        `)
+        .in('action', approvalActions)
+        .order('created_at', { ascending: false })
+
+      const { data: incLogs } = await supabaseAdmin
+        .from('incident_logs')
+        .select(`
+          id, action, details, created_at, user_email,
+          incidents(case_number, title)
+        `)
+        .in('action', approvalActions)
+        .order('created_at', { ascending: false })
+
+      const combined = [
+        ...(chkLogs || []).map(l => ({
+          id: l.id,
+          category: 'Checklist',
+          docNo: l.checklist_docs?.doc_no || 'N/A',
+          subject: `${l.checklist_docs?.freq_type} - ${l.checklist_docs?.period_date}`,
+          action: l.action,
+          details: l.details,
+          timestamp: l.created_at,
+          user: l.user_email
+        })),
+        ...(incLogs || []).map(l => ({
+          id: l.id,
+          category: 'Incident',
+          docNo: l.incidents?.case_number || 'N/A',
+          subject: l.incidents?.title || 'N/A',
+          action: l.action,
+          details: l.details,
+          timestamp: l.created_at,
+          user: l.user_email
+        }))
+      ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+
+      return { data: combined }
+    }
+
+    return { data: [] }
+  } catch (err) {
+    console.error('getSystemLogs Error:', err)
+    return { error: err.message }
+  }
+}
