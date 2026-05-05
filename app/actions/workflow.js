@@ -2,6 +2,28 @@
 import { createClient } from '@supabase/supabase-js'
 import { getCurrentUserSession } from './user'
 
+export async function recordLog(docId, type, action, details, userEmail) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    const table = type === 'checklist' ? 'checklist_logs' : 'incident_logs'
+    const fullAction = details ? `${action}: ${details}` : action
+    
+    const { error } = await supabaseAdmin.from(table).insert({
+      doc_id: docId,
+      action: fullAction,
+      user_email: userEmail
+    })
+    if (error) throw error
+    return { success: true }
+  } catch (err) {
+    console.error('recordLog Error:', err)
+    return { success: false, error: err.message }
+  }
+}
+
 export async function getUnifiedPendingApprovals() {
   try {
     const session = await getCurrentUserSession()
@@ -21,8 +43,6 @@ export async function getUnifiedPendingApprovals() {
     if (!profile) return { error: 'Profile not found' }
 
     // 2. Fetch Pending Checklists
-    // We fetch docs where workflow_status is 'pending' or doc status is 'Pending Approval'
-    // Depending on how your DB is structured. Based on previous edits, we use status='Pending Approval'
     const { data: checklists, error: chkErr } = await supabaseAdmin
       .from('checklist_docs')
       .select(`
@@ -31,7 +51,7 @@ export async function getUnifiedPendingApprovals() {
         period_date, 
         status, 
         assigned_approver_id,
-        user_profiles!checklist_docs_created_by_fkey(full_name)
+        created_by
       `)
       .eq('workflow_status', 'pending')
       .or(`assigned_approver_id.eq.${profile.id},assigned_approver_id.is.null`)
@@ -60,7 +80,7 @@ export async function getUnifiedPendingApprovals() {
         docNo: `CHK-${c.period_date}-${c.freq_type.charAt(0)}`,
         subject: `IT Checklist (${c.freq_type}) - ${c.period_date}`,
         requestDate: c.period_date,
-        requester: c.user_profiles?.full_name || 'System',
+        requester: c.created_by || 'System',
         link: `/dashboard/checklist/${c.id}`
       })),
       ...(incidents || []).map(i => ({
@@ -107,13 +127,13 @@ export async function getSystemLogs(type = 'audit') {
     if (type === 'audit') {
       const { data: chkLogs } = await supabaseAdmin
         .from('checklist_logs')
-        .select('id, action, details, created_at, user_email')
+        .select('id, action, created_at, user_email')
         .order('created_at', { ascending: false })
         .limit(100)
       
       const { data: incLogs } = await supabaseAdmin
         .from('incident_logs')
-        .select('id, action, details, created_at, user_email')
+        .select('id, action, created_at, user_email')
         .order('created_at', { ascending: false })
         .limit(100)
 
@@ -126,25 +146,26 @@ export async function getSystemLogs(type = 'audit') {
     }
 
     if (type === 'approval') {
-      // Find all approval-related actions in logs
-      const approvalActions = ['Submitted', 'Approved', 'Rejected', 'Delegated', 'Auto-Approved', 'ปิดเอกสาร (Closed)', 'บันทึกร่าง', 'ส่งเอกสารเพื่อขออนุมัติ']
+      const approvalActions = [
+        'Submitted', 'Approved', 'Rejected', 'Delegated', 'Auto-Approved', 'Cancelled',
+        'ปิดเอกสาร (Closed)', 'บันทึกร่าง', 'ส่งเอกสารเพื่อขออนุมัติ',
+        'Submitted: ส่งเอกสารขออนุมัติ', 'Cancelled: ยกเลิกการส่งอนุมัติโดยผู้แจ้ง'
+      ]
       
       const { data: chkLogs } = await supabaseAdmin
         .from('checklist_logs')
         .select(`
-          id, action, details, created_at, user_email,
+          id, action, created_at, user_email,
           checklist_docs(doc_no, period_date, freq_type)
         `)
-        .in('action', approvalActions)
         .order('created_at', { ascending: false })
 
       const { data: incLogs } = await supabaseAdmin
         .from('incident_logs')
         .select(`
-          id, action, details, created_at, user_email,
+          id, action, created_at, user_email,
           incidents(case_number, title)
         `)
-        .in('action', approvalActions)
         .order('created_at', { ascending: false })
 
       const combined = [
@@ -154,7 +175,6 @@ export async function getSystemLogs(type = 'audit') {
           docNo: l.checklist_docs?.doc_no || 'N/A',
           subject: `${l.checklist_docs?.freq_type} - ${l.checklist_docs?.period_date}`,
           action: l.action,
-          details: l.details,
           timestamp: l.created_at,
           user: l.user_email
         })),
@@ -164,13 +184,23 @@ export async function getSystemLogs(type = 'audit') {
           docNo: l.incidents?.case_number || 'N/A',
           subject: l.incidents?.title || 'N/A',
           action: l.action,
-          details: l.details,
           timestamp: l.created_at,
           user: l.user_email
         }))
-      ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      ]
+      
+      // Filter by approval actions
+      const filtered = combined.filter(l => 
+        approvalActions.includes(l.action) || 
+        l.action.startsWith('Submitted:') || 
+        l.action.startsWith('Cancelled:') ||
+        l.action.startsWith('Approved:') ||
+        l.action.startsWith('Rejected:')
+      )
 
-      return { data: combined }
+      filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+
+      return { data: filtered }
     }
 
     return { data: [] }
