@@ -1,6 +1,7 @@
 'use server'
 import { createClient } from '@supabase/supabase-js'
 import { calculateNetBusinessMinutes, SLA_LIMITS } from '@/lib/slaUtils'
+import { getCurrentUserSession } from './user'
 
 export async function getDashboardData(timezoneOffset = -420) {
   try {
@@ -21,6 +22,20 @@ export async function getDashboardData(timezoneOffset = -420) {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
+    // Get current user for Pending Approvals
+    const session = await getCurrentUserSession()
+    let pendingCount = 0
+    let userProfile = null
+
+    if (session) {
+      const { data: profile } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, role, email')
+        .eq(session.type === 'internal' ? 'email' : 'id', session.user.email || session.user.id)
+        .single()
+      userProfile = profile
+    }
+
     // timezoneOffset is used to calculate "today" correctly for the user's local time if needed
     // Defaults to -420 for UTC+7 (Bangkok)
     const start = new Date()
@@ -36,7 +51,7 @@ export async function getDashboardData(timezoneOffset = -420) {
     streakStart.setDate(streakStart.getDate() - 35)
     const streakStartStr = streakStart.toISOString().split('T')[0]
 
-    const [incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes, slaLimitsRes, yearlyRes] = await Promise.all([
+    const [incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes, slaLimitsRes, yearlyRes, pendingChkRes, pendingIncRes] = await Promise.all([
       supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system').gte('created_at', startIso).order('created_at', { ascending: false }),
       supabaseAdmin.from('backup_logs').select('id, log_date, system_name, status, notes').gte('log_date', startIso.split('T')[0]).order('log_date', { ascending: false }),
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').gte('period_date', streakStartStr),
@@ -44,7 +59,10 @@ export async function getDashboardData(timezoneOffset = -420) {
       supabaseAdmin.from('system_settings').select('value').eq('key', 'working_hours').maybeSingle(),
       supabaseAdmin.from('incident_exclusions').select('*').gte('start_time', startIso),
       supabaseAdmin.from('system_settings').select('value').eq('key', 'sla_limits').maybeSingle(),
-      supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').eq('freq_type', 'Yearly').gte('period_date', `${todayStr.substring(0, 4)}-01-01`)
+      supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').eq('freq_type', 'Yearly').gte('period_date', `${todayStr.substring(0, 4)}-01-01`),
+      // Fetch Pending Approvals (Simplified check for now)
+      userProfile ? supabaseAdmin.from('checklist_docs').select('id').eq('status', 'Pending Approval').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
+      userProfile ? supabaseAdmin.from('incidents').select('id').eq('status', 'Pending Approval').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] })
     ])
 
     if (incRes.error) console.error('Incidents Fetch Error:', incRes.error)
@@ -216,7 +234,8 @@ export async function getDashboardData(timezoneOffset = -420) {
       recentIncidents: incidents.slice(0, 5),
       recentBackups: backups.slice(0, 5),
       checklists,
-      checklistActions
+      checklistActions,
+      pendingApprovalsCount: (pendingChkRes?.data?.length || 0) + (pendingIncRes?.data?.length || 0)
     }
   } catch (err) {
     console.error('Dashboard Server Action Exception:', err)

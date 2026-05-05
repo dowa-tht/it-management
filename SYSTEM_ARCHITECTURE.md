@@ -250,6 +250,16 @@ All tiers now use standard authentication protocols.
 - [2026-05-05] **PIN Recovery Migration**: Successfully migrated PIN recovery logic from deprecated `external_users` table to unified `user_profiles` table.
 - [2026-05-05] **Security Hardening (Recovery)**: Integrated **Double-Lock Whitelist** check and **is_active** status validation into the PIN recovery flow to prevent unauthorized access.
 - [2026-05-05] **Unified Resend Usage**: Centralized all email communications in recovery and admin actions using the verified `noreply@dowa-tht.co.th` domain.
+- [2026-05-05] **OneDrive Evidence Pipeline & Mobile UI Polish**:
+  - Implemented full-cycle **OneDrive Storage** for Checklist photos, offloading heavy binary data from Supabase to Microsoft Graph.
+  - Developed a **Server-Side Proxy** for OneDrive images, allowing secure previews via ID-based URLs without exposing raw OneDrive links.
+  - Added **Full-Screen Photo Preview** modal to the IT Checklist, enhancing UX for field verification.
+  - Optimized image processing: reduced resolution (1000px) and increased compression (Q:0.5) to achieve ~80KB file sizes.
+  - Enhanced evidence integrity: added **Point-Specific Watermarks** (Top-Right) and System/Timestamp stamps (Bottom) to all uploaded photos.
+  - Resolved **Dashboard UI Overflow**: Fixed layout issues on mobile devices by implementing responsive grid wrapping for Checklist cards.
+
+---
+*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-05-05 (Session End: OneDrive Pipeline & Mobile UX) โดย Antigravity AI*
 
 - [2026-05-05] **Master Data UI Fixes**:
   - Resolved an issue where the success notification banner persisted after navigating between different master data tabs.
