@@ -636,19 +636,21 @@ function TemplateRenderer({ item, template, onUpdate, isClosed, isVisitor }) {
   }
 }
 
-// --- T1: Photo ---
-function PhotoTemplate({ config, data, onUpdate, disabled }) {
+// --- T1: Photo (OneDrive Integrated) ---
+function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
   const points = config.photo_points || ["ภาพยืนยัน"]
+  const [uploading, setUploading] = useState({}) // { [pointIdx]: true/false }
   
   const handleUpload = async (pointIdx, e) => {
     const file = e.target.files[0]
     if (!file) return
 
-    // Simple canvas compression
+    setUploading(prev => ({ ...prev, [pointIdx]: true }))
+
     const reader = new FileReader()
     reader.onload = (event) => {
       const img = new Image()
-      img.onload = () => {
+      img.onload = async () => {
         const canvas = document.createElement('canvas')
         const MAX_WIDTH = 1200
         const scale = MAX_WIDTH / img.width
@@ -657,59 +659,121 @@ function PhotoTemplate({ config, data, onUpdate, disabled }) {
         const ctx = canvas.getContext('2d')
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
         
-        // Add Timestamp if required
-        if (config.require_timestamp) {
-          ctx.font = "bold 24px Arial"
-          ctx.fillStyle = "rgba(0, 0, 0, 0.5)"
-          ctx.fillRect(10, canvas.height - 45, 300, 35)
-          ctx.fillStyle = "yellow"
-          ctx.fillText(new Date().toLocaleString(), 20, canvas.height - 18)
-        }
+        // Add Watermark
+        ctx.font = "bold 24px Arial"
+        ctx.fillStyle = "rgba(0, 0, 0, 0.4)"
+        ctx.fillRect(10, canvas.height - 45, 450, 35)
+        ctx.fillStyle = "#ffffff"
+        const stamp = `DOWA IT SYSTEM | ${new Date().toLocaleString('th-TH')}`
+        ctx.fillText(stamp, 20, canvas.height - 18)
 
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7) // 70% quality ~ < 150kb
-        const newData = { ...data, photos: { ...(data.photos || {}), [pointIdx]: dataUrl } }
-        onUpdate(newData)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
+        const base64Data = dataUrl.split(',')[1]
+
+        try {
+          const res = await fetch('/api/upload/onedrive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: `checklist_${item.id}_${pointIdx}_${Date.now()}.jpg`,
+              base64Data: base64Data,
+              folderPath: 'Checklist_Evidence'
+            })
+          })
+
+          const result = await res.json()
+          if (result.success) {
+            const newData = { ...data, photos: { ...(data.photos || {}), [pointIdx]: result.filePath } }
+            onUpdate(newData)
+          } else {
+            alert('อัปโหลดล้มเหลว: ' + result.error)
+          }
+        } catch (err) {
+          alert('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + err.message)
+        } finally {
+          setUploading(prev => ({ ...prev, [pointIdx]: false }))
+        }
       }
       img.src = event.target.result
     }
     reader.readAsDataURL(file)
   }
 
+  const handleDelete = async (pointIdx) => {
+    if (!confirm('ยืนยันการลบรูปภาพนี้?')) return
+    const filePath = data.photos[pointIdx]
+    
+    try {
+      await fetch('/api/upload/onedrive', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath })
+      })
+    } catch (e) {
+      console.error('Delete from OneDrive failed:', e)
+    }
+
+    const newPhotos = { ...data.photos }
+    delete newPhotos[pointIdx]
+    onUpdate({ ...data, photos: newPhotos })
+  }
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
-      {points.map((p, idx) => (
-        <div key={idx} style={{ textAlign: 'center' }}>
-          <div style={{ 
-            width: '100%', aspectRatio: '1/1', background: '#f3f4f6', borderRadius: 8, 
-            border: '2px dashed #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            position: 'relative', overflow: 'hidden'
-          }}>
-            {data.photos?.[idx] ? (
-              <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                <img src={data.photos[idx]} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                {!disabled && (
-                  <button 
-                    onClick={() => {
-                      const newPhotos = { ...data.photos }
-                      delete newPhotos[idx]
-                      onUpdate({ ...data, photos: newPhotos })
-                    }}
-                    style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(220, 38, 38, 0.8)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14 }}
-                  >
-                    &times;
-                  </button>
-                )}
-              </div>
-            ) : (
-              <label style={{ cursor: disabled ? 'default' : 'pointer', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
-                <span style={{ fontSize: 24 }}>📷</span>
-                <span style={{ fontSize: 10, color: '#6b7280', textAlign: 'center' }}>{p}</span>
-                {!disabled && <input type="file" accept="image/*" capture="environment" onChange={(e) => handleUpload(idx, e)} style={{ display: 'none' }} />}
-              </label>
-            )}
+      {points.map((p, idx) => {
+        const fileRef = data.photos?.[idx]
+        const isLocalBase64 = fileRef?.startsWith('data:image')
+        const isOneDriveId = fileRef && !isLocalBase64
+        
+        return (
+          <div key={idx} style={{ textAlign: 'center' }}>
+            <div style={{ 
+              width: '100%', aspectRatio: '1/1', background: '#f3f4f6', borderRadius: 8, 
+              border: '2px dashed #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              position: 'relative', overflow: 'hidden'
+            }}>
+              {uploading[idx] ? (
+                <div style={{ padding: 10, textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: '#1d4ed8', fontWeight: 700, marginBottom: 4 }}>กำลังอัปโหลด...</div>
+                  <div style={{ width: '100%', height: 4, background: '#e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ width: '60%', height: '100%', background: '#1d4ed8', borderRadius: 2 }}></div>
+                  </div>
+                </div>
+              ) : fileRef ? (
+                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                  <img 
+                    src={isOneDriveId ? `/api/upload/onedrive?id=${fileRef}` : fileRef} 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                    alt={p}
+                  />
+                  {!disabled && (
+                    <button 
+                      onClick={() => handleDelete(idx)}
+                      style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(220, 38, 38, 0.8)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
+                    >
+                      &times;
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <label style={{ cursor: disabled ? 'default' : 'pointer', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
+                  <span style={{ fontSize: 24, marginBottom: 4 }}>📷</span>
+                  <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600 }}>{p}</span>
+                  {!disabled && (
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment" 
+                      onChange={(e) => handleUpload(idx, e)} 
+                      style={{ display: 'none' }} 
+                    />
+                  )}
+                </label>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

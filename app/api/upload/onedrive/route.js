@@ -1,45 +1,85 @@
 import { NextResponse } from 'next/server';
-import { uploadToOneDrive, deleteFromOneDrive } from '@/lib/onedrive';
+import { uploadToOneDrive, deleteFromOneDrive, getOneDriveFileContent } from '@/lib/onedrive';
 
-export async function POST(req) {
+/**
+ * GET: Fetch image from OneDrive for preview
+ */
+export async function GET(req) {
   try {
-    const formData = await req.formData();
-    const file = formData.get('file');
+    const { searchParams } = new URL(req.url);
+    const path = searchParams.get('path');
+    const id = searchParams.get('id');
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+    if (!path && !id) {
+      return NextResponse.json({ error: 'Missing path or id' }, { status: 400 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const fileName = file.name || `upload_${Date.now()}.jpg`;
-    const folderPath = formData.get('folderPath') || 'Apps/Dowa-IT-System';
+    const buffer = await getOneDriveFileContent(path || id);
+    
+    return new Response(buffer, {
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  } catch (error) {
+    console.error('OneDrive GET Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+/**
+ * POST: Upload image (supports FormData or JSON/Base64)
+ */
+export async function POST(req) {
+  try {
+    let buffer, fileName, folderPath;
+    const contentType = req.headers.get('content-type') || '';
+
+    if (contentType.includes('application/json')) {
+      const body = await req.json();
+      if (!body.base64Data) throw new Error('Missing base64Data');
+      buffer = Buffer.from(body.base64Data, 'base64');
+      fileName = body.fileName || `upload_${Date.now()}.jpg`;
+      folderPath = body.folderPath || 'Apps/Dowa-IT-System';
+    } else {
+      const formData = await req.formData();
+      const file = formData.get('file');
+      if (!file) throw new Error('No file uploaded');
+      buffer = Buffer.from(await file.arrayBuffer());
+      fileName = file.name;
+      folderPath = formData.get('folderPath') || 'Apps/Dowa-IT-System';
+    }
 
     const result = await uploadToOneDrive(buffer, fileName, folderPath);
 
     return NextResponse.json({ 
       success: true, 
-      data: result 
+      filePath: result.id // We'll store ID as it's more reliable for deletion/fetch
     });
   } catch (error) {
-    console.error('Upload API Error:', error);
+    console.error('OneDrive POST Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
+/**
+ * DELETE: Remove image from OneDrive
+ */
 export async function DELETE(req) {
   try {
-    const { searchParams } = new URL(req.url);
-    const itemId = searchParams.get('itemId');
+    const body = await req.json();
+    const filePath = body.filePath; // This is the ID we stored
 
-    if (!itemId) {
-      return NextResponse.json({ error: 'Missing itemId' }, { status: 400 });
+    if (!filePath) {
+      return NextResponse.json({ error: 'Missing filePath (id)' }, { status: 400 });
     }
 
-    await deleteFromOneDrive(itemId);
+    await deleteFromOneDrive(filePath);
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Delete API Error:', error);
+    console.error('OneDrive DELETE Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
