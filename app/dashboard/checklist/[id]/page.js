@@ -640,6 +640,7 @@ function TemplateRenderer({ item, template, onUpdate, isClosed, isVisitor }) {
 function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
   const points = config.photo_points || ["ภาพยืนยัน"]
   const [uploading, setUploading] = useState({}) // { [pointIdx]: true/false }
+  const [previewUrl, setPreviewUrl] = useState(null)
   
   const handleUpload = async (pointIdx, e) => {
     const file = e.target.files[0]
@@ -652,7 +653,7 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
       const img = new Image()
       img.onload = async () => {
         const canvas = document.createElement('canvas')
-        const MAX_WIDTH = 1200
+        const MAX_WIDTH = 1000 // Reduced from 1200
         const scale = MAX_WIDTH / img.width
         canvas.width = MAX_WIDTH
         canvas.height = img.height * scale
@@ -667,7 +668,7 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
         const stamp = `DOWA IT SYSTEM | ${new Date().toLocaleString('th-TH')}`
         ctx.fillText(stamp, 20, canvas.height - 18)
 
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.5) // Reduced from 0.7
         const base64Data = dataUrl.split(',')[1]
 
         try {
@@ -719,62 +720,77 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
-      {points.map((p, idx) => {
-        const fileRef = data.photos?.[idx]
-        const isLocalBase64 = fileRef?.startsWith('data:image')
-        const isOneDriveId = fileRef && !isLocalBase64
-        
-        return (
-          <div key={idx} style={{ textAlign: 'center' }}>
-            <div style={{ 
-              width: '100%', aspectRatio: '1/1', background: '#f3f4f6', borderRadius: 8, 
-              border: '2px dashed #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              position: 'relative', overflow: 'hidden'
-            }}>
-              {uploading[idx] ? (
-                <div style={{ padding: 10, textAlign: 'center' }}>
-                  <div style={{ fontSize: 10, color: '#1d4ed8', fontWeight: 700, marginBottom: 4 }}>กำลังอัปโหลด...</div>
-                  <div style={{ width: '100%', height: 4, background: '#e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{ width: '60%', height: '100%', background: '#1d4ed8', borderRadius: 2 }}></div>
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
+        {points.map((p, idx) => {
+          const fileRef = data.photos?.[idx]
+          const isLocalBase64 = fileRef?.startsWith('data:image')
+          const isOneDriveId = fileRef && !isLocalBase64
+          const fullImageUrl = isOneDriveId ? `/api/upload/onedrive?id=${fileRef}` : fileRef
+          
+          return (
+            <div key={idx} style={{ textAlign: 'center' }}>
+              <div style={{ 
+                width: '100%', aspectRatio: '1/1', background: '#f3f4f6', borderRadius: 8, 
+                border: '2px dashed #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                position: 'relative', overflow: 'hidden'
+              }}>
+                {uploading[idx] ? (
+                  <div style={{ padding: 10, textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: '#1d4ed8', fontWeight: 700, marginBottom: 4 }}>กำลังอัปโหลด...</div>
+                    <div style={{ width: '100%', height: 4, background: '#e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ width: '60%', height: '100%', background: '#1d4ed8', borderRadius: 2 }}></div>
+                    </div>
                   </div>
-                </div>
-              ) : fileRef ? (
-                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                  <img 
-                    src={isOneDriveId ? `/api/upload/onedrive?id=${fileRef}` : fileRef} 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                    alt={p}
-                  />
-                  {!disabled && (
-                    <button 
-                      onClick={() => handleDelete(idx)}
-                      style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(220, 38, 38, 0.8)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
-                    >
-                      &times;
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <label style={{ cursor: disabled ? 'default' : 'pointer', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
-                  <span style={{ fontSize: 24, marginBottom: 4 }}>📷</span>
-                  <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600 }}>{p}</span>
-                  {!disabled && (
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      capture="environment" 
-                      onChange={(e) => handleUpload(idx, e)} 
-                      style={{ display: 'none' }} 
+                ) : fileRef ? (
+                  <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                    <img 
+                      src={fullImageUrl} 
+                      onClick={() => setPreviewUrl(fullImageUrl)}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} 
+                      alt={p}
                     />
-                  )}
-                </label>
-              )}
+                    {!disabled && (
+                      <button 
+                        onClick={() => handleDelete(idx)}
+                        style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(220, 38, 38, 0.8)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <label style={{ cursor: disabled ? 'default' : 'pointer', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
+                    <span style={{ fontSize: 24, marginBottom: 4 }}>📷</span>
+                    <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600 }}>{p}</span>
+                    {!disabled && (
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        capture="environment" 
+                        onChange={(e) => handleUpload(idx, e)} 
+                        style={{ display: 'none' }} 
+                      />
+                    )}
+                  </label>
+                )}
+              </div>
             </div>
-          </div>
-        )
-      })}
-    </div>
+          )
+        })}
+      </div>
+
+      {/* Full Screen Preview Modal */}
+      {previewUrl && (
+        <div 
+          onClick={() => setPreviewUrl(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}
+        >
+          <img src={previewUrl} style={{ maxWidth: '95%', maxHeight: '95%', objectFit: 'contain', borderRadius: 8, boxShadow: '0 0 30px rgba(0,0,0,0.5)' }} />
+          <button style={{ position: 'absolute', top: 20, right: 20, background: '#fff', border: 'none', borderRadius: '50%', width: 40, height: 40, fontSize: 24, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
+        </div>
+      )}
+    </>
   )
 }
 
