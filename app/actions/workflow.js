@@ -219,12 +219,23 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail) {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
+    // 1. Find the current assigned approver from config
     const { data: config } = await supabaseAdmin
       .from('approval_configs')
       .select('primary_approver_id')
       .eq('target_type', targetType)
       .eq('freq_type', triggerKey)
       .single()
+
+    let approverName = 'ระบบ Pool'
+    if (config?.primary_approver_id) {
+      const { data: apProfile } = await supabaseAdmin
+        .from('user_profiles')
+        .select('full_name')
+        .eq('id', config.primary_approver_id)
+        .single()
+      if (apProfile) approverName = apProfile.full_name
+    }
 
     const isAutoApprove = !config || !config.primary_approver_id
 
@@ -241,7 +252,7 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail) {
 
     await recordLog(docId, targetType, isAutoApprove ? 'Auto-Approved' : 'Submitted', isAutoApprove 
       ? 'ระบบอนุมัติงานให้อัตโนมัติตามการตั้งค่า' 
-      : `ส่งเอกสารเพื่อขออนุมัติ (ผู้อนุมัติหลัก: ${config?.primary_approver_id || 'ระบบ Pool'})`, userEmail)
+      : `ส่งเอกสารเพื่อขออนุมัติ (ผู้อนุมัติหลัก: ${approverName})`, userEmail)
 
     return { success: true, autoApproved: isAutoApprove }
   } catch (err) {
