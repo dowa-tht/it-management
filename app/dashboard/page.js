@@ -102,11 +102,43 @@ export default function DashboardPage() {
 
   return (
     <div style={{ padding: 24, paddingBottom: 60 }}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>Dashboard</h1>
-        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
-          {formatDate(new Date().toISOString())}
+      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>Dashboard</h1>
+          <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+            {formatDate(new Date().toISOString())}
+          </div>
         </div>
+
+        {/* Compact Pending Approvals Hub (Header Version) */}
+        {data.pendingApprovalsCount > 0 && (
+          <Link href="/dashboard/approvals" style={{ textDecoration: 'none' }}>
+            <div style={{ 
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', 
+              borderRadius: 10, 
+              padding: '8px 16px', 
+              color: '#fff', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 12, 
+              cursor: 'pointer', 
+              transition: 'transform 0.15s', 
+              boxShadow: '0 4px 10px rgba(79, 70, 229, 0.2)' 
+            }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+              <div style={{ fontSize: 20 }}>🔔</div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Waiting for Approval</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                  <span style={{ fontSize: 18, fontWeight: 800 }}>{data.pendingApprovalsCount}</span>
+                  <span style={{ fontSize: 11, opacity: 0.8 }}>Items</span>
+                </div>
+              </div>
+              <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
+                →
+              </div>
+            </div>
+          </Link>
+        )}
       </div>
 
       {/* IT Checklist Tracking Section */}
@@ -204,24 +236,6 @@ export default function DashboardPage() {
             </div>
             <div style={{ fontSize: 11, marginTop: 12, opacity: 0.9, fontWeight: 500 }}>
               {stats.slaComplianceRate >= 95 ? '✅ ผ่านเป้าหมาย (คลิกเพื่อดูรายงาน)' : '⚠️ ต่ำกว่าเป้าหมาย (คลิกเพื่อดูรายงาน)'}
-            </div>
-          </div>
-        </Link>
-
-        {/* Pending Approvals Hub Card */}
-        <Link href="/dashboard/approvals" style={{ textDecoration: 'none', display: 'flex' }}>
-          <div style={{ flex: 1, background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', borderRadius: 12, padding: 20, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s', boxShadow: '0 10px 15px -3px rgba(79, 70, 229, 0.3)' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-            <div style={{ position: 'absolute', right: -15, top: -15, fontSize: 80, opacity: 0.15 }}>🔔</div>
-            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Waiting for Approval</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <div style={{ fontSize: 42, fontWeight: 800 }}>{data.pendingApprovalsCount || 0}</div>
-              <div style={{ fontSize: 14, fontWeight: 500, opacity: 0.9 }}>Items</div>
-            </div>
-            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: (data.pendingApprovalsCount > 0) ? '#facc15' : '#fff', boxShadow: (data.pendingApprovalsCount > 0) ? '0 0 10px #facc15' : 'none' }}></div>
-              <div style={{ fontSize: 11, opacity: 0.9, fontWeight: 500 }}>
-                {data.pendingApprovalsCount > 0 ? 'ต้องการการตรวจสอบจากคุณ' : 'ไม่มีงานค้างในขณะนี้'}
-              </div>
             </div>
           </div>
         </Link>
