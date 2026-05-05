@@ -72,7 +72,7 @@ export default function DashboardLayout({ children }) {
   }, [pathname, router])
 
   useEffect(() => {
-    setSidebarOpen(false) // Auto close on navigation
+    setSidebarOpen(false) 
     if (pathname.includes('/settings/')) {
       setExpandedSection('settings')
     } else if (pathname.startsWith('/dashboard/incidents') || pathname === '/dashboard' || pathname.includes('/backup') || pathname.includes('/checklist')) {
@@ -192,7 +192,7 @@ export default function DashboardLayout({ children }) {
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', position: 'relative' }}>
       <style>{`
-        .sidebar { background: #0f1923; width: 240px; flex-shrink: 0; color: #fff; display: flex; flex-direction: column; transition: all 0.3s; z-index: 1000; }
+        .sidebar { background: #0f1923; width: 240px; flex-shrink: 0; color: #fff; display: flex; flex-direction: column; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1000; height: 100%; }
         .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; color: rgba(255,255,255,0.7); text-decoration: none; font-size: 13px; transition: all 0.2s; border-left: 4px solid transparent; }
         .nav-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
         .nav-item.active { background: rgba(29, 78, 216, 0.15); color: #fff; font-weight: 700; border-left-color: #3b82f6; }
@@ -205,13 +205,8 @@ export default function DashboardLayout({ children }) {
         .mobile-hamburger { display: none; }
 
         @media (max-width: 1024px) {
-          .sidebar { 
-            position: absolute; 
-            left: ${sidebarOpen ? '0' : '-240px'}; 
-            top: 0; 
-            bottom: 0; 
-            box-shadow: ${sidebarOpen ? '20px 0 50px rgba(0,0,0,0.5)' : 'none'};
-          }
+          .sidebar { position: absolute; top: 0; bottom: 0; left: 0; transform: translateX(-240px); }
+          .sidebar.open { transform: translateX(0); box-shadow: 10px 0 30px rgba(0,0,0,0.4); }
           .mobile-hamburger { 
             display: flex; 
             position: absolute; 
@@ -235,10 +230,10 @@ export default function DashboardLayout({ children }) {
         .backdrop {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.5);
-          backdrop-filter: blur(2px);
+          background: rgba(0,0,0,0.6);
+          backdrop-filter: blur(4px);
           z-index: 900;
-          display: ${sidebarOpen ? 'block' : 'none'};
+          transition: opacity 0.3s;
         }
       `}</style>
 
@@ -246,13 +241,17 @@ export default function DashboardLayout({ children }) {
       <button className="mobile-hamburger" onClick={() => setSidebarOpen(true)}>☰</button>
 
       {/* Backdrop for Mobile */}
-      <div className="backdrop" onClick={() => setSidebarOpen(false)}></div>
+      {sidebarOpen && (
+        <div className="backdrop" onClick={() => setSidebarOpen(false)}></div>
+      )}
 
-      {/* Sidebar */}
-      <div className="sidebar"><SidebarContent /></div>
+      {/* Sidebar with CSS classes */}
+      <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <SidebarContent />
+      </div>
 
       {/* Main Content Area */}
-      <div className="main-content" style={{ flex: 1, overflow: 'auto', background: '#f0f2f5', transition: 'all 0.3s' }}>
+      <div className="main-content" style={{ flex: 1, overflow: 'auto', background: '#f0f2f5' }}>
         {children}
       </div>
     </div>
