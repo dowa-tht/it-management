@@ -176,16 +176,16 @@ export async function getSystemLogs(type = 'audit') {
       const { data: chkLogs } = await supabaseAdmin
         .from('checklist_logs')
         .select(`
-          id, action, created_at, user_email,
-          checklist_docs(doc_no, period_date, freq_type)
+          id, doc_id, action, created_at, user_email,
+          checklist_docs(doc_no, period_date, freq_type, workflow_status, status)
         `)
         .order('created_at', { ascending: false })
 
       const { data: incLogs } = await supabaseAdmin
         .from('incident_logs')
         .select(`
-          id, action, created_at, user_email,
-          incidents(case_number, title)
+          id, doc_id, action, created_at, user_email,
+          incidents(case_number, title, status)
         `)
         .order('created_at', { ascending: false })
 
@@ -196,6 +196,8 @@ export async function getSystemLogs(type = 'audit') {
           category: 'Checklist',
           docNo: l.checklist_docs?.doc_no || 'N/A',
           subject: `${l.checklist_docs?.freq_type} - ${l.checklist_docs?.period_date}`,
+          current_workflow_status: l.checklist_docs?.workflow_status,
+          current_status: l.checklist_docs?.status,
           action: l.action,
           timestamp: l.created_at,
           user: l.user_email
@@ -206,6 +208,8 @@ export async function getSystemLogs(type = 'audit') {
           category: 'Incident',
           docNo: l.incidents?.case_number || 'N/A',
           subject: l.incidents?.title || 'N/A',
+          current_workflow_status: l.incidents?.status === 'Pending Approval' ? 'pending' : 'other',
+          current_status: l.incidents?.status,
           action: l.action,
           timestamp: l.created_at,
           user: l.user_email

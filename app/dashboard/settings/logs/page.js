@@ -68,6 +68,16 @@ export default function LogsPage() {
     }
   }
 
+  // Group logs to find latest for each doc
+  const latestDocLogIds = new Set();
+  const seenDocs = new Set();
+  logs.forEach(log => {
+    if (log.doc_id && !seenDocs.has(log.doc_id)) {
+      latestDocLogIds.add(log.id);
+      seenDocs.add(log.doc_id);
+    }
+  });
+
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
       {/* ... previous header and tabs ... */}
@@ -182,12 +192,17 @@ export default function LogsPage() {
                         </td>
                         <td style={{ padding: '16px 20px', fontSize: 13, color: '#4b5563' }}>{log.user}</td>
                         <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                          <button 
-                            onClick={() => handleOpenReset(log)}
-                            style={{ padding: '6px 12px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-                          >
-                            Reset
-                          </button>
+                          {latestDocLogIds.has(log.id) && 
+                           log.current_workflow_status === 'pending' && 
+                           log.current_status !== 'ปิดเอกสาร (Closed)' && 
+                           log.current_status !== 'Closed' && (
+                            <button 
+                              onClick={() => handleOpenReset(log)}
+                              style={{ padding: '6px 12px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              Reset
+                            </button>
+                          )}
                         </td>
                       </>
                     ) : activeTab === 'login' ? (
