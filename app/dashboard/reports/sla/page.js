@@ -252,7 +252,18 @@ export default function SLAReportPage() {
   const incidents = data?.data || []
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ padding: '16px 20px', maxWidth: 1200, margin: '0 auto' }}>
+      <style>{`
+        .table-scroll { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }
+        .sla-table { width: 100%; border-collapse: collapse; min-width: 800px; }
+        .sla-table th { padding: 12px 20px; text-align: left; color: #6b7280; font-weight: 500; fontSize: 11px; border-bottom: 1px solid #e5e7eb; text-transform: uppercase; background: #f9fafb; }
+        .sla-table td { padding: 14px 20px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+        .action-cell { width: 80px; min-width: 80px; text-align: right; white-space: nowrap; }
+        @media (max-width: 640px) {
+          .stats-grid { grid-template-columns: 1fr 1fr !important; }
+        }
+      `}</style>
+      
       {showHelp && <SLAGuideModal />}
       
       {/* Header */}
@@ -272,7 +283,7 @@ export default function SLAReportPage() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters omitted for brevity but remain the same... */}
       <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: '16px', marginBottom: 24, display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-end', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>ช่วงเวลา (DATE RANGE)</div>
@@ -293,41 +304,23 @@ export default function SLAReportPage() {
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>กำหนดเอง (CUSTOM)</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Start Date */}
             <div style={{ position: 'relative' }}>
                 <input type="date" value={dateRange.start} onChange={e => { setActiveFilter('custom'); setDateRange({ ...dateRange, start: e.target.value }) }}
                 onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
-                style={{ 
-                  position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', 
-                  cursor: 'pointer', zIndex: 2 
-                }} 
+                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 2 }} 
               />
-              <div style={{ 
-                padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 8, 
-                fontSize: 13, background: '#fff', display: 'flex', justifyContent: 'space-between', 
-                alignItems: 'center', minWidth: 130, gap: 10
-              }}>
+              <div style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 130, gap: 10 }}>
                 <span style={{ color: '#374151', fontWeight: 500 }}>{formatDateNumeric(dateRange.start)}</span>
                 <span style={{ fontSize: 14, color: '#6b7280' }}>📅</span>
               </div>
             </div>
-
             <span style={{ color: '#9ca3af', fontWeight: 500 }}>—</span>
-
-            {/* End Date */}
             <div style={{ position: 'relative' }}>
               <input type="date" value={dateRange.end} onChange={e => { setActiveFilter('custom'); setDateRange({ ...dateRange, end: e.target.value }) }}
                 onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
-                style={{ 
-                  position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', 
-                  cursor: 'pointer', zIndex: 2 
-                }} 
+                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 2 }} 
               />
-              <div style={{ 
-                padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 8, 
-                fontSize: 13, background: '#fff', display: 'flex', justifyContent: 'space-between', 
-                alignItems: 'center', minWidth: 130, gap: 10
-              }}>
+              <div style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 130, gap: 10 }}>
                 <span style={{ color: '#374151', fontWeight: 500 }}>{formatDateNumeric(dateRange.end)}</span>
                 <span style={{ fontSize: 14, color: '#6b7280' }}>📅</span>
               </div>
@@ -335,44 +328,29 @@ export default function SLAReportPage() {
           </div>
         </div>
 
-        <button onClick={() => fetchData()} disabled={loading}
-          style={{ padding: '8px 20px', background: loading ? '#93c5fd' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', height: 35, display: 'flex', alignItems: 'center' }}>
+        <button onClick={() => fetchData()} disabled={loading} style={{ padding: '8px 20px', background: loading ? '#93c5fd' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', height: 35, display: 'flex', alignItems: 'center' }}>
           {loading ? 'กำลังโหลด...' : 'กรองข้อมูล'}
         </button>
       </div>
 
       {/* Summary Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-        <div style={{ 
-          background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', 
-          borderRadius: 12, padding: 20, color: '#fff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', position: 'relative', overflow: 'hidden' 
-        }}>
+      <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+        <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', borderRadius: 12, padding: 20, color: '#fff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', right: -10, top: -10, fontSize: 60, opacity: 0.15 }}>📊</div>
-          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8, marginBottom: 4, textTransform: 'uppercase' }}>Overall Compliance (AVG)</div>
-          <div style={{ fontSize: 32, fontWeight: 800 }}>{summary.complianceRate === null ? 'N/A' : `${summary.complianceRate}%`}</div>
-          <div style={{ fontSize: 10, marginTop: 8, opacity: 0.8 }}>ค่าเฉลี่ยของ Response และ Resolution</div>
+          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8, marginBottom: 4, textTransform: 'uppercase' }}>Compliance</div>
+          <div style={{ fontSize: 32, fontWeight: 800 }}>{summary.complianceRate}%</div>
         </div>
-        
-        <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>RESPONSE SLA</div>
-          <div style={{ fontSize: 32, fontWeight: 700, color: (summary.responseRate >= 95 ? '#059669' : '#dc2626') }}>
-            {summary.responseRate === null ? 'N/A' : `${summary.responseRate}%`}
-          </div>
-          <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>เป้าหมายการรับงาน</div>
+        <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>RESPONSE</div>
+          <div style={{ fontSize: 32, fontWeight: 700, color: (summary.responseRate >= 95 ? '#059669' : '#dc2626') }}>{summary.responseRate}%</div>
         </div>
-
-        <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>RESOLUTION SLA</div>
-          <div style={{ fontSize: 32, fontWeight: 700, color: (summary.resolutionRate >= 95 ? '#059669' : '#dc2626') }}>
-            {summary.resolutionRate === null ? 'N/A' : `${summary.resolutionRate}%`}
-          </div>
-          <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>เป้าหมายการแก้ปัญหา</div>
+        <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>RESOLUTION</div>
+          <div style={{ fontSize: 32, fontWeight: 700, color: (summary.resolutionRate >= 95 ? '#059669' : '#dc2626') }}>{summary.resolutionRate}%</div>
         </div>
-
-        <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>TOTAL INCIDENTS</div>
+        <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>TOTAL</div>
           <div style={{ fontSize: 32, fontWeight: 700, color: '#111827' }}>{summary.total}</div>
-          <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>รายการที่เกิดขึ้นในช่วงนี้</div>
         </div>
       </div>
 
@@ -382,11 +360,11 @@ export default function SLAReportPage() {
             Incident List & Performance Details
           </div>
           <div className="table-scroll">
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <table className="sla-table">
               <thead>
-                <tr style={{ background: '#f9fafb' }}>
+                <tr>
                   {['Case ID', 'Title', 'Date', 'Response SLA', 'Resolution SLA', ''].map(h => (
-                    <th key={h} style={{ padding: '12px 20px', textAlign: 'left', color: '#6b7280', fontWeight: 500, fontSize: 11, borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase' }}>{h}</th>
+                    <th key={h}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -394,52 +372,39 @@ export default function SLAReportPage() {
                 {incidents.length === 0 ? (
                   <tr><td colSpan={6} style={{ padding: 60, textAlign: 'center', color: '#9ca3af' }}>ไม่พบข้อมูล Incident ในช่วงเวลาที่เลือก</td></tr>
                 ) : incidents.map(inc => (
-                  <tr key={inc.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '14px 20px' }}>
+                  <tr key={inc.id}>
+                    <td>
                       <div style={{ fontFamily: 'monospace', color: '#6b7280', fontSize: 11 }}>{inc.case_number}</div>
                       <div style={{ fontSize: 10, color: inc.severity === 'High' ? '#dc2626' : '#6b7280', fontWeight: 600 }}>{inc.severity}</div>
                     </td>
-                    <td style={{ padding: '14px 20px' }}>
+                    <td>
                       <div style={{ fontWeight: 600, color: '#111827', fontSize: 12 }}>{inc.title}</div>
                     </td>
-                    <td style={{ padding: '14px 20px', color: '#6b7280', fontSize: 11, whiteSpace: 'nowrap' }}>
+                    <td style={{ color: '#6b7280', fontSize: 11, whiteSpace: 'nowrap' }}>
                       {formatDateNumeric(inc.created_at)}
                     </td>
-                    <td style={{ padding: '14px 20px' }}>
+                    <td>
                       {inc.responseMin !== null ? (
                         <div>
-                          <span style={{ 
-                            ...getStatusColor(inc.isResponseOK), 
-                            padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 
-                          }}>
+                          <span style={{ ...getStatusColor(inc.isResponseOK), padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
                             {inc.responseMin}m {inc.isResponseOK ? '✅' : '❌'}
                           </span>
                           <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 2 }}>Target: {inc.responseLimit}m</div>
                         </div>
-                      ) : (
-                        <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>ยังไม่รับเรื่อง</span>
-                      )}
+                      ) : <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>ยังไม่รับเรื่อง</span>}
                     </td>
-                    <td style={{ padding: '14px 20px' }}>
+                    <td>
                       {inc.resolveMin !== null ? (
                         <div>
-                          <span style={{ 
-                            ...getStatusColor(inc.isResolveOK), 
-                            padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 
-                          }}>
+                          <span style={{ ...getStatusColor(inc.isResolveOK), padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
                             {inc.resolveMin}m {inc.isResolveOK ? '✅' : '❌'}
                           </span>
                           <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 2 }}>Target: {inc.resolveLimit}m</div>
                         </div>
-                      ) : (
-                        <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>ยังไม่ปิดงาน</span>
-                      )}
+                      ) : <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>ยังไม่ปิดงาน</span>}
                     </td>
-                    <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                      <Link href={`/dashboard/incidents/${inc.id}`} style={{ 
-                        padding: '6px 12px', background: '#fff', color: '#1d4ed8', textDecoration: 'none', 
-                        borderRadius: 6, fontSize: 11, fontWeight: 600, border: '1px solid #d1d5db' 
-                      }}>
+                    <td className="action-cell">
+                      <Link href={`/dashboard/incidents/${inc.id}`} style={{ padding: '6px 12px', background: '#fff', color: '#1d4ed8', textDecoration: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, border: '1px solid #d1d5db' }}>
                         เปิดดู
                       </Link>
                     </td>
