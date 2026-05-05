@@ -785,6 +785,8 @@ export default function IncidentDetailPage() {
       signature_it:null, 
       signature_reporter:null, 
       signature_manager:null,
+      workflow_status: null,
+      assigned_approver_id: null,
       corrective_action: null,
       require_ca: incident.severity === 'High'
     }

@@ -378,7 +378,13 @@ export default function ChecklistDetailPage() {
     if (!reason) return
 
     setSaving(true)
-    await supabase.from('checklist_docs').update({ status: 'Open' }).eq('id', id)
+    await supabase.from('checklist_docs').update({ 
+      status: 'Open', 
+      workflow_status: null,
+      approved_at: null,
+      approved_by: null,
+      assigned_approver_id: null
+    }).eq('id', id)
     await supabase.from('checklist_logs').insert([{
       doc_id: id, action: `เปิดเอกสารใหม่ (Reopen) - เหตุผล: ${reason}`, user_email: userEmail
     }])
