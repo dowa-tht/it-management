@@ -143,12 +143,61 @@ export default function ChecklistDetailPage() {
   const handleSubmitApproval = async () => {
     if (!confirm('ยืนยันการส่งใบงานนี้เพื่อขออนุมัติ? เมื่อส่งแล้วจะไม่สามารถแก้ไขข้อมูลได้')) return
     setSaving(true)
-    const res = await submitRequest(id, 'checklist', doc.freq_type)
-    if (res.success) {
-      setDoc({ ...doc, workflow_status: 'pending' })
+    
+    try {
+      // 1. Save all items first to ensure data persistence
+      const itemsToUpdate = items
+        .filter(item => item.status)
+        .map(item => ({
+          id: item.id,
+          doc_id: id,
+          item_key: item.item_key,
+          item_label: item.item_label,
+          status: item.status,
+          notes: item.notes || '',
+          template_data: item.template_data || {}
+        }))
+
+      if (itemsToUpdate.length > 0) {
+        await supabase.from('checklist_items').upsert(itemsToUpdate)
+      }
+
+      // 2. Submit Request
+      const res = await submitRequest(id, 'checklist', doc.freq_type)
+      if (res.success) {
+        // Explicitly update log for sender info since submitRequest uses admin client
+        await supabase.from('checklist_logs').insert({
+          doc_id: id,
+          action: 'Submitted',
+          details: `ส่งเอกสารขออนุมัติ`,
+          user_email: currentUser.email
+        })
+        fetchData()
+      } else {
+        alert(`เกิดข้อผิดพลาด: ${res.error}`)
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`)
+    }
+    setSaving(false)
+  }
+
+  const handleCancelApproval = async () => {
+    if (!confirm('ยกเลิกการส่งอนุมัติและดึงเอกสารกลับมาแก้ไข?')) return
+    setSaving(true)
+    const { error } = await supabase
+      .from('checklist_docs')
+      .update({ workflow_status: 'draft', assigned_approver_id: null })
+      .eq('id', id)
+    
+    if (!error) {
+      await supabase.from('checklist_logs').insert({
+        doc_id: id,
+        action: 'Cancelled',
+        details: 'ยกเลิกการส่งอนุมัติโดยผู้แจ้ง',
+        user_email: currentUser.email
+      })
       fetchData()
-    } else {
-      alert(`เกิดข้อผิดพลาด: ${res.error}`)
     }
     setSaving(false)
   }
@@ -261,6 +310,12 @@ export default function ChecklistDetailPage() {
       newItems[index].status = 'OK'
       newItems[index].notes = ''
       setItems(newItems)
+      
+      // Auto-save on status click to prevent data loss
+      supabase.from('checklist_items').update({ 
+        status: 'OK', 
+        notes: '' 
+      }).eq('id', newItems[index].id).then()
     }
   }
 
@@ -269,6 +324,13 @@ export default function ChecklistDetailPage() {
     newItems[activeNgItem.index].status = 'NG'
     newItems[activeNgItem.index].notes = notes
     setItems(newItems)
+    
+    // Auto-save on NG confirm
+    supabase.from('checklist_items').update({ 
+      status: 'NG', 
+      notes: notes 
+    }).eq('id', newItems[activeNgItem.index].id).then()
+    
     setActiveNgItem(null)
   }
 
@@ -509,31 +571,38 @@ export default function ChecklistDetailPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 12 }}>
-            {/* 1. Assignee Actions (Draft/Rejected) */}
+            {/* 1. Assignee Actions (Draft/Rejected/Null) */}
             {(doc.workflow_status === 'draft' || doc.workflow_status === 'rejected' || !doc.workflow_status) && (
-              <>
-                <button onClick={() => handleSaveAll(false)} disabled={saving} style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', cursor: 'pointer' }}>
-                  💾 บันทึกร่าง
-                </button>
-                <button 
-                  onClick={handleSubmitApproval} 
-                  disabled={saving || progress < 100}
-                  style={{ padding: '10px 24px', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, background: progress < 100 ? '#9ca3af' : '#1d4ed8', color: '#fff', cursor: progress < 100 ? 'not-allowed' : 'pointer' }}
-                >
-                  🚀 ส่งขออนุมัติงาน
-                </button>
-              </>
+              currentUser?.id === doc.created_by || currentUser?.role === 'administrator' ? (
+                <>
+                  <button onClick={() => handleSaveAll(false)} disabled={saving} style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', cursor: 'pointer' }}>
+                    💾 บันทึกร่าง
+                  </button>
+                  <button 
+                    onClick={handleSubmitApproval} 
+                    disabled={saving || progress < 100}
+                    style={{ padding: '10px 24px', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, background: progress < 100 ? '#9ca3af' : '#1d4ed8', color: '#fff', cursor: progress < 100 ? 'not-allowed' : 'pointer' }}
+                  >
+                    🚀 ส่งขออนุมัติงาน
+                  </button>
+                </>
+              ) : (
+                <div style={{ color: '#6b7280', fontSize: 13, background: '#f3f4f6', padding: '8px 16px', borderRadius: 8 }}>
+                  📖 Preview Only (Draft)
+                </div>
+              )
             )}
 
-            {/* 2. Approver Actions (Pending) */}
+            {/* 2. Pending Workflow Actions */}
             {doc.workflow_status === 'pending' && (
               <>
-                {!isVisitor && (
+                {/* 2.1 Approver Role: Approve / Reject / Delegate */}
+                {(!isVisitor && (
                   currentUser?.id === doc.assigned_approver_id || 
                   isSub ||
                   currentUser?.role === 'administrator' || 
                   currentUser?.role === 'supervisor'
-                ) ? (
+                )) ? (
                   <>
                     <button onClick={() => setShowDelegateModal(true)} style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 10, fontSize: 14, background: '#fff', cursor: 'pointer' }}>
                       ↪️ ส่งต่อ (Delegate)
@@ -546,9 +615,19 @@ export default function ChecklistDetailPage() {
                     </button>
                   </>
                 ) : (
-                  <div style={{ color: '#6b7280', fontSize: 13, background: '#f3f4f6', padding: '8px 16px', borderRadius: 8 }}>
-                    ⏳ รอการตรวจสอบและอนุมัติ {doc.assigned_approver_id ? `โดย ${allApprovers.find(a => a.id === doc.assigned_approver_id)?.full_name}` : ''}
-                  </div>
+                  <>
+                    {/* 2.2 Sender Role: Cancel Approval */}
+                    {currentUser?.id === doc.created_by ? (
+                      <button onClick={handleCancelApproval} disabled={saving} style={{ padding: '10px 24px', border: '1px solid #6b7280', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#4b5563', cursor: 'pointer' }}>
+                        🔄 ดึงเอกสารกลับ (Cancel)
+                      </button>
+                    ) : (
+                      /* 2.3 Other Role: Just Info */
+                      <div style={{ color: '#6b7280', fontSize: 13, background: '#f3f4f6', padding: '8px 16px', borderRadius: 8 }}>
+                        ⏳ รอการตรวจสอบโดย {doc.assigned_approver_id ? `${allApprovers.find(a => a.id === doc.assigned_approver_id)?.full_name}` : 'ระบบ Pool'}
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -557,7 +636,7 @@ export default function ChecklistDetailPage() {
             {doc.workflow_status === 'approved' && (
               <div style={{ color: '#059669', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
                 ✅ งานนี้ได้รับการอนุมัติแล้ว
-                {isAdmin && (
+                {(currentUser?.role === 'administrator' || currentUser?.role === 'supervisor') && (
                   <button onClick={handleReopen} style={{ marginLeft: 16, padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 12, background: '#fff', cursor: 'pointer' }}>
                     ปลดล็อคเพื่อแก้ไข
                   </button>
