@@ -413,8 +413,13 @@ export default function ChecklistDetailPage() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
               <h1 style={{ fontSize: 20, fontWeight: 600, color: '#111827', margin: 0 }}>{doc.doc_no}</h1>
-              <span style={{ background: isClosed ? '#d1fae5' : '#dbeafe', color: isClosed ? '#065f46' : '#1e40af', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-                {doc.status}
+              <span style={{ 
+                background: (doc.status === 'Open' && doneCount > 0) ? '#eff6ff' : isClosed ? '#d1fae5' : '#f3f4f6', 
+                color: (doc.status === 'Open' && doneCount > 0) ? '#1d4ed8' : isClosed ? '#065f46' : '#4b5563', 
+                padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                border: `1px solid ${(doc.status === 'Open' && doneCount > 0) ? '#bfdbfe' : isClosed ? '#a7f3d0' : '#e5e7eb'}`
+              }}>
+                {(doc.status === 'Open' && doneCount > 0) ? 'In Progress' : doc.status}
               </span>
             </div>
             <div style={{ fontSize: 13, color: '#6b7280' }}>
