@@ -704,7 +704,7 @@ function PhotoTemplate({ config, data, onUpdate, disabled }) {
               <label style={{ cursor: disabled ? 'default' : 'pointer', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
                 <span style={{ fontSize: 24 }}>📷</span>
                 <span style={{ fontSize: 10, color: '#6b7280', textAlign: 'center' }}>{p}</span>
-                {!disabled && <input type="file" accept="image/*" onChange={(e) => handleUpload(idx, e)} style={{ display: 'none' }} />}
+                {!disabled && <input type="file" accept="image/*" capture="environment" onChange={(e) => handleUpload(idx, e)} style={{ display: 'none' }} />}
               </label>
             )}
           </div>

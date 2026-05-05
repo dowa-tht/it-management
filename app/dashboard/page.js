@@ -110,9 +110,14 @@ export default function DashboardPage() {
       </div>
 
       {/* IT Checklist Tracking Section */}
-      <div className="chart-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 20 }}>
+      <div className="dashboard-grid" style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+        gap: 16, 
+        marginBottom: 20 
+      }}>
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 20 }}>
-          <div className="responsive-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div className="responsive-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 16 }}>
             <div>
               <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>IT Checklist Compliance</h2>
               <div style={{ fontSize: 12, color: '#6b7280' }}>สถานะการตรวจสอบระบบ IT ประจำรอบเวลา</div>
@@ -134,7 +139,11 @@ export default function DashboardPage() {
           </div>
 
           {/* Action Cards */}
-          <div className="grid-4-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
+            gap: 10 
+          }}>
             {/* Daily */}
             <Link href={`/dashboard/checklist?freq_type=Daily${ca?.dailyStatus?.ngCount > 0 ? '&filter=ng' : ''}`} style={{ textDecoration: 'none' }}>
               <div style={{ background: ca?.dailyStatus?.status === 'ok' ? '#ecfdf5' : ca?.dailyStatus?.status === 'ng' ? '#fef2f2' : ca?.dailyStatus?.status === 'in-progress' ? '#fefce8' : ca?.dailyStatus?.status === 'skip' ? '#f9fafb' : '#fffbeb', border: `1px solid ${ca?.dailyStatus?.status === 'ok' ? '#a7f3d0' : ca?.dailyStatus?.status === 'ng' ? '#fecaca' : ca?.dailyStatus?.status === 'in-progress' ? '#fde047' : ca?.dailyStatus?.status === 'skip' ? '#e5e7eb' : '#fde68a'}`, borderRadius: 10, padding: 12, transition: 'transform 0.15s', cursor: 'pointer' }}>
@@ -201,7 +210,12 @@ export default function DashboardPage() {
       </div>
 
       {/* Stat Cards */}
-      <div className="stat-grid-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', 
+        gap: 12, 
+        marginBottom: 20 
+      }}>
         {statCards.map(s => (
           <Link key={s.label} href={s.link} style={{ textDecoration: 'none' }}>
             <div style={{ background: '#fff', borderRadius: 10, padding: '14px', border: '1px solid #e5e7eb', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
@@ -213,7 +227,12 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts Row */}
-      <div className="chart-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 20 }}>
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+        gap: 16, 
+        marginBottom: 20 
+      }}>
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16 }}>Incident 7 วันล่าสุด</div>
           {incidentByDay.length > 0 ? (
