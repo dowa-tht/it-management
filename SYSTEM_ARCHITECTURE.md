@@ -319,7 +319,18 @@ All tiers now use standard authentication protocols.
   - Standardized Thai documentation across all primary administrative interfaces.
 
 ---
-*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-05-05 17:42 (Session End: Status Verified & Unified Docs) โดย Antigravity AI*
+
+- [2026-05-06 11:30] **Phase 2 - User-Linked Incidents & PIN-Verified Signatures**:
+  - **Requester Identity Linking**: Replaced static text fields with `UserAutocomplete` linked to `user_profiles`.
+  - **Quick Add User**: Implemented a "Quick Add" modal for creating new members directly from the incident flow.
+  - **PIN-Verified Signatures**: Enforced mandatory 6-digit PIN verification for members before digital signature collection (with 5-attempt brute-force lock).
+  - **Member Role Access Control (RBAC)**:
+    - **Dashboard**: Hidden IT-only widgets (Checklist, SLA, Charts) for members.
+    - **Data Filtering**: Members can only view and manage incidents where they are the reporter (`reported_by_id`).
+  - **Incident SLA Logic**: Refined "Acknowledge" button visibility and automated SLA reset when an assignee is removed.
+
+---
+*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-05-06 11:30 (Session End: Phase 2 Completed) โดย Antigravity AI*
 
 
 
