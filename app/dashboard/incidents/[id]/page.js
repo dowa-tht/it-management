@@ -7,6 +7,8 @@ import { calculateNetBusinessMinutes, SLA_LIMITS } from '@/lib/slaUtils'
 import { SignatureModal } from '../../checklist/components/SignatureModal'
 import { isSubstituteOf } from '@/lib/workflow'
 import Link from 'next/link'
+import { UserAutocomplete } from '../components/UserAutocomplete'
+import { MemberSignatureModal } from '../components/MemberSignatureModal'
 
 const SEVERITY_COLORS = {
   High:   { bg: '#fee2e2', color: '#991b1b' },
@@ -142,6 +144,7 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
   const [sigReporter, setSigReporter] = useState(form.signature_reporter || null)
   const [sigManager, setSigManager] = useState(form.signature_manager || null)
   const [showCanvas, setShowCanvas] = useState(null) // 'IT', 'Reporter', 'Manager'
+  const [showMemberPINModal, setShowMemberPINModal] = useState(false)
 
   const isHigh = incident?.severity === 'High'
   const requireCA = form.require_ca || isHigh
@@ -159,18 +162,32 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
     onConfirm(sigIT, sigReporter, sigManager, true)
   }
 
-  const renderCanvas = () => {
-    if (!showCanvas) return null
-    let title = ''
-    if (showCanvas === 'IT') title = 'ลายเซ็นต์ IT Officer'
-    if (showCanvas === 'Reporter') title = 'ลายเซ็นต์ผู้แจ้งรับทราบ'
-    if (showCanvas === 'Manager') title = 'ลายเซ็นต์ผู้จัดการรับทราบ'
+    if (showCanvas === 'Reporter') {
+      setShowMemberPINModal(true)
+      return null
+    }
     return <SignatureCanvas title={title} onSave={d => { 
       if (showCanvas === 'IT') setSigIT(d)
-      if (showCanvas === 'Reporter') setSigReporter(d)
       if (showCanvas === 'Manager') setSigManager(d)
       setShowCanvas(null) 
     }} onCancel={() => setShowCanvas(null)} />
+  }
+
+  const renderMemberPINModal = () => {
+    if (!showMemberPINModal) return null
+    return (
+      <MemberSignatureModal 
+        isOpen={showMemberPINModal}
+        memberName={incident.reported_by}
+        memberId={incident.reported_by_id}
+        onCancel={() => { setShowMemberPINModal(false); setShowCanvas(null); }}
+        onConfirm={(d) => {
+          setSigReporter(d)
+          setShowMemberPINModal(false)
+          setShowCanvas(null)
+        }}
+      />
+    )
   }
 
   const renderSignatureStep = (title, subtitle, sig, setSig, canvasKey, nextStep, prevStep) => (
@@ -227,6 +244,7 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
         </div>
 
         {renderCanvas()}
+        {renderMemberPINModal()}
 
         {step === 1 && (
           <>
@@ -1005,7 +1023,19 @@ export default function IncidentDetailPage() {
               {form.severity === 'High' && <div style={{ fontSize:10, color:'#1d4ed8', marginTop:4, fontWeight:500 }}>* บังคับสำหรับความรุนแรงระดับ High</div>}
             </div>
 
-            {field('ผู้แจ้ง', 'reported_by')}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>ผู้แจ้ง / Requester</div>
+              {editing && !isLocked ? (
+                <UserAutocomplete 
+                  value={form.reported_by}
+                  onChange={(u) => setForm({ ...form, reported_by: u.full_name, reported_by_id: u.id })}
+                />
+              ) : (
+                <div style={{ fontSize: 14, color: incident.reported_by ? '#111827' : '#d1d5db', padding: '6px 0', borderBottom: '1px solid #f3f4f6', minHeight: 32 }}>
+                  {incident.reported_by || '—'}
+                </div>
+              )}
+            </div>
 
             {/* Assignee Dropdown จาก user_profiles */}
             <div style={{ marginBottom:14 }}>

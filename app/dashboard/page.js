@@ -112,30 +112,32 @@ export default function DashboardPage() {
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           {/* 1. Waiting for Approval (For Approver) */}
-          <Link href="/dashboard/approvals" style={{ textDecoration: 'none' }}>
-            <div style={{ 
-              background: data.pendingApprovalsCount > 0 ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : '#f3f4f6', 
-              borderRadius: 10, 
-              padding: '8px 16px', 
-              color: data.pendingApprovalsCount > 0 ? '#fff' : '#9ca3af', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 12, 
-              cursor: 'pointer', 
-              transition: 'transform 0.15s', 
-              border: data.pendingApprovalsCount > 0 ? 'none' : '1px solid #e5e7eb',
-              boxShadow: data.pendingApprovalsCount > 0 ? '0 4px 10px rgba(79, 70, 229, 0.2)' : 'none'
-            }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-              <div style={{ fontSize: 20, filter: data.pendingApprovalsCount > 0 ? 'none' : 'grayscale(1)' }}>🔔</div>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Waiting for Approval</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                  <span style={{ fontSize: 18, fontWeight: 800 }}>{data.pendingApprovalsCount}</span>
-                  <span style={{ fontSize: 11, opacity: 0.8 }}>Items</span>
+          {data.userProfile?.role !== 'member' && (
+            <Link href="/dashboard/approvals" style={{ textDecoration: 'none' }}>
+              <div style={{ 
+                background: data.pendingApprovalsCount > 0 ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : '#f3f4f6', 
+                borderRadius: 10, 
+                padding: '8px 16px', 
+                color: data.pendingApprovalsCount > 0 ? '#fff' : '#9ca3af', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 12, 
+                cursor: 'pointer', 
+                transition: 'transform 0.15s', 
+                border: data.pendingApprovalsCount > 0 ? 'none' : '1px solid #e5e7eb',
+                boxShadow: data.pendingApprovalsCount > 0 ? '0 4px 10px rgba(79, 70, 229, 0.2)' : 'none'
+              }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                <div style={{ fontSize: 20, filter: data.pendingApprovalsCount > 0 ? 'none' : 'grayscale(1)' }}>🔔</div>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Waiting for Approval</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                    <span style={{ fontSize: 18, fontWeight: 800 }}>{data.pendingApprovalsCount}</span>
+                    <span style={{ fontSize: 11, opacity: 0.8 }}>Items</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Link>
+            </Link>
+          )}
 
           {/* 2. My Sent Pending Items (For Sender) */}
           <Link href="/dashboard/my-pending" style={{ textDecoration: 'none' }}>
@@ -165,105 +167,58 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* IT Checklist Tracking Section */}
-      <div className="dashboard-grid" style={{ 
-        display: 'grid', 
-        gridTemplateColumns: '3fr 1.2fr', 
-        gap: 16, 
-        marginBottom: 20 
-      }}>
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 20 }}>
-          <div className="responsive-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 16 }}>
-            <div>
-              <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>IT Checklist Compliance</h2>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>สถานะการตรวจสอบระบบ IT ประจำรอบเวลา</div>
-            </div>
-            
-            {/* Health Streak */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Daily Streak</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {ca?.streak?.map((s, idx) => (
-                  <div key={idx} title={`${s.date}: ${s.label}`} style={{
-                    width: 14, height: 14, borderRadius: '50%',
-                    background: getStreakColor(s.status),
-                    border: s.status === 'skip' ? '1px solid #d1d5db' : 'none',
-                  }} />
-                ))}
+      {/* IT Checklist & SLA Tracking (IT Only) */}
+      {data.userProfile?.role !== 'member' && (
+        <div className="dashboard-grid" style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '3fr 1.2fr', 
+          gap: 16, 
+          marginBottom: 20 
+        }}>
+          {/* IT Checklist Section */}
+          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 20 }}>
+            <div className="responsive-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 16 }}>
+              <div>
+                <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>IT Checklist Compliance</h2>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>สถานะการตรวจสอบระบบ IT ประจำรอบเวลา</div>
               </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Daily Streak</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {ca?.streak?.map((s, idx) => (
+                    <div key={idx} title={`${s.date}: ${s.label}`} style={{
+                      width: 14, height: 14, borderRadius: '50%',
+                      background: getStreakColor(s.status),
+                      border: s.status === 'skip' ? '1px solid #d1d5db' : 'none',
+                    }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+              <StatusCard title="Daily" value={ca?.dailyStatus?.label || 'รอตรวจ'} status={ca?.dailyStatus?.status} />
+              <StatusCard title="Weekly" value={ca?.weeklyStatus?.label || 'รอตรวจ'} status={ca?.weeklyStatus?.status} />
+              <StatusCard title="Monthly" value={ca?.monthlyStatus?.label || 'รอตรวจ'} status={ca?.monthlyStatus?.status} />
+              <StatusCard title="Yearly" value={ca?.yearlyStatus?.label || 'รอตรวจ'} status={ca?.yearlyStatus?.status} />
             </div>
           </div>
 
-          {/* Action Cards */}
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(4, 1fr)', 
-            gap: 10 
-          }}>
-            {/* Daily */}
-            <Link href={`/dashboard/checklist?freq_type=Daily${ca?.dailyStatus?.ngCount > 0 ? '&filter=ng' : ''}`} style={{ textDecoration: 'none' }}>
-              <div style={{ background: ca?.dailyStatus?.status === 'ok' ? '#ecfdf5' : ca?.dailyStatus?.status === 'ng' ? '#fef2f2' : ca?.dailyStatus?.status === 'in-progress' ? '#fefce8' : ca?.dailyStatus?.status === 'skip' ? '#f9fafb' : '#fffbeb', border: `1px solid ${ca?.dailyStatus?.status === 'ok' ? '#a7f3d0' : ca?.dailyStatus?.status === 'ng' ? '#fecaca' : ca?.dailyStatus?.status === 'in-progress' ? '#fde047' : ca?.dailyStatus?.status === 'skip' ? '#e5e7eb' : '#fde68a'}`, borderRadius: 10, padding: 12, transition: 'transform 0.15s', cursor: 'pointer' }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>Daily</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 18 }}>{ca?.dailyStatus?.status === 'ok' ? '✅' : ca?.dailyStatus?.status === 'ng' || ca?.dailyStatus?.status === 'missed' ? '⚠️' : ca?.dailyStatus?.status === 'in-progress' ? '🔄' : ca?.dailyStatus?.status === 'skip' ? '🌴' : '⏳'}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{ca?.dailyStatus?.label || 'รอตรวจ'}</span>
-                </div>
+          {/* SLA KPI Card */}
+          <Link href="/dashboard/reports/sla" style={{ textDecoration: 'none', display: 'flex' }}>
+            <div style={{ flex: 1, background: stats.slaComplianceRate >= 95 ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', borderRadius: 12, padding: 20, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+              <div style={{ position: 'absolute', right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>🎯</div>
+              <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>SLA Compliance Rate (YTD)</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <div style={{ fontSize: 36, fontWeight: 800 }}>{stats.slaComplianceRate}%</div>
               </div>
-            </Link>
-            
-            {/* Weekly */}
-            <Link href="/dashboard/checklist?freq_type=Weekly" style={{ textDecoration: 'none' }}>
-              <div style={{ background: ca?.weeklyStatus?.status === 'done' ? '#ecfdf5' : '#f9fafb', border: `1px solid ${ca?.weeklyStatus?.status === 'done' ? '#a7f3d0' : '#e5e7eb'}`, borderRadius: 10, padding: 12, transition: 'transform 0.15s', cursor: 'pointer' }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>Weekly</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 18 }}>{ca?.weeklyStatus?.status === 'done' ? '✅' : '📅'}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{ca?.weeklyStatus?.label || 'รอตรวจ'}</span>
-                </div>
+              <div style={{ marginTop: 12, background: 'rgba(255,255,255,0.2)', height: 6, borderRadius: 10 }}>
+                <div style={{ background: '#fff', height: '100%', borderRadius: 10, width: `${Math.min(100, stats.slaComplianceRate)}%` }} />
               </div>
-            </Link>
-
-            {/* Monthly */}
-            <Link href="/dashboard/checklist?freq_type=Monthly" style={{ textDecoration: 'none' }}>
-              <div style={{ background: ca?.monthlyStatus?.status === 'done' ? '#ecfdf5' : '#f9fafb', border: `1px solid ${ca?.monthlyStatus?.status === 'done' ? '#a7f3d0' : '#e5e7eb'}`, borderRadius: 10, padding: 12, transition: 'transform 0.15s', cursor: 'pointer' }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>Monthly</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 18 }}>{ca?.monthlyStatus?.status === 'done' ? '✅' : '📊'}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{ca?.monthlyStatus?.label || 'รอตรวจ'}</span>
-                </div>
-              </div>
-            </Link>
-
-            {/* Yearly */}
-            <Link href="/dashboard/checklist?freq_type=Yearly" style={{ textDecoration: 'none' }}>
-              <div style={{ background: ca?.yearlyStatus?.status === 'done' ? '#ecfdf5' : '#f9fafb', border: `1px solid ${ca?.yearlyStatus?.status === 'done' ? '#a7f3d0' : '#e5e7eb'}`, borderRadius: 10, padding: 12, transition: 'transform 0.15s', cursor: 'pointer' }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', marginBottom: 6 }}>Yearly</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 18 }}>{ca?.yearlyStatus?.status === 'done' ? '✅' : '🏆'}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{ca?.yearlyStatus?.label || 'รอตรวจ'}</span>
-                </div>
-              </div>
-            </Link>
-          </div>
+            </div>
+          </Link>
         </div>
-
-        {/* SLA KPI Gauge Card */}
-        <Link href="/dashboard/reports/sla" style={{ textDecoration: 'none', display: 'flex' }}>
-          <div style={{ flex: 1, background: stats.slaComplianceRate >= 95 ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', borderRadius: 12, padding: 20, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-            <div style={{ position: 'absolute', right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>🎯</div>
-            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>SLA Compliance Rate (YTD)</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <div style={{ fontSize: 42, fontWeight: 800 }}>{stats.slaComplianceRate}%</div>
-              <div style={{ fontSize: 14, fontWeight: 500, opacity: 0.9 }}>/ 95% Target</div>
-            </div>
-            <div style={{ marginTop: 12, background: 'rgba(255,255,255,0.2)', height: 6, borderRadius: 10 }}>
-              <div style={{ background: '#fff', height: '100%', borderRadius: 10, width: `${Math.min(100, stats.slaComplianceRate)}%`, boxShadow: '0 0 10px rgba(255,255,255,0.5)' }} />
-            </div>
-            <div style={{ fontSize: 11, marginTop: 12, opacity: 0.9, fontWeight: 500 }}>
-              {stats.slaComplianceRate >= 95 ? '✅ ผ่านเป้าหมาย (คลิกเพื่อดูรายงาน)' : '⚠️ ต่ำกว่าเป้าหมาย (คลิกเพื่อดูรายงาน)'}
-            </div>
-          </div>
-        </Link>
-      </div>
+      )}
 
       {/* Stat Cards */}
       <div style={{ 
@@ -282,50 +237,52 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Charts Row */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
-        gap: 16, 
-        marginBottom: 20 
-      }}>
-        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16 }}>Incident 7 วันล่าสุด</div>
-          {incidentByDay.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={incidentByDay}>
-                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Incident" />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
-              ยังไม่มีข้อมูล Incident
-            </div>
-          )}
-        </div>
+      {/* Charts Row (IT Only) */}
+      {data.userProfile?.role !== 'member' && (
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+          gap: 16, 
+          marginBottom: 20 
+        }}>
+          <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16 }}>Incident 7 วันล่าสุด</div>
+            {incidentByDay.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={incidentByDay}>
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Incident" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
+                ยังไม่มีข้อมูล Incident
+              </div>
+            )}
+          </div>
 
-        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16 }}>Severity Breakdown</div>
-          {severityData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={severityData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value">
-                  {severityData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                </Pie>
-                <Legend formatter={(value) => <span style={{ fontSize: 12 }}>{value}</span>} />
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
-              ยังไม่มีข้อมูล
-            </div>
-          )}
+          <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16 }}>Severity Breakdown</div>
+            {severityData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={severityData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value">
+                    {severityData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Legend formatter={(value) => <span style={{ fontSize: 12 }}>{value}</span>} />
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
+                ยังไม่มีข้อมูล
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Recent Incidents with SLA */}
       <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden', marginBottom: 16 }}>

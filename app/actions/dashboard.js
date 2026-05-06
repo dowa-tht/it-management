@@ -65,14 +65,19 @@ export async function getDashboardData(timezoneOffset = -420) {
       userProfile ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
       // Fetch My Sent Pending Items (For Sender Tracking)
       userProfile ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING']).eq('created_by', userProfile.email) : Promise.resolve({ data: [] }),
-      userProfile ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval').eq('reported_by', userProfile.email) : Promise.resolve({ data: [] })
+      userProfile ? 
+        supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval')
+          .or(`reported_by.eq.${userProfile.email},reported_by_id.eq.${userProfile.id}`) : Promise.resolve({ data: [] })
     ])
 
-    if (incRes.error) console.error('Incidents Fetch Error:', incRes.error)
-    if (bakRes.error) console.error('Backups Fetch Error:', bakRes.error)
     if (chkRes.error) console.error('Checklists Fetch Error:', chkRes.error)
 
-    const incidents = incRes.data || []
+    let incidents = incRes.data || []
+    
+    // ROLE-BASED FILTERING FOR MEMBER
+    if (userProfile?.role === 'member') {
+      incidents = incidents.filter(i => i.reported_by_id === userProfile.id || i.reported_by === userProfile.email)
+    }
     const backups = bakRes.data || []
     const allChecklists = chkRes.error ? [] : (chkRes.data || [])
     const holidays = holidayRes.error ? [] : (holidayRes.data?.map(h => h.holiday_date) || [])

@@ -87,6 +87,11 @@ function IncidentsContent() {
       query = query.eq('severity', severityFilter)
     }
 
+    // ROLE-BASED FILTERING FOR MEMBER
+    if (currentUser?.role === 'member') {
+      query = query.or(`reported_by_id.eq.${currentUser.id},reported_by.eq.${currentUser.email}`)
+    }
+
     const { data, error } = await query
     if (!error) setIncidents(data || [])
     setLoading(false)
