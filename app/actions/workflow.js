@@ -2,6 +2,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { getCurrentUserSession } from './user'
 
+const getAdminClient = () => {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  )
+}
+
 export async function recordLog(docId, type, action, details, userEmail) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -337,26 +344,227 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail) {
 
     const isAutoApprove = !config || !config.primary_approver_id
 
+    // 2. Generate Steps in the new table
+    const { success, autoApproved } = await generateWorkflowSteps(docId, targetType, targetType === 'checklist' ? 'freq_type' : 'severity', triggerKey)
+
+    const finalAutoApprove = isAutoApprove || autoApproved
+
     const { error } = await supabaseAdmin
-      .from('checklist_docs')
+      .from(targetType === 'checklist' ? 'checklist_docs' : 'incidents')
       .update({
-        workflow_status: isAutoApprove ? 'approved' : 'pending',
-        status: isAutoApprove ? 'Closed' : 'Pending Approval', // Update main status to standard
+        workflow_status: finalAutoApprove ? 'approved' : 'pending',
+        status: finalAutoApprove ? 'Closed' : 'Pending Approval',
         assigned_approver_id: config?.primary_approver_id || null,
-        approval_comment: isAutoApprove ? 'ระบบอนุมัติอัตโนมัติ (ตามการตั้งค่า)' : null
+        approval_comment: finalAutoApprove ? 'ระบบอนุมัติอัตโนมัติ (ตามการตั้งค่า)' : null
       })
       .eq('id', docId)
     
     if (error) throw error
 
-    await recordLog(docId, targetType, isAutoApprove ? 'Auto-Approved' : 'Submitted', isAutoApprove 
+    await recordLog(docId, targetType, finalAutoApprove ? 'Auto-Approved' : 'Submitted', finalAutoApprove 
       ? 'ระบบอนุมัติงานให้อัตโนมัติตามการตั้งค่า' 
-      : `ส่งเอกสารเพื่อขออนุมัติ (ผู้อนุมัติหลัก: ${approverName})`, userEmail)
+      : `ส่งเอกสารเพื่อขออนุมัติ (ระบบ Workflow ใหม่ - ผู้อนุมัติหลัก: ${approverName})`, userEmail)
 
-    return { success: true, autoApproved: isAutoApprove }
+    return { success: true, autoApproved: finalAutoApprove }
   } catch (err) {
     console.error('submitRequest Error:', err)
     return { success: false, error: err.message }
+  }
+}
+
+// ==========================================
+// UNIFIED WORKFLOW ENGINE FUNCTIONS
+// ==========================================
+
+export async function generateWorkflowSteps(docId, targetType, conditionKey, conditionValue) {
+  try {
+    const supabaseAdmin = getAdminClient()
+
+    // 1. Get configs for this doc type
+    const { data: configs } = await supabaseAdmin
+      .from('workflow_configs')
+      .select('*')
+      .eq('target_type', targetType)
+      .eq('condition_key', conditionKey)
+      .eq('condition_value', conditionValue)
+      .eq('is_active', true)
+      .order('step_order')
+
+    if (!configs || configs.length === 0) return { success: true, autoApproved: true }
+
+    // 2. Create actual approval steps for this document
+    const inserts = configs.map((c, idx) => ({
+      doc_id: docId,
+      doc_type: targetType,
+      step_order: c.step_order,
+      status: idx === 0 ? 'pending' : 'waiting', // First step starts as pending
+      role_required: c.role_required
+    }))
+
+    const { error } = await supabaseAdmin.from('document_approvals').insert(inserts)
+    if (error) throw error
+
+    return { success: true, autoApproved: false }
+  } catch (err) {
+    console.error('generateWorkflowSteps Error:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+export async function getDocumentWorkflowStatus(docId) {
+  try {
+    const supabaseAdmin = getAdminClient()
+    const { data, error } = await supabaseAdmin
+      .from('document_approvals')
+      .select(`
+        *,
+        user_profiles!document_approvals_approver_id_fkey(full_name, role)
+      `)
+      .eq('doc_id', docId)
+      .order('step_order')
+
+    if (error) throw error
+    return { data }
+  } catch (err) {
+    console.error('getDocumentWorkflowStatus Error:', err)
+    return { error: err.message }
+  }
+}
+
+export async function submitApprovalStep(docId, docType, stepId, signatureData, comment = '') {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return { error: 'Unauthorized' }
+
+    const supabaseAdmin = getAdminClient()
+    
+    // 1. Get current step info
+    const { data: currentStep } = await supabaseAdmin
+      .from('document_approvals')
+      .select('*')
+      .eq('id', stepId)
+      .single()
+
+    if (!currentStep || currentStep.status !== 'pending') return { error: 'Step not ready for approval' }
+
+    // 2. Mark current step as approved
+    const { error: updateErr } = await supabaseAdmin
+      .from('document_approvals')
+      .update({
+        status: 'approved',
+        approver_id: session.user.id,
+        signature_data: signatureData,
+        comment: comment,
+        action_at: new Date().toISOString()
+      })
+      .eq('id', stepId)
+
+    if (updateErr) throw updateErr
+
+    // 3. Find and unlock the NEXT step
+    const { data: nextStep } = await supabaseAdmin
+      .from('document_approvals')
+      .select('*')
+      .eq('doc_id', docId)
+      .eq('step_order', currentStep.step_order + 1)
+      .single()
+
+    if (nextStep) {
+      await supabaseAdmin
+        .from('document_approvals')
+        .update({ status: 'pending' })
+        .eq('id', nextStep.id)
+    } else {
+      // All steps completed! Update main document to Closed
+      const table = docType === 'checklist' ? 'checklist_docs' : 'incidents'
+      await supabaseAdmin
+        .from(table)
+        .update({ 
+          status: 'Closed',
+          workflow_status: 'approved'
+        })
+        .eq('id', docId)
+    }
+
+    await recordLog(docId, docType, 'Approved', `อนุมัติขั้นตอนลำดับที่ ${currentStep.step_order} โดย ${session.user.email}`, session.user.email)
+
+    return { success: true, isFinal: !nextStep }
+  } catch (err) {
+    console.error('submitApprovalStep Error:', err)
+    return { error: err.message }
+  }
+}
+
+// MIGRATION HELPER (Call once)
+export async function runWorkflowMigration() {
+  try {
+    const supabaseAdmin = getAdminClient()
+    console.log('--- START MIGRATION ---')
+
+    // Checklist Migration
+    const { data: checklists } = await supabaseAdmin
+      .from('checklist_docs')
+      .select('id, status, approved_by, approved_at, assigned_approver_id')
+      .in('status', ['Closed', 'Pending Approval'])
+
+    for (const doc of (checklists || [])) {
+      const { data: existing } = await supabaseAdmin.from('document_approvals').select('id').eq('doc_id', doc.id).limit(1)
+      if (existing?.length > 0) continue
+
+      const isApproved = doc.status === 'Closed'
+      let approverId = doc.assigned_approver_id || doc.approved_by
+      if (approverId && !approverId.includes('-')) {
+          const { data: p } = await supabaseAdmin.from('user_profiles').select('id').eq('email', approverId).single()
+          if (p) approverId = p.id
+      }
+
+      await supabaseAdmin.from('document_approvals').insert([{
+        doc_id: doc.id, doc_type: 'checklist', step_order: 1,
+        approver_id: (approverId && approverId.includes('-')) ? approverId : null,
+        status: isApproved ? 'approved' : 'pending',
+        action_at: doc.approved_at || null
+      }])
+    }
+
+    // Incident Migration
+    const { data: incidents } = await supabaseAdmin
+      .from('incidents')
+      .select('id, status, signature_it, signature_reporter, signature_manager, resolved_by, reported_by_id, approved_by, resolved_at, approved_at')
+
+    for (const i of (incidents || [])) {
+      const { data: existing } = await supabaseAdmin.from('document_approvals').select('id').eq('doc_id', i.id).limit(1)
+      if (existing?.length > 0) continue
+
+      // IT Step
+      if (i.signature_it || i.status === 'Closed' || i.status === 'Pending Approval') {
+        await supabaseAdmin.from('document_approvals').insert([{
+          doc_id: i.id, doc_type: 'incident', step_order: 1,
+          status: i.signature_it ? 'approved' : (i.status === 'Pending Approval' ? 'pending' : 'waiting'),
+          signature_data: i.signature_it, action_at: i.resolved_at
+        }])
+      }
+      // Reporter Step
+      if (i.signature_reporter || i.status === 'Closed' || (i.status === 'Pending Approval' && i.signature_it)) {
+        await supabaseAdmin.from('document_approvals').insert([{
+          doc_id: i.id, doc_type: 'incident', step_order: 2,
+          status: i.signature_reporter ? 'approved' : (i.signature_it ? 'pending' : 'waiting'),
+          approver_id: i.reported_by_id, signature_data: i.signature_reporter, action_at: i.resolved_at
+        }])
+      }
+      // Manager Step
+      if (i.signature_manager || i.status === 'Closed') {
+        await supabaseAdmin.from('document_approvals').insert([{
+          doc_id: i.id, doc_type: 'incident', step_order: 3,
+          status: i.signature_manager ? 'approved' : (i.signature_reporter ? 'pending' : 'waiting'),
+          signature_data: i.signature_manager, action_at: i.approved_at
+        }])
+      }
+    }
+
+    return { success: true }
+  } catch (err) {
+    console.error('Migration Error:', err)
+    return { error: err.message }
   }
 }
 

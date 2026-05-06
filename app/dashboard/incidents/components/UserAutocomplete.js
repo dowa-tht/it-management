@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { searchUsers, quickAddUser } from '@/app/actions/users'
 
 export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ์เพื่อค้นหาชื่อผู้แจ้ง...' }) {
-  const [query, setQuery] = useState(value?.full_name || '')
+  const [query, setQuery] = useState(typeof value === 'string' ? value : (value?.full_name || ''))
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
@@ -13,7 +13,7 @@ export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ�
 
   useEffect(() => {
     if (value) {
-      setQuery(value.full_name)
+      setQuery(typeof value === 'string' ? value : (value.full_name || ''))
     } else {
       setQuery('')
     }

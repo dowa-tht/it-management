@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/dateFormat'
 import { normalizeRole, ROLE_BADGE } from '@/lib/auth'
-import { createAdminUser, getAdminUsers, updateAdminUser, updateAdminUserPassword, cleanDeleteUser, getUserIdentities, updateAdminUserPin, unlockUserPin } from '@/app/actions/admin'
+import { createAdminUser, getAdminUsers, updateAdminUser, updateAdminUserPassword, secureCleanDeleteUser, getUserIdentities, updateAdminUserPin, unlockUserPin } from '@/app/actions/admin'
 
 // --- Modern Action Button Component ---
 const ActionButton = ({ onClick, icon, color, title }) => {
@@ -249,6 +249,7 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
                     <option value="administrator">Administrator</option>
                     <option value="supervisor">Supervisor</option>
                     <option value="approval">Approval</option>
+                    <option value="member">Member</option>
                     <option value="guest">Guest</option>
                   </select>
                 </div>
@@ -377,16 +378,70 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
   )
 }
 
+const CleanDeleteDialog = ({ email, onCancel, onConfirm }) => {
+  const [confirmText, setConfirmText] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const targetText = `DELETE-${email}`
+
+  const handleConfirm = async () => {
+    if (confirmText !== targetText) {
+      setError('ข้อความยืนยันไม่ถูกต้อง')
+      return
+    }
+    setLoading(true)
+    await onConfirm(confirmText)
+    setLoading(false)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 24, padding: 32, width: '100%', maxWidth: 450, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+        <div style={{ fontSize: 40, marginBottom: 16 }}>🗑️</div>
+        <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>ลบข้อมูลผู้ใช้อย่างถาวร</h3>
+        <p style={{ fontSize: 14, color: '#64748b', marginBottom: 24, lineHeight: 1.6 }}>
+          การดำเนินการนี้จะลบข้อมูลทั้งในระบบ **Auth, Whitelist และ Profile** ของผู้ใช้รายนี้ออกทั้งหมด (ไม่สามารถกู้คืนได้)
+        </p>
+        
+        <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 12, padding: 16, marginBottom: 20 }}>
+          <p style={{ fontSize: 12, color: '#991b1b', marginBottom: 8, fontWeight: 600 }}>กรุณาพิมพ์ข้อความด้านล่างเพื่อยืนยัน:</p>
+          <code style={{ display: 'block', background: '#fff', padding: '8px 12px', borderRadius: 6, border: '1px solid #fecaca', color: '#dc2626', fontWeight: 700, textAlign: 'center', fontSize: 14, marginBottom: 12 }}>{targetText}</code>
+          <input 
+            value={confirmText}
+            onChange={e => { setConfirmText(e.target.value); setError('') }}
+            placeholder="พิมพ์ข้อความยืนยันที่นี่"
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid #fecaca', fontSize: 14, outline: 'none' }}
+          />
+        </div>
+
+        {error && <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 16, textAlign: 'center' }}>❌ {error}</div>}
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>ยกเลิก</button>
+          <button 
+            disabled={confirmText !== targetText || loading}
+            onClick={handleConfirm}
+            style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: confirmText === targetText ? '#dc2626' : '#fca5a5', color: '#fff', cursor: 'pointer', fontWeight: 700 }}
+          >
+            {loading ? 'กำลังลบ...' : 'ลบข้อมูลทันที'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function UsersPage() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState(null)
   const [showNew, setShowNew] = useState(false)
-  const [newUser, setNewUser] = useState({ email: '', password: '', full_name: '', role: 'guest' })
+  const [newUser, setNewUser] = useState({ email: '', password: '', full_name: '', role: 'guest', can_be_assignee: false, sendEmailInvite: true })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState({ text: '', type: '' })
   const [setupUser, setSetupUser] = useState(null)
   const [confirmDialog, setConfirmDialog] = useState(null)
+  const [cleanDeleteDialog, setCleanDeleteDialog] = useState(null)
   const [showGuide, setShowGuide] = useState(false)
   const [guideContent, setGuideContent] = useState('')
   const [editingGuide, setEditingGuide] = useState(false)
@@ -467,31 +522,58 @@ export default function UsersPage() {
   }
 
   const handleCreateUser = async (e) => {
-    e.preventDefault(); setSaving(true)
+    e.preventDefault(); 
+    
+    // หากมีการระบุ Password ให้ถามก่อนว่าจะส่ง Email ไหม (ตามเงื่อนไขที่ 2)
+    if (newUser.password && !confirm(`คุณได้ระบุรหัสผ่านให้ผู้ใช้รายนี้เรียบร้อยแล้ว\n\nต้องการส่งอีเมลแจ้งข้อมูลการเข้าใช้งาน (Email & Password) ไปยังผู้ใช้ด้วยหรือไม่?`)) {
+      // ถ้าตอบ Cancel ให้ตั้งค่าไม่ส่ง Email
+      setSaving(true)
+      const result = await createAdminUser({ ...newUser, sendEmailInvite: false })
+      handleCreateResult(result)
+      return
+    }
+
+    setSaving(true)
     const result = await createAdminUser(newUser)
+    handleCreateResult(result)
+  }
+
+  const handleCreateResult = (result) => {
     if (result.success) {
-      setMsg({ text: `สร้าง User "${newUser.full_name}" สำเร็จ`, type: 'success' })
-      setNewUser({ email: '', password: '', full_name: '', role: 'guest' })
-      setShowNew(false); await fetchUsers()
-    } else setMsg({ text: `เกิดข้อผิดพลาด: ${result.error}`, type: 'error' })
+      setMsg({ text: newUser.password ? `สร้าง User "${newUser.full_name}" สำเร็จ` : `ส่งคำเชิญให้คุณ "${newUser.full_name}" เรียบร้อยแล้ว`, type: 'success' })
+      setNewUser({ email: '', password: '', full_name: '', role: 'guest', can_be_assignee: false, sendEmailInvite: true })
+      setShowNew(false); fetchUsers()
+    } else {
+      setMsg({ text: `เกิดข้อผิดพลาด: ${result.error}`, type: 'error' })
+    }
     setSaving(false)
   }
 
-  const handleDeleteUser = async (id, name) => {
+  const handleDeleteUser = async (id, name, email) => {
     if (id === currentUser?.id) return setMsg({ text: 'ไม่สามารถลบตัวเองได้', type: 'error' })
-    if (confirm(`ลบ "${name}"?`)) {
-      const { data } = await supabase.from('user_profiles').select('email').eq('id', id).single()
-      if (data) {
-        const res = await cleanDeleteUser(data.email)
-        if (res.success) { setMsg({ text: 'ลบสำเร็จ', type: 'success' }); await fetchUsers() }
-      }
-    }
+    setCleanDeleteDialog({ id, email })
   }
 
   if (loading) return <div style={{ padding: 100, textAlign: 'center', color: '#94a3b8' }}>กำลังโหลด...</div>
 
   return (
     <div style={{ padding: 24, background: '#f8fafc', minHeight: '100vh' }}>
+      {cleanDeleteDialog && (
+        <CleanDeleteDialog 
+          email={cleanDeleteDialog.email} 
+          onCancel={() => setCleanDeleteDialog(null)} 
+          onConfirm={async (confirmText) => {
+            const res = await secureCleanDeleteUser(cleanDeleteDialog.email, confirmText);
+            if (res.success) {
+              setCleanDeleteDialog(null); 
+              setMsg({ text: 'ลบข้อมูลผู้ใช้และประวัติทั้งหมดสำเร็จ', type: 'success' }); 
+              fetchUsers()
+            } else {
+              setMsg({ text: `เกิดข้อผิดพลาด: ${res.error}`, type: 'error' })
+            }
+          }} 
+        />
+      )}
       {setupUser && <UserSetupDialog user={setupUser} currentUser={currentUser} onClose={() => setSetupUser(null)} onRefresh={fetchUsers} />}
       {confirmDialog && <PasswordConfirmDialog targetName={confirmDialog.targetName} action={confirmDialog.action} onConfirm={async () => {
         await updateAdminUser({ id: confirmDialog.targetId, is_active: !confirmDialog.currentValue })
@@ -517,32 +599,47 @@ export default function UsersPage() {
           <form onSubmit={handleCreateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
             <div><label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>ชื่อ-นามสกุล</label><input value={newUser.full_name} onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} required style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} /></div>
             <div><label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>อีเมล</label><input type="email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} /></div>
-            <div><label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>รหัสผ่านเริ่มต้น</label><input type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} /></div>
-            <div><label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>สิทธิ์การใช้งาน</label><select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}><option value="administrator">Administrator</option><option value="supervisor">Supervisor</option><option value="approval">Approval</option><option value="guest">Guest</option></select></div>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>การมอบหมายงาน (Work Assignment)</label>
-              <div 
-                onClick={() => setNewUser({ ...newUser, can_be_assignee: !newUser.can_be_assignee })}
-                style={{ 
-                  display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 14px', 
-                  background: newUser.can_be_assignee ? '#f0fdf4' : '#f8fafc', 
-                  borderRadius: 12, border: `1px solid ${newUser.can_be_assignee ? '#bcf0da' : '#e2e8f0'}`,
-                  width: 'fit-content' 
-                }}
-              >
-                <div style={{ 
-                  width: 34, height: 18, borderRadius: 20, 
-                  background: newUser.can_be_assignee ? '#16a34a' : '#cbd5e1', 
-                  position: 'relative' 
-                }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>
+                รหัสผ่านเริ่มต้น (ทิ้งว่างไว้เพื่อส่ง Email Invite)
+              </label>
+              <input type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} placeholder="ปล่อยว่างเพื่อทำ Self-Register" />
+            </div>
+            <div><label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>สิทธิ์การใช้งาน</label><select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}><option value="administrator">Administrator</option><option value="supervisor">Supervisor</option><option value="approval">Approval</option><option value="member">Member</option><option value="guest">Guest</option></select></div>
+            <div style={{ gridColumn: 'span 2', display: 'flex', gap: 24 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>การมอบหมายงาน (Work Assignment)</label>
+                <div 
+                  onClick={() => setNewUser({ ...newUser, can_be_assignee: !newUser.can_be_assignee })}
+                  style={{ 
+                    display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 14px', 
+                    background: newUser.can_be_assignee ? '#f0fdf4' : '#f8fafc', 
+                    borderRadius: 12, border: `1px solid ${newUser.can_be_assignee ? '#bcf0da' : '#e2e8f0'}`,
+                    width: 'fit-content' 
+                  }}
+                >
                   <div style={{ 
-                    position: 'absolute', left: newUser.can_be_assignee ? 18 : 2, top: 2, 
-                    width: 14, height: 14, borderRadius: '50%', background: '#fff' 
-                  }} />
+                    width: 34, height: 18, borderRadius: 20, 
+                    background: newUser.can_be_assignee ? '#16a34a' : '#cbd5e1', 
+                    position: 'relative' 
+                  }}>
+                    <div style={{ 
+                      position: 'absolute', left: newUser.can_be_assignee ? 18 : 2, top: 2, 
+                      width: 14, height: 14, borderRadius: '50%', background: '#fff' 
+                    }} />
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: newUser.can_be_assignee ? '#166534' : '#64748b' }}>
+                    เป็นผู้รับมอบหมายงานได้ (Assignee)
+                  </span>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: newUser.can_be_assignee ? '#166534' : '#64748b' }}>
-                  เป็นผู้รับมอบหมายงานได้ (Assignee)
-                </span>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>แจ้งเตือนทางอีเมล</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={newUser.sendEmailInvite} onChange={e => setNewUser({ ...newUser, sendEmailInvite: e.target.checked })} style={{ width: 18, height: 18 }} />
+                  <span style={{ fontSize: 14, color: '#475569' }}>ส่งอีเมลแจ้งข้อมูลให้พนักงานทราบ</span>
+                </label>
               </div>
             </div>
             <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12 }}><button type="button" onClick={() => setShowNew(false)} style={{ padding: '12px 24px', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>ยกเลิก</button><button type="submit" disabled={saving} style={{ padding: '12px 32px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 700 }}>{saving ? 'กำลังสร้าง...' : 'สร้าง User'}</button></div>
@@ -561,13 +658,22 @@ export default function UsersPage() {
             {users.map(u => {
               const badge = ROLE_BADGE[normalizeRole(u.role)] || ROLE_BADGE.guest
               const isSelf = u.id === currentUser?.id
+              const isExpired = u.expires_at && new Date(u.expires_at) < new Date()
               return (
-                <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '16px 20px', fontWeight: 700, color: '#0f172a' }}>
+                <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9', background: isExpired ? '#fff1f2' : 'none' }}>
+                  <td style={{ padding: '16px 20px', fontWeight: 700, color: isExpired ? '#be123b' : '#0f172a' }}>
                     {u.full_name} 
                     {isSelf && <span style={{ fontSize: 10, background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: 10, marginLeft: 8 }}>ME</span>}
+                    {isExpired && <span style={{ fontSize: 10, background: '#fecaca', color: '#dc2626', padding: '2px 8px', borderRadius: 10, marginLeft: 8 }}>EXPIRED</span>}
                   </td>
-                  <td style={{ padding: '16px 20px', color: '#64748b' }}>{u.email}</td>
+                  <td style={{ padding: '16px 20px', color: '#64748b' }}>
+                    {u.email}
+                    {u.expires_at && (
+                      <div style={{ fontSize: 11, color: isExpired ? '#dc2626' : '#9ca3af', marginTop: 4 }}>
+                        ⌛ {isExpired ? 'หมดอายุเมื่อ:' : 'หมดอายุ:'} {formatDateTime(u.expires_at)}
+                      </div>
+                    )}
+                  </td>
                   <td style={{ padding: '16px 20px' }}><span style={{ background: badge.bg, color: badge.color, padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 800 }}>{badge.emoji} {badge.label}</span></td>
                   <td style={{ padding: '16px 20px' }}>
                     <button onClick={!isSelf ? () => setConfirmDialog({ targetId: u.id, targetName: u.full_name, action: u.is_active ? 'ระงับการใช้งาน' : 'เปิดใช้งาน', currentValue: u.is_active }) : undefined} style={{ width: 44, height: 24, borderRadius: 12, border: 'none', background: u.is_active ? '#059669' : '#e2e8f0', position: 'relative', cursor: isSelf ? 'default' : 'pointer' }}><div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: u.is_active ? 23 : 3, transition: '0.2s' }} /></button>
@@ -602,8 +708,8 @@ export default function UsersPage() {
                   </td>
                   <td style={{ padding: '16px 20px' }}>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <ActionButton color="blue" icon="⚙️" onClick={() => setSetupUser(u)} title="ตั้งค่า" />
-                      {!isSelf && <ActionButton color="red" icon="🗑" onClick={() => handleDeleteUser(u.id, u.full_name)} title="ลบ" />}
+                      <ActionButton title="ตั้งค่าและตรวจสอบ" onClick={() => setSetupUser(u)} icon="⚙️" color="gray" />
+                      {!isSelf && <ActionButton title="ลบข้อมูลถาวร" onClick={() => handleDeleteUser(u.id, u.full_name, u.email)} icon="🗑️" color="red" />}
                     </div>
                   </td>
                 </tr>

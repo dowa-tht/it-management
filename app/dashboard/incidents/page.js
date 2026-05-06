@@ -6,15 +6,16 @@ import { useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/dateFormat'
 
 const SEVERITY_COLORS = {
-  High: { bg: '#fee2e2', color: '#991b1b' },
-  Medium: { bg: '#fef3c7', color: '#92400e' },
-  Low: { bg: '#d1fae5', color: '#065f46' },
+  High: { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
+  Medium: { bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
+  Low: { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
 }
 
 const STATUS_COLORS = {
-  Open: { bg: '#dbeafe', color: '#1e40af' },
-  'In Progress': { bg: '#fef3c7', color: '#92400e' },
-  Resolved: { bg: '#d1fae5', color: '#065f46' },
+  Open: { bg: '#f3f4f6', color: '#4b5563', border: '#e5e7eb' },
+  'In Progress': { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+  'Pending Approval': { bg: '#ffedd5', color: '#9a3412', border: '#fed7aa' },
+  Closed: { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
 }
 
 const DATE_FILTERS = [
@@ -101,7 +102,8 @@ function IncidentsContent() {
     total: incidents.length,
     high: incidents.filter(i => i.severity === 'High').length,
     inProgress: incidents.filter(i => i.status === 'In Progress').length,
-    resolved: incidents.filter(i => i.status === 'Resolved').length,
+    pending: incidents.filter(i => i.status === 'Pending Approval').length,
+    closed: incidents.filter(i => i.status === 'Closed').length,
   }
 
   return (
@@ -123,8 +125,8 @@ function IncidentsContent() {
         {[
           { label: 'Total Incidents', value: stats.total, color: '#111827', sub: 'ที่ตรงเงื่อนไข' },
           { label: 'High Severity', value: stats.high, color: '#dc2626', sub: 'ต้องดำเนินการทันที' },
-          { label: 'In Progress', value: stats.inProgress, color: '#d97706', sub: 'กำลังแก้ไข' },
-          { label: 'Resolved', value: stats.resolved, color: '#059669', sub: 'ปิดเคสแล้ว' },
+          { label: 'Pending Approval', value: stats.pending, color: '#701a75', sub: 'รอเซ็นชื่อ/อนุมัติ' },
+          { label: 'Closed', value: stats.closed, color: '#059669', sub: 'เสร็จสิ้น/ปิดงาน' },
         ].map(card => (
           <div key={card.label} style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #e5e7eb' }}>
             <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{card.label}</div>
@@ -160,7 +162,8 @@ function IncidentsContent() {
             <option value="all">ทั้งหมด (All)</option>
             <option value="Open">Open</option>
             <option value="InProgress">In Progress</option>
-            <option value="Resolved">Resolved</option>
+            <option value="Pending Approval">Pending Approval</option>
+            <option value="Closed">Closed</option>
           </select>
         </div>
 
@@ -211,10 +214,24 @@ function IncidentsContent() {
                       {inc.affected_system && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{inc.affected_system}</div>}
                     </td>
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
-                      <span style={{ ...SEVERITY_COLORS[inc.severity], padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500 }}>{inc.severity}</span>
+                      <span style={{ 
+                        background: SEVERITY_COLORS[inc.severity]?.bg || '#f3f4f6', 
+                        color: SEVERITY_COLORS[inc.severity]?.color || '#4b5563', 
+                        border: `1px solid ${SEVERITY_COLORS[inc.severity]?.border || '#e5e7eb'}`,
+                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 
+                      }}>
+                        {inc.severity === 'High' ? '🔥 ' : ''}{inc.severity}
+                      </span>
                     </td>
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
-                      <span style={{ ...STATUS_COLORS[inc.status], padding: '3px 10px', borderRadius: 20, fontSize: 11 }}>{inc.status}</span>
+                      <span style={{ 
+                        background: STATUS_COLORS[inc.status]?.bg || '#f3f4f6', 
+                        color: STATUS_COLORS[inc.status]?.color || '#4b5563', 
+                        border: `1px solid ${STATUS_COLORS[inc.status]?.border || '#e5e7eb'}`,
+                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500 
+                      }}>
+                        {inc.status}
+                      </span>
                     </td>
                     <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12, whiteSpace: 'nowrap' }}>
                       {formatDate(inc.created_at)}

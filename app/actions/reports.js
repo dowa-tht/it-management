@@ -1,6 +1,6 @@
 'use server'
 import { createClient } from '@supabase/supabase-js'
-import { calculateNetBusinessMinutes, SLA_LIMITS } from '@/lib/slaUtils'
+import { calculateNetBusinessMinutes, SLA_LIMITS, calculateSLARates } from '@/lib/slaUtils'
 
 export async function getSLAReportData(startDate, endDate) {
   try {
@@ -63,7 +63,7 @@ export async function getSLAReportData(startDate, endDate) {
       const respLimit = responseLimits[inc.severity] || responseLimits.Medium
       
       const isResponseOK = responseMin !== null ? responseMin <= respLimit : (inc.status === 'Open' ? null : false) 
-      const isResolveOK = resolveMin !== null ? resolveMin <= resLimit : (inc.status === 'Resolved' ? false : null)
+      const isResolveOK = resolveMin !== null ? resolveMin <= resLimit : (inc.status === 'Closed' ? false : null)
       const isSlaPassed = (isResponseOK !== false) && (isResolveOK !== false)
 
       return {
@@ -78,23 +78,16 @@ export async function getSLAReportData(startDate, endDate) {
       }
     })
 
-    const total = reportData.length
-    const resolved = reportData.filter(i => i.status === 'Resolved').length
-    const acknowledged = reportData.filter(i => i.acknowledged_at || i.assigned_at).length
-    
-    const responsePassedCount = reportData.filter(i => i.isResponseOK === true).length
-    const resolutionPassedCount = reportData.filter(i => i.isResolveOK === true).length
-
-    const responseRate = acknowledged > 0 ? Math.round((responsePassedCount / acknowledged) * 100) : null
-    const resolutionRate = resolved > 0 ? Math.round((resolutionPassedCount / resolved) * 100) : null
-    
-    // ค่าเฉลี่ยสำหรับ Dashboard
-    let complianceRate = null
-    if (responseRate !== null && resolutionRate !== null) {
-      complianceRate = Math.round((responseRate + resolutionRate) / 2)
-    } else {
-      complianceRate = responseRate !== null ? responseRate : resolutionRate
-    }
+    const total = reportData.length;
+    const { 
+      responseRate, 
+      resolutionRate, 
+      complianceRate, 
+      acknowledgedCount: acknowledged, 
+      resolvedCount: resolved,
+      responsePassedCount,
+      resolutionPassedCount 
+    } = calculateSLARates(reportData);
 
     return {
       success: true,

@@ -40,7 +40,7 @@ function getSLAStatus(incident) {
   const sla = SLA_MINUTES[incident.severity] || SLA_MINUTES['Medium']
   const now = new Date()
   
-  if (incident.status === 'Resolved') return { label: '✔ Closed', color: '#059669', bg: '#d1fae5', text: 'จบงานแล้ว' }
+  if (incident.status === 'Closed') return { label: '✔ Closed', color: '#059669', bg: '#d1fae5', text: 'เสร็จสิ้น/ปิดงาน' }
   
   if (incident.status === 'Open') {
     const elapsed = calcElapsedMin(incident.created_at, now)
@@ -50,13 +50,16 @@ function getSLAStatus(incident) {
     return { label: '🟢 Normal', color: '#059669', bg: '#d1fae5', text: `${elapsed}/${limit}m` }
   }
   
-  if (incident.status === 'In Progress') {
+  if (incident.status === 'In Progress' || incident.status === 'Pending Approval') {
     const elapsed = calcElapsedMin(incident.created_at, now)
     const limit = sla.resolve
     if (elapsed > limit) return { label: '🔴 Overdue (Res)', color: '#dc2626', bg: '#fee2e2', text: `${elapsed}/${limit}m` }
     if (elapsed > limit * 0.75) return { label: '🟡 Warning', color: '#d97706', bg: '#fef3c7', text: `${elapsed}/${limit}m` }
-    return { label: '🟢 Normal', color: '#059669', bg: '#d1fae5', text: `${elapsed}/${limit}m` }
+    return { label: incident.status === 'Pending Approval' ? '🟣 Pending' : '🟢 Normal', color: incident.status === 'Pending Approval' ? '#701a75' : '#059669', bg: incident.status === 'Pending Approval' ? '#f5d0fe' : '#d1fae5', text: `${elapsed}/${limit}m` }
   }
+
+  // Default fallback for any other status (Transparent Error per Policy)
+  return { label: `❓ ${incident.status}`, color: '#6b7280', bg: '#f3f4f6', text: 'Unknown Status' }
 }
 
 export default function DashboardPage() {
@@ -99,9 +102,8 @@ export default function DashboardPage() {
   const statCards = [
     { label: 'Incident 30 วัน', value: stats.totalIncidents, color: '#1d4ed8', link: '/dashboard/incidents?date=30days' },
     { label: 'High Severity', value: stats.highSeverity, color: '#dc2626', link: '/dashboard/incidents?severity=High&date=30days' },
+    { label: 'รออนุมัติ', value: stats.pending, color: '#701a75', link: '/dashboard/incidents?status=Pending+Approval&date=30days' },
     { label: 'กำลังแก้ไข', value: stats.inProgress, color: '#d97706', link: '/dashboard/incidents?status=InProgress&date=30days' },
-    { label: 'รอรับเรื่อง', value: stats.openIncidents, color: '#4f46e5', link: '/dashboard/incidents?status=Open&date=30days' },
-    { label: 'SLA Success', value: `${stats.slaComplianceRate}%`, color: stats.slaComplianceRate >= 95 ? '#059669' : '#dc2626', link: '/dashboard/incidents?status=Resolved&date=30days' },
     { label: 'Backup Rate', value: `${stats.backupSuccessRate}%`, color: '#059669', link: '/dashboard/backup' },
   ]
 
@@ -121,43 +123,57 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ padding: 24, paddingBottom: 60 }}>
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+    <div className="dashboard-container" style={{ padding: 'var(--dashboard-padding, 24px)', paddingBottom: 60 }}>
+      <style>{`
+        :root { --dashboard-padding: 24px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .dashboard-container { animation: fadeIn 0.4s ease-out; }
+        
+        @media (max-width: 768px) {
+          :root { --dashboard-padding: 12px; }
+          .header-flex { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .stat-grid-dynamic { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important; gap: 8px !important; }
+          .chart-row { grid-template-columns: 1fr !important; }
+          .dashboard-grid { grid-template-columns: 1fr !important; }
+          .quick-action-card { padding: 16px !important; }
+          .quick-action-title { fontSize: 16px !important; }
+        }
+      `}</style>
+
+      <div className="header-flex" style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>Dashboard</h1>
-          <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
-            {formatDate(new Date().toISOString())}
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0 }}>Dashboard</h1>
+          <div style={{ fontSize: 13, color: '#64748b', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+             📅 {formatDate(new Date().toISOString())}
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           {/* 1. Waiting for Approval (For Approver) */}
-          {data.userProfile?.role !== 'member' && (
-            <Link href="/dashboard/approvals" style={{ textDecoration: 'none' }}>
-              <div style={{ 
-                background: data.pendingApprovalsCount > 0 ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : '#f3f4f6', 
-                borderRadius: 10, 
-                padding: '8px 16px', 
-                color: data.pendingApprovalsCount > 0 ? '#fff' : '#9ca3af', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 12, 
-                cursor: 'pointer', 
-                transition: 'transform 0.15s', 
-                border: data.pendingApprovalsCount > 0 ? 'none' : '1px solid #e5e7eb',
-                boxShadow: data.pendingApprovalsCount > 0 ? '0 4px 10px rgba(79, 70, 229, 0.2)' : 'none'
-              }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-                <div style={{ fontSize: 20, filter: data.pendingApprovalsCount > 0 ? 'none' : 'grayscale(1)' }}>🔔</div>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Waiting for Approval</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                    <span style={{ fontSize: 18, fontWeight: 800 }}>{data.pendingApprovalsCount}</span>
-                    <span style={{ fontSize: 11, opacity: 0.8 }}>Items</span>
-                  </div>
+          <Link href="/dashboard/approvals" style={{ textDecoration: 'none' }}>
+            <div style={{ 
+              background: data.pendingApprovalsCount > 0 ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : '#f3f4f6', 
+              borderRadius: 10, 
+              padding: '8px 16px', 
+              color: data.pendingApprovalsCount > 0 ? '#fff' : '#9ca3af', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 12, 
+              cursor: 'pointer', 
+              transition: 'transform 0.15s', 
+              border: data.pendingApprovalsCount > 0 ? 'none' : '1px solid #e5e7eb',
+              boxShadow: data.pendingApprovalsCount > 0 ? '0 4px 10px rgba(79, 70, 229, 0.2)' : 'none'
+            }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+              <div style={{ fontSize: 20, filter: data.pendingApprovalsCount > 0 ? 'none' : 'grayscale(1)' }}>🔔</div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Waiting for Approval</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                  <span style={{ fontSize: 18, fontWeight: 800 }}>{data.pendingApprovalsCount}</span>
+                  <span style={{ fontSize: 11, opacity: 0.8 }}>Items</span>
                 </div>
               </div>
-            </Link>
-          )}
+            </div>
+          </Link>
 
           {/* 2. My Sent Pending Items (For Sender) */}
           <Link href="/dashboard/my-pending" style={{ textDecoration: 'none' }}>
@@ -187,63 +203,94 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* IT Checklist & SLA Tracking (IT Only) */}
-      {data.userProfile?.role !== 'member' && (
-        <div className="dashboard-grid" style={{ 
-          display: 'grid', 
-          gridTemplateColumns: '3fr 1.2fr', 
-          gap: 16, 
-          marginBottom: 20 
-        }}>
-          {/* IT Checklist Section */}
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 20 }}>
-            <div className="responsive-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 16 }}>
-              <div>
-                <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>IT Checklist Compliance</h2>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>สถานะการตรวจสอบระบบ IT ประจำรอบเวลา</div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Daily Streak</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {ca?.streak?.map((s, idx) => (
-                    <div key={idx} title={`${s.date}: ${s.label}`} style={{
-                      width: 14, height: 14, borderRadius: '50%',
-                      background: getStreakColor(s.status),
-                      border: s.status === 'skip' ? '1px solid #d1d5db' : 'none',
-                    }} />
-                  ))}
+      {/* 🚀 Quick Actions for Member */}
+      {data.userProfile?.role === 'member' && (
+        <div style={{ marginBottom: 24 }}>
+          <Link href="/dashboard/incidents/new" style={{ textDecoration: 'none' }}>
+            <div className="quick-action-card" style={{ 
+              background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
+              borderRadius: 16,
+              padding: '24px',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              boxShadow: '0 10px 25px -5px rgba(29, 78, 216, 0.4)',
+              cursor: 'pointer',
+              transition: 'transform 0.2s'
+            }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                <div style={{ fontSize: 40, background: 'rgba(255,255,255,0.2)', width: 64, height: 64, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  🚨
+                </div>
+                <div>
+                  <div className="quick-action-title" style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>แจ้งปัญหาไอที (Report Issue)</div>
+                  <div style={{ fontSize: 14, opacity: 0.9 }}>หากคุณพบปัญหาคอมพิวเตอร์ ระบบ หรืออุปกรณ์ต่างๆ แจ้งได้ที่นี่ทันที</div>
                 </div>
               </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-              <StatusCard title="Daily" value={ca?.dailyStatus?.label || 'รอตรวจ'} status={ca?.dailyStatus?.status} />
-              <StatusCard title="Weekly" value={ca?.weeklyStatus?.label || 'รอตรวจ'} status={ca?.weeklyStatus?.status} />
-              <StatusCard title="Monthly" value={ca?.monthlyStatus?.label || 'รอตรวจ'} status={ca?.monthlyStatus?.status} />
-              <StatusCard title="Yearly" value={ca?.yearlyStatus?.label || 'รอตรวจ'} status={ca?.yearlyStatus?.status} />
-            </div>
-          </div>
-
-          {/* SLA KPI Card */}
-          <Link href="/dashboard/reports/sla" style={{ textDecoration: 'none', display: 'flex' }}>
-            <div style={{ flex: 1, background: stats.slaComplianceRate >= 95 ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', borderRadius: 12, padding: 20, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-              <div style={{ position: 'absolute', right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>🎯</div>
-              <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>SLA Compliance Rate (YTD)</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <div style={{ fontSize: 36, fontWeight: 800 }}>{stats.slaComplianceRate}%</div>
-              </div>
-              <div style={{ marginTop: 12, background: 'rgba(255,255,255,0.2)', height: 6, borderRadius: 10 }}>
-                <div style={{ background: '#fff', height: '100%', borderRadius: 10, width: `${Math.min(100, stats.slaComplianceRate)}%` }} />
-              </div>
+              <div style={{ fontSize: 24, fontWeight: 800, display: 'flex', alignItems: 'center' }}>+ แจ้งเรื่องใหม่</div>
             </div>
           </Link>
         </div>
       )}
 
-      {/* Stat Cards */}
-      <div style={{ 
+      {/* IT Checklist & SLA Tracking (IT Only) */}
+      <div className="dashboard-grid" style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+        gap: 16, 
+        marginBottom: 20 
+      }}>
+        {/* IT Checklist Section */}
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 20 }}>
+          <div className="responsive-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 16 }}>
+            <div>
+              <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>IT Checklist Compliance</h2>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>สถานะการตรวจสอบระบบ IT ประจำรอบเวลา</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase' }}>Daily Streak</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {ca?.streak?.map((s, idx) => (
+                  <div key={idx} title={`${s.date}: ${s.label}`} style={{
+                    width: 14, height: 14, borderRadius: '50%',
+                    background: getStreakColor(s.status),
+                    border: s.status === 'skip' ? '1px solid #d1d5db' : 'none',
+                  }} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+            <StatusCard title="Daily" value={ca?.dailyStatus?.label || 'รอตรวจ'} status={ca?.dailyStatus?.status} />
+            <StatusCard title="Weekly" value={ca?.weeklyStatus?.label || 'รอตรวจ'} status={ca?.weeklyStatus?.status} />
+            <StatusCard title="Monthly" value={ca?.monthlyStatus?.label || 'รอตรวจ'} status={ca?.monthlyStatus?.status} />
+            <StatusCard title="Yearly" value={ca?.yearlyStatus?.label || 'รอตรวจ'} status={ca?.yearlyStatus?.status} />
+          </div>
+        </div>
+
+        {/* SLA KPI Card */}
+        <Link href="/dashboard/reports/sla" style={{ textDecoration: 'none', display: 'flex' }}>
+          <div style={{ flex: 1, background: stats.slaComplianceRate >= 95 ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', borderRadius: 12, padding: 20, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+            <div style={{ position: 'absolute', right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>🎯</div>
+            <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>SLA Compliance Rate (YTD)</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <div style={{ fontSize: 36, fontWeight: 800 }}>{stats.slaComplianceRateYTD}%</div>
+              <div style={{ fontSize: 11, opacity: 0.8 }}>YTD</div>
+            </div>
+            <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4 }}>คำนวณจากข้อมูลตั้งแต่ 01 ม.ค. {new Date().getFullYear() + 543}</div>
+            <div style={{ marginTop: 12, background: 'rgba(255,255,255,0.2)', height: 6, borderRadius: 10 }}>
+              <div style={{ background: '#fff', height: '100%', borderRadius: 10, width: `${Math.min(100, stats.slaComplianceRate)}%` }} />
+            </div>
+          </div>
+        </Link>
+      </div>
+
+      {/* Stat Cards */}
+      <div className="stat-grid-dynamic" style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
         gap: 12, 
         marginBottom: 20 
       }}>
@@ -252,54 +299,92 @@ export default function DashboardPage() {
             <div style={{ background: '#fff', borderRadius: 10, padding: '14px', border: '1px solid #e5e7eb', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase' }}>{s.label}</div>
               <div style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
+              {s.sub && <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>{s.sub}</div>}
             </div>
           </Link>
         ))}
       </div>
 
       {/* Charts Row (IT Only) */}
-      {data.userProfile?.role !== 'member' && (
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
-          gap: 16, 
-          marginBottom: 20 
-        }}>
-          <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16 }}>Incident 7 วันล่าสุด</div>
-            {incidentByDay.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={incidentByDay}>
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Incident" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
-                ยังไม่มีข้อมูล Incident
-              </div>
-            )}
-          </div>
+      <div className="chart-row" style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+        gap: 16, 
+        marginBottom: 20 
+      }}>
+        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16 }}>Incident 7 วันล่าสุด</div>
+          {incidentByDay.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={incidentByDay}>
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Incident" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
+              ยังไม่มีข้อมูล Incident
+            </div>
+          )}
+        </div>
 
-          <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16 }}>Severity Breakdown</div>
-            {severityData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={severityData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value">
-                    {severityData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                  </Pie>
-                  <Legend formatter={(value) => <span style={{ fontSize: 12 }}>{value}</span>} />
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
-                ยังไม่มีข้อมูล
-              </div>
-            )}
+        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16 }}>Severity Breakdown</div>
+          {severityData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie data={severityData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value">
+                  {severityData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                </Pie>
+                <Legend formatter={(value) => <span style={{ fontSize: 12 }}>{value}</span>} />
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
+              ยังไม่มีข้อมูล
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 📋 My Recent Requests (Member Only) */}
+      {data.userProfile?.role === 'member' && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>📋 My Recent Requests (งานแจ้งซ่อมของฉัน)</div>
+              <Link href="/dashboard/incidents" style={{ fontSize: 12, color: '#1d4ed8', textDecoration: 'none', fontWeight: 600 }}>ดูทั้งหมด →</Link>
+            </div>
+            <div style={{ padding: '8px' }}>
+              {data.myRecentIncidents?.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>ยังไม่มีรายการแจ้งซ่อมของคุณ</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
+                  {data.myRecentIncidents?.map(inc => (
+                    <Link key={inc.id} href={`/dashboard/incidents/${inc.id}`} style={{ textDecoration: 'none' }}>
+                      <div style={{ 
+                        padding: 14, borderRadius: 12, border: '1px solid #f1f5f9', background: '#f8fafc',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.2s'
+                      }} onMouseEnter={e => e.currentTarget.style.borderColor = '#3b82f6'} onMouseLeave={e => e.currentTarget.style.borderColor = '#f1f5f9'}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: inc.status === 'Closed' ? '#10b981' : '#f59e0b' }}></div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{inc.title}</div>
+                            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{inc.case_number} • {formatDate(inc.created_at)}</div>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', background: '#fff', padding: '4px 8px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                          {inc.status}
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -335,7 +420,11 @@ export default function DashboardPage() {
                         </span>
                       </td>
                       <td style={{ padding: '10px 16px', whiteSpace: 'nowrap' }}>
-                        <span style={{ background: inc.status === 'Open' ? '#dbeafe' : inc.status === 'In Progress' ? '#fef3c7' : '#d1fae5', color: inc.status === 'Open' ? '#1e40af' : inc.status === 'In Progress' ? '#92400e' : '#065f46', padding: '2px 8px', borderRadius: 20, fontSize: 11 }}>
+                        <span style={{ 
+                          background: inc.status === 'Open' ? '#dbeafe' : inc.status === 'In Progress' ? '#fef3c7' : inc.status === 'Pending Approval' ? '#f5d0fe' : '#d1fae5', 
+                          color: inc.status === 'Open' ? '#1e40af' : inc.status === 'In Progress' ? '#92400e' : inc.status === 'Pending Approval' ? '#701a75' : '#065f46', 
+                          padding: '2px 8px', borderRadius: 20, fontSize: 11 
+                        }}>
                           {inc.status}
                         </span>
                       </td>

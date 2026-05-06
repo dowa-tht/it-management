@@ -2,13 +2,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
+import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { calculateNetBusinessMinutes, SLA_LIMITS } from '@/lib/slaUtils'
-import { SignatureModal } from '../../checklist/components/SignatureModal'
+import { recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep } from '@/app/actions/workflow'
 import { isSubstituteOf } from '@/lib/workflow'
-import Link from 'next/link'
-import { UserAutocomplete } from '../components/UserAutocomplete'
+import { SignatureModal } from '@/app/dashboard/checklist/components/SignatureModal'
 import { MemberSignatureModal } from '../components/MemberSignatureModal'
+import { UserAutocomplete } from '../components/UserAutocomplete'
 
 const SEVERITY_COLORS = {
   High:   { bg: '#fee2e2', color: '#991b1b' },
@@ -18,7 +19,7 @@ const SEVERITY_COLORS = {
 const STATUS_COLORS = {
   Open:               { bg: '#dbeafe', color: '#1e40af' },
   'In Progress':      { bg: '#fef3c7', color: '#92400e' },
-  'Pending Approval': { bg: '#ffedd5', color: '#9a3412' },
+  'Pending Approval': { bg: '#f5d0fe', color: '#701a75' },
   Closed:             { bg: '#d1fae5', color: '#065f46' },
 }
 const SLA_MINUTES = {
@@ -327,7 +328,7 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
               </div>
             </div>
             <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:8, padding:'10px 14px', fontSize:12, color:'#92400e', marginBottom:16 }}>
-              ⚠️ เมื่อยืนยันแล้ว เอกสารจะถูกล็อคสถานะ Resolved ทันที
+              ⚠️ เมื่อยืนยันแล้ว เอกสารจะถูกล็อคสถานะ Closed ทันที
             </div>
             <div style={{ display:'flex', gap:8, justifyContent:'space-between' }}>
               <button onClick={() => setStep(isHigh ? (requireCA ? 5 : 4) : (requireCA ? 4 : 3))} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>← ย้อนกลับ</button>
@@ -370,6 +371,7 @@ export default function IncidentDetailPage() {
   const [approvalLoading, setApprovalLoading] = useState(false)
   const [isSub, setIsSub] = useState(false)
   const [isAutoApprove, setIsAutoApprove] = useState(false)
+  const [workflowSteps, setWorkflowSteps] = useState([])
 
   // Master Data
   const [categories, setCategories] = useState([])
@@ -389,18 +391,22 @@ export default function IncidentDetailPage() {
   useEffect(() => {
     if (!editing) return
     if (form.assigned_to && !incident?.assigned_to) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm(prev => ({ ...prev, status: 'In Progress', assigned_at: new Date().toISOString() }))
     } else if (!form.assigned_to && incident?.assigned_to) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm(prev => ({ ...prev, status: 'Open', assigned_at: null }))
     }
   }, [form.assigned_to, editing])
 
   // Auto-check require_ca if High Severity
+  // We'll keep this but ignore the warning for now as it's a simple auto-check
   useEffect(() => {
     if (form.severity === 'High' && !form.require_ca) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm(prev => ({ ...prev, require_ca: true }))
     }
-  }, [form.severity])
+  }, [form.severity, form.require_ca])
 
   const loadMasterData = async () => {
     const { data: master } = await supabase
@@ -451,9 +457,9 @@ export default function IncidentDetailPage() {
       .eq('freq_type', 'Incident')
       .single()
     
-    // For incident, auto-approve if NOT high severity OR no approver set
-    const isHigh = data.severity === 'High'
-    setIsAutoApprove(!isHigh || !config?.primary_approver_id)
+    // Fetch Workflow Status
+    const { data: wfSteps } = await getDocumentWorkflowStatus(id)
+    if (wfSteps) setWorkflowSteps(wfSteps)
 
     setLoading(false)
   }
@@ -578,8 +584,8 @@ export default function IncidentDetailPage() {
     const oldStatus = incident.status
     const newStatus = form.status
 
-    // ถ้ามีการเปลี่ยนสถานะเป็น Resolved ผ่าน dropdown ให้เปิดหน้าต่างเซ็นชื่อแทนการเซฟปกติ
-    if (newStatus === 'Resolved' && oldStatus !== 'Resolved') {
+    // ถ้ามีการเปลี่ยนสถานะเป็น Closed ผ่าน dropdown ให้เปิดหน้าต่างเซ็นชื่อแทนการเซฟปกติ
+    if (newStatus === 'Closed' && oldStatus !== 'Closed') {
       setShowResolveDialog(true)
       return
     }
@@ -629,69 +635,6 @@ export default function IncidentDetailPage() {
     setSaving(true)
     const now = new Date().toISOString()
     
-    const isHigh = incident.severity === 'High'
-    
-    // Check if we need approval for High cases
-    const { data: config } = await supabase
-      .from('approval_configs')
-      .select('primary_approver_id')
-      .eq('target_type', 'incident')
-      .eq('freq_type', 'Incident')
-      .single()
-
-    const needsApproval = isHigh && config?.primary_approver_id
-
-    if (needsApproval && !isDraft) {
-      // Instead of closing, submit for approval
-      const updateData = { 
-        ...form, 
-        status: 'Pending Approval', // Update main status to standard
-        workflow_status: 'pending',
-        assigned_approver_id: config.primary_approver_id,
-        signature_it: sigIT,
-        signature_reporter: sigReporter,
-        // Manager signature remains null until approved
-      }
-      const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
-      if (error) {
-        alert(`ส่งขออนุมัติไม่สำเร็จ: ${error.message}`)
-      } else {
-        await addLog('ส่งขออนุมัติ (Pending Approval)', incident.status, 'Pending Approval', `รอการอนุมัติโดย: ${config.primary_approver_id}`)
-        setIncident(updateData)
-        setShowResolveDialog(false)
-      }
-      setSaving(false)
-      return
-    }
-
-    if (isDraft) {
-      const updateData = { 
-        ...form,
-        status: incident.status, // Revert back to original status if saving draft
-        signature_it: sigIT,
-        signature_reporter: sigReporter,
-        signature_manager: sigManager,
-        resolved_by: currentUser.full_name || currentUser.email, // Capture who signed the draft
-        corrective_action: form.corrective_action,
-        require_ca: form.require_ca
-      }
-      const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
-      if (error) {
-        alert(`บันทึก Draft ไม่สำเร็จ: ${error.message}`)
-      } else {
-        await addLog('บันทึก Draft', incident.status, incident.status, 'อัปเดตลายเซ็นต์ / Resolution')
-        setIncident(updateData)
-        setForm(updateData)
-        setShowResolveDialog(false)
-        setEditing(false)
-      }
-      setSaving(false)
-      return
-    }
-
-    const slaLimit = SLA_LIMITS[incident?.severity] || SLA_LIMITS.Medium
-    const responseLimit = SLA_MINUTES[incident?.severity]?.response || 60
-    
     // SLA Calculation (Business Hours)
     const defaultWH = { start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] }
     const wh = workingHours || defaultWH
@@ -701,54 +644,23 @@ export default function IncidentDetailPage() {
       : calculateNetBusinessMinutes(incident.created_at, new Date(), wh, holidays, [])
     const resolveMin = calculateNetBusinessMinutes(incident.created_at, now, wh, holidays, exclusions)
     
+    const responseLimit = SLA_MINUTES[incident?.severity]?.response || 60
+    const slaLimit = SLA_LIMITS[incident?.severity] || SLA_LIMITS.Medium
     const responseOk = responseMin <= responseLimit
     const resolveOk = resolveMin <= slaLimit
     const slaNote = `Response: ${formatElapsed(responseMin)} ${responseOk?'✅':'⏰'} | Resolution: ${formatElapsed(resolveMin)} ${resolveOk?'✅':'⏰'}`
 
-    const updateData = { 
-      ...form, 
-      status:'Closed', // Standardized from Resolved to Closed
-      is_locked:true, 
-      resolved_at:now, 
-      resolved_by: currentUser.full_name || currentUser.email, 
-      signature_it:sigIT,
-      signature_reporter:sigReporter,
-      signature_manager:sigManager,
-      corrective_action: form.corrective_action,
-      require_ca: form.require_ca
+    // USE WORKFLOW ENGINE
+    const res = await submitRequest(id, 'incident', incident.severity, currentUser.email)
+    
+    if (res.success) {
+      await addLog('ปิดเคสและส่งอนุมัติ', incident.status, 'Pending Approval', `${slaNote} · ดำเนินการโดย: ${currentUser?.email}`)
+      fetchIncident()
+      setShowResolveDialog(false)
+    } else {
+      alert(`Error: ${res.error}`)
     }
-    const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
-    if (error) {
-      alert(`ปิดเคสไม่สำเร็จ: ${error.message}`)
-      setSaving(false)
-      return
-    }
-
-    await addLog('ปิดเคส (Closed)', incident.status, 'Closed', `${slaNote} · ลงนามโดย: ${currentUser?.email}`)
-
-    // Sync back to Checklist if this incident was opened from a checklist item
-    if (incident.ref_type === 'checklist' && incident.ref_id) {
-      try {
-        const { data: item } = await supabase.from('checklist_items').select('doc_id, notes').eq('id', incident.ref_id).single()
-        if (item) {
-          await supabase.from('checklist_items')
-            .update({ status: 'OK', notes: `${item.notes ? item.notes + '\n' : ''}(Fixed via ${incident.case_number})` })
-            .eq('id', incident.ref_id)
-
-          if (item.doc_id) {
-            await supabase.from('checklist_logs').insert([{
-              doc_id: item.doc_id,
-              action: `รายการได้รับการแก้ไขและปิดเคสแล้ว (อ้างอิง ${incident.case_number})`,
-              user_email: currentUser?.email
-            }])
-          }
-        }
-      } catch (syncErr) {
-        console.error("Sync to checklist failed:", syncErr)
-      }
-    }
-
-    setIncident(updateData); setForm(updateData); setEditing(false); setShowResolveDialog(false); setSaving(false)
+    setSaving(false)
   }
 
   const handleApproveIncident = async (pin, signatureData) => {
@@ -766,23 +678,18 @@ export default function IncidentDetailPage() {
         return
       }
 
-      // 2. Resolve Incident
-      const now = new Date().toISOString()
-      const updateData = {
-        status: 'Closed', // Standardized
-        workflow_status: 'approved',
-        is_locked: true,
-        resolved_at: now,
-        resolved_by: incident.resolved_by || currentUser?.email,
-        signature_manager: signatureData // Store the PIN-confirmed signature
+      // 2. Submit via Workflow Engine
+      const currentStep = workflowSteps.find(s => s.status === 'pending')
+      if (!currentStep) throw new Error('No pending step found')
+
+      const res = await submitApprovalStep(id, 'incident', currentStep.id, signatureData, '')
+      if (res.success) {
+        alert(res.isFinal ? '✅ อนุมัติและปิดเคสเรียบร้อย' : '✅ อนุมัติสำเร็จ (รอผู้อนุมัติลำดับถัดไป)')
+        setShowSignatureModal(false)
+        fetchIncident()
+      } else {
+        alert(`Error: ${res.error}`)
       }
-
-      const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
-      if (error) throw error
-
-      await addLog('อนุมัติปิดเคส (Approved)', incident.status, 'Closed', `อนุมัติโดย: ${currentUser?.full_name}`)
-      setShowSignatureModal(false)
-      fetchIncident()
     } catch (err) {
       alert(`การอนุมัติล้มเหลว: ${err.message}`)
     }
@@ -925,17 +832,45 @@ export default function IncidentDetailPage() {
               </button>
             )}
             
-            {incident.workflow_status === 'pending' && !isLocked && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', padding: '6px 12px', borderRadius: 8, fontSize: 13, color: '#92400e' }}>
-                  ⏳ รอการอนุมัติปิดเคส (High Priority)
+            {/* NEW: Workflow Progress UI */}
+            {workflowSteps.length > 0 && (
+              <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb', marginBottom: 24, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  📋 ลำดับการอนุมัติ (Approval Progress)
                 </div>
-                {(currentUser?.id === incident.assigned_approver_id || isSub || currentUser?.role === 'administrator') && (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={handleRejectIncident} style={{ padding: '7px 14px', border: '1px solid #dc2626', borderRadius: 7, fontSize: 13, background: '#fff', color: '#dc2626', cursor: 'pointer' }}>❌ ตีกลับ</button>
-                    <button onClick={() => setShowSignatureModal(true)} style={{ padding: '7px 14px', border: 'none', borderRadius: 7, fontSize: 13, background: '#059669', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>✅ อนุมัติและปิดงาน</button>
-                  </div>
-                )}
+                <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
+                  {workflowSteps.map((step) => (
+                    <div key={step.id} style={{ flex: 1, minWidth: 160 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <div style={{ 
+                          width: 24, height: 24, borderRadius: '50%', background: step.status === 'approved' ? '#059669' : step.status === 'pending' ? '#d14ed8' : '#e5e7eb',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700
+                        }}>
+                          {step.status === 'approved' ? '✓' : step.step_order}
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: step.status === 'approved' ? '#059669' : '#374151' }}>
+                          {step.status === 'approved' ? 'เรียบร้อย' : step.status === 'pending' ? 'รอเซ็นชื่อ' : 'รอตามลำดับ'}
+                        </div>
+                      </div>
+                      <div style={{ padding: '8px 12px', background: step.status === 'pending' ? '#fff9ff' : '#f9fafb', borderRadius: 8, border: `1px solid ${step.status === 'pending' ? '#f5d0fe' : '#e5e7eb'}` }}>
+                        <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 2 }}>ผู้อนุมัติ/ผู้เกี่ยวข้อง</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>
+                          {step.user_profiles?.full_name || step.role_required}
+                        </div>
+                        {step.signature_data && (
+                          <div style={{ marginTop: 8, borderTop: '1px solid #eee', paddingTop: 8 }}>
+                            <img src={step.signature_data} height={30} alt="signature" />
+                          </div>
+                        )}
+                        {step.action_at && (
+                          <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>
+                            {formatDateTime(step.action_at)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -976,7 +911,7 @@ export default function IncidentDetailPage() {
         {/* Auto-status notice */}
         {editing && form.assigned_to && !incident?.assigned_to && (
           <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:10, padding:'10px 16px', marginBottom:16, fontSize:12, color:'#1e40af' }}>
-            ℹ️ กำหนดผู้รับผิดชอบแล้ว → สถานะจะเปลี่ยนเป็น <strong>"In Progress"</strong> และเริ่มนับ Response Time
+            ℹ️ กำหนดผู้รับผิดชอบแล้ว → สถานะจะเปลี่ยนเป็น <strong>&quot;In Progress&quot;</strong> และเริ่มนับ Response Time
           </div>
         )}
 
@@ -1175,41 +1110,23 @@ export default function IncidentDetailPage() {
           </div>
         </div>
 
-        {/* Signature Section */}
-        {(incident.signature_it || incident.signature_reporter || incident.signature_manager) && (
+        {/* Dynamic Signatures from Workflow Engine */}
+        {workflowSteps.some(s => s.signature_data) && (
           <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e5e7eb', padding:20, marginBottom:16 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:14, paddingBottom:10, borderBottom:'1px solid #f3f4f6' }}>✍️ ลายเซ็นต์ดิจิตัล</div>
+            <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:14, paddingBottom:10, borderBottom:'1px solid #f3f4f6' }}>✍️ ลายเซ็นต์ดิจิตัล (Workflow System)</div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:16 }}>
-              {incident.signature_it && (
-                <div>
-                  <div style={{ fontSize:11, color:'#6b7280', marginBottom:8 }}>IT Officer</div>
+              {workflowSteps.filter(s => s.signature_data).map((step) => (
+                <div key={step.id}>
+                  <div style={{ fontSize:11, color:'#6b7280', marginBottom:8 }}>Step {step.step_order}: {step.role_required}</div>
                   <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', background:'#fafafa', display:'inline-block' }}>
-                    <img src={incident.signature_it} alt="sig" style={{ display:'block', height:80, maxWidth:280 }} />
+                    <img src={step.signature_data} alt="sig" style={{ display:'block', height:80, maxWidth:280 }} />
                   </div>
                   <div style={{ fontSize:11, color:'#9ca3af', marginTop:6 }}>
-                    {incident.resolved_by || incident.assigned_to || 'IT Officer'}
-                    {incident.resolved_at ? ` · ${formatDateTime(incident.resolved_at)}` : ' (ร่าง)'}
+                    {step.user_profiles?.full_name || '—'}
+                    {step.action_at ? ` · ${formatDateTime(step.action_at)}` : ''}
                   </div>
                 </div>
-              )}
-              {incident.signature_reporter && (
-                <div>
-                  <div style={{ fontSize:11, color:'#6b7280', marginBottom:8 }}>ผู้แจ้ง</div>
-                  <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', background:'#fafafa', display:'inline-block' }}>
-                    <img src={incident.signature_reporter} alt="sig" style={{ display:'block', height:80, maxWidth:280 }} />
-                  </div>
-                  <div style={{ fontSize:11, color:'#9ca3af', marginTop:6 }}>{incident.reported_by || 'ผู้แจ้ง'}</div>
-                </div>
-              )}
-              {incident.signature_manager && incident.severity === 'High' && (
-                <div>
-                  <div style={{ fontSize:11, color:'#6b7280', marginBottom:8 }}>ผู้จัดการรับทราบ</div>
-                  <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', background:'#fafafa', display:'inline-block' }}>
-                    <img src={incident.signature_manager} alt="sig" style={{ display:'block', height:80, maxWidth:280 }} />
-                  </div>
-                  <div style={{ fontSize:11, color:'#9ca3af', marginTop:6 }}>Approver</div>
-                </div>
-              )}
+              ))}
             </div>
           </div>
         )}

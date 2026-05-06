@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { CHECKLIST_TEMPLATES } from '@/lib/checklistItems'
 import { getEligibleApprovers, isSubstituteOf } from '@/lib/workflow'
-import { recordLog, submitRequest } from '@/app/actions/workflow'
+import { recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep } from '@/app/actions/workflow'
 import { SignatureModal } from '../components/SignatureModal'
 
 // ===== Instruction Dialog =====
@@ -78,6 +78,7 @@ export default function ChecklistDetailPage() {
   const [isSub, setIsSub] = useState(false)
   const [allApprovers, setAllApprovers] = useState([])
   const [isAutoApprove, setIsAutoApprove] = useState(false)
+  const [workflowSteps, setWorkflowSteps] = useState([])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -131,9 +132,9 @@ export default function ChecklistDetailPage() {
       if (incs) setIncidents(incs)
     }
 
-    // Fetch all potential approvers for delegation
-    const { data: apprs } = await supabase.from('user_profiles').select('id, full_name, role').in('role', ['administrator', 'supervisor', 'approval']).eq('is_active', true)
-    if (apprs) setAllApprovers(apprs)
+    // Fetch Workflow Status
+    const { data: wfSteps } = await getDocumentWorkflowStatus(id)
+    if (wfSteps) setWorkflowSteps(wfSteps)
 
     setLoading(false)
   }
@@ -219,30 +220,18 @@ export default function ChecklistDetailPage() {
         return
       }
 
-      // 2. Update Document Status
-      const { error } = await supabase
-        .from('checklist_docs')
-        .update({
-          workflow_status: 'approved',
-          approved_by: currentUser.id,
-          approved_at: new Date().toISOString(),
-          status: 'Closed' // Auto-close when approved
-        })
-        .eq('id', id)
+      // 2. Submit Approval Step via Workflow Engine
+      const currentStep = workflowSteps.find(s => s.status === 'pending')
+      if (!currentStep) throw new Error('No pending step found')
 
-      if (error) throw error
-
-      // 3. Log the approval with signature
-      await supabase.from('checklist_logs').insert({
-        doc_id: id,
-        action: 'Approved',
-        details: `อนุมัติใบงานโดย ${currentUser.full_name} (เซ็นหน้างาน)`,
-        created_by: currentUser.id,
-        metadata: { signature: signatureData }
-      })
-
-      setShowSignatureModal(false)
-      fetchData()
+      const res = await submitApprovalStep(id, 'checklist', currentStep.id, signatureData, '')
+      if (res.success) {
+        alert(res.isFinal ? '✅ อนุมัติและปิดงานเรียบร้อย' : '✅ อนุมัติสำเร็จ (รอผู้อนุมัติลำดับถัดไป)')
+        setShowSignatureModal(false)
+        fetchData()
+      } else {
+        alert(`Error: ${res.error}`)
+      }
     } catch (err) {
       alert(`เกิดข้อผิดพลาด: ${err.message}`)
     }
@@ -453,6 +442,43 @@ export default function ChecklistDetailPage() {
         </div>
       </div>
 
+      {/* NEW: Workflow Progress UI */}
+      {workflowSteps.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb', marginBottom: 24, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+            📋 ลำดับการอนุมัติ (Approval Progress)
+          </div>
+          <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8 }}>
+            {workflowSteps.map((step, idx) => (
+              <div key={step.id} style={{ flex: 1, minWidth: 160, position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ 
+                    width: 24, height: 24, borderRadius: '50%', background: step.status === 'approved' ? '#059669' : step.status === 'pending' ? '#d14ed8' : '#e5e7eb',
+                    color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700
+                  }}>
+                    {step.status === 'approved' ? '✓' : step.step_order}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: step.status === 'approved' ? '#059669' : '#374151' }}>
+                    {step.status === 'approved' ? 'อนุมัติแล้ว' : step.status === 'pending' ? 'รออนุมัติ' : 'รอตามลำดับ'}
+                  </div>
+                </div>
+                <div style={{ padding: '8px 12px', background: step.status === 'pending' ? '#fff9ff' : '#f9fafb', borderRadius: 8, border: `1px solid ${step.status === 'pending' ? '#f5d0fe' : '#e5e7eb'}` }}>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 2 }}>ตำแหน่ง/ผู้รับผิดชอบ</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>
+                    {step.user_profiles?.full_name || step.role_required}
+                  </div>
+                  {step.action_at && (
+                    <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>
+                      {formatDateTime(step.action_at)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ background: '#e5e7eb', borderRadius: 999, height: 8, marginBottom: 24, overflow: 'hidden' }}>
         <div style={{ background: progress === 100 ? '#059669' : '#1d4ed8', height: '100%', width: `${progress}%`, borderRadius: 999, transition: 'width 0.3s' }} />
       </div>
@@ -628,35 +654,41 @@ export default function ChecklistDetailPage() {
             {/* 2. Pending Workflow Actions */}
             {doc.workflow_status === 'pending' && (
               <>
-                {/* 2.1 Sender Role (Priority): If I am the sender, I only see Cancel, even if I am an Admin */}
+                {/* 2.1 Sender Role: If I am the sender, I only see Cancel */}
                 {(currentUser?.id === doc.created_by || currentUser?.email === doc.created_by) ? (
                   <button onClick={handleCancelApproval} disabled={saving} style={{ padding: '10px 24px', border: '1px solid #6b7280', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#4b5563', cursor: 'pointer' }}>
                     🔄 ดึงเอกสารกลับ (Cancel)
                   </button>
                 ) : (
                   <>
-                    {/* 2.2 Approver Role: Strictly only Assigned Approver or their Substitute */}
-                    {(!isVisitor && (
-                      currentUser?.id === doc.assigned_approver_id || 
-                      isSub
-                    )) ? (
-                      <>
-                        <button onClick={() => setShowDelegateModal(true)} style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 10, fontSize: 14, background: '#fff', cursor: 'pointer' }}>
-                          ↪️ ส่งต่อ (Delegate)
-                        </button>
-                        <button onClick={handleReject} style={{ padding: '10px 24px', border: '1px solid #dc2626', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#dc2626', cursor: 'pointer' }}>
-                          ❌ ตีกลับ (Reject)
-                        </button>
-                        <button onClick={() => setShowSignatureModal(true)} style={{ padding: '10px 24px', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, background: '#059669', color: '#fff', cursor: 'pointer', boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)' }}>
-                          ✅ อนุมัติงาน (Approve)
-                        </button>
-                      </>
-                    ) : (
-                      /* 2.3 Other Role: Just Info */
-                      <div style={{ color: '#6b7280', fontSize: 13, background: '#f3f4f6', padding: '8px 16px', borderRadius: 8 }}>
-                        ⏳ รอการตรวจสอบโดย {doc.assigned_approver_id ? `${allApprovers.find(a => a.id === doc.assigned_approver_id)?.full_name}` : 'ระบบ Pool'}
-                      </div>
-                    )}
+                    {/* 2.2 Approver Role: Based on Workflow Step */}
+                    {(() => {
+                        const currentStep = workflowSteps.find(s => s.status === 'pending');
+                        if (!currentStep) return null;
+
+                        const isAuthorized = currentUser?.id === currentStep.approver_id || 
+                                           currentUser?.role === currentStep.role_required ||
+                                           currentUser?.role === 'administrator';
+
+                        if (isAuthorized) {
+                          return (
+                            <>
+                              <button onClick={handleReject} style={{ padding: '10px 24px', border: '1px solid #dc2626', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#dc2626', cursor: 'pointer' }}>
+                                ❌ ตีกลับ (Reject)
+                              </button>
+                              <button onClick={() => setShowSignatureModal(true)} style={{ padding: '10px 24px', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, background: '#059669', color: '#fff', cursor: 'pointer', boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)' }}>
+                                ✅ อนุมัติงาน (Approve)
+                              </button>
+                            </>
+                          )
+                        }
+
+                        return (
+                          <div style={{ color: '#6b7280', fontSize: 13, background: '#f3f4f6', padding: '8px 16px', borderRadius: 8 }}>
+                            ⏳ รอการตรวจสอบลำดับที่ {currentStep.step_order} ({currentStep.role_required})
+                          </div>
+                        )
+                    })()}
                   </>
                 )}
               </>

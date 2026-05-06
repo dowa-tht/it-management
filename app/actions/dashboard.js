@@ -1,6 +1,6 @@
 'use server'
 import { createClient } from '@supabase/supabase-js'
-import { calculateNetBusinessMinutes, SLA_LIMITS } from '@/lib/slaUtils'
+import { calculateNetBusinessMinutes, SLA_LIMITS, calculateSLARates } from '@/lib/slaUtils'
 import { getCurrentUserSession } from './user'
 
 export async function getDashboardData(timezoneOffset = -420) {
@@ -52,7 +52,9 @@ export async function getDashboardData(timezoneOffset = -420) {
     streakStart.setDate(streakStart.getDate() - 35)
     const streakStartStr = isNaN(streakStart.getTime()) ? todayStr : streakStart.toISOString().split('T')[0]
 
-    const [incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes, slaLimitsRes, yearlyRes, pendingChkRes, pendingIncRes, myPendingChkRes, myPendingIncRes] = await Promise.all([
+    const ytdStartIso = `${todayStr.substring(0, 4)}-01-01T00:00:00`
+
+    const results = await Promise.all([
       supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system').gte('created_at', startIso).order('created_at', { ascending: false }),
       supabaseAdmin.from('backup_logs').select('id, log_date, system_name, status, notes').gte('log_date', startIso.split('T')[0]).order('log_date', { ascending: false }),
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').gte('period_date', streakStartStr),
@@ -61,23 +63,28 @@ export async function getDashboardData(timezoneOffset = -420) {
       supabaseAdmin.from('incident_exclusions').select('*').gte('start_time', startIso),
       supabaseAdmin.from('system_settings').select('value').eq('key', 'sla_limits').maybeSingle(),
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').eq('freq_type', 'Yearly').gte('period_date', `${todayStr.substring(0, 4)}-01-01`),
-      // Fetch Pending Approvals (For Approver)
-      userProfile?.id ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING']).or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
-      userProfile?.id ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null,reported_by_id.eq.${userProfile.id},reported_by.eq.${userProfile.email || '___'}`) : Promise.resolve({ data: [] }),
+      // Fetch Pending Approvals (Unified Workflow - For Approver)
+      userProfile ? supabaseAdmin.from('document_approvals')
+        .select('id')
+        .eq('status', 'pending')
+        .or(`approver_id.eq.${userProfile.id},role_required.eq.${userProfile.role}`) : Promise.resolve({ data: [] }),
       // Fetch My Sent Pending Items (For Sender Tracking)
-      userProfile?.email ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING']).eq('created_by', userProfile.email) : Promise.resolve({ data: [] }),
-      userProfile ? 
-        supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval')
-          .or(`assigned_to.eq.${userProfile.full_name || '___'},assigned_to.eq.${userProfile.email || '___'}`) : Promise.resolve({ data: [] })
+      userProfile?.email ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING', 'Pending Approval']).eq('created_by', userProfile.email) : Promise.resolve({ data: [] }),
+      userProfile ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval')
+          .or(`reported_by_id.eq.${userProfile.id},reported_by.eq.${userProfile.email || '___'}`) : Promise.resolve({ data: [] }),
+      supabaseAdmin.from('incidents').select('id, severity, status, created_at, acknowledged_at, assigned_at, resolved_at').gte('created_at', ytdStartIso)
     ])
+
+    const [incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes, slaLimitsRes, yearlyRes, pendingApprovalsRes, myPendingChkRes, myPendingIncRes, ytdIncRes] = results;
 
     if (chkRes.error) console.error('Checklists Fetch Error:', chkRes.error)
 
     let incidents = incRes.data || []
     
-    // ROLE-BASED FILTERING FOR MEMBER
-    if (userProfile?.role === 'member') {
-      incidents = incidents.filter(i => i.reported_by_id === userProfile.id || i.reported_by === userProfile.email)
+    // 🛡️ แยกข้อมูล: เก็บงานของตนเองไว้แสดงผลแยกต่างหาก (สำหรับ Member)
+    let myIncidents = []
+    if (userProfile) {
+      myIncidents = incidents.filter(i => i.reported_by_id === userProfile.id || i.reported_by === userProfile.email)
     }
     const backups = bakRes.data || []
     const allChecklists = chkRes.error ? [] : (chkRes.data || [])
@@ -170,45 +177,59 @@ export async function getDashboardData(timezoneOffset = -420) {
     const totalIncidents = incidents.length
     const highSeverity = incidents.filter(i => i.severity === 'High').length
     const inProgress = incidents.filter(i => i.status === 'In Progress').length
+    const pending = incidents.filter(i => i.status === 'Pending Approval').length
     const openIncidents = incidents.filter(i => i.status === 'Open').length
     
     const backupSuccessRate = backups.length
       ? Math.round((backups.filter(b => b.status === 'Success').length / backups.length) * 100)
       : 0
 
-    // SLA KPI Calculation (Average of Response & Resolution)
     const allExclusions = exclusionsRes.data || []
     const dynamicSlaLimits = slaLimitsRes.data?.value || SLA_LIMITS
     const responseLimits = dynamicSlaLimits.Response || { High: 15, Medium: 60, Low: 240 }
-    
-    let respPass = 0
-    let respTotal = 0
-    let resPass = 0
-    let resTotal = 0
-    
-    incidents.forEach(inc => {
-      // Response Calculation
+
+    const reportData = incidents.map(inc => {
       const respTime = inc.acknowledged_at || inc.assigned_at
-      if (respTime) {
-        respTotal++
-        const respMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, [])
-        const limit = responseLimits[inc.severity] || responseLimits.Medium
-        if (respMin <= limit) respPass++
+      const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
+      
+      const resLimit = dynamicSlaLimits[inc.severity] || dynamicSlaLimits.Medium
+      const respLimit = responseLimits[inc.severity] || responseLimits.Medium
+      
+      let respMin = null
+      if (respTime) respMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, [])
+      
+      let resMin = null
+      if (inc.status === 'Closed' && inc.resolved_at) {
+        resMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions)
       }
 
-      // Resolution Calculation
-      if (inc.status === 'Resolved' && inc.resolved_at) {
-        resTotal++
-        const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
-        const resMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions)
-        const limit = dynamicSlaLimits[inc.severity] || dynamicSlaLimits.Medium
-        if (resMin <= limit) resPass++
+      return {
+        ...inc,
+        isResponseOK: respMin !== null ? respMin <= respLimit : (inc.status === 'Open' ? null : false),
+        isResolveOK: resMin !== null ? resMin <= resLimit : (inc.status === 'Closed' ? false : null)
       }
     })
-    
-    const responseRate = respTotal > 0 ? (respPass / respTotal) * 100 : 100
-    const resolutionRate = resTotal > 0 ? (resPass / resTotal) * 100 : 100
-    const slaComplianceRate = Math.round((responseRate + resolutionRate) / 2)
+
+    const { complianceRate: slaComplianceRate } = calculateSLARates(reportData)
+
+    // YTD Calculation
+    const ytdIncidents = ytdIncRes.data || []
+    const ytdReportData = ytdIncidents.map(inc => {
+      const respTime = inc.acknowledged_at || inc.assigned_at
+      const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
+      const resLimit = dynamicSlaLimits[inc.severity] || dynamicSlaLimits.Medium
+      const respLimit = responseLimits[inc.severity] || responseLimits.Medium
+      let respMin = null
+      if (respTime) respMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, [])
+      let resMin = null
+      if (inc.status === 'Closed' && inc.resolved_at) resMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions)
+      return {
+        ...inc,
+        isResponseOK: respMin !== null ? respMin <= respLimit : (inc.status === 'Open' ? null : false),
+        isResolveOK: resMin !== null ? resMin <= resLimit : (inc.status === 'Closed' ? false : null)
+      }
+    })
+    const { complianceRate: slaComplianceRateYTD } = calculateSLARates(ytdReportData)
 
     // Incident 7 days chart data
     const chartMap = {}
@@ -234,17 +255,21 @@ export async function getDashboardData(timezoneOffset = -420) {
         totalIncidents,
         highSeverity,
         inProgress,
+        pending,
         openIncidents,
         backupSuccessRate,
-        slaComplianceRate
+        slaComplianceRate,
+        slaComplianceRateYTD
       },
       incidentByDay,
       severityData,
       recentIncidents: incidents.slice(0, 5),
+      myRecentIncidents: myIncidents.slice(0, 5), // 👈 เพิ่มส่วนนี้
       recentBackups: backups.slice(0, 5),
       checklists,
       checklistActions,
-      pendingApprovalsCount: (pendingChkRes?.data?.length || 0) + (pendingIncRes?.data?.length || 0),
+      userProfile, // 👈 เพิ่ม profile เพื่อใช้เช็ค role ในหน้าบ้าน
+      pendingApprovalsCount: pendingApprovalsRes?.data?.length || 0,
       myPendingFollowupsCount: (myPendingChkRes?.data?.length || 0) + (myPendingIncRes?.data?.length || 0)
     }
   } catch (err) {

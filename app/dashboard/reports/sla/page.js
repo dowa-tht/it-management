@@ -13,6 +13,19 @@ const DATE_FILTERS = [
   { label: 'ปีนี้', value: 'year' },
 ]
 
+const SEVERITY_COLORS = {
+  High: { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
+  Medium: { bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
+  Low: { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
+}
+
+const STATUS_COLORS = {
+  Open: { bg: '#f3f4f6', color: '#4b5563', border: '#e5e7eb' },
+  'In Progress': { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+  'Pending Approval': { bg: '#ffedd5', color: '#9a3412', border: '#fed7aa' },
+  Closed: { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
+}
+
 export default function SLAReportPage() {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState(null)
@@ -363,7 +376,7 @@ export default function SLAReportPage() {
             <table className="sla-table">
               <thead>
                 <tr>
-                  {['Case ID', 'Title', 'Date', 'Response SLA', 'Resolution SLA', ''].map(h => (
+                  {['Case ID', 'Title', 'Severity', 'Status', 'Date', 'Response SLA', 'Resolution SLA', ''].map(h => (
                     <th key={h}>{h}</th>
                   ))}
                 </tr>
@@ -371,45 +384,88 @@ export default function SLAReportPage() {
               <tbody>
                 {incidents.length === 0 ? (
                   <tr><td colSpan={6} style={{ padding: 60, textAlign: 'center', color: '#9ca3af' }}>ไม่พบข้อมูล Incident ในช่วงเวลาที่เลือก</td></tr>
-                ) : incidents.map(inc => (
-                  <tr key={inc.id}>
-                    <td>
-                      <div style={{ fontFamily: 'monospace', color: '#6b7280', fontSize: 11 }}>{inc.case_number}</div>
-                      <div style={{ fontSize: 10, color: inc.severity === 'High' ? '#dc2626' : '#6b7280', fontWeight: 600 }}>{inc.severity}</div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, color: '#111827', fontSize: 12 }}>{inc.title}</div>
-                    </td>
-                    <td style={{ color: '#6b7280', fontSize: 11, whiteSpace: 'nowrap' }}>
-                      {formatDateNumeric(inc.created_at)}
-                    </td>
-                    <td>
-                      {inc.responseMin !== null ? (
-                        <div>
-                          <span style={{ ...getStatusColor(inc.isResponseOK), padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
-                            {inc.responseMin}m {inc.isResponseOK ? '✅' : '❌'}
-                          </span>
-                          <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 2 }}>Target: {inc.responseLimit}m</div>
-                        </div>
-                      ) : <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>ยังไม่รับเรื่อง</span>}
-                    </td>
-                    <td>
-                      {inc.resolveMin !== null ? (
-                        <div>
-                          <span style={{ ...getStatusColor(inc.isResolveOK), padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
-                            {inc.resolveMin}m {inc.isResolveOK ? '✅' : '❌'}
-                          </span>
-                          <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 2 }}>Target: {inc.resolveLimit}m</div>
-                        </div>
-                      ) : <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>ยังไม่ปิดงาน</span>}
-                    </td>
-                    <td className="action-cell">
-                      <Link href={`/dashboard/incidents/${inc.id}`} style={{ padding: '6px 12px', background: '#fff', color: '#1d4ed8', textDecoration: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, border: '1px solid #d1d5db' }}>
-                        เปิดดู
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                ) : incidents.map(inc => {
+                  const sev = SEVERITY_COLORS[inc.severity] || SEVERITY_COLORS.Low;
+                  const stat = STATUS_COLORS[inc.status] || STATUS_COLORS.Open;
+                  
+                  return (
+                    <tr key={inc.id}>
+                      <td>
+                        <div style={{ fontFamily: 'monospace', color: '#6b7280', fontSize: 11 }}>{inc.case_number}</div>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 600, color: '#111827', fontSize: 13, marginBottom: 2 }}>{inc.title}</div>
+                        <div style={{ fontSize: 10, color: '#9ca3af' }}>{inc.affected_system || 'General'}</div>
+                      </td>
+                      <td>
+                        <span style={{ 
+                          background: sev.bg, color: sev.color, border: `1px solid ${sev.border}`,
+                          padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap'
+                        }}>
+                          {inc.severity}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ 
+                          background: stat.bg, color: stat.color, border: `1px solid ${stat.border}`,
+                          padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap'
+                        }}>
+                          {inc.status}
+                        </span>
+                      </td>
+                      <td style={{ color: '#6b7280', fontSize: 11, whiteSpace: 'nowrap' }}>
+                        {formatDateNumeric(inc.created_at)}
+                      </td>
+                      <td>
+                        {inc.responseMin !== null ? (
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: inc.isResponseOK ? '#059669' : '#dc2626' }}>{inc.responseMin}m</span>
+                              <span style={{ 
+                                background: inc.isResponseOK ? '#d1fae5' : '#fee2e2', 
+                                color: inc.isResponseOK ? '#065f46' : '#991b1b',
+                                padding: '1px 4px', borderRadius: 4, fontSize: 9, fontWeight: 800
+                              }}>
+                                {inc.isResponseOK ? 'PASS' : 'FAIL'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 9, color: '#9ca3af' }}>Target: {inc.responseLimit}m</div>
+                          </div>
+                        ) : <span style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: 11 }}>ยังไม่รับเรื่อง</span>}
+                      </td>
+                      <td>
+                        {inc.resolveMin !== null ? (
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: inc.isResolveOK ? '#059669' : '#dc2626' }}>{inc.resolveMin}m</span>
+                              <span style={{ 
+                                background: inc.isResolveOK ? '#d1fae5' : '#fee2e2', 
+                                color: inc.isResolveOK ? '#065f46' : '#991b1b',
+                                padding: '1px 4px', borderRadius: 4, fontSize: 9, fontWeight: 800
+                              }}>
+                                {inc.isResolveOK ? 'PASS' : 'FAIL'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 9, color: '#9ca3af' }}>Target: {inc.resolveLimit}m</div>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+                            {inc.status === 'Closed' ? 'ปิดงาน (ไม่มีเวลาบันทึก)' : 'ยังไม่ปิดงาน'}
+                          </div>
+                        )}
+                      </td>
+                      <td className="action-cell">
+                        <Link href={`/dashboard/incidents/${inc.id}`} style={{ 
+                          padding: '6px 12px', background: '#fff', color: '#1d4ed8', 
+                          textDecoration: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, 
+                          border: '1px solid #d1d5db', transition: 'all 0.2s'
+                        }} onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}>
+                          เปิดดู
+                        </Link>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

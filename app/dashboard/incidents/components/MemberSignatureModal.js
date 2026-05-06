@@ -1,35 +1,62 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import SignaturePad from 'react-signature-canvas'
-import { verifyMemberPIN } from '@/app/actions/users'
+import { verifyMemberPIN, requestSignatureOTP, verifySignatureOTP } from '@/app/actions/users'
 
 export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, memberId, loading }) {
-  const [pin, setPin] = useState('')
+  const [mode, setMode] = useState('pin') // 'pin' or 'otp'
+  const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [attempts, setAttempts] = useState(5)
   const [isVerified, setIsVerified] = useState(false)
+  const [otpLoading, setOtpLoading] = useState(false)
+  const [otpSent, setOtpSent] = useState(false)
   const sigPad = useRef(null)
 
   if (!isOpen) return null
 
-  const handleVerifyPIN = async () => {
-    if (pin.length < 4) {
-      setError('กรุณากรอก PIN ให้ครบถ้วน')
+  const handleVerify = async () => {
+    if (code.length < 4) {
+      setError(`กรุณากรอก ${mode === 'pin' ? 'PIN' : 'OTP'} ให้ครบถ้วน`)
       return
     }
 
-    const res = await verifyMemberPIN(memberId, pin)
+    let res;
+    if (mode === 'pin') {
+      res = await verifyMemberPIN(memberId, code)
+    } else {
+      res = await verifySignatureOTP(memberId, code)
+    }
+
     if (res.success) {
       setIsVerified(true)
       setError('')
     } else {
-      const newAttempts = attempts - 1
-      setAttempts(newAttempts)
-      if (newAttempts <= 0) {
-        setError('บัญชีถูกล็อคชั่วคราวเนื่องจากใส่ PIN ผิดเกินกำหนด กรุณาติดต่อ IT')
+      if (mode === 'pin') {
+        const newAttempts = attempts - 1
+        setAttempts(newAttempts)
+        if (newAttempts <= 0) {
+          setError('บัญชีถูกล็อคชั่วคราวเนื่องจากใส่ PIN ผิดเกินกำหนด กรุณาติดต่อ IT')
+        } else {
+          setError(`PIN ไม่ถูกต้อง (เหลืออีก ${newAttempts} ครั้ง)`)
+        }
       } else {
-        setError(`PIN ไม่ถูกต้อง (เหลืออีก ${newAttempts} ครั้ง)`)
+        setError(res.error || 'รหัส OTP ไม่ถูกต้อง')
       }
+    }
+  }
+
+  const handleRequestOTP = async () => {
+    setOtpLoading(true)
+    setError('')
+    const res = await requestSignatureOTP(memberId)
+    setOtpLoading(false)
+    if (res.success) {
+      setOtpSent(true)
+      setMode('otp')
+      setCode('')
+    } else {
+      setError(res.error || 'ไม่สามารถส่ง OTP ได้')
     }
   }
 
@@ -54,26 +81,64 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
         <div style={{ padding: 24 }}>
           {!isVerified ? (
             <>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 16, textAlign: 'center' }}>กรุณากรอกรหัส PIN ของคุณเพื่อเริ่มลงนาม</label>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 20 }}>
+                <button 
+                  onClick={() => { setMode('pin'); setCode(''); setError(''); }}
+                  style={{ padding: '6px 12px', borderRadius: 20, border: '1px solid #e2e8f0', fontSize: 11, fontWeight: 600, background: mode === 'pin' ? '#1e293b' : '#fff', color: mode === 'pin' ? '#fff' : '#64748b', cursor: 'pointer' }}
+                >
+                  ใช้ PIN
+                </button>
+                <button 
+                  onClick={() => { setMode('otp'); setCode(''); setError(''); }}
+                  style={{ padding: '6px 12px', borderRadius: 20, border: '1px solid #e2e8f0', fontSize: 11, fontWeight: 600, background: mode === 'otp' ? '#1e293b' : '#fff', color: mode === 'otp' ? '#fff' : '#64748b', cursor: 'pointer' }}
+                >
+                  ใช้ Email OTP
+                </button>
+              </div>
+
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 16, textAlign: 'center' }}>
+                {mode === 'pin' ? 'กรุณากรอกรหัส PIN 6 หลัก' : 'กรุณากรอกรหัส OTP จากอีเมลของคุณ'}
+              </label>
+
               <input 
                 type="password" 
                 maxLength={6} 
-                value={pin} 
+                value={code} 
                 onChange={e => {
-                  setPin(e.target.value.replace(/\D/g, ''))
+                  setCode(e.target.value.replace(/\D/g, ''))
                   setError('')
                 }}
-                disabled={attempts <= 0}
+                disabled={attempts <= 0 || otpLoading}
                 placeholder="••••••"
                 style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: 12, fontSize: 32, letterSpacing: '8px', textAlign: 'center', fontFamily: 'inherit', outline: 'none', background: attempts <= 0 ? '#f3f4f6' : '#fff' }}
               />
+              
+              {mode === 'otp' && !otpSent && (
+                <div style={{ marginTop: 12, textAlign: 'center' }}>
+                  <button 
+                    onClick={handleRequestOTP}
+                    disabled={otpLoading}
+                    style={{ background: 'none', border: 'none', color: '#1d4ed8', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    {otpLoading ? 'กำลังส่ง...' : '📩 ขอรหัส OTP ทางอีเมล'}
+                  </button>
+                </div>
+              )}
+
+              {otpSent && mode === 'otp' && (
+                <div style={{ marginTop: 8, color: '#059669', fontSize: 11, textAlign: 'center' }}>
+                  ✓ ส่งรหัส OTP เรียบร้อยแล้ว (โปรดเช็คอีเมล)
+                </div>
+              )}
+
               {error && <div style={{ marginTop: 12, color: '#dc2626', fontSize: 12, textAlign: 'center', fontWeight: 600 }}>❌ {error}</div>}
+              
               <button 
-                onClick={handleVerifyPIN}
-                disabled={attempts <= 0 || pin.length < 4 || loading}
-                style={{ width: '100%', marginTop: 20, padding: '12px', borderRadius: 12, border: 'none', background: '#1d4ed8', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                onClick={handleVerify}
+                disabled={attempts <= 0 || code.length < 4 || loading || otpLoading}
+                style={{ width: '100%', marginTop: 20, padding: '12px', borderRadius: 12, border: 'none', background: '#1d4ed8', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: (attempts <= 0 || code.length < 4) ? 0.5 : 1 }}
               >
-                ยืนยัน PIN
+                ยืนยันการระบุตัวตน
               </button>
             </>
           ) : (

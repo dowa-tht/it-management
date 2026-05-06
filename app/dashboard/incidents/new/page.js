@@ -37,6 +37,7 @@ function SLAWidget({ label, slaLabel, state, actual }) {
     counting_late: { icon: '⏰', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', text: `เกิน SLA แล้ว! (${formatElapsed(actual)})` },
     done_ok:       { icon: '✅', color: '#059669', bg: '#f0fdf4', border: '#6ee7b7', text: `${formatElapsed(actual)} (ใน SLA)` },
     done_late:     { icon: '⏰', color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', text: `${formatElapsed(actual)} (เกิน SLA)` },
+    closed:        { icon: '✔', color: '#059669', bg: '#d1fae5', border: '#6ee7b7', text: 'เสร็จสิ้น/ปิดงาน' },
   }
   const s = cfg[state] || cfg.waiting
   return (
@@ -215,8 +216,8 @@ function NewIncidentForm() {
   const slaMin = SLA_MINUTES[form.severity] || SLA_MINUTES['Medium']
   const slaLabel = SLA_LABELS[form.severity] || SLA_LABELS['Medium']
   const currentElapsed = calcElapsedNow(createdAt)
-  const responseState = !form.assigned_to ? 'waiting' : assignedAt ? 'done_ok' : 'waiting'
-  const resolveState = currentElapsed <= slaMin.resolve ? 'counting' : 'counting_late'
+  const responseState = form.status === 'Closed' ? 'closed' : (!form.assigned_to ? 'waiting' : assignedAt ? 'done_ok' : 'waiting')
+  const resolveState = form.status === 'Closed' ? 'closed' : (currentElapsed <= slaMin.resolve ? 'counting' : 'counting_late')
 
   const inputStyle = (key) => ({
     width: '100%', padding: '9px 12px',
@@ -286,7 +287,7 @@ function NewIncidentForm() {
             <div>
               <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>สถานะ</label>
               <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} disabled={!!form.assigned_to} style={{ ...selectStyle(''), background: form.assigned_to ? '#f0fdf4' : '#fff' }}>
-                {['Open', 'In Progress', 'Resolved'].map(o => <option key={o}>{o}</option>)}
+                {['Open', 'In Progress', 'Closed'].map(o => <option key={o}>{o}</option>)}
               </select>
             </div>
           </div>

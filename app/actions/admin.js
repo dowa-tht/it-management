@@ -3,11 +3,12 @@
 import { createClient } from '@supabase/supabase-js'
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache'
 import { hashEmail } from '@/lib/auth'
+import { randomBytes, randomUUID } from 'crypto'
 
 /**
  * 🚀 ยกระดับการสร้าง User เป็นระบบ Unified Auth (Supabase Auth 100%)
  */
-export async function createAdminUser({ email, password, full_name, role, can_be_assignee }) {
+export async function createAdminUser({ email, password, full_name, role, can_be_assignee, sendEmailInvite = true }) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -15,14 +16,18 @@ export async function createAdminUser({ email, password, full_name, role, can_be
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
+    const isInviteOnly = !password;
+    const finalPassword = password || randomBytes(16).toString('hex');
+
     // 1. นำสิทธิ์มาทำความสะอาด (Normalization)
     const normalizedRole = (role === 'administrator' || role === 'superuser') ? 'administrator' : 
-                           (role === 'supervisor' || role === 'user') ? 'supervisor' : role
+                           (role === 'supervisor') ? 'supervisor' : 
+                           (role === 'member' || role === 'user') ? 'member' : role
 
     // 2. สร้าง User ใน Supabase Auth
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email,
-      password,
+      password: finalPassword,
       email_confirm: true,
       user_metadata: { full_name, role: normalizedRole }
     })
@@ -46,6 +51,17 @@ export async function createAdminUser({ email, password, full_name, role, can_be
       throw new Error(`Whitelist Error: ${whitelistError.message}`)
     }
 
+    // 2.2 Calculate Expiry for Guest
+    let expiresAt = null
+    if (normalizedRole === 'guest') {
+      const d = new Date()
+      d.setDate(d.getDate() + 3) // 3 Days
+      expiresAt = d.toISOString()
+    }
+
+    // 2.3 Onboarding Token
+    const onboardingToken = randomUUID()
+
     // 3. บันทึกข้อมูลลงใน user_profiles (Source of Truth)
     const { error: profileError } = await adminClient.from('user_profiles').upsert({
       id: userId,
@@ -53,7 +69,11 @@ export async function createAdminUser({ email, password, full_name, role, can_be
       email: email,
       role: normalizedRole,
       is_active: true,
-      can_be_assignee: can_be_assignee || false
+      can_be_assignee: can_be_assignee || false,
+      force_password_change: true,
+      is_onboarded: false,
+      onboarding_token: onboardingToken,
+      expires_at: expiresAt
     }, { onConflict: 'id' })
 
     if (profileError) {
@@ -61,30 +81,62 @@ export async function createAdminUser({ email, password, full_name, role, can_be
       throw new Error(`Profile Error: ${profileError.message}`)
     }
 
-    // 4. ส่ง Welcome Email
-    try {
-      const { sendEmail } = await import('@/lib/resend')
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    // 4. ส่ง Email ตามเงื่อนไข
+    if (sendEmailInvite) {
+      try {
+        const { sendEmail } = await import('@/lib/resend')
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+        const setupUrl = `${siteUrl}/onboarding?token=${onboardingToken}`
 
-      await sendEmail({
-        to: [email],
-        subject: '[DOWA IT System] Your account has been created',
-        html: `
-          <div style="font-family: sans-serif; padding: 40px; color: #1e293b; background-color: #f8fafc;">
-            <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-              <h1 style="color: #1d4ed8; margin-top: 0;">Welcome to DOWA IT System</h1>
-              <p>Hello <strong>${full_name}</strong>,</p>
-              <p>Your account has been created by the system administrator.</p>
-              <div style="background-color: #f1f5f9; padding: 20px; border-radius: 12px; margin: 24px 0;">
-                <p style="margin: 0; font-size: 14px;">Email: ${email}</p>
-                <p style="margin: 4px 0 0 0; font-size: 14px;">Role: <span style="text-transform: capitalize;">${normalizedRole}</span></p>
+        let emailHtml = '';
+        if (isInviteOnly) {
+          // Path A: Invite
+          emailHtml = `
+            <div style="font-family: sans-serif; padding: 40px; background-color: #f8fafc;">
+              <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 40px; border: 1px solid #e2e8f0;">
+                <h2 style="color: #1d4ed8; margin-top: 0;">ยินดีต้อนรับสู่ DOWA IT System</h2>
+                <p>สวัสดีคุณ <strong>${full_name}</strong>,</p>
+                <p>คุณได้รับเชิญให้เข้าใช้งานระบบบริหารจัดการไอทีของ DOWA</p>
+                <p style="margin: 24px 0;">กรุณากดปุ่มด้านล่างเพื่อทำการลงทะเบียน ตั้งค่ารหัสผ่าน และ Signature PIN ของคุณ:</p>
+                <div style="text-align: center;">
+                  <a href="${setupUrl}" style="display: inline-block; padding: 14px 28px; background-color: #1d4ed8; color: white; text-decoration: none; border-radius: 10px; font-weight: bold;">ลงทะเบียนเข้าใช้งาน (Self-Registration)</a>
+                </div>
+                <p style="font-size: 12px; color: #64748b; margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+                  * ลิงก์นี้มีอายุ 24 ชั่วโมง
+                </p>
               </div>
-              <div style="text-align: center; margin-top: 32px;"><a href="${siteUrl}" style="display: inline-block; padding: 14px 28px; background-color: #1d4ed8; color: white; text-decoration: none; border-radius: 10px; font-weight: bold;">Go to Login Page</a></div>
             </div>
-          </div>
-        `
-      })
-    } catch (e) {}
+          `;
+        } else {
+          // Path B: Manual Credentials
+          emailHtml = `
+            <div style="font-family: sans-serif; padding: 40px; background-color: #f8fafc;">
+              <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 40px; border: 1px solid #e2e8f0;">
+                <h2 style="color: #1d4ed8; margin-top: 0;">ข้อมูลการเข้าใช้งาน DOWA IT System</h2>
+                <p>สวัสดีคุณ <strong>${full_name}</strong>,</p>
+                <p>บัญชีของคุณถูกสร้างเรียบร้อยแล้ว โดยมีข้อมูลการเข้าใช้งานดังนี้:</p>
+                <div style="background-color: #f1f5f9; padding: 20px; border-radius: 12px; margin: 24px 0;">
+                  <p style="margin: 0; font-size: 14px;"><strong>อีเมล:</strong> ${email}</p>
+                  <p style="margin: 8px 0 0 0; font-size: 14px;"><strong>รหัสผ่าน:</strong> ${password}</p>
+                </div>
+                <div style="text-align: center;">
+                  <a href="${setupUrl}" style="display: inline-block; padding: 14px 28px; background-color: #1d4ed8; color: white; text-decoration: none; border-radius: 10px; font-weight: bold;">เข้าสู่ระบบและตั้งค่าความปลอดภัย</a>
+                </div>
+                <p style="font-size: 12px; color: #dc2626; margin-top: 24px;">* เมื่อเข้าสู่ระบบครั้งแรก ระบบจะบังคับให้คุณเปลี่ยนรหัสผ่านเพื่อความปลอดภัย</p>
+              </div>
+            </div>
+          `;
+        }
+
+        await sendEmail({
+          to: [email],
+          subject: isInviteOnly ? '[DOWA IT] ขอเชิญลงทะเบียนเข้าใช้งานระบบ' : '[DOWA IT] ข้อมูลการเข้าใช้งานระบบของคุณ',
+          html: emailHtml
+        })
+      } catch (e) {
+        console.error('Email sending failed:', e)
+      }
+    }
 
     revalidatePath('/dashboard/settings/users')
     return { success: true }
@@ -175,7 +227,18 @@ export async function updateAdminUserPassword(userId, newPassword) {
  * 🗑️ ลบผู้ใช้อย่างหมดจด
  */
 export async function cleanDeleteUser(email) {
+  return secureCleanDeleteUser(email, `DELETE-${email}`)
+}
+
+/**
+ * 🗑️ ลบผู้ใช้อย่างหมดจด พร้อมระบบยืนยันความปลอดภัย
+ */
+export async function secureCleanDeleteUser(email, confirmationText) {
   try {
+    if (confirmationText !== `DELETE-${email}`) {
+      throw new Error('ข้อความยืนยันไม่ถูกต้อง กรุณาพิมพ์ DELETE-[อีเมล] เพื่อยืนยัน')
+    }
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     const adminClient = createClient(supabaseUrl, supabaseServiceKey, {

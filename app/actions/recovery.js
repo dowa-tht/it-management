@@ -1,6 +1,6 @@
 'use server'
 import { createClient } from '@supabase/supabase-js'
-import crypto from 'crypto'
+import { randomBytes } from 'crypto'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -57,7 +57,7 @@ export async function requestRecovery(email) {
       // --- กรณี Guest/Approval: ใช้ Resend (PIN) ---
       
       // 1. สร้าง Token แบบสุ่ม
-      const token = crypto.randomBytes(32).toString('hex')
+      const token = randomBytes(32).toString('hex')
       const expires = new Date(Date.now() + 3600000) // หมดอายุใน 1 ชม.
 
       // 2. บันทึกลง user_profiles (Unified Table)

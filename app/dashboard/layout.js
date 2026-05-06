@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { normalizeRole, ROLE_BADGE, canAccess } from '@/lib/auth'
+import { normalizeRole, ROLE_BADGE, canAccess, getRolePermissions, checkPermission } from '@/lib/auth'
 import Link from 'next/link'
 import { formatDateMMM } from '@/lib/dateFormat'
 import { useWorkingDate } from '@/lib/context/WorkingDateContext'
@@ -14,6 +14,7 @@ export default function DashboardLayout({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [role, setRole] = useState(null) 
+  const [permissions, setPermissions] = useState([]) // 🛡️ เก็บสิทธิ์ Dynamic
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [expandedSection, setExpandedSection] = useState('operations')
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
@@ -43,6 +44,12 @@ export default function DashboardLayout({ children }) {
         return
       }
 
+      // 🛡️ Force Onboarding Check
+      if (profileData.is_onboarded === false) {
+        router.push('/onboarding?mode=force') // ส่งไปหน้า Onboarding
+        return
+      }
+
       setProfile(profileData)
       const normalized = normalizeRole(profileData.role, sessionUser.email)
       
@@ -52,10 +59,21 @@ export default function DashboardLayout({ children }) {
         return
       }
 
+      // 🛡️ ดึงสิทธิ์แบบ Dynamic
+      const perms = await getRolePermissions(normalized, supabase)
+      setPermissions(perms)
+
       setRole(normalized)
       setInitializing(false)
 
-      if (!canAccess(normalized, pathname)) {
+      // ตรวจสอบสิทธิ์เข้าหน้านี้ (ใช้ Logic เดิมผสมกับ Dynamic)
+      // 🚨 เพิ่ม Admin Override เพื่อป้องกันการโดนล็อคหน้าจอเอง
+      const featureKey = pathname.split('/')[2] || 'dashboard'
+      const access = checkPermission(perms, featureKey)
+      
+      const isPublicPath = pathname === '/dashboard' || pathname.startsWith('/dashboard/profile')
+      
+      if (access === 'NONE' && normalized !== 'administrator' && !isPublicPath) {
         router.push('/dashboard?error=access_denied')
       }
     }
@@ -97,16 +115,21 @@ export default function DashboardLayout({ children }) {
   }
 
   const navItems = [
-    { href: '/dashboard',                          label: 'Dashboard',       icon: '▦', section: 'operations', roles: ['administrator','supervisor','guest','approval'] },
-    { href: '/dashboard/incidents',                label: 'Incident',        icon: '⚠', section: 'operations', roles: ['administrator','supervisor','guest','approval'] },
-    { href: '/dashboard/reports/sla',             label: 'SLA Report',      icon: '📊', section: 'operations', roles: ['administrator','supervisor'] },
-    { href: '/dashboard/backup',                   label: 'Backup Log',      icon: '☁', section: 'operations', roles: ['administrator','supervisor','guest','approval'] },
-    { href: '/dashboard/checklist',                label: 'IT Checklist',    icon: '✅', section: 'operations', roles: ['administrator','supervisor','guest','approval'] },
-    { href: '/dashboard/settings/no-series',       label: 'No. Series',      icon: '⚙', section: 'settings',   roles: ['administrator'] },
-    {href: '/dashboard/settings/master-data',     label: 'Master Data',     icon: '📋', section: 'settings',   roles: ['administrator'] },
-    { href: '/dashboard/settings/users',           label: 'Users',           icon: '👤', section: 'settings',   roles: ['administrator'] },
-    { href: '/dashboard/settings/logs',            label: 'System Logs',     icon: '📝', section: 'settings',   roles: ['administrator'] },
+    { href: '/dashboard',                          label: 'Dashboard',       icon: '▦', section: 'operations', roles: ['administrator','supervisor','approval','member','guest'] },
+    { href: '/dashboard/incidents',                label: 'Incident',        icon: '⚠', section: 'operations', roles: ['administrator','supervisor','approval','member','guest'] },
+    { href: '/dashboard/reports/sla',             label: 'SLA Report',      icon: '📊', section: 'operations', roles: ['administrator','supervisor','approval','guest'] },
+    { href: '/dashboard/backup',                   label: 'Backup Log',      icon: '☁', section: 'operations', roles: ['administrator','supervisor','approval','guest'] },
+    { href: '/dashboard/checklist',                label: 'IT Checklist',    icon: '✅', section: 'operations', roles: ['administrator','supervisor','approval','guest'] },
+    { href: '/dashboard/settings/no-series',       label: 'No. Series',      icon: '⚙', section: 'settings',   roles: ['administrator','guest'] },
+    { href: '/dashboard/settings/master-data',     label: 'Master Data',     icon: '📋', section: 'settings',   roles: ['administrator','guest'] },
+    { href: '/dashboard/settings/users',           label: 'Users',           icon: '👤', section: 'settings',   roles: ['administrator','guest'] },
+    { href: '/dashboard/settings/logs',            label: 'System Logs',     icon: '📝', section: 'settings',   roles: ['administrator','guest'] },
+    { href: '/dashboard/settings/permissions',     label: 'Permissions',     icon: '🛡️', section: 'settings',   roles: ['administrator'] },
   ]
+
+  const currentFeature = pathname.split('/')[2] || 'dashboard'
+  const currentAccess = checkPermission(permissions, currentFeature)
+  const isReadOnly = currentAccess === 'RO'
 
   const isActive = (href) => (href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href))
   const toggleSection = (section) => setExpandedSection(prev => prev === section ? null : section)
@@ -125,11 +148,17 @@ export default function DashboardLayout({ children }) {
           <span style={{ transition: 'transform 0.3s', transform: expandedSection === 'operations' ? 'rotate(0deg)' : 'rotate(-90deg)', color: 'rgba(255,255,255,0.4)' }}>▼</span>
         </div>
         <div style={{ maxHeight: expandedSection === 'operations' ? '500px' : '0', overflow: 'hidden', transition: 'max-height 0.4s' }}>
-          {navItems.filter(i => i.section === 'operations' && (role ? i.roles.includes(role) : false)).map(item => (
-            <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
-              <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span> {item.label}
-            </Link>
-          ))}
+          {navItems.filter(i => i.section === 'operations').map(item => {
+            const itemFeature = item.href.split('/')[2] || 'dashboard'
+            const itemAccess = checkPermission(permissions, itemFeature)
+            if (itemAccess === 'NONE') return null
+
+            return (
+              <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
+                <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span> {item.label}
+              </Link>
+            )
+          })}
         </div>
         {(role === 'administrator') && (
           <>
@@ -138,11 +167,18 @@ export default function DashboardLayout({ children }) {
               <span style={{ transition: 'transform 0.3s', transform: expandedSection === 'settings' ? 'rotate(0deg)' : 'rotate(-90deg)', color: 'rgba(255,255,255,0.4)' }}>▼</span>
             </div>
             <div style={{ maxHeight: expandedSection === 'settings' ? '500px' : '0', overflow: 'hidden', transition: 'max-height 0.4s' }}>
-              {navItems.filter(i => i.section === 'settings').map(item => (
-                <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
-                  <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span> {item.label}
-                </Link>
-              ))}
+              {navItems.filter(i => i.section === 'settings').map(item => {
+                const itemFeature = item.href.split('/')[2] || 'dashboard'
+                // สำหรับหน้า Settings เราจะเช็คสิทธิ์รวมของ 'settings' หรือเช็ครายหน้า
+                const itemAccess = checkPermission(permissions, itemFeature)
+                if (itemAccess === 'NONE' && role !== 'administrator') return null // Admin เข้าได้เสมอเพื่อป้องกันการ Lockout
+
+                return (
+                  <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
+                    <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span> {item.label}
+                  </Link>
+                )
+              })}
             </div>
           </>
         )}
@@ -151,7 +187,7 @@ export default function DashboardLayout({ children }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {profile?.full_name || 'User'}
+              {profile?.full_name || user?.email || 'User'}
             </div>
             {(() => {
               const badge = ROLE_BADGE[role] || ROLE_BADGE.guest
@@ -252,7 +288,43 @@ export default function DashboardLayout({ children }) {
       </div>
 
       {/* Main Content Area */}
-      <div className="main-content" style={{ flex: 1, overflow: 'auto', background: '#f0f2f5' }}>
+      <div className="main-content" style={{ 
+        flex: 1, 
+        overflow: 'auto', 
+        background: '#f0f2f5',
+        position: 'relative'
+      }}>
+        {isReadOnly && (
+          <>
+            {/* 🚩 แสดงแถบแดงเฉพาะ Guest เท่านั้น */}
+            {role === 'guest' && (
+              <div style={{
+                position: 'sticky', top: 0, left: 0, right: 0, zIndex: 9999,
+                background: 'linear-gradient(to right, #ef4444, #dc2626)', color: '#fff',
+                padding: '6px 12px', fontSize: 11, fontWeight: 800, textAlign: 'center',
+                letterSpacing: '1px', backdropFilter: 'blur(4px)',
+                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+              }}>
+                🔒 READ-ONLY MODE (GUEST) - คุณสามารถดูข้อมูลได้ แต่ไม่สามารถแก้ไขได้
+              </div>
+            )}
+            <style>{`
+              .main-content button:not(.nav-item), 
+              .main-content input, 
+              .main-content select, 
+              .main-content textarea,
+              .main-content [role="button"]:not(a) { 
+                pointer-events: none !important; 
+                opacity: 0.6 !important; 
+                filter: grayscale(0.6) !important;
+                cursor: not-allowed !important;
+              }
+              .main-content a {
+                pointer-events: auto !important;
+              }
+            `}</style>
+          </>
+        )}
         {children}
       </div>
     </div>
