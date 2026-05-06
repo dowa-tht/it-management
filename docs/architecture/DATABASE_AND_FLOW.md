@@ -25,6 +25,7 @@ erDiagram
         string role
         boolean is_active
         boolean can_be_assignee
+        string signature_pin
     }
     "user_profiles" ||--o{ "incidents" : "created_by"
     "user_profiles" ||--o{ "incident_logs" : "user_email"

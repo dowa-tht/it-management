@@ -53,7 +53,7 @@ export async function quickAddUser({ fullName, email, role = 'member' }) {
         full_name: fullName,
         email: email || null,
         role: role,
-        pin: null, // No default PIN
+        signature_pin: null, // No default PIN
         is_active: true,
         can_be_assignee: false,
         is_onboarded: false,
@@ -197,12 +197,12 @@ export async function verifyMemberPIN(userId, pin) {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
-      .select('pin')
+      .select('signature_pin')
       .eq('id', userId)
       .single()
 
     if (error || !data) return { success: false, error: 'ไม่พบข้อมูลผู้ใช้' }
-    if (data.pin !== pin) return { success: false, error: 'PIN ไม่ถูกต้อง' }
+    if (data.signature_pin !== pin) return { success: false, error: 'PIN ไม่ถูกต้อง' }
 
     return { success: true }
   } catch (err) {
