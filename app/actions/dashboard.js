@@ -63,12 +63,12 @@ export async function getDashboardData(timezoneOffset = -420) {
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').eq('freq_type', 'Yearly').gte('period_date', `${todayStr.substring(0, 4)}-01-01`),
       // Fetch Pending Approvals (For Approver)
       userProfile?.id ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING']).or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
-      userProfile?.id ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
+      userProfile?.id ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null,reported_by_id.eq.${userProfile.id},reported_by.eq.${userProfile.email || '___'}`) : Promise.resolve({ data: [] }),
       // Fetch My Sent Pending Items (For Sender Tracking)
       userProfile?.email ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING']).eq('created_by', userProfile.email) : Promise.resolve({ data: [] }),
       userProfile ? 
         supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval')
-          .or(`reported_by.eq.${userProfile.email || '___'},reported_by_id.eq.${userProfile.id || '00000000-0000-0000-0000-000000000000'}`) : Promise.resolve({ data: [] })
+          .or(`assigned_to.eq.${userProfile.email || '___'}`) : Promise.resolve({ data: [] })
     ])
 
     if (chkRes.error) console.error('Checklists Fetch Error:', chkRes.error)
