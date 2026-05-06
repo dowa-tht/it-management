@@ -112,10 +112,11 @@ export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ�
               <input value={newUserInfo.email} onChange={e => setNewUserInfo({...newUserInfo, email: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }} />
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowQuickAdd(false)} style={{ padding: '7px 14px', background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>ยกเลิก</button>
+              <button onClick={() => setShowQuickAdd(false)} className="btn-premium" style={{ padding: '7px 14px', background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}>ยกเลิก</button>
               <button 
                 onClick={handleQuickAdd} 
                 disabled={loading} 
+                className="btn-premium"
                 style={{ 
                   padding: '7px 20px', 
                   background: loading ? '#93c5fd' : '#1d4ed8', 
@@ -124,7 +125,6 @@ export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ�
                   borderRadius: 6, 
                   fontSize: 13, 
                   fontWeight: 600,
-                  cursor: loading ? 'not-allowed' : 'pointer'
                 }}
               >
                 {loading ? 'กำลังบันทึก...' : 'บันทึก'}
@@ -137,6 +137,25 @@ export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ�
       <style jsx>{`
         .hover-item:hover {
           background-color: #f9fafb;
+        }
+        .btn-premium {
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .btn-premium:hover {
+          filter: brightness(1.1);
+          box-shadow: 0 4px 12px rgba(29, 78, 216, 0.2);
+        }
+        .btn-premium:active {
+          transform: scale(0.95);
+        }
+        .btn-premium:disabled {
+          cursor: not-allowed;
+          opacity: 0.7;
+          transform: none;
         }
       `}</style>
     </div>

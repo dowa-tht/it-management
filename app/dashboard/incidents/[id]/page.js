@@ -970,7 +970,7 @@ export default function IncidentDetailPage() {
               {editing && !isLocked ? (
                 <UserAutocomplete 
                   value={form.reported_by}
-                  onChange={(u) => setForm({ ...form, reported_by: u.full_name, reported_by_id: u.id })}
+                  onChange={(u) => setForm({ ...form, reported_by: u.full_name, created_by: u.id })}
                 />
               ) : (
                 <div style={{ fontSize: 14, color: incident.reported_by ? '#111827' : '#d1d5db', padding: '6px 0', borderBottom: '1px solid #f3f4f6', minHeight: 32 }}>
