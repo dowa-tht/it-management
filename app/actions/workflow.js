@@ -130,12 +130,12 @@ export async function getUnifiedMyPendingItems() {
       .in('workflow_status', ['pending', 'PENDING'])
       .eq('created_by', profile.email)
 
-    // 3. Fetch My Pending Incidents (Reported by me, still pending approval)
+    // 3. Fetch My Pending Incidents (Sent by me OR Reported by me, still pending approval)
     const { data: incidents } = await supabaseAdmin
       .from('incidents')
-      .select(`id, case_number, title, status, created_at, reported_by`)
+      .select(`id, case_number, title, status, created_at, reported_by, assigned_to, reported_by_id`)
       .ilike('status', 'Pending Approval')
-      .eq('reported_by', profile.email)
+      .or(`reported_by.eq.${profile.email},assigned_to.eq.${profile.email},reported_by_id.eq.${profile.id}`)
 
     // 4. Transform into Unified Format
     const unified = [
