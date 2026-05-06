@@ -40,17 +40,31 @@ export async function quickAddUser({ fullName, email, role = 'member' }) {
       .maybeSingle()
 
     if (existing) return { error: 'ชื่อนี้มีอยู่ในระบบแล้ว' }
-
+    
     // Generate OTP (6 digits) and Onboarding Token
     const otp = Math.floor(100000 + Math.random() * 900000).toString()
     const otpExpires = new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 mins
     const onboardingToken = randomUUID()
 
-    // Insert new profile
+    // 1. Prepare Auth Account (Supabase Auth is required for foreign key)
+    const finalEmail = email || `${randomUUID()}@dowa-it.local`
+    const tempPassword = randomUUID() // Random password for quick added users
+    
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: finalEmail,
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: { full_name: fullName, role: role }
+    })
+
+    if (authError) throw authError
+    const userId = authData.user.id
+
+    // 2. Insert new profile linked to Auth
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
       .insert({
-        id: randomUUID(),
+        id: userId,
         full_name: fullName,
         email: email || null,
         role: role,

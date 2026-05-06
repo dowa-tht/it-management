@@ -112,8 +112,23 @@ export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ�
               <input value={newUserInfo.email} onChange={e => setNewUserInfo({...newUserInfo, email: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }} />
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowQuickAdd(false)} style={{ padding: '7px 14px', background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}>ยกเลิก</button>
-              <button onClick={handleQuickAdd} disabled={loading} style={{ padding: '7px 20px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>บันทึก</button>
+              <button onClick={() => setShowQuickAdd(false)} style={{ padding: '7px 14px', background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>ยกเลิก</button>
+              <button 
+                onClick={handleQuickAdd} 
+                disabled={loading} 
+                style={{ 
+                  padding: '7px 20px', 
+                  background: loading ? '#93c5fd' : '#1d4ed8', 
+                  color: '#fff', 
+                  border: 'none', 
+                  borderRadius: 6, 
+                  fontSize: 13, 
+                  fontWeight: 600,
+                  cursor: loading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {loading ? 'กำลังบันทึก...' : 'บันทึก'}
+              </button>
             </div>
           </div>
         </div>
