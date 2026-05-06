@@ -441,7 +441,18 @@ export default function MasterDataPage() {
   if (isVisitor) return <div style={{ padding: 100, textAlign: 'center' }}><h2>Access Denied</h2></div>
 
   return (
-    <div className="master-data-container" style={{ padding: 'var(--page-padding, 24px)', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '100vh', background: '#f8fafc', paddingBottom: 60 }}>
+    <div className="master-data-container" style={{ 
+      padding: 'var(--page-padding, 24px)', 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100%', 
+      minHeight: '100vh', 
+      background: '#f8fafc', 
+      paddingBottom: 60,
+      maxWidth: '100vw',
+      overflowX: 'hidden',
+      boxSizing: 'border-box'
+    }}>
       <style>{`
         :root { --page-padding: 24px; }
         @media (max-width: 1024px) {
@@ -473,8 +484,10 @@ export default function MasterDataPage() {
           .table-wrapper { overflow-x: auto !important; margin: 0 -12px !important; }
           .master-table { min-width: 600px !important; }
           .checklist-table { min-width: 900px !important; }
-          .responsive-flex { flex-direction: column !important; gap: 12px !important; }
+          .responsive-flex { flex-direction: column !important; gap: 12px !important; width: 100% !important; }
           .responsive-flex > * { width: 100% !important; margin: 0 !important; }
+          .master-layout { width: 100% !important; max-width: 100% !important; }
+          .main-content-area { width: 100% !important; max-width: 100% !important; overflow: hidden !important; }
         }
         * { box-sizing: border-box; }
       `}</style>
@@ -483,7 +496,7 @@ export default function MasterDataPage() {
         <div style={{ fontSize: 13, color: '#64748b' }}>จัดการข้อมูลอ้างอิงและตั้งค่าระบบพื้นฐานทั้งหมด</div>
       </div>
 
-      <div className="master-layout" style={{ display: 'flex', gap: 24, flex: 1, alignItems: 'flex-start' }}>
+      <div className="master-layout" style={{ display: 'flex', gap: 24, flex: 1, alignItems: 'flex-start', maxWidth: '100%' }}>
         {/* Sidebar */}
         <div className="sidebar-nav" style={{ width: 220, background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', padding: '12px 0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', flexShrink: 0, position: 'sticky', top: 24 }}>
           {MASTER_GROUPS.map(g => (
@@ -502,7 +515,7 @@ export default function MasterDataPage() {
         </div>
 
         {/* Main Content */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="main-content-area" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0, maxWidth: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
               {currentType?.icon} {currentType?.label}
@@ -650,7 +663,7 @@ export default function MasterDataPage() {
           </div>
 
           {!['working_hours', 'approval_flows', 'substitutes'].includes(activeType) && (
-            <div className="table-wrapper" style={{ background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+            <div className="table-wrapper" style={{ background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', overflowX: 'auto' }}>
               <table className={activeType === 'checklist_template' ? 'checklist-table' : 'master-table'} style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead style={{ background: '#f8fafc', borderBottom: '2px solid #f1f5f9' }}>
                   {activeType === 'holidays' ? (
