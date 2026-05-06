@@ -70,7 +70,7 @@ function NewIncidentForm() {
   const [form, setForm] = useState({
     title: '', description: '', severity: 'Medium',
     status: 'Open', category: '', affected_system: '',
-    reported_by: '', assigned_to: '',
+    reported_by: '', reported_by_id: null, assigned_to: '',
     created_by: null,
     root_cause: '', resolution: '',
     ref_type: null, ref_id: null, ref_doc_no: null, ref_doc_id: null
@@ -319,8 +319,8 @@ function NewIncidentForm() {
             <div>
               <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>ผู้แจ้ง / Reported By{req}</label>
               <UserAutocomplete 
-                value={form.reported_by}
-                onChange={(u) => setForm({ ...form, reported_by: u.full_name, created_by: u.id })}
+                value={{ id: form.reported_by_id, full_name: form.reported_by }}
+                onChange={(u) => setForm({ ...form, reported_by: u.full_name, reported_by_id: u.id })}
               />
               {errMsg('reported_by')}
             </div>

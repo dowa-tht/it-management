@@ -147,6 +147,7 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
   const [sigManager, setSigManager] = useState(form.signature_manager || null)
   const [showCanvas, setShowCanvas] = useState(null) // 'IT', 'Reporter', 'Manager'
   const [showMemberPINModal, setShowMemberPINModal] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
 
   const isHigh = incident?.severity === 'High'
   const requireCA = form.require_ca || isHigh
@@ -160,8 +161,10 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
   ]
   const totalSteps = steps[steps.length - 1].n
 
-  const handleDraft = () => {
-    onConfirm(sigIT, sigReporter, sigManager, true)
+  const handleDraft = async () => {
+    setSavingDraft(true)
+    await onConfirm(sigIT, sigReporter, sigManager, true)
+    setSavingDraft(false)
   }
 
   const renderCanvas = (title) => {
@@ -182,7 +185,7 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
       <MemberSignatureModal 
         isOpen={showMemberPINModal}
         memberName={form.reported_by}
-        memberId={form.created_by}
+        memberId={form.reported_by_id}
         onCancel={() => { setShowMemberPINModal(false); setShowCanvas(null); }}
         onConfirm={(d) => {
           setSigReporter(d)
@@ -231,7 +234,9 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
       <div style={{ display:'flex', gap:8, justifyContent:'space-between' }}>
         <button onClick={() => setStep(prevStep)} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>← ย้อนกลับ</button>
         <div style={{ display:'flex', gap:8 }}>
-          <button onClick={handleDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor:'pointer', fontFamily:'inherit', color:'#374151' }}>💾 Save Draft</button>
+          <button onClick={handleDraft} disabled={savingDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor: savingDraft ? 'not-allowed' : 'pointer', fontFamily:'inherit', color:'#374151' }}>
+            {savingDraft ? '⏳ บันทึก...' : '💾 Save Draft'}
+          </button>
           <button onClick={() => { if(!sig){alert('กรุณาวาดลายเซ็นต์ก่อนครับ');return} setStep(nextStep) }}
             style={{ padding:'8px 20px', border:'none', borderRadius:7, fontSize:13, background:'#1d4ed8', color:'#fff', cursor:'pointer', fontFamily:'inherit' }}>ถัดไป →</button>
         </div>
@@ -273,7 +278,9 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
             <div style={{ display:'flex', gap:8, justifyContent:'space-between' }}>
               <button onClick={onCancel} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>ยกเลิก</button>
               <div style={{ display:'flex', gap:8 }}>
-                <button onClick={handleDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor:'pointer', fontFamily:'inherit', color:'#374151' }}>💾 Save Draft</button>
+                <button onClick={handleDraft} disabled={savingDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor: savingDraft ? 'not-allowed' : 'pointer', fontFamily:'inherit', color:'#374151' }}>
+                  {savingDraft ? '⏳ บันทึก...' : '💾 Save Draft'}
+                </button>
                 <button onClick={() => { 
                   if(!form.resolution?.trim() || !form.root_cause?.trim()){
                     alert('กรุณากรอก Resolution และ Root Cause ให้ครบถ้วน');
@@ -300,7 +307,9 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
             <div style={{ display:'flex', gap:8, justifyContent:'space-between' }}>
               <button onClick={() => setStep(1)} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>← ย้อนกลับ</button>
               <div style={{ display:'flex', gap:8 }}>
-                <button onClick={handleDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor:'pointer', fontFamily:'inherit', color:'#374151' }}>💾 Save Draft</button>
+                <button onClick={handleDraft} disabled={savingDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor: savingDraft ? 'not-allowed' : 'pointer', fontFamily:'inherit', color:'#374151' }}>
+                  {savingDraft ? '⏳ บันทึก...' : '💾 Save Draft'}
+                </button>
                 <button onClick={() => { 
                   if(!form.corrective_action?.trim()){
                     alert('กรุณากรอกรายละเอียด Corrective Action');
@@ -338,7 +347,9 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
             <div style={{ display:'flex', gap:8, justifyContent:'space-between' }}>
               <button onClick={() => setStep(isHigh ? (requireCA ? 5 : 4) : (requireCA ? 4 : 3))} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#fff', cursor:'pointer', fontFamily:'inherit' }}>← ย้อนกลับ</button>
               <div style={{ display:'flex', gap:8 }}>
-                <button onClick={handleDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor:'pointer', fontFamily:'inherit', color:'#374151' }}>💾 Save Draft</button>
+                <button onClick={handleDraft} disabled={savingDraft} style={{ padding:'8px 16px', border:'1px solid #d1d5db', borderRadius:7, fontSize:13, background:'#f3f4f6', cursor: savingDraft ? 'not-allowed' : 'pointer', fontFamily:'inherit', color:'#374151' }}>
+                  {savingDraft ? '⏳ บันทึก...' : '💾 Save Draft'}
+                </button>
                 <button onClick={() => onConfirm(sigIT, sigReporter, sigManager, false)}
                   style={{ padding:'8px 20px', border:'none', borderRadius:7, fontSize:13, background:'#059669', color:'#fff', cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>
                   {incident.severity === 'High' && !isAutoApprove ? '🚀 ส่งขออนุมัติงาน' : '🚀 ส่งบันทึกและปิดงาน'}
@@ -610,10 +621,10 @@ export default function IncidentDetailPage() {
     }
 
     // Remove any fields that don't exist in the DB schema to avoid errors
-    const { reported_by_id, approval_comment, workflow_steps, ...dataToUpdate } = updatedForm
+    const { approval_comment, workflow_steps, ...dataToUpdate } = updatedForm
     delete dataToUpdate.user_profiles // Some cases it might be attached
 
-    const { error } = await supabase.from('incidents').update(dataToUpdate).eq('id', id)
+    const { error } = await supabase.from('incidents').update(dataToUpdate).eq('id', id).select('id')
     if (error) {
       alert(`บันทึกข้อมูลไม่สำเร็จ: ${error.message}`)
       setSaving(false)
@@ -668,12 +679,13 @@ export default function IncidentDetailPage() {
         signature_it: sigIT,
         signature_reporter: sigReporter,
         signature_manager: sigManager
-      }).eq('id', id)
+      }).eq('id', id).select('id')
 
       if (error) {
         alert(`บันทึกร่างไม่สำเร็จ: ${error.message}`)
       } else {
         await addLog('บันทึกร่าง (Draft)', incident.status, incident.status, 'บันทึกข้อมูลและลายเซ็นต์บางส่วน')
+        alert('💾 บันทึกร่างเรียบร้อยแล้วครับ')
         fetchIncident()
         setShowResolveDialog(false)
       }
@@ -1006,8 +1018,8 @@ export default function IncidentDetailPage() {
               <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>ผู้แจ้ง / Requester</div>
               {editing && !isLocked ? (
                 <UserAutocomplete 
-                  value={form.reported_by}
-                  onChange={(u) => setForm({ ...form, reported_by: u.full_name, created_by: u.id })}
+                  value={{ id: form.reported_by_id, full_name: form.reported_by }}
+                  onChange={(u) => setForm({ ...form, reported_by: u.full_name, reported_by_id: u.id })}
                 />
               ) : (
                 <div style={{ fontSize: 14, color: incident.reported_by ? '#111827' : '#d1d5db', padding: '6px 0', borderBottom: '1px solid #f3f4f6', minHeight: 32 }}>

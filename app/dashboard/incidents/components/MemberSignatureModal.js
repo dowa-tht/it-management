@@ -150,7 +150,7 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
                   )}
                   {mode === 'otp' && error.includes('อีเมล') && (
                     <div style={{ fontSize: 10, color: '#991b1b', marginTop: 4, textAlign: 'center' }}>
-                      <strong>ทางเลือก:</strong> หากไม่มีอีเมล ให้ IT ไปที่ Settings > Users เพื่อตั้ง PIN ให้เขา แล้วเลือก "ใช้ PIN" แทนครับ
+                      <strong>ทางเลือก:</strong> หากไม่มีอีเมล ให้ IT ไปที่ Settings &gt; Users เพื่อตั้ง PIN ให้เขา แล้วเลือก "ใช้ PIN" แทนครับ
                     </div>
                   )}
                 </div>
