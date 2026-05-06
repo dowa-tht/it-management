@@ -57,7 +57,16 @@ export default function ApprovalFlowsPage() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลดข้อมูล...</div>
 
   return (
-    <div style={{ padding: 24, maxWidth: 800 }}>
+    <div className="approvals-container" style={{ padding: 'var(--page-padding, 24px)', maxWidth: 800, margin: '0 auto', background: '#f8fafc', minHeight: '100vh', paddingBottom: 60 }}>
+      <style>{`
+        :root { --page-padding: 24px; }
+        @media (max-width: 768px) {
+          :root { --page-padding: 12px; }
+          .table-wrapper { overflow-x: auto !important; margin: 0 -12px !important; }
+          .approvals-table { min-width: 600px !important; }
+        }
+        * { box-sizing: border-box; }
+      `}</style>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>Approval Flows</h1>
         <div style={{ fontSize: 13, color: '#6b7280' }}>กำหนดผู้อนุมัติหลักแยกตามประเภทความถี่ของงาน</div>
@@ -69,8 +78,8 @@ export default function ApprovalFlowsPage() {
         </div>
       )}
 
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div className="table-wrapper" style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <table className="approvals-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
               <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>Checklist Frequency</th>

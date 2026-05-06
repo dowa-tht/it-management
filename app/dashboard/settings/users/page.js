@@ -213,8 +213,8 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
   })
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: 20 }}>
-      <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 700, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: 12 }}>
+      <div className="dialog-container" style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 700, maxHeight: '95vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
         <div style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div style={{ width: 48, height: 48, borderRadius: 14, background: '#1d4ed8', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800 }}>{user.full_name?.charAt(0) || user.email?.charAt(0).toUpperCase()}</div>
@@ -226,7 +226,7 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
           <button onClick={onClose} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, width: 36, height: 36, cursor: 'pointer', fontSize: 20 }}>×</button>
         </div>
 
-        <div style={{ display: 'flex', background: '#fff' }}>
+        <div className="dialog-tabs" style={{ display: 'flex', background: '#fff', borderBottom: '1px solid #f1f5f9' }}>
           <button style={tabStyle('general')} onClick={() => setActiveTab('general')}>⚙️ ข้อมูลทั่วไป</button>
           <button style={tabStyle('security')} onClick={() => setActiveTab('security')}>🔐 ความปลอดภัย</button>
           <button style={tabStyle('sso')} onClick={() => setActiveTab('sso')}>🆔 SSO</button>
@@ -557,7 +557,24 @@ export default function UsersPage() {
   if (loading) return <div style={{ padding: 100, textAlign: 'center', color: '#94a3b8' }}>กำลังโหลด...</div>
 
   return (
-    <div style={{ padding: 24, background: '#f8fafc', minHeight: '100vh' }}>
+    <div className="users-page-container" style={{ padding: 'var(--page-padding, 24px)', background: '#f8fafc', minHeight: '100vh', paddingBottom: 60 }}>
+      <style>{`
+        :root { --page-padding: 24px; }
+        @media (max-width: 768px) {
+          :root { --page-padding: 12px; }
+          .header-flex { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .header-button { width: 100% !important; }
+          .new-user-form { grid-template-columns: 1fr !important; gap: 16px !important; }
+          .form-actions { flex-direction: column !important; }
+          .form-actions button { width: 100% !important; }
+          .table-wrapper { overflow-x: auto !important; margin: 0 -12px !important; }
+          .users-table { min-width: 850px !important; }
+          .dialog-content { padding: 20px !important; }
+          .dialog-tabs { flex-wrap: wrap !important; }
+          .dialog-tabs button { font-size: 11px !important; padding: 10px !important; }
+        }
+        * { box-sizing: border-box; }
+      `}</style>
       {cleanDeleteDialog && (
         <CleanDeleteDialog 
           email={cleanDeleteDialog.email} 
@@ -580,7 +597,7 @@ export default function UsersPage() {
         setConfirmDialog(null); fetchUsers()
       }} onCancel={() => setConfirmDialog(null)} />}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+      <div className="header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
             Account Management
@@ -588,15 +605,15 @@ export default function UsersPage() {
           </h1>
           <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>จัดการบัญชีผู้ใช้และกำหนดสิทธิ์เข้าถึงระบบในระดับองค์กร</div>
         </div>
-        <button onClick={() => setShowNew(true)} style={{ background: '#1d4ed8', color: '#fff', padding: '12px 24px', borderRadius: 14, border: 'none', cursor: 'pointer', fontWeight: 700, boxShadow: '0 4px 12px rgba(29, 78, 216, 0.2)' }}>+ สร้าง User ใหม่</button>
+        <button className="header-button" onClick={() => setShowNew(true)} style={{ background: '#1d4ed8', color: '#fff', padding: '12px 24px', borderRadius: 14, border: 'none', cursor: 'pointer', fontWeight: 700, boxShadow: '0 4px 12px rgba(29, 78, 216, 0.2)' }}>+ สร้าง User ใหม่</button>
       </div>
 
       {msg.text && <div style={{ padding: '14px 20px', borderRadius: 14, fontSize: 14, marginBottom: 24, background: msg.type === 'success' ? '#f0fdf4' : '#fef2f2', color: msg.type === 'success' ? '#166534' : '#991b1b', border: `1px solid ${msg.type === 'success' ? '#bcf0da' : '#fecaca'}` }}>{msg.text}</div>}
 
       {showNew && (
-        <div style={{ background: '#fff', borderRadius: 24, border: '1px solid #3b82f6', padding: 32, marginBottom: 32, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+        <div style={{ background: '#fff', borderRadius: 24, border: '1px solid #3b82f6', padding: 'var(--page-padding, 32px)', marginBottom: 32, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
           <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 24 }}>➕ สร้างบัญชีผู้ใช้ใหม่</h3>
-          <form onSubmit={handleCreateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          <form className="new-user-form" onSubmit={handleCreateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
             <div><label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>ชื่อ-นามสกุล</label><input value={newUser.full_name} onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} required style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} /></div>
             <div><label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>อีเมล</label><input type="email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} /></div>
             <div>
@@ -642,13 +659,16 @@ export default function UsersPage() {
                 </label>
               </div>
             </div>
-            <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12 }}><button type="button" onClick={() => setShowNew(false)} style={{ padding: '12px 24px', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>ยกเลิก</button><button type="submit" disabled={saving} style={{ padding: '12px 32px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 700 }}>{saving ? 'กำลังสร้าง...' : 'สร้าง User'}</button></div>
+            <div className="form-actions" style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12 }}>
+              <button type="button" onClick={() => setShowNew(false)} style={{ padding: '12px 24px', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>ยกเลิก</button>
+              <button type="submit" disabled={saving} style={{ padding: '12px 32px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 700 }}>{saving ? 'กำลังสร้าง...' : 'สร้าง User'}</button>
+            </div>
           </form>
         </div>
       )}
 
-      <div style={{ background: '#fff', borderRadius: 24, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+      <div className="table-wrapper" style={{ background: '#fff', borderRadius: 24, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <table className="users-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ background: '#f8fafc', borderBottom: '2px solid #f1f5f9' }}>
               {['ชื่อ-นามสกุล', 'Email', 'Role', 'Status', 'Assignee', 'Action'].map(h => <th key={h} style={{ padding: '16px 20px', textAlign: 'left', color: '#64748b', fontWeight: 700, fontSize: 12, textTransform: 'uppercase' }}>{h}</th>)}

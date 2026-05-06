@@ -303,7 +303,21 @@ export default function NoSeriesPage() {
   if (loading) return <div style={{ padding: 100, textAlign: 'center' }}>กำลังโหลด...</div>
 
   return (
-    <div style={{ padding: 24, background: '#f8fafc', minHeight: '100vh' }}>
+    <div className="no-series-container" style={{ padding: 'var(--page-padding, 24px)', background: '#f8fafc', minHeight: '100vh', paddingBottom: 60 }}>
+      <style>{`
+        :root { --page-padding: 24px; }
+        @media (max-width: 768px) {
+          :root { --page-padding: 12px; }
+          .header-flex { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .header-buttons { width: 100% !important; flex-wrap: wrap !important; }
+          .series-card-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; padding: 20px !important; }
+          .series-card-right { width: 100% !important; text-align: left !important; justify-content: space-between !important; }
+          .table-wrapper { overflow-x: auto !important; margin: 0 -12px !important; }
+          .lines-table { min-width: 650px !important; }
+          .title-text { font-size: 20px !important; }
+        }
+        * { box-sizing: border-box; }
+      `}</style>
       {showGuide && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ background: '#fff', borderRadius: 28, width: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
@@ -340,9 +354,9 @@ export default function NoSeriesPage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+      <div className="header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h1 className="title-text" style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
             No. Series Management <span style={{ fontSize: 12, background: '#1d4ed8', color: '#fff', padding: '2px 10px', borderRadius: 20 }}>Enterprise</span>
             <button onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#eff6ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
           </h1>
@@ -350,7 +364,7 @@ export default function NoSeriesPage() {
             ตั้งค่าเลขที่เอกสารแบบ Header & Lines อ้างอิง Working Date: <strong style={{ color: '#1d4ed8' }}>{getFormattedDate().split('-').reverse().join(' / ')}</strong>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="header-buttons" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={handleDownloadTemplate} style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', padding: '10px 16px', borderRadius: 12, cursor: 'pointer', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
             📄 Template
           </button>
@@ -388,7 +402,7 @@ export default function NoSeriesPage() {
 
           return (
             <div key={s.id} style={{ background: '#fff', borderRadius: 24, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <div onClick={() => setExpandedId(isExpanded ? null : s.id)} style={{ padding: '24px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: isExpanded ? '#f8fafc' : '#fff' }}>
+              <div className="series-card-header" onClick={() => setExpandedId(isExpanded ? null : s.id)} style={{ padding: '24px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: isExpanded ? '#f8fafc' : '#fff' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
                   <div style={{ width: 50, height: 50, background: '#eff6ff', color: '#1d4ed8', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800 }}>{s.code}</div>
                   <div>
@@ -396,9 +410,9 @@ export default function NoSeriesPage() {
                     <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Format: <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{s.format}</span></div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 40 }}>
+                <div className="series-card-right" style={{ display: 'flex', alignItems: 'center', gap: 40 }}>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Next Number for {getFormattedDate().split('-').reverse().join(' / ')}</div>
+                    <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 0.5 }}>Next Number for {getFormattedDate().split('-').reverse().join(' / ')}</div>
                     <div style={{ fontSize: 18, fontWeight: 800, color: '#10b981', fontFamily: 'monospace' }}>{nextNo}</div>
                   </div>
                   <div style={{ width: 32, display: 'flex', justifyContent: 'center', color: '#94a3b8' }}>{isExpanded ? '▲' : '▼'}</div>

@@ -79,26 +79,32 @@ export default function PermissionsPage() {
   const hasChanges = Object.keys(edits).length > 0
 
   return (
-    <div style={{ padding: '32px 24px', maxWidth: 1200, margin: '0 auto', animation: 'fadeIn 0.5s ease-out' }}>
+    <div className="permissions-container" style={{ padding: 'var(--page-padding, 32px 24px)', maxWidth: 1200, margin: '0 auto', paddingBottom: 100 }}>
       <style>{`
+        :root { --page-padding: 32px 24px; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .perm-table tr:hover { background: rgba(248, 250, 252, 0.8); }
         .status-select { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .is-edited { background: #f0f9ff !important; }
+        @media (max-width: 768px) {
+          :root { --page-padding: 16px; }
+          .header-flex { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .title-text { font-size: 22px !important; }
+          .perm-table { font-size: 13px; }
+        }
       `}</style>
 
-      <div style={{ marginBottom: 40, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20 }}>
+      <div className="header-flex" style={{ marginBottom: 40, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
             <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, boxShadow: '0 10px 15px -3px rgba(99, 102, 241, 0.3)' }}>
               🛡️
             </div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.5px' }}>Permission Management</h1>
+            <h1 className="title-text" style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.5px' }}>Permission Management</h1>
           </div>
           <p style={{ color: '#64748b', fontSize: 15, margin: 0 }}>บริหารจัดการสิทธิ์แบบ Dynamic (RO/RW) สำหรับโครงสร้างระบบ DOWA IT</p>
         </div>
 
-        {/* Floating Action Bar */}
         <div style={{ 
           display: 'flex', gap: 12, 
           padding: '12px 20px', background: '#fff', borderRadius: 20, 

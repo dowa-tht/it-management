@@ -87,27 +87,68 @@ export default function WorkflowSettingsPage() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>กำลังโหลด...</div>
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+    <div className="workflow-settings-container" style={{ padding: 'var(--page-padding, 24px)', maxWidth: 1200, margin: '0 auto', background: '#f8fafc', minHeight: '100vh', paddingBottom: 60 }}>
+      <style>{`
+        :root { --page-padding: 24px; }
+        @media (max-width: 1024px) {
+          :root { --page-padding: 12px; }
+          .workflow-layout { flex-direction: column !important; }
+          .workflow-sidebar { 
+            width: 100% !important; 
+            display: flex !important; 
+            overflow-x: auto !important; 
+            gap: 8px !important; 
+            padding: 8px !important;
+            scrollbar-width: none;
+            border-radius: 12px !important;
+            margin-bottom: 16px !important;
+          }
+          .workflow-sidebar::-webkit-scrollbar { display: none; }
+          .workflow-sidebar > div:first-child { display: none !important; } /* Hide label */
+          .workflow-sidebar-list { display: flex !important; flex-direction: row !important; gap: 8px !important; }
+          .workflow-sidebar-item { 
+            white-space: nowrap !important; 
+            padding: 8px 16px !important; 
+            border: 1px solid #e2e8f0 !important;
+            width: auto !important;
+          }
+          .workflow-content { padding: 20px !important; }
+          .workflow-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .workflow-header-actions { width: 100% !important; display: flex !important; gap: 8px !important; }
+          .workflow-header-actions button { flex: 1 !important; padding: 12px !important; font-size: 13px !important; }
+          .step-row { flex-direction: column !important; align-items: flex-start !important; padding: 16px !important; }
+          .step-inputs { grid-template-columns: 1fr !important; width: 100% !important; }
+          .step-number { width: 32px !important; height: 32px !important; font-size: 14px !important; }
+          .step-delete { position: absolute !important; top: 12px !important; right: 12px !important; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        * { box-sizing: border-box; }
+      `}</style>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>⚙️ Workflow Settings</h1>
         <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>กำหนดลำดับการอนุมัติสำหรับเอกสารประเภทต่างๆ ในระบบ</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 24 }}>
+      <div className="workflow-layout" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 24 }}>
         {/* Left Sidebar: Config List */}
-        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: 12, height: 'fit-content', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <div className="workflow-sidebar" style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: 12, height: 'fit-content', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', padding: '8px 12px', marginBottom: 8 }}>ประเภทเอกสาร</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div className="workflow-sidebar-list" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {configs.map(c => (
               <div 
                 key={c.id} 
                 onClick={() => handleSelectConfig(c)}
+                className="workflow-sidebar-item"
                 style={{ 
                   padding: '12px 16px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
                   background: selectedConfig?.id === c.id ? '#eff6ff' : 'transparent',
                   color: selectedConfig?.id === c.id ? '#1d4ed8' : '#374151',
                   fontWeight: selectedConfig?.id === c.id ? 600 : 400,
-                  border: `1px solid ${selectedConfig?.id === c.id ? '#bfdbfe' : 'transparent'}`
+                  border: `1px solid ${selectedConfig?.id === c.id ? '#bfdbfe' : 'transparent'}`,
+                  width: '100%'
                 }}
               >
                 <div style={{ fontSize: 14 }}>{c.doc_type === 'checklist' ? '📋 Checklist' : '🚨 Incident'}</div>
@@ -121,10 +162,10 @@ export default function WorkflowSettingsPage() {
         </div>
 
         {/* Right Content: Steps Editor */}
-        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: 32, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <div className="workflow-content" style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: 32, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
           {selectedConfig ? (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+              <div className="workflow-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#1d4ed8', marginBottom: 4 }}>
                     กำลังแก้ไข: {selectedConfig.doc_type.toUpperCase()}
@@ -133,7 +174,7 @@ export default function WorkflowSettingsPage() {
                     เงื่อนไข: {selectedConfig.trigger_value}
                   </h2>
                 </div>
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div className="workflow-header-actions" style={{ display: 'flex', gap: 12 }}>
                   <button 
                     onClick={addStep}
                     style={{ padding: '10px 16px', border: '1px solid #d1d5db', borderRadius: 10, background: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
@@ -160,18 +201,18 @@ export default function WorkflowSettingsPage() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                     {steps.map((step, idx) => (
-                      <div key={idx} style={{ 
+                      <div key={idx} className="step-row" style={{ 
                         display: 'flex', gap: 20, alignItems: 'center', padding: 20, background: '#f9fafb', borderRadius: 16, border: '1px solid #f3f4f6', position: 'relative',
                         animation: 'fadeIn 0.3s ease-out'
                       }}>
-                        <div style={{ 
+                        <div className="step-number" style={{ 
                           width: 40, height: 40, borderRadius: '50%', background: '#1d4ed8', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, flexShrink: 0,
                           boxShadow: '0 4px 10px rgba(29, 78, 216, 0.2)'
                         }}>
                           {step.step_order}
                         </div>
                         
-                        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 16 }}>
+                        <div className="step-inputs" style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 16 }}>
                           <div>
                             <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase' }}>สิทธิ์ที่ต้องการ (Role)</label>
                             <select 
@@ -199,6 +240,7 @@ export default function WorkflowSettingsPage() {
 
                         <button 
                           onClick={() => removeStep(idx)}
+                          className="step-delete"
                           style={{ padding: '8px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 18, opacity: 0.7 }}
                           title="ลบขั้นตอนนี้"
                         >
@@ -218,13 +260,6 @@ export default function WorkflowSettingsPage() {
           )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   )
 }

@@ -128,7 +128,32 @@ export default function LogsPage() {
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto', background: '#f8fafc', minHeight: '100vh' }}>
+    <div className="logs-page-container" style={{ padding: 'var(--page-padding, 24px)', maxWidth: 1200, margin: '0 auto', background: '#f8fafc', minHeight: '100vh', paddingBottom: 60 }}>
+      <style>{`
+        :root { --page-padding: 24px; }
+        @media (max-width: 768px) {
+          :root { --page-padding: 12px; }
+          .header-flex { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .header-actions { width: 100% !important; }
+          .header-actions button { flex: 1 !important; }
+          .tabs-scrollable { 
+            width: 100% !important; 
+            overflow-x: auto !important; 
+            padding: 4px !important;
+            margin-bottom: 16px !important;
+            scrollbar-width: none;
+          }
+          .tabs-scrollable::-webkit-scrollbar { display: none; }
+          .tabs-scrollable button { white-space: nowrap !important; }
+          .table-wrapper { overflow-x: auto !important; margin: 0 -12px !important; }
+          .logs-table { min-width: 800px !important; }
+        }
+        @media print {
+          .no-print { display: none !important; }
+          .logs-page-container { padding: 0 !important; background: #fff !important; }
+        }
+        * { box-sizing: border-box; }
+      `}</style>
       {showGuide && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ background: '#fff', borderRadius: 28, width: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
@@ -165,15 +190,15 @@ export default function LogsPage() {
         </div>
       )}
 
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <div className="header-flex" style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
             System Logs & Audit
-            <button onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#e0e7ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
+            <button className="no-print" onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#e0e7ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
           </h1>
           <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>ตรวจสอบบันทึกการใช้งานระบบและการเปลี่ยนแปลงข้อมูล (Audit Trails)</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="header-actions no-print" style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => window.print()} style={{ padding: '10px 20px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
             🖨️ Print Report
           </button>
@@ -184,7 +209,7 @@ export default function LogsPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: '#fff', padding: 4, borderRadius: 16, border: '1px solid #e2e8f0', width: 'fit-content' }}>
+      <div className="tabs-scrollable no-print" style={{ display: 'flex', gap: 4, marginBottom: 24, background: '#fff', padding: 4, borderRadius: 16, border: '1px solid #e2e8f0', width: 'fit-content' }}>
         {[
           { id: 'audit', label: 'Audit Logs', icon: '🔍' },
           { id: 'approval', label: 'Approval Logs', icon: '✅' },
@@ -216,7 +241,7 @@ export default function LogsPage() {
       </div>
 
       {/* Content Table */}
-      <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+      <div className="table-wrapper" style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
         {loading ? (
           <div style={{ padding: 60, textAlign: 'center', color: '#6b7280' }}>กำลังโหลดข้อมูล Log...</div>
         ) : error ? (
@@ -224,8 +249,8 @@ export default function LogsPage() {
         ) : logs.length === 0 ? (
           <div style={{ padding: 60, textAlign: 'center', color: '#6b7280' }}>ไม่พบข้อมูลในหมวดหมู่นี้</div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <div>
+            <table className="logs-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
                   <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Timestamp</th>

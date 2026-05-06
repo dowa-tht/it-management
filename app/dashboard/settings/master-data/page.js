@@ -441,22 +441,56 @@ export default function MasterDataPage() {
   if (isVisitor) return <div style={{ padding: 100, textAlign: 'center' }}><h2>Access Denied</h2></div>
 
   return (
-    <div style={{ padding: 24, display: 'flex', flexDirection: 'column', height: '100%', minHeight: '100vh', background: '#f8fafc' }}>
+    <div className="master-data-container" style={{ padding: 'var(--page-padding, 24px)', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '100vh', background: '#f8fafc', paddingBottom: 60 }}>
+      <style>{`
+        :root { --page-padding: 24px; }
+        @media (max-width: 1024px) {
+          .master-layout { flex-direction: column !important; }
+          .sidebar-nav { 
+            width: 100% !important; 
+            position: relative !important; 
+            top: 0 !important; 
+            display: flex !important; 
+            overflow-x: auto !important; 
+            padding: 8px !important;
+            margin-bottom: 16px !important;
+            gap: 8px !important;
+            scrollbar-width: none;
+          }
+          .sidebar-nav::-webkit-scrollbar { display: none; }
+          .sidebar-group { display: flex !important; flex-shrink: 0 !important; margin-bottom: 0 !important; }
+          .sidebar-group-title { display: none !important; }
+          .sidebar-item { 
+            width: auto !important; 
+            white-space: nowrap !important; 
+            padding: 8px 16px !important; 
+            border-radius: 12px !important;
+            border: 1px solid #e2e8f0 !important;
+          }
+          :root { --page-padding: 12px; }
+          .form-section { flex-direction: column !important; gap: 12px !important; }
+          .form-section > * { width: 100% !important; }
+          .table-wrapper { overflow-x: auto !important; margin: 0 -12px !important; }
+          .master-table { min-width: 600px !important; }
+          .checklist-table { min-width: 900px !important; }
+        }
+        * { box-sizing: border-box; }
+      `}</style>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a' }}>Master Data & Settings</h1>
         <div style={{ fontSize: 13, color: '#64748b' }}>จัดการข้อมูลอ้างอิงและตั้งค่าระบบพื้นฐานทั้งหมด</div>
       </div>
 
-      <div style={{ display: 'flex', gap: 24, flex: 1, alignItems: 'flex-start' }}>
+      <div className="master-layout" style={{ display: 'flex', gap: 24, flex: 1, alignItems: 'flex-start' }}>
         {/* Sidebar */}
-        <div style={{ width: 220, background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', padding: '12px 0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', flexShrink: 0, position: 'sticky', top: 24 }}>
+        <div className="sidebar-nav" style={{ width: 220, background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', padding: '12px 0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', flexShrink: 0, position: 'sticky', top: 24 }}>
           {MASTER_GROUPS.map(g => (
-            <div key={g.name} style={{ marginBottom: 4 }}>
-              <div onClick={() => setExpandedGroup(expandedGroup === g.name ? null : g.name)} style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', padding: '10px 20px', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div key={g.name} className="sidebar-group" style={{ marginBottom: 4 }}>
+              <div className="sidebar-group-title" onClick={() => setExpandedGroup(expandedGroup === g.name ? null : g.name)} style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', padding: '10px 20px', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 {g.name} <span style={{ fontSize: 8 }}>{expandedGroup === g.name ? '▼' : '▶'}</span>
               </div>
-              {expandedGroup === g.name && g.items.map(t => (
-                <button key={t.key} onClick={() => { setActiveType(t.key); setEditingId(null) }} style={{ width: '100%', padding: '10px 20px', border: 'none', background: activeType === t.key ? '#eff6ff' : 'transparent', color: activeType === t.key ? '#2563eb' : '#475569', textAlign: 'left', cursor: 'pointer', fontWeight: activeType === t.key ? 700 : 500, fontSize: 13, borderLeft: activeType === t.key ? '4px solid #2563eb' : '4px solid transparent', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 10 }}>
+              {(expandedGroup === g.name || (typeof window !== 'undefined' && window.innerWidth <= 1024)) && g.items.map(t => (
+                <button key={t.key} className="sidebar-item" onClick={() => { setActiveType(t.key); setEditingId(null) }} style={{ width: '100%', padding: '10px 20px', border: 'none', background: activeType === t.key ? '#eff6ff' : 'transparent', color: activeType === t.key ? '#2563eb' : '#475569', textAlign: 'left', cursor: 'pointer', fontWeight: activeType === t.key ? 700 : 500, fontSize: 13, borderLeft: activeType === t.key ? '4px solid #2563eb' : '4px solid transparent', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 16 }}>{t.icon}</span>
                   <span style={{ lineHeight: 1.3 }}>{t.label}</span>
                 </button>
@@ -542,7 +576,7 @@ export default function MasterDataPage() {
                 <button onClick={handleSaveWorkingHours} style={{ padding: '14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, fontSize: 14, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)' }}>บันทึกการตั้งค่าทั้งหมด</button>
               </div>
             ) : activeType === 'holidays' ? (
-              <div style={{ display: 'flex', gap: 12 }}>
+              <div className="form-section" style={{ display: 'flex', gap: 12 }}>
                 <div style={{ position: 'relative', width: 220 }}>
                   <input 
                     type="text" 
@@ -560,7 +594,7 @@ export default function MasterDataPage() {
                   />
                 </div>
                 <input placeholder="ชื่อวันหยุด เช่น วันสงกรานต์..." value={newHolidayDesc} onChange={e => setNewHolidayDesc(e.target.value)} style={{ flex: 1, padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 14, fontSize: 14 }} />
-                <button onClick={handleAddHoliday} style={{ padding: '0 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 600 }}>+ เพิ่มวันหยุด</button>
+                <button onClick={handleAddHoliday} style={{ padding: '12px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 600 }}>+ เพิ่มวันหยุด</button>
               </div>
             ) : activeType === 'checklist_template' ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -606,17 +640,17 @@ export default function MasterDataPage() {
                 >+ สร้างแผนใหม่</button>
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: 12 }}>
+              <div className="form-section" style={{ display: 'flex', gap: 12 }}>
                 <input value={newValue} onChange={e => setNewValue(e.target.value)} style={{ flex: 1, padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 14, fontSize: 14 }} placeholder={`ระบุ ${currentType?.label} ใหม่...`} />
-                <button onClick={handleAddStandard} style={{ padding: '0 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 600 }}>+ เพิ่มข้อมูล</button>
+                <button onClick={handleAddStandard} style={{ padding: '12px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 600 }}>+ เพิ่มข้อมูล</button>
               </div>
             )}
           </div>
 
           {/* Table Section */}
           {!['working_hours', 'approval_flows', 'substitutes'].includes(activeType) && (
-            <div style={{ background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <div className="table-wrapper" style={{ background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+              <table className={activeType === 'checklist_template' ? 'checklist-table' : 'master-table'} style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead style={{ background: '#f8fafc', borderBottom: '2px solid #f1f5f9' }}>
                   {activeType === 'holidays' ? (
                     <tr><th style={{ padding: '16px 20px', textAlign: 'left', width: 220 }}>วันที่</th><th style={{ padding: '16px 20px', textAlign: 'left' }}>วันหยุด</th><th style={{ padding: '16px 20px', textAlign: 'right', width: 100 }}>จัดการ</th></tr>

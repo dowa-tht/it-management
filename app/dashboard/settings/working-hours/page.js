@@ -68,7 +68,17 @@ export default function WorkingHoursPage() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลด...</div>
 
   return (
-    <div style={{ padding: 24, maxWidth: 800 }}>
+    <div className="working-hours-container" style={{ padding: 'var(--page-padding, 24px)', maxWidth: 800, margin: '0 auto', background: '#f8fafc', minHeight: '100vh', paddingBottom: 60 }}>
+      <style>{`
+        :root { --page-padding: 24px; }
+        @media (max-width: 768px) {
+          :root { --page-padding: 12px; }
+          .time-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
+          .save-button { width: 100% !important; }
+          .day-button { flex: 1 1 30% !important; text-align: center !important; padding: 10px 8px !important; font-size: 12px !important; }
+        }
+        * { box-sizing: border-box; }
+      `}</style>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>Working Hours Setup</h1>
         <div style={{ fontSize: 13, color: '#6b7280' }}>กำหนดเวลาทำงานและวันทำงานปกติเพื่อใช้ในการคำนวณ SLA</div>
@@ -86,9 +96,8 @@ export default function WorkingHoursPage() {
       )}
 
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-        <div style={{ padding: 24 }}>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32 }}>
+        <div style={{ padding: 'var(--page-padding, 24px)' }}>
+          <div className="time-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32 }}>
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>เวลาเริ่มงาน (Start Time)</label>
               <input 
@@ -118,6 +127,7 @@ export default function WorkingHoursPage() {
                   <button
                     key={day.id}
                     onClick={() => handleToggleDay(day.id)}
+                    className="day-button"
                     style={{
                       padding: '10px 20px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer',
                       border: isSelected ? '1px solid #1d4ed8' : '1px solid #d1d5db',
@@ -137,6 +147,7 @@ export default function WorkingHoursPage() {
             <button
               onClick={handleSave}
               disabled={saving}
+              className="save-button"
               style={{
                 padding: '10px 32px', background: '#1d4ed8', color: '#fff', border: 'none',
                 borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer',

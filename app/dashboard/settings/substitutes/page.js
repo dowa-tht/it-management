@@ -77,14 +77,30 @@ export default function SubstitutesPage() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลด...</div>
 
   return (
-    <div style={{ padding: 24, maxWidth: 900 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+    <div className="substitutes-container" style={{ padding: 'var(--page-padding, 24px)', maxWidth: 900, margin: '0 auto', background: '#f8fafc', minHeight: '100vh', paddingBottom: 60 }}>
+      <style>{`
+        :root { --page-padding: 24px; }
+        @media (max-width: 768px) {
+          :root { --page-padding: 12px; }
+          .header-flex { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .header-button { width: 100% !important; }
+          .table-wrapper { overflow-x: auto !important; margin: 0 -12px !important; }
+          .substitutes-table { min-width: 700px !important; }
+          .modal-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
+          .modal-content { padding: 20px !important; width: 95% !important; }
+          .modal-actions { flex-direction: column !important; }
+          .modal-actions button { width: 100% !important; }
+        }
+        * { box-sizing: border-box; }
+      `}</style>
+      <div className="header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>My Absence / Substitution</h1>
           <div style={{ fontSize: 13, color: '#6b7280' }}>ตั้งค่าช่วงเวลาที่คุณไม่อยู่เพื่อให้ระบบจัดการผู้อนุมัติแทนโดยอัตโนมัติ</div>
         </div>
         <button 
           onClick={() => setShowModal(true)}
+          className="header-button"
           style={{ padding: '8px 16px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
         >
           + แจ้งไม่อยู่ / ตั้งคนแทน
@@ -97,8 +113,8 @@ export default function SubstitutesPage() {
         </div>
       )}
 
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div className="table-wrapper" style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <table className="substitutes-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
               <th style={{ padding: '12px 20px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: '#6b7280' }}>ช่วงเวลาที่ไม่อยู่</th>
@@ -148,11 +164,11 @@ export default function SubstitutesPage() {
       </div>
 
       {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 450, padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 12, backdropFilter: 'blur(4px)' }}>
+          <div className="modal-content" style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 450, padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
             <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>แจ้งไม่อยู่และตั้งผู้อนุมัติแทน</h3>
             <form onSubmit={handleAddSub}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+              <div className="modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>ตั้งแต่วันที่</label>
                   <input type="date" value={form.start_date} onChange={e => setForm({...form, start_date: e.target.value})} required style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: 8 }} />
@@ -175,7 +191,7 @@ export default function SubstitutesPage() {
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>เหตุผล / หมายเหตุ</label>
                 <textarea value={form.reason} onChange={e => setForm({...form, reason: e.target.value})} rows={3} style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 }} placeholder="เช่น ลาพักร้อน" />
               </div>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <div className="modal-actions" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
                 <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>ยกเลิก</button>
                 <button type="submit" style={{ padding: '10px 24px', border: 'none', borderRadius: 8, background: '#1d4ed8', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>บันทึกการตั้งค่า</button>
               </div>
