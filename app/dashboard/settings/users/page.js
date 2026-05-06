@@ -376,6 +376,7 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
         </div>
       </div>
     </div>
+  </div>
   )
 }
 
