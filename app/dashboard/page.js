@@ -11,6 +11,26 @@ const SLA_MINUTES = {
   Low: { response: 60, resolve: 1440 }
 }
 
+function StatusCard({ title, value, status }) {
+  const getColors = (s) => {
+    switch(s) {
+      case 'ok': case 'done': return { bg: '#f0fdf4', color: '#059669', border: '#bcf2d9' }
+      case 'ng': return { bg: '#fef2f2', color: '#dc2626', border: '#fca5a5' }
+      case 'in-progress': return { bg: '#fffbeb', color: '#d97706', border: '#fcd34d' }
+      case 'pending': return { bg: '#f9fafb', color: '#6b7280', border: '#e5e7eb' }
+      case 'missed': return { bg: '#fff1f2', color: '#e11d48', border: '#fda4af' }
+      default: return { bg: '#f9fafb', color: '#9ca3af', border: '#e5e7eb' }
+    }
+  }
+  const c = getColors(status)
+  return (
+    <div style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 8, padding: '10px 12px' }}>
+      <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: c.color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
+    </div>
+  )
+}
+
 function calcElapsedMin(start, end) {
   if (!start) return null
   return Math.floor((new Date(end) - new Date(start)) / 60000)

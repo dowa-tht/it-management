@@ -27,12 +27,12 @@ export async function getDashboardData(timezoneOffset = -420) {
     let pendingCount = 0
     let userProfile = null
 
-    if (session) {
+    if (session && session.user) {
       const { data: profile } = await supabaseAdmin
         .from('user_profiles')
         .select('id, role, email')
-        .eq(session.type === 'internal' ? 'email' : 'id', session.user.email || session.user.id)
-        .single()
+        .eq(session.type === 'internal' ? 'email' : 'id', (session.user.email || session.user.id))
+        .maybeSingle()
       userProfile = profile
     }
 
@@ -42,14 +42,15 @@ export async function getDashboardData(timezoneOffset = -420) {
     start.setMonth(start.getMonth() - 1)
     const startIso = start.toISOString()
 
-    // For today string (YYYY-MM-DD), we should use a rough local date to match what checklist period_date stores
-    const todayDate = new Date(new Date().getTime() - (timezoneOffset * 60000))
-    const todayStr = todayDate.toISOString().split('T')[0]
+    // Safety: ensure timezoneOffset is a valid number
+    const safeOffset = typeof timezoneOffset === 'number' ? timezoneOffset : -420
+    const todayDate = new Date(new Date().getTime() - (safeOffset * 60000))
+    const todayStr = isNaN(todayDate.getTime()) ? new Date().toISOString().split('T')[0] : todayDate.toISOString().split('T')[0]
 
     // Fetch data for the last 35 days for Checklist Streak and Monthly calculation
     const streakStart = new Date()
     streakStart.setDate(streakStart.getDate() - 35)
-    const streakStartStr = streakStart.toISOString().split('T')[0]
+    const streakStartStr = isNaN(streakStart.getTime()) ? todayStr : streakStart.toISOString().split('T')[0]
 
     const [incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes, slaLimitsRes, yearlyRes, pendingChkRes, pendingIncRes, myPendingChkRes, myPendingIncRes] = await Promise.all([
       supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system').gte('created_at', startIso).order('created_at', { ascending: false }),
