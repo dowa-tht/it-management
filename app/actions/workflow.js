@@ -135,7 +135,7 @@ export async function getUnifiedMyPendingItems() {
       .from('incidents')
       .select(`id, case_number, title, status, created_at, reported_by, assigned_to, reported_by_id`)
       .ilike('status', 'Pending Approval')
-      .or(`reported_by.eq.${profile.email},assigned_to.eq.${profile.email},reported_by_id.eq.${profile.id}`)
+      .or(`reported_by.eq.${profile.email},assigned_to.eq.${profile.email},assigned_to.eq.${profile.full_name},reported_by_id.eq.${profile.id}`)
 
     // 4. Transform into Unified Format
     const unified = [

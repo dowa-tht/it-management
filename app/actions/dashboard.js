@@ -68,7 +68,7 @@ export async function getDashboardData(timezoneOffset = -420) {
       userProfile?.email ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING']).eq('created_by', userProfile.email) : Promise.resolve({ data: [] }),
       userProfile ? 
         supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval')
-          .or(`assigned_to.eq.${userProfile.email || '___'}`) : Promise.resolve({ data: [] })
+          .or(`assigned_to.eq.${userProfile.full_name || '___'},assigned_to.eq.${userProfile.email || '___'}`) : Promise.resolve({ data: [] })
     ])
 
     if (chkRes.error) console.error('Checklists Fetch Error:', chkRes.error)
