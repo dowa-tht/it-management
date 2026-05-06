@@ -649,6 +649,7 @@ export default function IncidentDetailPage() {
         signature_it: sigIT,
         signature_reporter: sigReporter,
         signature_manager: sigManager,
+        resolved_by: currentUser.full_name || currentUser.email, // Capture who signed the draft
         corrective_action: form.corrective_action,
         require_ca: form.require_ca
       }
@@ -687,7 +688,7 @@ export default function IncidentDetailPage() {
       status:'Resolved', 
       is_locked:true, 
       resolved_at:now, 
-      resolved_by:currentUser?.email, 
+      resolved_by: currentUser.full_name || currentUser.email, 
       signature_it:sigIT,
       signature_reporter:sigReporter,
       signature_manager:sigManager,
@@ -1151,7 +1152,10 @@ export default function IncidentDetailPage() {
                   <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', background:'#fafafa', display:'inline-block' }}>
                     <img src={incident.signature_it} alt="sig" style={{ display:'block', height:80, maxWidth:280 }} />
                   </div>
-                  <div style={{ fontSize:11, color:'#9ca3af', marginTop:6 }}>{incident.resolved_by} · {formatDateTime(incident.resolved_at)}</div>
+                  <div style={{ fontSize:11, color:'#9ca3af', marginTop:6 }}>
+                    {incident.resolved_by || incident.assigned_to || 'IT Officer'}
+                    {incident.resolved_at ? ` · ${formatDateTime(incident.resolved_at)}` : ' (ร่าง)'}
+                  </div>
                 </div>
               )}
               {incident.signature_reporter && (
@@ -1160,6 +1164,7 @@ export default function IncidentDetailPage() {
                   <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', background:'#fafafa', display:'inline-block' }}>
                     <img src={incident.signature_reporter} alt="sig" style={{ display:'block', height:80, maxWidth:280 }} />
                   </div>
+                  <div style={{ fontSize:11, color:'#9ca3af', marginTop:6 }}>{incident.reported_by || 'ผู้แจ้ง'}</div>
                 </div>
               )}
               {incident.signature_manager && incident.severity === 'High' && (
@@ -1168,6 +1173,7 @@ export default function IncidentDetailPage() {
                   <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', background:'#fafafa', display:'inline-block' }}>
                     <img src={incident.signature_manager} alt="sig" style={{ display:'block', height:80, maxWidth:280 }} />
                   </div>
+                  <div style={{ fontSize:11, color:'#9ca3af', marginTop:6 }}>Approver</div>
                 </div>
               )}
             </div>
