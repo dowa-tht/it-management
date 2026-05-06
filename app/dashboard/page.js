@@ -110,35 +110,67 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Compact Pending Approvals Hub (Header Version) */}
-        {data.pendingApprovalsCount > 0 && (
-          <Link href="/dashboard/approvals" style={{ textDecoration: 'none' }}>
-            <div style={{ 
-              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', 
-              borderRadius: 10, 
-              padding: '8px 16px', 
-              color: '#fff', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 12, 
-              cursor: 'pointer', 
-              transition: 'transform 0.15s', 
-              boxShadow: '0 4px 10px rgba(79, 70, 229, 0.2)' 
-            }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-              <div style={{ fontSize: 20 }}>🔔</div>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Waiting for Approval</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                  <span style={{ fontSize: 18, fontWeight: 800 }}>{data.pendingApprovalsCount}</span>
-                  <span style={{ fontSize: 11, opacity: 0.8 }}>Items</span>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {/* 1. Waiting for Approval (For Approver) */}
+          {data.pendingApprovalsCount > 0 && (
+            <Link href="/dashboard/approvals" style={{ textDecoration: 'none' }}>
+              <div style={{ 
+                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', 
+                borderRadius: 10, 
+                padding: '8px 16px', 
+                color: '#fff', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 12, 
+                cursor: 'pointer', 
+                transition: 'transform 0.15s', 
+                boxShadow: '0 4px 10px rgba(79, 70, 229, 0.2)' 
+              }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                <div style={{ fontSize: 20 }}>🔔</div>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Waiting for Approval</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                    <span style={{ fontSize: 18, fontWeight: 800 }}>{data.pendingApprovalsCount}</span>
+                    <span style={{ fontSize: 11, opacity: 0.8 }}>Items</span>
+                  </div>
+                </div>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
+                  →
                 </div>
               </div>
-              <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
-                →
+            </Link>
+          )}
+
+          {/* 2. My Sent Pending Items (For Sender) */}
+          {data.myPendingFollowupsCount > 0 && (
+            <Link href="/dashboard/checklist" style={{ textDecoration: 'none' }}>
+              <div style={{ 
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', 
+                borderRadius: 10, 
+                padding: '8px 16px', 
+                color: '#fff', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 12, 
+                cursor: 'pointer', 
+                transition: 'transform 0.15s', 
+                boxShadow: '0 4px 10px rgba(217, 119, 6, 0.2)' 
+              }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                <div style={{ fontSize: 20 }}>📤</div>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 0.5 }}>My Sent Pending</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                    <span style={{ fontSize: 18, fontWeight: 800 }}>{data.myPendingFollowupsCount}</span>
+                    <span style={{ fontSize: 11, opacity: 0.8 }}>Items</span>
+                  </div>
+                </div>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
+                  →
+                </div>
               </div>
-            </div>
-          </Link>
-        )}
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* IT Checklist Tracking Section */}

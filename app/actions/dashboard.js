@@ -51,7 +51,7 @@ export async function getDashboardData(timezoneOffset = -420) {
     streakStart.setDate(streakStart.getDate() - 35)
     const streakStartStr = streakStart.toISOString().split('T')[0]
 
-    const [incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes, slaLimitsRes, yearlyRes, pendingChkRes, pendingIncRes] = await Promise.all([
+    const [incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes, slaLimitsRes, yearlyRes, pendingChkRes, pendingIncRes, myPendingChkRes, myPendingIncRes] = await Promise.all([
       supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system').gte('created_at', startIso).order('created_at', { ascending: false }),
       supabaseAdmin.from('backup_logs').select('id, log_date, system_name, status, notes').gte('log_date', startIso.split('T')[0]).order('log_date', { ascending: false }),
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').gte('period_date', streakStartStr),
@@ -60,9 +60,12 @@ export async function getDashboardData(timezoneOffset = -420) {
       supabaseAdmin.from('incident_exclusions').select('*').gte('start_time', startIso),
       supabaseAdmin.from('system_settings').select('value').eq('key', 'sla_limits').maybeSingle(),
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').eq('freq_type', 'Yearly').gte('period_date', `${todayStr.substring(0, 4)}-01-01`),
-      // Fetch Pending Approvals (Using workflow_status)
+      // Fetch Pending Approvals (For Approver)
       userProfile ? supabaseAdmin.from('checklist_docs').select('id').eq('workflow_status', 'pending').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
-      userProfile ? supabaseAdmin.from('incidents').select('id').eq('status', 'Pending Approval').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] })
+      userProfile ? supabaseAdmin.from('incidents').select('id').eq('status', 'Pending Approval').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
+      // Fetch My Sent Pending Items (For Sender Tracking)
+      userProfile ? supabaseAdmin.from('checklist_docs').select('id').eq('workflow_status', 'pending').eq('created_by', userProfile.id) : Promise.resolve({ data: [] }),
+      userProfile ? supabaseAdmin.from('incidents').select('id').eq('status', 'Pending Approval').eq('reported_by', userProfile.email) : Promise.resolve({ data: [] })
     ])
 
     if (incRes.error) console.error('Incidents Fetch Error:', incRes.error)
@@ -235,7 +238,8 @@ export async function getDashboardData(timezoneOffset = -420) {
       recentBackups: backups.slice(0, 5),
       checklists,
       checklistActions,
-      pendingApprovalsCount: (pendingChkRes?.data?.length || 0) + (pendingIncRes?.data?.length || 0)
+      pendingApprovalsCount: (pendingChkRes?.data?.length || 0) + (pendingIncRes?.data?.length || 0),
+      myPendingFollowupsCount: (myPendingChkRes?.data?.length || 0) + (myPendingIncRes?.data?.length || 0)
     }
   } catch (err) {
     console.error('Dashboard Server Action Exception:', err)
