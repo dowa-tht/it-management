@@ -330,7 +330,22 @@ All tiers now use standard authentication protocols.
   - **Incident SLA Logic**: Refined "Acknowledge" button visibility and automated SLA reset when an assignee is removed.
 
 ---
-*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-05-06 11:30 (Session End: Phase 2 Completed) โดย Antigravity AI*
+---
+
+- [2026-05-06 13:54] **Document Status Standardization & AI Mandatory Workflow**:
+  - **Standardized Document Workflow**: Implemented a unified 4-stage status model across both Checklist and Incident modules: `Open` -> `In Progress` -> `Pending Approval` -> `Closed`.
+  - **Incident Status Standard**: Replaced legacy `Resolved` status with `Closed`. Added automatic transition to `Pending Approval` when an IT technician finishes work but awaits final signatures.
+  - **Checklist Status Hardening**: 
+    - Forced `In Progress` status in the database upon the first check action (OK/NG) to ensure dashboard accuracy.
+    - Standardized `Pending Approval` state for all frequency types (Daily to Yearly).
+  - **UI/Badge Synchronization**: Updated all status badge colors and filter dropdowns to match the new standard (Amber/Orange for Pending Approval, Green for Closed).
+  - **New AI Agent Rules**: 
+    - Formalized the **[PRIORITIZE STANDARDS]** rule in `AGENTS.md`, requiring all AI assistants to check system standards before implementing features.
+    - Mandated **[CRITICAL LOGIC CONFIRMATION]** with `> [!IMPORTANT]` alerts for any ambiguous system-critical changes.
+  - **Production Build & Sync**: Verified the system with a successful production build and pushed all changes to the main repository.
+
+---
+*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-05-06 13:54 (Session End: Status Standardization & AI Rules) โดย Antigravity AI*
 
 
 
