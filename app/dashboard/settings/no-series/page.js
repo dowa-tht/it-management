@@ -306,15 +306,17 @@ export default function NoSeriesPage() {
     <div className="no-series-container" style={{ padding: 'var(--page-padding, 24px)', background: '#f8fafc', minHeight: '100vh', paddingBottom: 60 }}>
       <style>{`
         :root { --page-padding: 24px; }
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
           :root { --page-padding: 12px; }
           .header-flex { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
-          .header-buttons { width: 100% !important; flex-wrap: wrap !important; }
+          .header-buttons { width: 100% !important; display: flex !important; flex-wrap: wrap !important; gap: 8px !important; }
+          .header-buttons button, .header-buttons label { flex: 1 !important; min-width: 140px !important; justify-content: center !important; }
           .series-card-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; padding: 20px !important; }
-          .series-card-right { width: 100% !important; text-align: left !important; justify-content: space-between !important; }
-          .table-wrapper { overflow-x: auto !important; margin: 0 -12px !important; }
+          .series-card-right { width: 100% !important; text-align: left !important; justify-content: space-between !important; display: flex !important; border-top: 1px solid #f1f5f9 !important; pt: 16px !important; padding-top: 16px !important; }
+          .table-wrapper { overflow-x: auto !important; margin: 0 -20px !important; padding: 0 20px !important; }
           .lines-table { min-width: 650px !important; }
           .title-text { font-size: 20px !important; }
+          .new-series-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
         }
         * { box-sizing: border-box; }
       `}</style>
@@ -385,11 +387,11 @@ export default function NoSeriesPage() {
       {showNew && (
         <div style={{ background: '#fff', borderRadius: 24, padding: 32, marginBottom: 32, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0' }}>
           <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 24 }}>➕ สร้าง Series Header ใหม่</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
+          <div className="new-series-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
             <input value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="Series Code (e.g. SO)" style={{ padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} />
             <input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Description" style={{ padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} />
             <input value={form.format} onChange={e => setForm({ ...form, format: e.target.value })} placeholder="Format (e.g. SO-YYMM-###)" style={{ padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} />
-            <button onClick={handleSaveHeader} style={{ background: '#1d4ed8', color: '#fff', borderRadius: 12, border: 'none', fontWeight: 700 }}>บันทึก Header</button>
+            <button onClick={handleSaveHeader} style={{ background: '#1d4ed8', color: '#fff', borderRadius: 12, border: 'none', fontWeight: 700, padding: '12px' }}>บันทึก Header</button>
           </div>
         </div>
       )}
@@ -429,8 +431,8 @@ export default function NoSeriesPage() {
                     <button onClick={() => handleAddLine(s.code)} style={{ fontSize: 12, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #dbeafe', padding: '6px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 700 }}>+ Add Line</button>
                   </div>
                   
-                  <div style={{ border: '1px solid #f1f5f9', borderRadius: 16, overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <div className="table-wrapper" style={{ border: '1px solid #f1f5f9', borderRadius: 16, overflow: 'hidden' }}>
+                    <table className="lines-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                       <thead style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
                         <tr>
                           <th style={{ padding: '12px 16px', textAlign: 'left', color: '#64748b' }}>Starting Date</th>

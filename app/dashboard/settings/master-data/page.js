@@ -473,6 +473,8 @@ export default function MasterDataPage() {
           .table-wrapper { overflow-x: auto !important; margin: 0 -12px !important; }
           .master-table { min-width: 600px !important; }
           .checklist-table { min-width: 900px !important; }
+          .responsive-flex { flex-direction: column !important; gap: 12px !important; }
+          .responsive-flex > * { width: 100% !important; margin: 0 !important; }
         }
         * { box-sizing: border-box; }
       `}</style>
@@ -518,7 +520,7 @@ export default function MasterDataPage() {
 
           {/* Search & Filter Section */}
           {!['working_hours', 'approval_flows', 'substitutes'].includes(activeType) && (
-            <div style={{ marginBottom: 4, display: 'flex', gap: 12 }}>
+            <div className="responsive-flex" style={{ marginBottom: 4, display: 'flex', gap: 12 }}>
               <div style={{ position: 'relative', flex: 1 }}>
                 <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 16 }}>🔍</span>
                 <input 
@@ -534,7 +536,7 @@ export default function MasterDataPage() {
                 <select 
                   value={freqFilter}
                   onChange={e => setFreqFilter(e.target.value)}
-                  style={{ width: 140, padding: '0 16px', border: '1px solid #e2e8f0', borderRadius: 18, fontSize: 14, background: '#fff', cursor: 'pointer', outline: 'none' }}
+                  style={{ width: 140, padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 18, fontSize: 14, background: '#fff', cursor: 'pointer', outline: 'none' }}
                 >
                   <option value="All">ทุกความถี่</option>
                   {FREQUENCIES.map(f => <option key={f} value={f}>{f}</option>)}
@@ -544,7 +546,7 @@ export default function MasterDataPage() {
                 <select 
                   value={monthFilter}
                   onChange={e => setMonthFilter(e.target.value)}
-                  style={{ width: 160, padding: '0 16px', border: '1px solid #e2e8f0', borderRadius: 18, fontSize: 14, background: '#fff', cursor: 'pointer', outline: 'none' }}
+                  style={{ width: 160, padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 18, fontSize: 14, background: '#fff', cursor: 'pointer', outline: 'none' }}
                 >
                   <option value="All">ทุกเดือน</option>
                   {MONTHS_FULL.map((m, i) => <option key={m} value={i}>{m}</option>)}
@@ -559,9 +561,9 @@ export default function MasterDataPage() {
               <ApprovalFlowsPage />
             ) : activeType === 'substitutes' ? (
               <SubstitutesPage />
-            ) : activeType === 'working_hours' ? (
+              ) : activeType === 'working_hours' ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                <div style={{ display: 'flex', gap: 24 }}>
+                <div className="responsive-flex" style={{ display: 'flex', gap: 24 }}>
                   <TimePicker24 label="เวลาเริ่มงาน" value={whSettings.start} onChange={v => setWhSettings({ ...whSettings, start: v })} />
                   <TimePicker24 label="เวลาเลิกงาน" value={whSettings.end} onChange={v => setWhSettings({ ...whSettings, end: v })} />
                 </div>
@@ -598,7 +600,7 @@ export default function MasterDataPage() {
               </div>
             ) : activeType === 'checklist_template' ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div className="responsive-flex" style={{ display: 'flex', gap: 12 }}>
                   <select value={newTemplate.category} onChange={e => setNewTemplate({ ...newTemplate, category: e.target.value })} style={{ flex: 1, padding: '12px', border: '1px solid #e2e8f0', borderRadius: 14 }}>
                     <option value="">-- เลือกหมวดหมู่ --</option>
                     {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -615,14 +617,14 @@ export default function MasterDataPage() {
                     <option value={5}>T5: Sign-off</option>
                   </select>
                 </div>
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div className="responsive-flex" style={{ display: 'flex', gap: 12 }}>
                   <input value={newTemplate.item_label} onChange={e => setNewTemplate({ ...newTemplate, item_label: e.target.value })} style={{ flex: 1, padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 14, fontSize: 14 }} placeholder="ชื่อรายการตรวจเช็ค..." />
                   <input value={newTemplate.instruction || ''} onChange={e => setNewTemplate({ ...newTemplate, instruction: e.target.value })} style={{ flex: 1, padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 14, fontSize: 14 }} placeholder="วิธีการตรวจสอบ (ถ้ามี)..." />
-                  <button onClick={handleAddTemplate} disabled={adding} style={{ width: 180, padding: '0 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 600 }}>{adding ? 'กำลังเพิ่ม...' : '+ เพิ่มข้อมูล'}</button>
+                  <button onClick={handleAddTemplate} disabled={adding} style={{ width: 180, padding: '0 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 600, minHeight: 45 }}>{adding ? 'กำลังเพิ่ม...' : '+ เพิ่มข้อมูล'}</button>
                 </div>
               </div>
             ) : activeType === 'procedure_plan' ? (
-              <div style={{ display: 'flex', gap: 12 }}>
+              <div className="responsive-flex" style={{ display: 'flex', gap: 12 }}>
                 <input value={newValue} onChange={e => setNewValue(e.target.value)} style={{ flex: 1, padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 14, fontSize: 14 }} placeholder="ชื่อแผนการตรวจสอบใหม่ เช่น SOP การกู้คืนระบบ..." />
                 <button
                   onClick={async () => {
@@ -636,7 +638,7 @@ export default function MasterDataPage() {
                     await supabase.from('checklist_procedure_plans').insert([{ plan_name: newValue.trim(), steps: defaultSteps }])
                     setNewValue(''); fetchItems(); setAdding(false)
                   }}
-                  style={{ padding: '0 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 600 }}
+                  style={{ padding: '12px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 600 }}
                 >+ สร้างแผนใหม่</button>
               </div>
             ) : (
@@ -647,9 +649,8 @@ export default function MasterDataPage() {
             )}
           </div>
 
-          {/* Table Section */}
           {!['working_hours', 'approval_flows', 'substitutes'].includes(activeType) && (
-            <div className="table-wrapper" style={{ background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+            <div className="table-wrapper" style={{ background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
               <table className={activeType === 'checklist_template' ? 'checklist-table' : 'master-table'} style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead style={{ background: '#f8fafc', borderBottom: '2px solid #f1f5f9' }}>
                   {activeType === 'holidays' ? (

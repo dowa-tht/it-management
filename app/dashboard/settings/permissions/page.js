@@ -87,11 +87,15 @@ export default function PermissionsPage() {
         .status-select { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .is-edited { background: #f0f9ff !important; }
         @media (max-width: 768px) {
-          :root { --page-padding: 16px; }
+          :root { --page-padding: 12px; }
           .header-flex { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .header-actions { width: 100% !important; display: flex !important; gap: 8px !important; }
+          .header-actions button { flex: 1 !important; }
           .title-text { font-size: 22px !important; }
-          .perm-table { font-size: 13px; }
+          .perm-table { min-width: 800px !important; }
+          .table-container { margin: 0 -12px !important; border-radius: 0 !important; }
         }
+        * { box-sizing: border-box; }
       `}</style>
 
       <div className="header-flex" style={{ marginBottom: 40, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20 }}>
@@ -105,7 +109,7 @@ export default function PermissionsPage() {
           <p style={{ color: '#64748b', fontSize: 15, margin: 0 }}>บริหารจัดการสิทธิ์แบบ Dynamic (RO/RW) สำหรับโครงสร้างระบบ DOWA IT</p>
         </div>
 
-        <div style={{ 
+        <div className="header-actions" style={{ 
           display: 'flex', gap: 12, 
           padding: '12px 20px', background: '#fff', borderRadius: 20, 
           boxShadow: hasChanges ? '0 20px 25px -5px rgba(0,0,0,0.1)' : 'none',
@@ -152,13 +156,13 @@ export default function PermissionsPage() {
         </div>
       )}
 
-      <div style={{ 
+      <div className="table-container" style={{ 
         background: 'rgba(255, 255, 255, 0.8)', 
         backdropFilter: 'blur(20px)',
         borderRadius: 24, 
         border: '1px solid rgba(226, 232, 240, 0.8)', 
-        overflow: 'hidden', 
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02)'
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02)',
+        overflow: 'hidden'
       }}>
         <div style={{ overflowX: 'auto' }}>
           <table className="perm-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>

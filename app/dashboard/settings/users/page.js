@@ -233,12 +233,13 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
           <button style={tabStyle('login_logs')} onClick={() => setActiveTab('login_logs')}>🕒 ประวัติ Login</button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 32 }}>
+        <div style={{ flex: 1, overflowY: 'auto' }} className="dialog-padding">
+          <div style={{ padding: 32 }} className="dialog-padding">
           {msg.text && <div style={{ padding: '14px 20px', borderRadius: 14, fontSize: 14, marginBottom: 24, background: msg.type === 'success' ? '#f0fdf4' : '#fef2f2', color: msg.type === 'success' ? '#166534' : '#991b1b', border: `1px solid ${msg.type === 'success' ? '#bcf0da' : '#fecaca'}` }}>{msg.type === 'success' ? '✅' : '❌'} {msg.text}</div>}
 
           {activeTab === 'general' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+              <div className="dialog-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>ชื่อ-นามสกุล</label>
                   <input value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 14 }} />
@@ -287,7 +288,7 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
 
           {activeTab === 'security' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+              <div className="dialog-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>รหัสผ่านใหม่</label>
                   <input type={showPwd ? "text" : "password"} value={pwdForm.newPass} onChange={e => setPwdForm({ ...pwdForm, newPass: e.target.value })} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 14 }} />
@@ -318,7 +319,7 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+              <div className="dialog-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>PIN ใหม่ (6 หลัก)</label>
                   <input type="password" maxLength={6} value={pinForm.newPin} onChange={e => setPinForm({ ...pinForm, newPin: e.target.value.replace(/\D/g, '') })} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 14 }} placeholder="••••••" />
@@ -569,9 +570,13 @@ export default function UsersPage() {
           .form-actions button { width: 100% !important; }
           .table-wrapper { overflow-x: auto !important; margin: 0 -12px !important; }
           .users-table { min-width: 850px !important; }
+          .users-table { min-width: 850px !important; }
           .dialog-content { padding: 20px !important; }
-          .dialog-tabs { flex-wrap: wrap !important; }
-          .dialog-tabs button { font-size: 11px !important; padding: 10px !important; }
+          .dialog-tabs { overflow-x: auto !important; scrollbar-width: none !important; -ms-overflow-style: none !important; }
+          .dialog-tabs::-webkit-scrollbar { display: none !important; }
+          .dialog-tabs button { font-size: 11px !important; padding: 12px 16px !important; min-width: 120px !important; white-space: nowrap !important; }
+          .dialog-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+          .dialog-padding { padding: 20px !important; }
         }
         * { box-sizing: border-box; }
       `}</style>
