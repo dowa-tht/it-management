@@ -90,7 +90,7 @@ function IncidentsContent() {
 
     // ROLE-BASED FILTERING FOR MEMBER
     if (currentUser?.role === 'member') {
-      query = query.or(`reported_by_id.eq.${currentUser.id},reported_by.eq.${currentUser.email}`)
+      query = query.or(`created_by.eq.${currentUser.id},reported_by.eq.${currentUser.email}`)
     }
 
     const { data, error } = await query

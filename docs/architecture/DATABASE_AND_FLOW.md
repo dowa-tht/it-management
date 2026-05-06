@@ -28,7 +28,24 @@ erDiagram
     }
     "user_profiles" ||--o{ "incidents" : "created_by"
     "user_profiles" ||--o{ "incident_logs" : "user_email"
+    "incidents" ||--o{ "document_approvals" : "doc_id"
 ```
+
+#### Incident Management Schema (Standardized)
+- **`incidents`**: ตารางหลักเก็บข้อมูลใบแจ้งซ่อม/ปัญหา
+  - `id`: UUID (PK)
+  - `case_number`: Text (Unique - Document No.)
+  - `title`: Text (หัวข้อปัญหา)
+  - `description`: Text (รายละเอียด)
+  - `status`: Text (Document Status: Open, In Progress, Pending Approval, Closed)
+  - `workflow_status`: Text (Workflow Engine Status: draft, pending, approved, rejected)
+  - `severity`: Text (High, Medium, Low)
+  - `category`: Text (ประเภทปัญหา)
+  - `affected_system`: Text (ระบบที่ได้รับผลกระทบ)
+  - `reported_by`: Text (ชื่อผู้แจ้ง - สำหรับแสดงผล)
+  - `created_by`: UUID (FK -> `user_profiles.id`) - ผู้ที่สร้างเอกสารในระบบ
+  - `assigned_to`: Text (ชื่อผู้รับผิดชอบ)
+  - `assigned_approver_id`: UUID (FK -> `user_profiles.id`) - ผู้อนุมัติปัจจุบันตาม Workflow
 
 > [!NOTE]
 > **Legacy Deprecation:** The tables `user_registry` and `external_users` are now deprecated and will be removed in future updates.

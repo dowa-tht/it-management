@@ -140,9 +140,9 @@ export async function getUnifiedMyPendingItems() {
     // 3. Fetch My Pending Incidents (Sent by me OR Reported by me, still pending approval)
     const { data: incidents } = await supabaseAdmin
       .from('incidents')
-      .select(`id, case_number, title, status, created_at, reported_by, assigned_to, reported_by_id`)
+      .select(`id, case_number, title, status, created_at, reported_by, assigned_to, created_by`)
       .ilike('status', 'Pending Approval')
-      .or(`reported_by.eq.${profile.email},assigned_to.eq.${profile.email},assigned_to.eq.${profile.full_name},reported_by_id.eq.${profile.id}`)
+      .or(`reported_by.eq.${profile.email},assigned_to.eq.${profile.email},assigned_to.eq.${profile.full_name},created_by.eq.${profile.id}`)
 
     // 4. Transform into Unified Format
     const unified = [
@@ -529,7 +529,7 @@ export async function runWorkflowMigration() {
     // Incident Migration
     const { data: incidents } = await supabaseAdmin
       .from('incidents')
-      .select('id, status, signature_it, signature_reporter, signature_manager, resolved_by, reported_by_id, approved_by, resolved_at, approved_at')
+      .select('id, status, signature_it, signature_reporter, signature_manager, resolved_by, created_by, approved_by, resolved_at, approved_at')
 
     for (const i of (incidents || [])) {
       const { data: existing } = await supabaseAdmin.from('document_approvals').select('id').eq('doc_id', i.id).limit(1)
@@ -548,7 +548,7 @@ export async function runWorkflowMigration() {
         await supabaseAdmin.from('document_approvals').insert([{
           doc_id: i.id, doc_type: 'incident', step_order: 2,
           status: i.signature_reporter ? 'approved' : (i.signature_it ? 'pending' : 'waiting'),
-          approver_id: i.reported_by_id, signature_data: i.signature_reporter, action_at: i.resolved_at
+          approver_id: i.created_by, signature_data: i.signature_reporter, action_at: i.resolved_at
         }])
       }
       // Manager Step

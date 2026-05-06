@@ -183,7 +183,7 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
       <MemberSignatureModal 
         isOpen={showMemberPINModal}
         memberName={incident.reported_by}
-        memberId={incident.reported_by_id}
+        memberId={incident.created_by}
         onCancel={() => { setShowMemberPINModal(false); setShowCanvas(null); }}
         onConfirm={(d) => {
           setSigReporter(d)
@@ -604,7 +604,10 @@ export default function IncidentDetailPage() {
       updatedForm.status = updatedForm.status === 'Open' ? 'In Progress' : updatedForm.status
     }
 
-    const { error } = await supabase.from('incidents').update(updatedForm).eq('id', id)
+    // Remove any fields that don't exist in the DB schema to avoid errors
+    const { reported_by_id, ...dataToUpdate } = updatedForm
+
+    const { error } = await supabase.from('incidents').update(dataToUpdate).eq('id', id)
     if (error) {
       alert(`บันทึกข้อมูลไม่สำเร็จ: ${error.message}`)
       setSaving(false)
