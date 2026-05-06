@@ -74,7 +74,7 @@ export default function DashboardPage() {
   if (data?.error) return <div style={{ padding: 40, textAlign: 'center', color: '#dc2626' }}>เกิดข้อผิดพลาดในการโหลดข้อมูล: {data.error}</div>
   if (!data) return null
 
-  const { stats, incidentByDay, severityData, recentIncidents, recentBackups, checklists } = data
+  const { stats = {}, incidentByDay = [], severityData = [], recentIncidents = [], recentBackups = [], checklists = [] } = data || {}
 
   const statCards = [
     { label: 'Incident 30 วัน', value: stats.totalIncidents, color: '#1d4ed8', link: '/dashboard/incidents?date=30days' },
