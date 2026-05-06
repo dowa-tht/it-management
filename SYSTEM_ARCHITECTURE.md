@@ -342,10 +342,11 @@ All tiers now use standard authentication protocols.
   - **New AI Agent Rules**: 
     - Formalized the **[PRIORITIZE STANDARDS]** rule in `AGENTS.md`, requiring all AI assistants to check system standards before implementing features.
     - Mandated **[CRITICAL LOGIC CONFIRMATION]** with `> [!IMPORTANT]` alerts for any ambiguous system-critical changes.
+    - Added **[DOCUMENTATION SYNC]** rule to ensure all confirmed changes are reflected in `.md` files immediately.
   - **Production Build & Sync**: Verified the system with a successful production build and pushed all changes to the main repository.
 
 ---
-*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-05-06 13:54 (Session End: Status Standardization & AI Rules) โดย Antigravity AI*
+*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-05-06 13:55 (Session End: Status Standardization & AI Rules) โดย Antigravity AI*
 
 
 
