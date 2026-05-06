@@ -61,11 +61,11 @@ export async function getDashboardData(timezoneOffset = -420) {
       supabaseAdmin.from('system_settings').select('value').eq('key', 'sla_limits').maybeSingle(),
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').eq('freq_type', 'Yearly').gte('period_date', `${todayStr.substring(0, 4)}-01-01`),
       // Fetch Pending Approvals (For Approver)
-      userProfile ? supabaseAdmin.from('checklist_docs').select('id').eq('workflow_status', 'pending').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
-      userProfile ? supabaseAdmin.from('incidents').select('id').eq('status', 'Pending Approval').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
+      userProfile ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING']).or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
+      userProfile ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
       // Fetch My Sent Pending Items (For Sender Tracking)
-      userProfile ? supabaseAdmin.from('checklist_docs').select('id').eq('workflow_status', 'pending').eq('created_by', userProfile.id) : Promise.resolve({ data: [] }),
-      userProfile ? supabaseAdmin.from('incidents').select('id').eq('status', 'Pending Approval').eq('reported_by', userProfile.email) : Promise.resolve({ data: [] })
+      userProfile ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING']).eq('created_by', userProfile.id) : Promise.resolve({ data: [] }),
+      userProfile ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval').eq('reported_by', userProfile.email) : Promise.resolve({ data: [] })
     ])
 
     if (incRes.error) console.error('Incidents Fetch Error:', incRes.error)
