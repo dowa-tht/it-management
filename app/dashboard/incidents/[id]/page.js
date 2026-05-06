@@ -404,8 +404,11 @@ export default function IncidentDetailPage() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
     setCurrentUser(session.user)
-    const { data: p } = await supabase.from('user_profiles').select('role').eq('id', session.user.id).single()
-    setIsSuperUser(p?.role === 'superuser')
+    const { data: p } = await supabase.from('user_profiles').select('role, full_name').eq('id', session.user.id).single()
+    if (p) {
+      setCurrentUser(prev => ({ ...prev, full_name: p.full_name, role_name: p.role }))
+      setIsSuperUser(p.role === 'superuser')
+    }
   }
 
   const isVisitor = currentUser?.role === 'visitor'
@@ -519,8 +522,9 @@ export default function IncidentDetailPage() {
     const { error } = await supabase.from('incidents')
       .update({ 
         acknowledged_at: now,
-        status: incident.status === 'Open' ? 'In Progress' : incident.status,
-        assigned_to: incident.assigned_to || currentUser?.email?.split('@')[0] // ถ้าไม่มีใครรับ ให้ลงชื่อตัวเอง
+        assigned_at: now, // Set assigned_at to stop Response SLA correctly
+        status: 'In Progress',
+        assigned_to: currentUser.full_name || currentUser?.email?.split('@')[0]
       })
       .eq('id', id)
 
@@ -530,7 +534,7 @@ export default function IncidentDetailPage() {
       return
     }
 
-    await addLog('รับเรื่อง (Acknowledge)', incident.status, 'In Progress', 'IT กดรับทราบเคสและเริ่มดำเนินการ')
+    await addLog('รับเรื่อง (Acknowledge)', incident.status, 'In Progress', `IT (${currentUser.full_name || currentUser.email}) กดรับทราบเคสและเริ่มดำเนินการ`)
     await fetchIncident()
     setSaving(false)
   }
@@ -889,7 +893,7 @@ export default function IncidentDetailPage() {
             {isLocked && <span style={{ background:'#d1fae5', color:'#065f46', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:500 }}>🔒 Resolved</span>}
           </div>
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            {!isLocked && !incident.acknowledged_at && (
+            {!isLocked && !incident.acknowledged_at && !incident.assigned_to && (
               <button onClick={handleAcknowledge} disabled={saving} style={{ padding:'7px 20px', border:'none', borderRadius:7, fontSize:13, background:'#1d4ed8', color:'#fff', cursor:'pointer', fontFamily:'inherit', fontWeight:600, boxShadow:'0 2px 4px rgba(29,78,216,0.3)' }}>
                 ✅ รับเรื่อง (Acknowledge)
               </button>
