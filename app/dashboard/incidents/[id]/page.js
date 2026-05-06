@@ -162,6 +162,8 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
     onConfirm(sigIT, sigReporter, sigManager, true)
   }
 
+  const renderCanvas = (title) => {
+    if (!showCanvas) return null
     if (showCanvas === 'Reporter') {
       setShowMemberPINModal(true)
       return null
