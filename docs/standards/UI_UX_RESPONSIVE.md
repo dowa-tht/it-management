@@ -5,13 +5,15 @@
 ## 1. Breakpoints มาตรฐาน
 - **Desktop (LG):** 1024px ขึ้นไป
 - **Tablet (MD):** 768px ถึง 1023px
-- **Mobile (SM):** 767px ลงไป
+- **Mobile (SM):** 767px ลงไป (แนะนำให้ทดสอบที่ 360px ซึ่งเป็นค่ามาตรฐานมือถือส่วนใหญ่)
+- **Small Mobile:** 320px (ต้องไม่ล้นจอที่ความกว้างนี้)
 
 ## 2. กฎเหล็กสำหรับการเขียน CSS
 - **No Fixed Widths:** ห้ามใช้ `width` เป็น px กับ Container หลัก ให้ใช้ `width: 100%` หรือ `max-width` แทน
-- **Flexible Grids:** ใช้ `grid-template-columns: repeat(auto-fit, minmax(px, 1fr))` เพื่อให้ Card จัดเรียงตัวเองตามขนาดหน้าจออัตโนมัติ
-- **Adaptive Padding:** บนมือถือควรลด Padding ลง (เช่น จาก 24px เป็น 12px) เพื่อเพิ่มพื้นที่แสดงผล
-- **Overflow Prevention:** ห้ามให้เกิด Horizontal Scroll ในแนวแกน X โดยเด็ดขาด
+- **Flexible Grids:** ใช้ `grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))` เพื่อความปลอดภัย (Safe Margin)
+- **Adaptive Columns:** สำหรับข้อมูลที่มีหลายคอลัมน์ (เช่น Status Cards) ให้ลดเหลือ **2 คอลัมน์** หรือ **1 คอลัมน์** บนหน้าจอ SM เสมอ
+- **Adaptive Padding:** บนมือถือควรลด Padding ลง (เช่น จาก 24px เป็น 12px หรือ 16px) เพื่อเพิ่มพื้นที่แสดงผล
+- **Overflow Prevention:** ห้ามให้เกิด Horizontal Scroll ในแนวแกน X และต้องใช้ `box-sizing: border-box` กับทุก Element เสมอ
 - **Touch Targets:** ปุ่มกดบนมือถือต้องมีขนาดไม่ต่ำกว่า 44x44px เพื่อให้กดง่าย
 
 ## 3. การจัดการตาราง (Tables)
