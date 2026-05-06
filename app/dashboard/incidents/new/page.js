@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { getNextNo, updateLastNo } from '@/lib/noSeries'
 import { formatDateTime } from '@/lib/dateFormat'
+import { UserAutocomplete } from '../components/UserAutocomplete'
 
 const SLA_MINUTES = {
   High:   { response: 60,   resolve: 240  },
@@ -70,6 +71,7 @@ function NewIncidentForm() {
     title: '', description: '', severity: 'Medium',
     status: 'Open', category: '', affected_system: '',
     reported_by: '', assigned_to: '',
+    created_by: null,
     root_cause: '', resolution: '',
     ref_type: null, ref_id: null, ref_doc_no: null, ref_doc_id: null
   })
@@ -316,7 +318,10 @@ function NewIncidentForm() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div>
               <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>ผู้แจ้ง / Reported By{req}</label>
-              <input value={form.reported_by} onChange={e => setForm({ ...form, reported_by: e.target.value })} placeholder="ชื่อผู้แจ้งปัญหา" style={inputStyle('reported_by')} />
+              <UserAutocomplete 
+                value={form.reported_by}
+                onChange={(u) => setForm({ ...form, reported_by: u.full_name, created_by: u.id })}
+              />
               {errMsg('reported_by')}
             </div>
             <div>

@@ -170,7 +170,7 @@ export async function requestSignatureOTP(userId) {
       `
     })
 
-    return { success: true }
+    return { success: true, email: user.email }
   } catch (err) {
     return { error: err.message }
   }

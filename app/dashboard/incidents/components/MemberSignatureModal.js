@@ -11,6 +11,7 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
   const [isVerified, setIsVerified] = useState(false)
   const [otpLoading, setOtpLoading] = useState(false)
   const [otpSent, setOtpSent] = useState(false)
+  const [userEmail, setUserEmail] = useState('')
   const sigPad = useRef(null)
 
   if (!isOpen) return null
@@ -47,6 +48,10 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
   }
 
   const handleRequestOTP = async () => {
+    if (!memberId) {
+      setError('ไม่พบ ID ผู้ใช้ในระบบ (อาจต้องบันทึกเอกสารก่อนหรือเลือกผู้แจ้งใหม่)')
+      return
+    }
     setOtpLoading(true)
     setError('')
     const res = await requestSignatureOTP(memberId)
@@ -55,6 +60,7 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
       setOtpSent(true)
       setMode('otp')
       setCode('')
+      if (res.email) setUserEmail(res.email)
     } else {
       setError(res.error || 'ไม่สามารถส่ง OTP ได้')
     }
@@ -97,7 +103,7 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
               </div>
 
               <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 16, textAlign: 'center' }}>
-                {mode === 'pin' ? 'กรุณากรอกรหัส PIN 6 หลัก' : 'กรุณากรอกรหัส OTP จากอีเมลของคุณ'}
+                {mode === 'pin' ? 'กรุณากรอกรหัส PIN 6 หลัก' : (otpSent ? `กรุณากรอกรหัส OTP ที่ส่งไปที่ ${userEmail}` : 'กรุณากรอกรหัส OTP จากอีเมลของคุณ')}
               </label>
 
               <input 
@@ -131,7 +137,24 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
                 </div>
               )}
 
-              {error && <div style={{ marginTop: 12, color: '#dc2626', fontSize: 12, textAlign: 'center', fontWeight: 600 }}>❌ {error}</div>}
+              {error && (
+                <div style={{ marginTop: 12, padding: 12, background: '#fff1f2', borderRadius: 8, border: '1px solid #fecaca' }}>
+                  <div style={{ color: '#dc2626', fontSize: 12, textAlign: 'center', fontWeight: 600 }}>❌ {error}</div>
+                  <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 8, textAlign: 'center', borderTop: '1px dashed #fecaca', paddingTop: 8 }}>
+                    DEBUG INFO: memberId = {memberId || 'NULL'} | memberName = {memberName || 'NULL'}
+                  </div>
+                  {!memberId && (
+                    <div style={{ fontSize: 10, color: '#991b1b', marginTop: 4, textAlign: 'center' }}>
+                      <strong>สาเหตุ:</strong> ID ของผู้แจ้งหายไป กรุณาลองเลือกผู้แจ้งในหน้า Incident อีกครั้งและกด "บันทึก" ก่อนเซ็นชื่อครับ
+                    </div>
+                  )}
+                  {mode === 'otp' && error.includes('อีเมล') && (
+                    <div style={{ fontSize: 10, color: '#991b1b', marginTop: 4, textAlign: 'center' }}>
+                      <strong>ทางเลือก:</strong> หากไม่มีอีเมล ให้ IT ไปที่ Settings > Users เพื่อตั้ง PIN ให้เขา แล้วเลือก "ใช้ PIN" แทนครับ
+                    </div>
+                  )}
+                </div>
+              )}
               
               <button 
                 onClick={handleVerify}
