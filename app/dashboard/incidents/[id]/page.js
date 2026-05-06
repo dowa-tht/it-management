@@ -167,7 +167,6 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
   const renderCanvas = (title) => {
     if (!showCanvas) return null
     if (showCanvas === 'Reporter') {
-      setShowMemberPINModal(true)
       return null
     }
     return <SignatureCanvas title={title} onSave={d => { 
@@ -182,8 +181,8 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
     return (
       <MemberSignatureModal 
         isOpen={showMemberPINModal}
-        memberName={incident.reported_by}
-        memberId={incident.created_by}
+        memberName={form.reported_by}
+        memberId={form.created_by}
         onCancel={() => { setShowMemberPINModal(false); setShowCanvas(null); }}
         onConfirm={(d) => {
           setSigReporter(d)
@@ -218,7 +217,13 @@ function ResolveDialog({ incident, form, setForm, onConfirm, onCancel, isAutoApp
           <button onClick={() => setSig(null)} style={{ display:'block', marginTop:8, fontSize:12, color:'#6b7280', background:'none', border:'none', cursor:'pointer', padding:0 }}>🔄 วาดใหม่</button>
         </div>
       ) : (
-        <div onClick={() => setShowCanvas(canvasKey)} style={{ border:'2px dashed #d1d5db', borderRadius:8, padding:24, textAlign:'center', marginBottom:16, cursor:'pointer', background:'#f9fafb' }}>
+        <div onClick={() => {
+          if (canvasKey === 'Reporter') {
+            setShowMemberPINModal(true)
+          } else {
+            setShowCanvas(canvasKey)
+          }
+        }} style={{ border:'2px dashed #d1d5db', borderRadius:8, padding:24, textAlign:'center', marginBottom:16, cursor:'pointer', background:'#f9fafb' }}>
           <div style={{ fontSize:32, marginBottom:8 }}>✍️</div>
           <div style={{ fontSize:13, color:'#6b7280' }}>กดเพื่อวาดลายเซ็นต์</div>
         </div>
