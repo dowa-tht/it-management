@@ -135,14 +135,17 @@ export default function DashboardPage() {
           .stat-grid-dynamic { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important; gap: 8px !important; }
           .chart-row { grid-template-columns: 1fr !important; }
           .dashboard-grid { grid-template-columns: 1fr !important; }
+          .checklist-status-grid { grid-template-columns: repeat(2, 1fr) !important; }
           .quick-action-card { padding: 16px !important; }
-          .quick-action-title { fontSize: 16px !important; }
+          .quick-action-title { font-size: 18px !important; }
+          .dashboard-title { font-size: 20px !important; }
         }
+        * { box-sizing: border-box; }
       `}</style>
 
       <div className="header-flex" style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0 }}>Dashboard</h1>
+          <h1 className="dashboard-title" style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0 }}>Dashboard</h1>
           <div style={{ fontSize: 13, color: '#64748b', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
              📅 {formatDate(new Date().toISOString())}
           </div>
@@ -237,7 +240,7 @@ export default function DashboardPage() {
       {/* IT Checklist & SLA Tracking (IT Only) */}
       <div className="dashboard-grid" style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
         gap: 16, 
         marginBottom: 20 
       }}>
@@ -262,7 +265,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          <div className="checklist-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
             <StatusCard title="Daily" value={ca?.dailyStatus?.label || 'รอตรวจ'} status={ca?.dailyStatus?.status} />
             <StatusCard title="Weekly" value={ca?.weeklyStatus?.label || 'รอตรวจ'} status={ca?.weeklyStatus?.status} />
             <StatusCard title="Monthly" value={ca?.monthlyStatus?.label || 'รอตรวจ'} status={ca?.monthlyStatus?.status} />
