@@ -610,7 +610,8 @@ export default function IncidentDetailPage() {
     }
 
     // Remove any fields that don't exist in the DB schema to avoid errors
-    const { reported_by_id, ...dataToUpdate } = updatedForm
+    const { reported_by_id, approval_comment, workflow_steps, ...dataToUpdate } = updatedForm
+    delete dataToUpdate.user_profiles // Some cases it might be attached
 
     const { error } = await supabase.from('incidents').update(dataToUpdate).eq('id', id)
     if (error) {
@@ -639,11 +640,11 @@ export default function IncidentDetailPage() {
     setIncident(updatedForm); setEditing(false); setSaving(false)
   }
 
-  const handleResolve = async (sigIT, sigReporter, sigManager, isDraft) => {
+  const handleResolve = async (sigIT, sigReporter, sigManager, isDraft = false) => {
     setSaving(true)
     const now = new Date().toISOString()
     
-    // SLA Calculation (Business Hours)
+    // SLA Calculation
     const defaultWH = { start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] }
     const wh = workingHours || defaultWH
     const respTime = incident?.acknowledged_at || incident?.assigned_at
@@ -658,10 +659,41 @@ export default function IncidentDetailPage() {
     const resolveOk = resolveMin <= slaLimit
     const slaNote = `Response: ${formatElapsed(responseMin)} ${responseOk?'✅':'⏰'} | Resolution: ${formatElapsed(resolveMin)} ${resolveOk?'✅':'⏰'}`
 
-    // USE WORKFLOW ENGINE
+    if (isDraft) {
+      // Just save signatures and resolution to incidents table
+      const { error } = await supabase.from('incidents').update({
+        resolution: form.resolution,
+        root_cause: form.root_cause,
+        corrective_action: form.corrective_action,
+        signature_it: sigIT,
+        signature_reporter: sigReporter,
+        signature_manager: sigManager
+      }).eq('id', id)
+
+      if (error) {
+        alert(`บันทึกร่างไม่สำเร็จ: ${error.message}`)
+      } else {
+        await addLog('บันทึกร่าง (Draft)', incident.status, incident.status, 'บันทึกข้อมูลและลายเซ็นต์บางส่วน')
+        fetchIncident()
+        setShowResolveDialog(false)
+      }
+      setSaving(false)
+      return
+    }
+
+    // FINAL SUBMISSION: USE WORKFLOW ENGINE
     const res = await submitRequest(id, 'incident', incident.severity, currentUser.email)
     
     if (res.success) {
+      // Also update signatures in main table for compatibility/preview
+      await supabase.from('incidents').update({
+        signature_it: sigIT,
+        signature_reporter: sigReporter,
+        signature_manager: sigManager,
+        resolved_at: now,
+        resolved_by: currentUser.email
+      }).eq('id', id)
+
       await addLog('ปิดเคสและส่งอนุมัติ', incident.status, 'Pending Approval', `${slaNote} · ดำเนินการโดย: ${currentUser?.email}`)
       fetchIncident()
       setShowResolveDialog(false)

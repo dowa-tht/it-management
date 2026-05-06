@@ -354,8 +354,7 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail) {
       .update({
         workflow_status: finalAutoApprove ? 'approved' : 'pending',
         status: finalAutoApprove ? 'Closed' : 'Pending Approval',
-        assigned_approver_id: config?.primary_approver_id || null,
-        approval_comment: finalAutoApprove ? 'ระบบอนุมัติอัตโนมัติ (ตามการตั้งค่า)' : null
+        assigned_approver_id: config?.primary_approver_id || null
       })
       .eq('id', docId)
     
@@ -602,8 +601,7 @@ export async function adminResetWorkflow(docId, docType, password) {
       status: 'Open',
       assigned_approver_id: null,
       approved_by: null,
-      approved_at: null,
-      approval_comment: null
+      approved_at: null
     }
 
     const { error: resetError } = await supabaseAdmin
