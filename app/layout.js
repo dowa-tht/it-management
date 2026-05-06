@@ -19,10 +19,16 @@ const notoSans = Noto_Sans({
 
 export const dynamic = 'force-dynamic'
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+}
+
 export const metadata = {
   title: 'DOWA IT System',
-  description: 'IT Management System',
-  viewport: 'width=device-width, initial-scale=1',
+  description: 'IT Management System for DOWA THT Services',
 }
 
 export default function RootLayout({ children }) {
