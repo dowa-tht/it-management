@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/dateFormat'
 import { getSystemLogs, adminResetWorkflow } from '@/app/actions/workflow'
 
@@ -78,26 +79,112 @@ export default function LogsPage() {
     }
   });
 
+  const [showGuide, setShowGuide] = useState(false)
+  const [guideContent, setGuideContent] = useState('')
+  const [editingGuide, setEditingGuide] = useState(false)
+
+  const fetchGuide = async () => {
+    const { data } = await supabase.from('system_settings').select('value').eq('key', 'logs_guide_content').single()
+    if (data) setGuideContent(data.value)
+    else {
+      setGuideContent(`### 🔍 คู่มือระบบตรวจสอบบันทึก (System Logs & Audit Trails)
+ระบบรวบรวมบันทึกเหตุการณ์สำคัญทั้งหมดที่เกิดขึ้นในระบบ เพื่อความโปร่งใสและการตรวจสอบย้อนหลัง (Traceability)
+
+---
+#### **1. ประเภทของบันทึก (Log Categories)**
+
+#### **Audit Logs (🔍)**
+- บันทึกการแก้ไขข้อมูล Master Data และการเปลี่ยนแปลงการตั้งค่าระบบ
+- ระบุชัดเจนว่า "ใคร", "ทำอะไร", "เมื่อไหร่"
+
+#### **Approval Logs (✅)**
+- บันทึกประวัติการอนุมัติเอกสาร Checklist และ Incident ทุกขั้นตอน
+- **Admin Feature:** หากพบข้อผิดพลาดในขั้นตอนการอนุมัติ Admin สามารถใช้ปุ่ม **[Reset]** เพื่อดีดเอกสารกลับไปเป็นสถานะ Open ได้ (ต้องยืนยันรหัสผ่าน Admin)
+
+#### **Login History (🔑)**
+- ตรวจสอบประวัติการเข้าสู่ระบบ
+- แสดงข้อมูลอุปกรณ์ (User Agent) เพื่อเฝ้าระวังการเข้าถึงที่ผิดปกติ
+
+#### **System Errors (⚙️)**
+- บันทึกข้อผิดพลาดทางเทคนิคที่เกิดขึ้นในระบบ (Runtime Errors)
+- ใช้สำหรับทีม Support ในการวิเคราะห์และแก้ไข Bug
+
+---
+#### **2. การจัดการข้อมูล**
+- **Print Report:** พิมพ์หน้านี้เป็นเอกสาร PDF เพื่อใช้ในการประชุมหรือเก็บเข้าแฟ้ม Audit
+- **Export CSV:** นำข้อมูลออกไปวิเคราะห์ต่อใน Excel หรือระบบ BI ภายนอก`)
+    }
+  }
+
+  useEffect(() => {
+    loadLogs(activeTab)
+    fetchGuide()
+  }, [activeTab])
+
+  const handleSaveGuide = async () => {
+    const { error } = await supabase.from('system_settings').upsert({ key: 'logs_guide_content', value: guideContent, updated_at: new Date().toISOString() })
+    if (error) alert(error.message)
+    else { setEditingGuide(false); alert('บันทึกคู่มือสำเร็จ') }
+  }
+
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      {/* ... previous header and tabs ... */}
+    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto', background: '#f8fafc', minHeight: '100vh' }}>
+      {showGuide && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div style={{ background: '#fff', borderRadius: 28, width: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '28px 36px', background: 'linear-gradient(135deg, #4f46e5, #818cf8)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{display:'flex', alignItems:'center', gap:16}}><span style={{fontSize:28}}>🔍</span><div><h3 style={{margin:0, fontSize:22, fontWeight:800}}>System Logs Guide</h3><p style={{margin:0, fontSize:13, opacity:0.85}}>คู่มือการตรวจสอบประวัติระบบ</p></div></div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{editingGuide ? '👁 View' : '✏️ Edit'}</button>
+                <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 32, cursor: 'pointer' }}>&times;</button>
+              </div>
+            </div>
+            <div style={{ padding: 40, overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+              {editingGuide ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <textarea value={guideContent} onChange={e => setGuideContent(e.target.value)} style={{ width: '100%', minHeight: 450, padding: 24, borderRadius: 20, border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: 14 }} />
+                  <button onClick={handleSaveGuide} style={{ padding: '14px 36px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, alignSelf: 'flex-end' }}>บันทึกคู่มือ</button>
+                </div>
+              ) : (
+                <div style={{ maxWidth: 700, margin: '0 auto' }}>
+                  {guideContent.split('---').map((section, sIdx) => (
+                    <div key={sIdx} style={{ background: section.includes('####') ? '#fff' : 'transparent', borderRadius: 20, padding: section.includes('####') ? 28 : 0, marginBottom: section.includes('####') ? 24 : 36, borderLeft: section.includes('####') ? `6px solid #4f46e5` : 'none', boxShadow: section.includes('####') ? '0 4px 12px rgba(0,0,0,0.05)' : 'none' }}>
+                      <div style={{ fontSize: 15, color: '#334155', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                        {section.trim().split('\n').map((line, lIdx) => {
+                          if (line.startsWith('####')) return <h4 key={lIdx} style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 800, color: '#1e293b' }}>{line.replace(/#/g, '').trim()}</h4>
+                          if (line.startsWith('###')) return <h3 key={lIdx} style={{ margin: '0 0 24px 0', fontSize: 24, fontWeight: 900, color: '#0f172a' }}>{line.replace(/#/g, '').trim()}</h3>
+                          return <p key={lIdx} style={{ margin: '0 0 10px 0' }}>{line.includes('**') ? line.split('**').map((p,i)=>i%2===1?<strong key={i} style={{color:'#1e3a8a'}}>{p}</strong>:p) : line}</p>
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>System Logs</h1>
-          <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>ตรวจสอบบันทึกการใช้งานระบบและการเปลี่ยนแปลงข้อมูล (Audit Trails)</p>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
+            System Logs & Audit
+            <button onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#e0e7ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
+          </h1>
+          <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>ตรวจสอบบันทึกการใช้งานระบบและการเปลี่ยนแปลงข้อมูล (Audit Trails)</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => window.print()} style={{ padding: '8px 16px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={() => window.print()} style={{ padding: '10px 20px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
             🖨️ Print Report
           </button>
-          <button style={{ padding: '8px 16px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <button style={{ padding: '10px 20px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.2)' }}>
             📥 Export CSV
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: '1px solid #e5e7eb' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: '#fff', padding: 4, borderRadius: 16, border: '1px solid #e2e8f0', width: 'fit-content' }}>
         {[
           { id: 'audit', label: 'Audit Logs', icon: '🔍' },
           { id: 'approval', label: 'Approval Logs', icon: '✅' },

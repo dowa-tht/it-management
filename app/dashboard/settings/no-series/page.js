@@ -252,14 +252,99 @@ export default function NoSeriesPage() {
     return generateNextNo(s.format, s.last_no_used, workingDate)
   }
 
+  const [showGuide, setShowGuide] = useState(false)
+  const [guideContent, setGuideContent] = useState('')
+  const [editingGuide, setEditingGuide] = useState(false)
+
+  const fetchGuide = async () => {
+    const { data } = await supabase.from('system_settings').select('value').eq('key', 'no_series_guide_content').single()
+    if (data) setGuideContent(data.value)
+    else {
+      setGuideContent(`### 🔢 คู่มือการจัดการเลขที่เอกสาร (No. Series Management)
+ระบบจัดการเลขรันเอกสารแบบอัตโนมัติที่รองรับโครงสร้างแบบ **Header & Lines** เพื่อความยืดหยุ่นตามช่วงเวลา
+
+---
+#### **1. โครงสร้างของ No. Series**
+
+#### **Header (ระดับหัวข้อ)**
+- **Series Code:** ตัวย่อของเอกสาร (เช่น INC สำหรับ Incident, CHK สำหรับ Checklist)
+- **Format:** รูปแบบหลัก (เช่น DTT-INC-YYMM-###)
+  - **YY:** ปี ค.ศ. (2 หลัก)
+  - **MM:** เดือน (2 หลัก)
+  - **###:** จำนวนหลักของตัวเลขรัน (เช่น ### คือ 001, #### คือ 0001)
+
+#### **Lines (ระดับรายละเอียด)**
+- ใช้สำหรับ "เริ่มนับเลขใหม่" เมื่อถึงวันที่กำหนด (เช่น เริ่มเดือนใหม่)
+- **Starting Date:** วันที่เริ่มใช้เลขรันชุดนี้
+- **Last No. Used:** เลขล่าสุดที่ถูกใช้งานไป (ระบบจะบวก 1 อัตโนมัติสำหรับใบถัดไป)
+
+---
+#### **2. เทคนิคการใช้งาน**
+- **Working Date:** ระบบจะอ้างอิงเลขรันตาม "Working Date" ที่คุณเลือกไว้ในระบบ (ไม่ใช่แค่วันที่ปัจจุบัน) ทำให้สามารถคีย์งานย้อนหลังได้โดยเลขรันยังคงถูกต้องตามเดือนนั้นๆ
+- **CSV Import:** แนะนำให้ใช้การ Import CSV หากต้องการตั้งค่าเลขรันล่วงหน้าทั้งปี
+
+---
+#### **⚠️ ข้อควรระวัง**
+- การแก้ไข **Last No. Used** ด้วยตนเองอาจทำให้เลขที่เอกสารซ้ำซ้อนได้ ควรทำเมื่อจำเป็นเท่านั้น
+- หากต้องการเปลี่ยนรูปแบบเลขรันกลางคัน ให้สร้าง **Line ใหม่** แทนการแก้ไข Header เดิม`)
+    }
+  }
+
+  useEffect(() => {
+    fetchGuide()
+  }, [])
+
+  const handleSaveGuide = async () => {
+    const { error } = await supabase.from('system_settings').upsert({ key: 'no_series_guide_content', value: guideContent, updated_at: new Date().toISOString() })
+    if (error) alert(error.message)
+    else { setEditingGuide(false); alert('บันทึกคู่มือสำเร็จ') }
+  }
+
   if (loading) return <div style={{ padding: 100, textAlign: 'center' }}>กำลังโหลด...</div>
 
   return (
     <div style={{ padding: 24, background: '#f8fafc', minHeight: '100vh' }}>
+      {showGuide && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div style={{ background: '#fff', borderRadius: 28, width: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '28px 36px', background: 'linear-gradient(135deg, #1d4ed8, #3b82f6)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{display:'flex', alignItems:'center', gap:16}}><span style={{fontSize:28}}>🔢</span><div><h3 style={{margin:0, fontSize:22, fontWeight:800}}>No. Series Guide</h3><p style={{margin:0, fontSize:13, opacity:0.85}}>คู่มือการจัดการเลขที่เอกสาร</p></div></div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{editingGuide ? '👁 View' : '✏️ Edit'}</button>
+                <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 32, cursor: 'pointer' }}>&times;</button>
+              </div>
+            </div>
+            <div style={{ padding: 40, overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+              {editingGuide ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <textarea value={guideContent} onChange={e => setGuideContent(e.target.value)} style={{ width: '100%', minHeight: 450, padding: 24, borderRadius: 20, border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: 14 }} />
+                  <button onClick={handleSaveGuide} style={{ padding: '14px 36px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, alignSelf: 'flex-end' }}>บันทึกคู่มือ</button>
+                </div>
+              ) : (
+                <div style={{ maxWidth: 700, margin: '0 auto' }}>
+                  {guideContent.split('---').map((section, sIdx) => (
+                    <div key={sIdx} style={{ background: section.includes('####') ? '#fff' : 'transparent', borderRadius: 20, padding: section.includes('####') ? 28 : 0, marginBottom: section.includes('####') ? 24 : 36, borderLeft: section.includes('####') ? `6px solid #1d4ed8` : 'none', boxShadow: section.includes('####') ? '0 4px 12px rgba(0,0,0,0.05)' : 'none' }}>
+                      <div style={{ fontSize: 15, color: '#334155', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                        {section.trim().split('\n').map((line, lIdx) => {
+                          if (line.startsWith('####')) return <h4 key={lIdx} style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 800, color: '#1e293b' }}>{line.replace(/#/g, '').trim()}</h4>
+                          if (line.startsWith('###')) return <h3 key={lIdx} style={{ margin: '0 0 24px 0', fontSize: 24, fontWeight: 900, color: '#0f172a' }}>{line.replace(/#/g, '').trim()}</h3>
+                          return <p key={lIdx} style={{ margin: '0 0 10px 0' }}>{line.includes('**') ? line.split('**').map((p,i)=>i%2===1?<strong key={i} style={{color:'#1e3a8a'}}>{p}</strong>:p) : line}</p>
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
             No. Series Management <span style={{ fontSize: 12, background: '#1d4ed8', color: '#fff', padding: '2px 10px', borderRadius: 20 }}>Enterprise</span>
+            <button onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#eff6ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
           </h1>
           <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
             ตั้งค่าเลขที่เอกสารแบบ Header & Lines อ้างอิง Working Date: <strong style={{ color: '#1d4ed8' }}>{getFormattedDate().split('-').reverse().join(' / ')}</strong>

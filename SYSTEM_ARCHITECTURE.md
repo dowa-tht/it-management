@@ -300,7 +300,27 @@ All tiers now use standard authentication protocols.
   - **Mobile Layout**: Implemented a responsive Sidebar with a Hamburger Menu and optimized the SLA Report table for small screens.
   - **Security**: Synchronized `user_whitelist` with all existing `user_profiles` to resolve access control issues.
 
+- [2026-05-05] **Workflow Stability & UI Polish**:
+  - **Dynamic Action Labels**: Implemented smart button text (🚀 ส่งบันทึกและปิดงาน) for Auto-Approve scenarios in Checklist and Incident modules.
+  - **Status Synchronization**: Fixed a bug where approved documents remained "In Progress" in list views by ensuring the main `status` field is updated to 'Closed' upon approval.
+  - **Reopen Logic Hardening**: Updated the Reopen/Unlock function to properly clear `workflow_status` and approval metadata, allowing documents to return to a clean 'Open' state.
+  - **Enhanced Photo Experience**: Upgraded the `PhotoTemplate` with larger thumbnails, hover scale effects, and robust error handling for broken images (e.g., in local dev environments).
+  - **UI Consistency**: Synchronized status badge logic between the Checklist List and Detail pages to ensure a unified user experience.
+
+- [2026-05-05] **Documentation & Help System Overhaul**:
+  - **Comprehensive Guide Update**: Rewrote all system guides (11+ sections) in Thai with detailed step-by-step instructions and technical tips.
+  - **New Guide Integration**: Added 📖 guide buttons and modal logic to `LogsPage` and `NoSeriesPage` for consistent UX across the system.
+  - **Content Coverage**: Updated documentation for RBAC, Signature PIN, OneDrive Integration, Auto-Approve logic, and SLA/KPI calculations.
+  - **Dynamic Fallback**: Implemented robust code-level fallback content for all guides to ensure immediate availability without DB dependency.
+
+- [2026-05-05 17:42] **Final Session Summary (Status Check)**:
+  - Verified and synchronized all Settings modules (Master Data, Users, Logs, No. Series).
+  - Confirmed operational status of Signature PIN (Bcrypt + Lockout), OneDrive Pipeline, and Global Filters.
+  - Standardized Thai documentation across all primary administrative interfaces.
+
 ---
-*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-05-05 (Session Update: OneDrive Integration & Build Fixes) โดย Antigravity AI*
+*เอกสารฉบับนี้อัปเดตล่าสุด: 2026-05-05 17:42 (Session End: Status Verified & Unified Docs) โดย Antigravity AI*
+
+
 
 
