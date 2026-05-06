@@ -16,9 +16,10 @@ const SEVERITY_COLORS = {
   Low:    { bg: '#d1fae5', color: '#065f46' },
 }
 const STATUS_COLORS = {
-  Open:          { bg: '#dbeafe', color: '#1e40af' },
-  'In Progress': { bg: '#fef3c7', color: '#92400e' },
-  Resolved:      { bg: '#d1fae5', color: '#065f46' },
+  Open:               { bg: '#dbeafe', color: '#1e40af' },
+  'In Progress':      { bg: '#fef3c7', color: '#92400e' },
+  'Pending Approval': { bg: '#ffedd5', color: '#9a3412' },
+  Closed:             { bg: '#d1fae5', color: '#065f46' },
 }
 const SLA_MINUTES = {
   High:   { response: 60,   resolve: 240  },
@@ -644,6 +645,7 @@ export default function IncidentDetailPage() {
       // Instead of closing, submit for approval
       const updateData = { 
         ...form, 
+        status: 'Pending Approval', // Update main status to standard
         workflow_status: 'pending',
         assigned_approver_id: config.primary_approver_id,
         signature_it: sigIT,
@@ -654,7 +656,7 @@ export default function IncidentDetailPage() {
       if (error) {
         alert(`ส่งขออนุมัติไม่สำเร็จ: ${error.message}`)
       } else {
-        await addLog('ส่งขออนุมัติ (Pending Approval)', incident.status, incident.status, `รอการอนุมัติโดย: ${config.primary_approver_id}`)
+        await addLog('ส่งขออนุมัติ (Pending Approval)', incident.status, 'Pending Approval', `รอการอนุมัติโดย: ${config.primary_approver_id}`)
         setIncident(updateData)
         setShowResolveDialog(false)
       }
@@ -705,7 +707,7 @@ export default function IncidentDetailPage() {
 
     const updateData = { 
       ...form, 
-      status:'Resolved', 
+      status:'Closed', // Standardized from Resolved to Closed
       is_locked:true, 
       resolved_at:now, 
       resolved_by: currentUser.full_name || currentUser.email, 
@@ -722,7 +724,7 @@ export default function IncidentDetailPage() {
       return
     }
 
-    await addLog('ปิดเคส (Resolved)', incident.status, 'Resolved', `${slaNote} · ลงนามโดย: ${currentUser?.email}`)
+    await addLog('ปิดเคส (Closed)', incident.status, 'Closed', `${slaNote} · ลงนามโดย: ${currentUser?.email}`)
 
     // Sync back to Checklist if this incident was opened from a checklist item
     if (incident.ref_type === 'checklist' && incident.ref_id) {
@@ -767,7 +769,7 @@ export default function IncidentDetailPage() {
       // 2. Resolve Incident
       const now = new Date().toISOString()
       const updateData = {
-        status: 'Resolved',
+        status: 'Closed', // Standardized
         workflow_status: 'approved',
         is_locked: true,
         resolved_at: now,
@@ -778,7 +780,7 @@ export default function IncidentDetailPage() {
       const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
       if (error) throw error
 
-      await addLog('อนุมัติปิดเคส (Approved)', incident.status, 'Resolved', `อนุมัติโดย: ${currentUser?.full_name}`)
+      await addLog('อนุมัติปิดเคส (Approved)', incident.status, 'Closed', `อนุมัติโดย: ${currentUser?.full_name}`)
       setShowSignatureModal(false)
       fetchIncident()
     } catch (err) {
@@ -824,7 +826,7 @@ export default function IncidentDetailPage() {
       setSaving(false)
       return
     }
-    await addLog('Reopen', 'Resolved', 'Open', `Reopen โดย: ${currentUser?.email}`)
+    await addLog('Reopen', incident.status, 'Open', `Reopen โดย: ${currentUser?.email}`)
     setIncident(updateData); setForm(updateData); setShowReopenDialog(false); setSaving(false)
   }
 
@@ -841,7 +843,7 @@ export default function IncidentDetailPage() {
   if (loading) return <div style={{ padding:40, textAlign:'center', color:'#9ca3af' }}>กำลังโหลด...</div>
   if (!incident) return <div style={{ padding:40, textAlign:'center', color:'#9ca3af' }}>ไม่พบข้อมูล</div>
 
-  const isLocked = incident?.is_locked || incident?.status === 'Resolved'
+  const isLocked = incident?.is_locked || incident?.status === 'Closed'
 
   // SLA Calculation (Business Hours)
   const defaultWH = { start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] }
@@ -914,7 +916,7 @@ export default function IncidentDetailPage() {
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
             <Link href="/dashboard/incidents" style={{ color:'#6b7280', fontSize:13, textDecoration:'none' }}>← กลับ</Link>
             <h1 style={{ fontSize:18, fontWeight:600, color:'#111827', margin:0 }}>รายละเอียด Incident</h1>
-            {isLocked && <span style={{ background:'#d1fae5', color:'#065f46', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:500 }}>🔒 Resolved</span>}
+            {isLocked && <span style={{ background:'#d1fae5', color:'#065f46', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:500 }}>🔒 Closed</span>}
           </div>
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
             {!isLocked && !incident.assigned_to && (
@@ -965,7 +967,7 @@ export default function IncidentDetailPage() {
           <div style={{ background:'#d1fae5', border:'1px solid #6ee7b7', borderRadius:10, padding:'12px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10 }}>
             <span style={{ fontSize:16 }}>🔒</span>
             <div>
-              <div style={{ fontSize:13, fontWeight:600, color:'#065f46' }}>เอกสารปิดแล้ว (Resolved)</div>
+              <div style={{ fontSize:13, fontWeight:600, color:'#065f46' }}>เอกสารปิดแล้ว (Closed)</div>
               <div style={{ fontSize:12, color:'#059669' }}>ปิดโดย: {incident.resolved_by||'—'} เมื่อ {formatDateTime(incident.resolved_at)}{isSuperUser && ' · Super User สามารถ Reopen ได้'}</div>
             </div>
           </div>
@@ -1006,7 +1008,7 @@ export default function IncidentDetailPage() {
             {field('ระบบที่ได้รับผลกระทบ', 'affected_system', 'select', 'master_system')}
             {field('ประเภท Incident', 'category', 'select', 'master_category')}
             {field('ระดับความรุนแรง', 'severity', 'select', ['High','Medium','Low'])}
-            {field('สถานะ', 'status', 'select', ['Open','In Progress','Resolved'])}
+            {field('สถานะ', 'status', 'select', ['Open','In Progress','Pending Approval','Closed'])}
             
             {/* Require Corrective Action Checkbox */}
             <div style={{ marginBottom:14, padding:'8px 12px', background:form.require_ca?'#eff6ff':'#f9fafb', borderRadius:8, border:`1px solid ${form.require_ca?'#bfdbfe':'#e5e7eb'}`, transition:'all 0.2s' }}>

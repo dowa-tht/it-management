@@ -314,10 +314,15 @@ export default function ChecklistDetailPage() {
       setItems(newItems)
       
       // Auto-save on status click to prevent data loss
-      supabase.from('checklist_items').update({ 
-        status: 'OK', 
-        notes: '' 
-      }).eq('id', newItems[index].id).then()
+      // Also update document status to In Progress if it's currently Open
+      const updateData = { status: 'OK', notes: '' }
+      supabase.from('checklist_items').update(updateData).eq('id', newItems[index].id).then()
+      
+      if (doc.status === 'Open') {
+        supabase.from('checklist_docs').update({ status: 'In Progress' }).eq('id', id).then(() => {
+          setDoc(prev => ({ ...prev, status: 'In Progress' }))
+        })
+      }
     }
   }
 
@@ -328,10 +333,17 @@ export default function ChecklistDetailPage() {
     setItems(newItems)
     
     // Auto-save on NG confirm
+    // Also update document status to In Progress if it's currently Open
     supabase.from('checklist_items').update({ 
       status: 'NG', 
       notes: notes 
     }).eq('id', newItems[activeNgItem.index].id).then()
+
+    if (doc.status === 'Open') {
+      supabase.from('checklist_docs').update({ status: 'In Progress' }).eq('id', id).then(() => {
+        setDoc(prev => ({ ...prev, status: 'In Progress' }))
+      })
+    }
     
     setActiveNgItem(null)
   }
@@ -421,12 +433,12 @@ export default function ChecklistDetailPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
               <h1 style={{ fontSize: 20, fontWeight: 600, color: '#111827', margin: 0 }}>{doc.doc_no}</h1>
               <span style={{ 
-                background: (doc.status === 'Open' && doneCount > 0) ? '#eff6ff' : isClosed ? '#d1fae5' : '#f3f4f6', 
-                color: (doc.status === 'Open' && doneCount > 0) ? '#1d4ed8' : isClosed ? '#065f46' : '#4b5563', 
+                background: doc.status === 'In Progress' ? '#eff6ff' : doc.status === 'Closed' ? '#d1fae5' : doc.status === 'Pending Approval' ? '#ffedd5' : '#f3f4f6', 
+                color: doc.status === 'In Progress' ? '#1d4ed8' : doc.status === 'Closed' ? '#065f46' : doc.status === 'Pending Approval' ? '#9a3412' : '#4b5563', 
                 padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                border: `1px solid ${(doc.status === 'Open' && doneCount > 0) ? '#bfdbfe' : isClosed ? '#a7f3d0' : '#e5e7eb'}`
+                border: `1px solid ${doc.status === 'In Progress' ? '#bfdbfe' : doc.status === 'Closed' ? '#a7f3d0' : doc.status === 'Pending Approval' ? '#fed7aa' : '#e5e7eb'}`
               }}>
-                {(doc.status === 'Open' && doneCount > 0) ? 'In Progress' : doc.status}
+                {doc.status}
               </span>
             </div>
             <div style={{ fontSize: 13, color: '#6b7280' }}>

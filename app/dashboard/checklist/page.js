@@ -201,6 +201,8 @@ function ChecklistListForm() {
           <select value={filters.status} onChange={e => setFilters({...filters, status: e.target.value})} style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}>
             <option value="">ทั้งหมด</option>
             <option value="Open">Open</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Pending Approval">Pending Approval</option>
             <option value="Closed">Closed</option>
           </select>
         </div>
@@ -258,9 +260,9 @@ function ChecklistListForm() {
                     </td>
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       <span style={{ 
-                        background: doc.displayStatus === 'In Progress' ? '#eff6ff' : doc.displayStatus === 'Open' ? '#f3f4f6' : '#ecfdf5', 
-                        color: doc.displayStatus === 'In Progress' ? '#1d4ed8' : doc.displayStatus === 'Open' ? '#4b5563' : '#059669', 
-                        border: `1px solid ${doc.displayStatus === 'In Progress' ? '#bfdbfe' : doc.displayStatus === 'Open' ? '#e5e7eb' : '#a7f3d0'}`,
+                        background: doc.displayStatus === 'In Progress' ? '#eff6ff' : doc.displayStatus === 'Pending Approval' ? '#ffedd5' : doc.displayStatus === 'Open' ? '#f3f4f6' : '#ecfdf5', 
+                        color: doc.displayStatus === 'In Progress' ? '#1d4ed8' : doc.displayStatus === 'Pending Approval' ? '#9a3412' : doc.displayStatus === 'Open' ? '#4b5563' : '#059669', 
+                        border: `1px solid ${doc.displayStatus === 'In Progress' ? '#bfdbfe' : doc.displayStatus === 'Pending Approval' ? '#fed7aa' : doc.displayStatus === 'Open' ? '#e5e7eb' : '#a7f3d0'}`,
                         padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500 
                       }}>
                         {doc.displayStatus}
