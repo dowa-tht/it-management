@@ -149,3 +149,10 @@
   - **Secure Clean Delete**: Upgraded account deletion logic with a mandatory `DELETE-[EMAIL]` confirmation string to prevent accidental data loss.
   - **Guest Lifecycle Management**: Implemented a 3-day Time-To-Live (TTL) for guest accounts with automated expiry logic.
   - **New Security Standards**: Established `docs/standards/USER_MANAGEMENT.md` as the definitive guide for onboarding and identity security.
+### [2026-05-06 22:50] - Incident Signature Workflow & Schema Stabilization
+- **Critical Fix: Database Schema Sync**: Eliminated `Could not find the "approval_comment" column` errors by removing legacy field references in `app/actions/workflow.js` and implementing strict data cleaning in `app/dashboard/incidents/[id]/page.js`.
+- **Restored "Save Draft" Functionality**: Re-engineered the `handleResolve` logic to support partial signature saving without triggering the full approval workflow.
+- **Requester Identity Hardening**:
+  - Upgraded the "New Incident" form to use `UserAutocomplete`, ensuring all new records are linked to a valid `user_profiles.id` from creation.
+  - Improved diagnostic feedback in the signature modal with a **DEBUG INFO** panel to aid in identity troubleshooting.
+- **Workflow Reliability**: Standardized the `created_by` (UUID) field as the primary identity key for incident reporters, ensuring compatibility with the new PIN/OTP verification system.
