@@ -50,6 +50,7 @@ export async function quickAddUser({ fullName, email, role = 'member' }) {
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
       .insert({
+        id: randomUUID(),
         full_name: fullName,
         email: email || null,
         role: role,
