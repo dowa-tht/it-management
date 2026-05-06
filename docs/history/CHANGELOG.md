@@ -1,5 +1,10 @@
 # Change Logs (บันทึกการเปลี่ยนแปลง)
 
+### [2026-05-07 06:50] - Enhanced Identity Sync & OTP Fallback
+- **Robust OTP Request**: Updated `requestSignatureOTP` to support searching by `full_name` as a fallback when `memberId` is missing, ensuring older records can still use OTP signatures.
+- **Improved Modal UX**: Redesigned `MemberSignatureModal` to handle missing ID cases more gracefully with helpful instructions instead of technical debug info.
+- **Legacy Record Recovery**: System now automatically attempts to link signature requests to existing user profiles using name/email matching.
+
 ### [2026-05-07 06:40] - Unified OTP Forgot Password Flow
 - **OTP Recovery Implementation**: Upgraded the "Forgot Password" system to use a secure 6-digit OTP sent via email. 
 - **2-Step Verification UI**: Redesigned the recovery modal on the login page to handle email entry followed by OTP verification.

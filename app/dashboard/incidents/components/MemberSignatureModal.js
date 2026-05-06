@@ -48,19 +48,18 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
   }
 
   const handleRequestOTP = async () => {
-    if (!memberId) {
-      setError('ไม่พบ ID ผู้ใช้ในระบบ (อาจต้องบันทึกเอกสารก่อนหรือเลือกผู้แจ้งใหม่)')
-      return
-    }
     setOtpLoading(true)
     setError('')
-    const res = await requestSignatureOTP(memberId)
+    // Fallback: ใช้ชื่อแทนถ้าไม่มี ID
+    const res = await requestSignatureOTP(memberId || memberName)
     setOtpLoading(false)
     if (res.success) {
       setOtpSent(true)
       setMode('otp')
       setCode('')
       if (res.email) setUserEmail(res.email)
+      // ถ้าไม่มี ID แต่ส่งสำเร็จ ให้เตือนด้วยว่าเคสนี้ข้อมูลไม่สมบูรณ์
+      if (!memberId) setError('MISSING_ID')
     } else {
       setError(res.error || 'ไม่สามารถส่ง OTP ได้')
     }
@@ -137,17 +136,22 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
                 </div>
               )}
 
-              {error && (
+              {error === 'MISSING_ID' ? (
+                <div style={{ background:'rgba(239,68,68,0.05)', border:'1px solid rgba(239,68,68,0.1)', borderRadius:12, padding:16, marginBottom:20, marginTop:16 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10, color:'#dc2626', fontWeight:600, fontSize:14, marginBottom:4 }}>
+                    ❌ ไม่พบ ID ผู้ใช้ในระบบ
+                  </div>
+                  <p style={{ margin:0, fontSize:13, color:'#7f1d1d', lineHeight:1.5 }}>
+                    ดูเหมือนเคสนี้จะไม่มี ID ผู้แจ้งเชื่อมโยงอยู่ (อาจเป็นเคสเก่า) 
+                    <br />
+                    <strong>ระบบจะพยายามค้นหาจากชื่อ "{memberName}" แทนครับ</strong>
+                    <br /><br />
+                    <span style={{ fontSize:12, color:'#991b1b' }}>คำแนะนำ: หากกดขอ OTP ไม่สำเร็จ กรุณาไปที่หน้าแก้ไข Incident แล้วเลือกชื่อผู้แจ้งใหม่อีกครั้งและกด "บันทึก" ก่อนกลับมาเซ็นชื่อครับ</span>
+                  </p>
+                </div>
+              ) : error && (
                 <div style={{ marginTop: 12, padding: 12, background: '#fff1f2', borderRadius: 8, border: '1px solid #fecaca' }}>
                   <div style={{ color: '#dc2626', fontSize: 12, textAlign: 'center', fontWeight: 600 }}>❌ {error}</div>
-                  <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 8, textAlign: 'center', borderTop: '1px dashed #fecaca', paddingTop: 8 }}>
-                    DEBUG INFO: memberId = {memberId || 'NULL'} | memberName = {memberName || 'NULL'}
-                  </div>
-                  {!memberId && (
-                    <div style={{ fontSize: 10, color: '#991b1b', marginTop: 4, textAlign: 'center' }}>
-                      <strong>สาเหตุ:</strong> ID ของผู้แจ้งหายไป กรุณาลองเลือกผู้แจ้งในหน้า Incident อีกครั้งและกด "บันทึก" ก่อนเซ็นชื่อครับ
-                    </div>
-                  )}
                   {mode === 'otp' && error.includes('อีเมล') && (
                     <div style={{ fontSize: 10, color: '#991b1b', marginTop: 4, textAlign: 'center' }}>
                       <strong>ทางเลือก:</strong> หากไม่มีอีเมล ให้ IT ไปที่ Settings &gt; Users เพื่อตั้ง PIN ให้เขา แล้วเลือก "ใช้ PIN" แทนครับ

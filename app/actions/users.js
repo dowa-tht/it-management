@@ -143,18 +143,19 @@ export async function requestSignatureOTP(userId) {
       fetchErr = error;
     }
 
-    // If not found by ID, try finding by matching name/email if userId was actually an email
-    if (!user && userId && userId.includes('@')) {
+    // If not found by ID, try finding by matching name/email
+    if (!user && userId) {
       const { data, error } = await supabaseAdmin
         .from('user_profiles')
         .select('id, email, full_name')
-        .eq('email', userId)
+        .or(`email.eq."${userId}",full_name.eq."${userId}"`)
         .maybeSingle()
       user = data;
+      fetchErr = error;
     }
-    
-    if (!user) throw new Error('ไม่พบข้อมูลผู้ใช้ในระบบ (กรุณาเลือกชื่อผู้แจ้งจากระบบและบันทึกก่อนเซ็นชื่อ)')
-    if (!user.email) throw new Error('ผู้ใช้นี้ไม่มีข้อมูลอีเมลสำหรับการส่ง OTP')
+
+    if (fetchErr || !user) throw new Error('ไม่พบข้อมูลผู้ใช้ในระบบ')
+    if (!user.email) throw new Error('ผู้ใช้ท่านนี้ไม่มีอีเมลสำหรับการรับ OTP')
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString()
     const otpExpires = new Date(Date.now() + 30 * 60 * 1000).toISOString()
