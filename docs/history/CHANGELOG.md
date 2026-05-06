@@ -1,5 +1,20 @@
 # Change Logs (บันทึกการเปลี่ยนแปลง)
 
+### [2026-05-07 06:40] - Unified OTP Forgot Password Flow
+- **OTP Recovery Implementation**: Upgraded the "Forgot Password" system to use a secure 6-digit OTP sent via email. 
+- **2-Step Verification UI**: Redesigned the recovery modal on the login page to handle email entry followed by OTP verification.
+- **Resend Logic**: Implemented a 60-second countdown for resending OTPs to prevent email spam.
+- **Token-Based Reset**: OTP verification now generates a secure, short-lived (10-minute) token to authorize password changes on the dedicated reset page.
+- **New Reset Password Page**: Created `/reset-password` to allow users to securely set their new credentials after OTP verification.
+- **Database Schema Expansion**: Added `recovery_otp` and `recovery_otp_expires` to `user_profiles` to manage the recovery lifecycle.
+
+### [2026-05-07 06:25] - Incident Save Draft Fix & OTP Identity Sync
+- **Save Draft Functionality**: Fixed a critical database update error by explicitly selecting returning columns, bypassing schema cache issues related to the dropped `approval_comment` field.
+- **Save Draft UX**: Added loading state feedback ("⏳ บันทึก...") and success notifications to all draft buttons in the Resolve Dialog.
+- **OTP "User Not Found" Resolution**: Synchronized the requester ID layer to consistently use `reported_by_id` (UUID). Added a server-side fallback to find users by email if the UUID is missing, ensuring OTPs work for legacy or quick-added records.
+- **Build Stabilization**: Resolved a JSX parsing error caused by an unescaped `>` character in `MemberSignatureModal.js`, ensuring successful deployment to Vercel.
+- **Requester Data Persistence**: Fixed a bug where `reported_by_id` was being excluded from incident updates, causing identity linkage to fail during signature workflows.
+
 ### [2026-04-30] - Vercel Production Stability & Action Restructuring
 - **Login Reliability Fix (Vercel):** แก้ไขปัญหา Login ไม่ได้บน Vercel Production โดยการเปลี่ยนจากการใช้ Server Action มาเป็น **API-based Auth (`/api/auth/check-tier`)** เพื่อความเสถียรสูงสุด
 - **Action Restructuring:** แยกไฟล์ Server Action ออกเป็นส่วนๆ เพื่อลดปัญหา Dependency Conflict บน Serverless Environment:

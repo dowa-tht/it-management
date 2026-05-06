@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { unifiedLogin } from '@/app/actions/login'
-import { requestRecovery } from '@/app/actions/recovery'
+import { requestPasswordOTP, verifyPasswordOTP } from '@/app/actions/recovery'
 import { supabase } from '@/lib/supabase'
 
 function LoginContent() {
@@ -14,6 +14,8 @@ function LoginContent() {
   const [recoveryEmail, setRecoveryEmail] = useState('')
   const [recoveryLoading, setRecoveryLoading] = useState(false)
   const [recoveryMsg, setRecoveryMsg] = useState({ text: '', type: '' })
+  const [recoveryStep, setRecoveryStep] = useState('email') // email, otp
+  const [otpValue, setOtpValue] = useState('')
   const [cooldown, setCooldown] = useState(0)
   const [loginCooldown, setLoginCooldown] = useState(0)
   const [clickCount, setClickCount] = useState(0)
@@ -134,9 +136,10 @@ function LoginContent() {
     setRecoveryLoading(true)
     setRecoveryMsg({ text: '', type: '' })
     
-    const res = await requestRecovery(recoveryEmail || email)
+    const res = await requestPasswordOTP(recoveryEmail || email)
     if (res.success) {
       setRecoveryMsg({ text: res.message, type: 'success' })
+      setRecoveryStep('otp')
       setCooldown(60)
       const timer = setInterval(() => {
         setCooldown(prev => {
@@ -149,6 +152,23 @@ function LoginContent() {
       }, 1000)
     } else {
       setRecoveryMsg({ text: res.error, type: 'error' })
+    }
+    setRecoveryLoading(false)
+  }
+
+  const handleVerifyOTP = async (e) => {
+    if (e) e.preventDefault()
+    if (otpValue.length !== 6) return
+
+    setRecoveryLoading(true)
+    setRecoveryMsg({ text: '', type: '' })
+
+    const res = await verifyPasswordOTP(recoveryEmail || email, otpValue)
+    if (res.success) {
+      router.push(`/reset-password?token=${res.token}`)
+    } else {
+      setRecoveryMsg({ text: res.error, type: 'error' })
+      setOtpValue('')
     }
     setRecoveryLoading(false)
   }
@@ -312,8 +332,15 @@ function LoginContent() {
           <div style={{ background: '#131929', border: '1px solid #1e2d47', borderRadius: 24, padding: 40, width: '100%', maxWidth: 400, position: 'relative' }}>
             <button onClick={() => setShowRecovery(false)} style={{ position: 'absolute', right: 20, top: 20, background: 'none', border: 'none', color: '#94a3b8', fontSize: 24, cursor: 'pointer' }}>×</button>
             
-            <h3 style={{ fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 8 }}>Recovery Account</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 24 }}>ระบุอีเมลของคุณเพื่อรับลิงก์กู้คืนรหัสผ่าน</p>
+            <h3 style={{ fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 8 }}>
+              {recoveryStep === 'email' ? 'Recovery Account' : 'Verify OTP'}
+            </h3>
+            <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 24 }}>
+              {recoveryStep === 'email' 
+                ? 'ระบุอีเมลของคุณเพื่อรับรหัส OTP กู้คืนรหัสผ่าน' 
+                : `กรุณากรอกรหัส OTP 6 หลักที่ส่งไปยัง ${recoveryEmail || email}`
+              }
+            </p>
 
             {recoveryMsg.text && (
               <div style={{ padding: '12px 16px', borderRadius: 12, fontSize: 13, marginBottom: 20, background: recoveryMsg.type === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: recoveryMsg.type === 'success' ? '#10b981' : '#ef4444', border: `1px solid ${recoveryMsg.type === 'success' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}` }}>
@@ -321,27 +348,77 @@ function LoginContent() {
               </div>
             )}
 
-            <form onSubmit={handleRecovery} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Email Address</label>
-                <input 
-                  type="email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)}
-                  placeholder="name@example.com" required
-                  style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 14 }}
-                />
-              </div>
-              <button 
-                type="submit" 
-                disabled={recoveryLoading || cooldown > 0}
-                style={{ 
-                  width: '100%', padding: '14px', background: (recoveryLoading || cooldown > 0) ? '#1e293b' : '#1d4ed8', 
-                  color: (recoveryLoading || cooldown > 0) ? '#64748b' : '#fff', border: 'none', borderRadius: 10, 
-                  fontSize: 14, fontWeight: 600, cursor: (recoveryLoading || cooldown > 0) ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {recoveryLoading ? 'Sending...' : cooldown > 0 ? `ส่งอีเมลอีกครั้งใน (${cooldown}s)` : 'ส่งอีเมลลิงก์กู้คืน'}
-              </button>
-            </form>
+            {recoveryStep === 'email' ? (
+              <form onSubmit={handleRecovery} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Email Address</label>
+                  <input 
+                    type="email" value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)}
+                    placeholder="name@example.com" required
+                    style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 14 }}
+                  />
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={recoveryLoading || cooldown > 0}
+                  style={{ 
+                    width: '100%', padding: '14px', background: (recoveryLoading || cooldown > 0) ? '#1e293b' : '#1d4ed8', 
+                    color: (recoveryLoading || cooldown > 0) ? '#64748b' : '#fff', border: 'none', borderRadius: 10, 
+                    fontSize: 14, fontWeight: 600, cursor: (recoveryLoading || cooldown > 0) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {recoveryLoading ? 'Sending...' : cooldown > 0 ? `ส่งรหัสอีกครั้งใน (${cooldown}s)` : 'ส่งรหัส OTP'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOTP} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: 8, display: 'block', textAlign: 'center' }}>Enter 6-Digit OTP</label>
+                  <input 
+                    type="text" value={otpValue} 
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 6)
+                      setOtpValue(val)
+                      if (val.length === 6) {
+                        // Trigger verify automatically
+                      }
+                    }}
+                    placeholder="••••••" required
+                    style={{ width: '100%', padding: '16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 28, letterSpacing: '8px', textAlign: 'center', outline: 'none' }}
+                  />
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={recoveryLoading || otpValue.length !== 6}
+                  style={{ 
+                    width: '100%', padding: '14px', background: (recoveryLoading || otpValue.length !== 6) ? '#1e293b' : '#10b981', 
+                    color: (recoveryLoading || otpValue.length !== 6) ? '#64748b' : '#fff', border: 'none', borderRadius: 10, 
+                    fontSize: 14, fontWeight: 600, cursor: (recoveryLoading || otpValue.length !== 6) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {recoveryLoading ? 'Verifying...' : 'Verify & Continue'}
+                </button>
+                <div style={{ textAlign: 'center' }}>
+                  <button 
+                    type="button" 
+                    onClick={handleRecovery}
+                    disabled={cooldown > 0}
+                    style={{ background: 'none', border: 'none', color: cooldown > 0 ? '#475569' : '#3b82f6', fontSize: 12, cursor: cooldown > 0 ? 'not-allowed' : 'pointer' }}
+                  >
+                    {cooldown > 0 ? `Resend OTP in ${cooldown}s` : 'Resend OTP'}
+                  </button>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => { setRecoveryStep('email'); setOtpValue(''); setRecoveryMsg({ text: '', type: '' }); }}
+                    style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 12, cursor: 'pointer' }}
+                  >
+                    Back to Email
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

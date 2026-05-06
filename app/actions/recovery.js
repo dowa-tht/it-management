@@ -183,3 +183,155 @@ export async function resetPINWithToken({ token, newPIN }) {
     return { success: false, error: err.message }
   }
 }
+
+export async function requestPasswordOTP(email) {
+  try {
+    if (!email) throw new Error('กรุณาระบุอีเมล')
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    // 1. ตรวจสอบประเภทผู้ใช้และสถานะ
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, full_name, is_active')
+      .eq('email', email)
+      .single()
+    
+    if (profileError || !profile) {
+      return { success: true, message: 'ระบบได้ส่งรหัส OTP ไปที่อีเมลของคุณแล้ว (หากมีในระบบ)' }
+    }
+
+    if (!profile.is_active) {
+      return { success: false, error: 'บัญชีของคุณถูกระงับการใช้งาน' }
+    }
+
+    // 2. สร้าง OTP 6 หลัก
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const expires = new Date(Date.now() + 5 * 60000) // 5 นาที
+
+    // 3. บันทึกลง user_profiles
+    const { error: updateError } = await supabaseAdmin
+      .from('user_profiles')
+      .update({ 
+        recovery_otp: otp, 
+        recovery_otp_expires: expires.toISOString() 
+      })
+      .eq('id', profile.id)
+
+    if (updateError) throw updateError
+
+    // 4. ส่งอีเมลผ่าน Resend
+    const { sendEmail } = await import('@/lib/resend')
+    const { error: sendError } = await sendEmail({
+      to: [email],
+      subject: '[DOWA IT System] รหัส OTP สำหรับกู้คืนรหัสผ่าน',
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; color: #334155;">
+          <h2 style="color: #1d4ed8;">กู้คืนรหัสผ่าน DOWA IT System</h2>
+          <p>รหัส OTP สำหรับการเปลี่ยนรหัสผ่านของคุณคือ:</p>
+          <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #1e293b; padding: 20px; background: #f1f5f9; border-radius: 8px; text-align: center; margin: 20px 0;">
+            ${otp}
+          </div>
+          <p>รหัสนี้มีอายุการใช้งาน <strong>5 นาที</strong></p>
+          <p style="font-size: 12px; color: #64748b;">หากคุณไม่ได้ร้องขอรหัสนี้ โปรดเพิกเฉยต่ออีเมลฉบับนี้</p>
+        </div>
+      `
+    })
+
+    if (sendError) throw sendError
+
+    return { success: true, message: 'รหัส OTP ถูกส่งไปยังอีเมลของคุณแล้ว' }
+  } catch (err) {
+    console.error('requestPasswordOTP Error:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+export async function verifyPasswordOTP(email, otp) {
+  try {
+    if (!email || !otp) throw new Error('ข้อมูลไม่ครบถ้วน')
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    // 1. ตรวจสอบ OTP
+    const { data: user, error: findError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, recovery_otp, recovery_otp_expires')
+      .eq('email', email)
+      .single()
+
+    if (findError || !user) throw new Error('ไม่พบข้อมูลผู้ใช้')
+
+    if (user.recovery_otp !== otp) {
+      throw new Error('รหัส OTP ไม่ถูกต้อง')
+    }
+
+    if (new Date(user.recovery_otp_expires) < new Date()) {
+      throw new Error('รหัส OTP หมดอายุแล้ว กรุณาขอใหม่')
+    }
+
+    // 2. สร้าง Token สำหรับเปลี่ยนรหัสผ่าน (ใช้ชั่วคราว 10 นาที)
+    const token = randomBytes(32).toString('hex')
+    const expires = new Date(Date.now() + 10 * 60000)
+
+    const { error: updateError } = await supabaseAdmin
+      .from('user_profiles')
+      .update({
+        recovery_otp: null,
+        recovery_otp_expires: null,
+        pin_reset_token: token, // Reuse existing token field for password reset too
+        pin_reset_expires: expires.toISOString()
+      })
+      .eq('id', user.id)
+
+    if (updateError) throw updateError
+
+    return { success: true, token }
+  } catch (err) {
+    console.error('verifyPasswordOTP error:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+export async function resetPasswordWithToken({ token, newPassword }) {
+  try {
+    if (!token || !newPassword) throw new Error('ข้อมูลไม่ครบถ้วน')
+    if (newPassword.length < 8) throw new Error('รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร')
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    // 1. ตรวจสอบ Token
+    const { data: user, error: findError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, pin_reset_expires, email')
+      .eq('pin_reset_token', token)
+      .single()
+
+    if (findError || !user) throw new Error('ลิงก์กู้คืนไม่ถูกต้องหรือหมดอายุ')
+
+    if (new Date(user.pin_reset_expires) < new Date()) {
+      throw new Error('ลิงก์กู้คืนหมดอายุแล้ว')
+    }
+
+    // 2. อัปเดต Password ใน Supabase Auth
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+      password: newPassword
+    })
+    
+    if (authError) throw authError
+
+    // 3. ล้าง Token
+    await supabaseAdmin
+      .from('user_profiles')
+      .update({
+        pin_reset_token: null,
+        pin_reset_expires: null
+      })
+      .eq('id', user.id)
+
+    return { success: true }
+  } catch (err) {
+    console.error('resetPasswordWithToken error:', err)
+    return { success: false, error: err.message }
+  }
+}
