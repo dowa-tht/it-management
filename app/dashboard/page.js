@@ -138,7 +138,7 @@ export default function DashboardPage() {
           </Link>
 
           {/* 2. My Sent Pending Items (For Sender) */}
-          <Link href="/dashboard/checklist" style={{ textDecoration: 'none' }}>
+          <Link href="/dashboard/my-pending" style={{ textDecoration: 'none' }}>
             <div style={{ 
               background: data.myPendingFollowupsCount > 0 ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : '#f3f4f6', 
               borderRadius: 10, 

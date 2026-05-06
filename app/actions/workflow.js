@@ -105,6 +105,70 @@ export async function getUnifiedPendingApprovals() {
   }
 }
 
+export async function getUnifiedMyPendingItems() {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return { error: 'Unauthorized' }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+
+    // 1. Get User Profile
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, full_name, email')
+      .eq(session.type === 'internal' ? 'email' : 'id', session.user.email || session.user.id)
+      .single()
+
+    if (!profile) return { error: 'Profile not found' }
+
+    // 2. Fetch My Pending Checklists (Sent by me, still pending)
+    const { data: checklists } = await supabaseAdmin
+      .from('checklist_docs')
+      .select(`id, freq_type, period_date, status, workflow_status, created_by, assigned_approver_id`)
+      .in('workflow_status', ['pending', 'PENDING'])
+      .eq('created_by', profile.email)
+
+    // 3. Fetch My Pending Incidents (Reported by me, still pending approval)
+    const { data: incidents } = await supabaseAdmin
+      .from('incidents')
+      .select(`id, case_number, title, status, created_at, reported_by`)
+      .ilike('status', 'Pending Approval')
+      .eq('reported_by', profile.email)
+
+    // 4. Transform into Unified Format
+    const unified = [
+      ...(checklists || []).map(c => ({
+        id: c.id,
+        category: 'Checklist',
+        type: c.freq_type,
+        docNo: `CHK-${c.period_date}-${c.freq_type.charAt(0)}`,
+        subject: `IT Checklist (${c.freq_type}) - ${c.period_date}`,
+        requestDate: c.period_date,
+        status: 'Waiting for Approver',
+        link: `/dashboard/checklist/${c.id}`
+      })),
+      ...(incidents || []).map(i => ({
+        id: i.id,
+        category: 'Incident',
+        type: 'Ticket',
+        docNo: i.case_number,
+        subject: i.title,
+        requestDate: i.created_at.split('T')[0],
+        status: 'Waiting for Approval',
+        link: `/dashboard/incidents/${i.id}`
+      }))
+    ]
+
+    unified.sort((a, b) => new Date(b.requestDate) - new Date(a.requestDate))
+    return { data: unified }
+  } catch (err) {
+    console.error('getUnifiedMyPendingItems Error:', err)
+    return { error: err.message }
+  }
+}
+
 export async function getSystemLogs(type = 'audit') {
   try {
     const session = await getCurrentUserSession()
