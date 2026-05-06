@@ -64,7 +64,7 @@ export async function getDashboardData(timezoneOffset = -420) {
       userProfile ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING']).or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
       userProfile ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval').or(`assigned_approver_id.eq.${userProfile.id},assigned_approver_id.is.null`) : Promise.resolve({ data: [] }),
       // Fetch My Sent Pending Items (For Sender Tracking)
-      userProfile ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING']).eq('created_by', userProfile.id) : Promise.resolve({ data: [] }),
+      userProfile ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING']).eq('created_by', userProfile.email) : Promise.resolve({ data: [] }),
       userProfile ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval').eq('reported_by', userProfile.email) : Promise.resolve({ data: [] })
     ])
 
