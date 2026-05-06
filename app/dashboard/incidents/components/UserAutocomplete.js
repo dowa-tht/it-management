@@ -3,13 +3,21 @@ import { useState, useEffect, useRef } from 'react'
 import { searchUsers, quickAddUser } from '@/app/actions/users'
 
 export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ์เพื่อค้นหาชื่อผู้แจ้ง...' }) {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(value?.full_name || '')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [newUserInfo, setNewUserInfo] = useState({ fullName: '', email: '' })
   const containerRef = useRef(null)
+
+  useEffect(() => {
+    if (value) {
+      setQuery(value.full_name)
+    } else {
+      setQuery('')
+    }
+  }, [value])
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -22,7 +30,7 @@ export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ�
   }, [])
 
   useEffect(() => {
-    if (query.length < 2) {
+    if (query.length === 0) {
       setResults([])
       return
     }
@@ -59,8 +67,14 @@ export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ�
     <div ref={containerRef} style={{ position: 'relative' }}>
       <input
         type="text"
-        value={query || value || ''}
-        onChange={(e) => { setQuery(e.target.value); setIsOpen(true); }}
+        value={query}
+        onChange={(e) => { 
+          setQuery(e.target.value); 
+          setIsOpen(true);
+          if (e.target.value === '') {
+            onChange(null); // Clear selection if input is cleared
+          }
+        }}
         onFocus={() => setIsOpen(true)}
         placeholder={placeholder}
         style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, outline: 'none' }}
