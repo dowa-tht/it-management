@@ -588,6 +588,9 @@ export default function IncidentDetailPage() {
       if (newAssignee && !oldAssignee) {
         await addLog('กำหนดผู้รับผิดชอบ', oldStatus, 'In Progress', `มอบหมายให้: ${newAssignee} · Response Time เริ่มนับแล้ว`)
       } else if (!newAssignee && oldAssignee) {
+        updatedForm.acknowledged_at = null
+        updatedForm.assigned_at = null
+        updatedForm.status = 'Open'
         await addLog('ยกเลิกผู้รับผิดชอบ', oldStatus, 'Open', `ยกเลิก: ${oldAssignee}`)
       } else {
         await addLog('เปลี่ยนผู้รับผิดชอบ', oldStatus, newStatus, `${oldAssignee} → ${newAssignee}`)
@@ -893,7 +896,7 @@ export default function IncidentDetailPage() {
             {isLocked && <span style={{ background:'#d1fae5', color:'#065f46', padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:500 }}>🔒 Resolved</span>}
           </div>
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            {!isLocked && !incident.acknowledged_at && !incident.assigned_to && (
+            {!isLocked && !incident.assigned_to && (
               <button onClick={handleAcknowledge} disabled={saving} style={{ padding:'7px 20px', border:'none', borderRadius:7, fontSize:13, background:'#1d4ed8', color:'#fff', cursor:'pointer', fontFamily:'inherit', fontWeight:600, boxShadow:'0 2px 4px rgba(29,78,216,0.3)' }}>
                 ✅ รับเรื่อง (Acknowledge)
               </button>
