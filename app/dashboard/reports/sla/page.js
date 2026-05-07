@@ -268,7 +268,7 @@ export default function SLAReportPage() {
     <div style={{ padding: '16px 20px', maxWidth: 1200, margin: '0 auto' }}>
       <style>{`
         .table-scroll { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }
-        .sla-table { width: 100%; border-collapse: collapse; min-width: 800px; }
+        .sla-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
         .sla-table th { padding: 12px 20px; text-align: left; color: #6b7280; font-weight: 500; fontSize: 11px; border-bottom: 1px solid #e5e7eb; text-transform: uppercase; background: #f9fafb; }
         .sla-table td { padding: 14px 20px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
         .action-cell { width: 80px; min-width: 80px; text-align: right; white-space: nowrap; }

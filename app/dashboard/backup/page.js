@@ -292,7 +292,7 @@ export default function BackupPage() {
             รายการ Backup — {monthLabel()}
           </div>
           <div className="table-scroll">
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
                   {['วันที่', 'ระบบ', 'ประเภท', 'สถานะ', 'หมายเหตุ', ''].map(h => (
@@ -308,7 +308,7 @@ export default function BackupPage() {
                 ) : logs.map(log => (
                   <tr key={log.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                     <td style={{ padding: '11px 16px', color: '#374151', whiteSpace: 'nowrap' }}>{formatDate(log.log_date)}</td>
-                    <td style={{ padding: '11px 16px', color: '#374151' }}>{log.system_name}</td>
+                    <td style={{ padding: '11px 16px', color: '#374151', whiteSpace: 'nowrap' }}>{log.system_name}</td>
                     <td style={{ padding: '11px 16px', color: '#6b7280', fontSize: 12 }}>{log.backup_type}</td>
                     <td style={{ padding: '11px 16px', whiteSpace: 'nowrap' }}>
                       <span style={{ ...STATUS_COLORS[log.status], padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500 }}>{log.status}</span>

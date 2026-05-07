@@ -531,10 +531,24 @@ export async function runWorkflowMigration() {
           if (p) approverId = p.id
       }
 
+      // 🛡️ Determine role_required from config if not approved
+      let roleReq = 'administrator' // Default fallback
+      if (!isApproved) {
+        const { data: config } = await supabaseAdmin
+          .from('workflow_configs')
+          .select('role_required')
+          .eq('target_type', 'checklist')
+          .eq('condition_value', doc.freq_type)
+          .eq('step_order', 1)
+          .maybeSingle()
+        if (config) roleReq = config.role_required
+      }
+
       await supabaseAdmin.from('document_approvals').insert([{
         doc_id: doc.id, doc_type: 'checklist', step_order: 1,
         approver_id: (approverId && approverId.includes('-')) ? approverId : null,
         status: isApproved ? 'approved' : 'pending',
+        role_required: roleReq,
         action_at: doc.approved_at || null
       }])
     }

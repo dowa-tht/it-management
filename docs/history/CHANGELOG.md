@@ -1,11 +1,12 @@
 # Change Logs (บันทึกการเปลี่ยนแปลง)
 
-### [2026-05-07 11:30] - IT Checklist UI Responsiveness & Layout Fixes
-- **Global Table Scroll**: Moved `.table-scroll` utility to global scope in `app/globals.css`, ensuring horizontal scrollbars are available on all devices if content overflows, as per `docs/standards/UI_UX_RESPONSIVE.md`.
-- **Checklist Layout Stabilization**: 
-    - Added `whiteSpace: 'nowrap'` to the **ปัญหา (NG)** status column to prevent the badge from wrapping and breaking row alignment.
-    - Added `whiteSpace: 'nowrap'` to the **ผู้สร้าง (Creator)** column to handle long email addresses without increasing row height.
-- **Responsive Table Hardening**: Ensured the IT Checklist table remains readable on smaller screens by preventing cell squeezing in critical data columns.
+### [2026-05-07 11:40] - Global UI Standardization for Multi-Device Support
+- **SLA Report & Backup Log UI Synchronization**: Applied the premium IT Checklist design pattern to SLA Report and Backup Log modules:
+    - Implemented `min-width: 1000px` for all list tables to prevent layout squeezing on iPad and tablets.
+    - Standardized `whiteSpace: 'nowrap'` for critical data columns (Case ID, Date, Status, System Name) to ensure visual consistency.
+    - Verified `.table-scroll` global utility functionality across all primary reporting pages.
+- **Responsive Layout Hardening**: Enhanced the multi-device experience by ensuring complex data tables remain accessible and readable through horizontal scrolling on smaller viewports.
+
 
   
 ### [2026-05-07 11:00] - Ultimate Onboarding Stabilization & UX Polish
