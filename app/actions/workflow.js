@@ -438,7 +438,7 @@ export async function getDocumentWorkflowStatus(docId) {
   }
 }
 
-export async function submitApprovalStep(docId, docType, stepId, signatureData, comment = '') {
+export async function submitApprovalStep(docId, docType, stepId, signatureData, comment = '', verifiedByPin = true, overrideApproverId = null) {
   try {
     const session = await getCurrentUserSession()
     if (!session) return { error: 'Unauthorized' }
@@ -455,11 +455,12 @@ export async function submitApprovalStep(docId, docType, stepId, signatureData, 
     if (!currentStep || currentStep.status !== 'pending') return { error: 'Step not ready for approval' }
 
     // 2. Mark current step as approved
+    const actualApproverId = overrideApproverId || session.user.id
     const { error: updateErr } = await supabaseAdmin
       .from('document_approvals')
       .update({
         status: 'approved',
-        approver_id: session.user.id,
+        approver_id: actualApproverId,
         signature_data: signatureData,
         comment: comment,
         action_at: new Date().toISOString()
@@ -491,9 +492,54 @@ export async function submitApprovalStep(docId, docType, stepId, signatureData, 
           workflow_status: 'approved'
         })
         .eq('id', docId)
+
+      // NEW: Cross-module sync for Incident -> Checklist
+      if (docType === 'incident') {
+        const { data: incident } = await supabaseAdmin
+          .from('incidents')
+          .select('ref_type, ref_id, case_number, resolution')
+          .eq('id', docId)
+          .single()
+
+        if (incident?.ref_type === 'checklist' && incident.ref_id) {
+          // Update the checklist item to OK
+          const resolutionMark = `\n[RESOLVED by ${incident.case_number}] ${incident.resolution || ''}`.trim()
+          
+          // Get current notes to append
+          const { data: item } = await supabaseAdmin
+            .from('checklist_items')
+            .select('notes')
+            .eq('id', incident.ref_id)
+            .single()
+
+          const newNotes = `${item?.notes || ''}${item?.notes ? '\n' : ''}${resolutionMark}`
+
+          await supabaseAdmin
+            .from('checklist_items')
+            .update({ 
+              status: 'OK',
+              notes: newNotes
+            })
+            .eq('id', incident.ref_id)
+            
+          // Log the auto-update in checklist_logs
+          await supabaseAdmin.from('checklist_logs').insert({
+            doc_id: (await supabaseAdmin.from('checklist_items').select('doc_id').eq('id', incident.ref_id).single()).data?.doc_id,
+            action: 'System: Auto-update OK',
+            user_email: 'system@workflow.internal',
+            details: `แก้ไขรายการ NG อัตโนมัติจากเคส ${incident.case_number}`
+          })
+        }
+      }
     }
 
-    await recordLog(docId, docType, 'Approved', `อนุมัติขั้นตอนลำดับที่ ${currentStep.step_order} โดย ${session.user.email}`, session.user.email)
+    // 4. Record Log with Verification Method
+    const { data: profile } = await supabaseAdmin.from('user_profiles').select('full_name, email').eq('id', actualApproverId).single()
+    const fullName = profile?.full_name || (overrideApproverId ? 'Unknown Approver' : session.user.email)
+    const email = profile?.email || session.user.email
+    const verificationNote = verifiedByPin ? ' (Verify by PIN)' : ''
+    
+    await recordLog(docId, docType, 'Approved', `อนุมัติโดย: ${fullName} (${email})${verificationNote}`, session.user.email)
 
     return { success: true, isFinal: !nextStep }
   } catch (err) {

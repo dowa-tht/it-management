@@ -1,5 +1,12 @@
 # Change Logs (บันทึกการเปลี่ยนแปลง)
 
+### [2026-05-07 14:35] - Workflow Standard Synchronization & Strict Identity Stamping
+- **Documentation Sync**: Updated `docs/standards/WORKFLOW_ENGINE.md` to include detailed standards for **Direct vs Remote Approval** and **PIN Verification Policy**.
+- **Refinement: Identity Stamping**: Enforced a strict non-repudiation policy where the system stamps the identity of the actual person signing (based on PIN verification), ensuring audit trails are accurate even in remote approval scenarios.
+- **Security Optimization**: Implemented an automated PIN status check that prevents remote approval if the designated approver hasn't set up their PIN, providing a clear instructional alert to the user.
+- **Code Stability**: Fixed build errors related to duplicate variable definitions and simplified the UI logic to strictly follow workflow-assigned identities.
+
+
 ### [2026-05-07 14:15] - Approval Visibility Refinement & Strict RBAC Enforcement
 - **Critical Fix: Approval Visibility Logic**: Refactored the workflow system to enforce personal task visibility.
     - Removed the "Administrator Override" in `getUnifiedPendingApprovals` and the dashboard count logic. Administrators now only see tasks specifically assigned to them or their role.

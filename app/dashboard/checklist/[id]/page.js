@@ -74,7 +74,6 @@ export default function ChecklistDetailPage() {
   const [showSignatureModal, setShowSignatureModal] = useState(false)
   const [showDelegateModal, setShowDelegateModal] = useState(false)
   const [approvalLoading, setApprovalLoading] = useState(false)
-  const [eligibleApprovers, setEligibleApproversList] = useState([])
   const [isSub, setIsSub] = useState(false)
   const [allApprovers, setAllApprovers] = useState([])
   const [isAutoApprove, setIsAutoApprove] = useState(false)
@@ -208,23 +207,41 @@ export default function ChecklistDetailPage() {
   const handleApprove = async (pin, signatureData) => {
     setApprovalLoading(true)
     try {
-      // 1. Verify PIN via API
-      const verifyRes = await fetch('/api/auth/verify-pin', {
-        method: 'POST',
-        body: JSON.stringify({ userId: currentUser.id, pin })
-      }).then(r => r.json())
-
-      if (!verifyRes.success) {
-        alert(verifyRes.error)
-        setApprovalLoading(false)
-        return
-      }
-
-      // 2. Submit Approval Step via Workflow Engine
       const currentStep = workflowSteps.find(s => s.status === 'pending')
       if (!currentStep) throw new Error('No pending step found')
 
-      const res = await submitApprovalStep(id, 'checklist', currentStep.id, signatureData, '')
+      const isDirectApprover = currentUser?.id === currentStep.approver_id || 
+                             (currentStep.approver_id === null && currentUser?.role === currentStep.role_required);
+
+      // IDENTIFY: Who are we verifying?
+      const targetUserId = currentStep.approver_id || currentUser.id;
+
+      // 1. Verify PIN via API ONLY if not a direct approver
+      if (!isDirectApprover) {
+        if (!pin) throw new Error('กรุณากรอกรหัส PIN เพื่อยืนยันตัวตน')
+        
+        // Requirement: Check if target approver has PIN
+        const { data: targetProfile } = await supabase.from('user_profiles').select('signature_pin, full_name').eq('id', targetUserId).single()
+        if (!targetProfile?.signature_pin) {
+          alert(`⚠️ ผู้อนุมัติ (${targetProfile?.full_name || 'ที่ระบุในเอกสาร'}) ยังไม่ได้ตั้งรหัส PIN ในระบบ\n\nกรุณาให้ผู้อนุมัติไปตั้งรหัสที่หน้า Profile ก่อนดำเนินการต่อครับ`);
+          setShowSignatureModal(false);
+          return;
+        }
+
+        const verifyRes = await fetch('/api/auth/verify-pin', {
+          method: 'POST',
+          body: JSON.stringify({ userId: targetUserId, pin })
+        }).then(r => r.json())
+
+        if (!verifyRes.success) {
+          alert(verifyRes.error)
+          setApprovalLoading(false)
+          return
+        }
+      }
+
+      // 2. Submit Approval Step via Workflow Engine
+      const res = await submitApprovalStep(id, 'checklist', currentStep.id, signatureData, '', !isDirectApprover, !isDirectApprover ? targetUserId : null)
       if (res.success) {
         alert(res.isFinal ? '✅ อนุมัติและปิดงานเรียบร้อย' : '✅ อนุมัติสำเร็จ (รอผู้อนุมัติลำดับถัดไป)')
         setShowSignatureModal(false)
@@ -442,8 +459,8 @@ export default function ChecklistDetailPage() {
         </div>
       </div>
 
-      {/* NEW: Workflow Progress UI */}
-      {workflowSteps.length > 0 && (
+      {/* NEW: Workflow Progress UI - Only show if not closed to avoid confusion */}
+      {workflowSteps.length > 0 && !isClosed && (
         <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb', marginBottom: 24, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
             📋 ลำดับการอนุมัติ (Approval Progress)
@@ -666,17 +683,23 @@ export default function ChecklistDetailPage() {
                         const currentStep = workflowSteps.find(s => s.status === 'pending');
                         if (!currentStep) return null;
 
-                        const isAuthorized = currentUser?.id === currentStep.approver_id || 
+                        const isApprover = currentUser?.id === currentStep.approver_id || 
                                            (currentStep.approver_id === null && currentUser?.role === currentStep.role_required);
+                        
+                        const isSender = doc.created_by === currentUser?.email;
+                        const canRemoteApprove = doc.status === 'Pending Approval' && isSender;
+                        const isAuthorized = isApprover || canRemoteApprove;
 
                         if (isAuthorized) {
                           return (
                             <>
-                              <button onClick={handleReject} style={{ padding: '10px 24px', border: '1px solid #dc2626', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#dc2626', cursor: 'pointer' }}>
-                                ❌ ตีกลับ (Reject)
-                              </button>
+                              {!canRemoteApprove && (
+                                <button onClick={handleReject} style={{ padding: '10px 24px', border: '1px solid #dc2626', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#dc2626', cursor: 'pointer' }}>
+                                  ❌ ตีกลับ (Reject)
+                                </button>
+                              )}
                               <button onClick={() => setShowSignatureModal(true)} style={{ padding: '10px 24px', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, background: '#059669', color: '#fff', cursor: 'pointer', boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)' }}>
-                                ✅ อนุมัติงาน (Approve)
+                                ✅ {isApprover ? 'อนุมัติงาน (Direct)' : 'เรียกผู้อนุมัติมาเซ็น (Remote)'}
                               </button>
                             </>
                           )
@@ -713,9 +736,16 @@ export default function ChecklistDetailPage() {
         isOpen={showSignatureModal}
         onCancel={() => setShowSignatureModal(false)}
         onConfirm={handleApprove}
-        approverName={currentUser?.full_name}
+        approverName={workflowSteps.find(s => s.status === 'pending')?.role_required || currentUser?.full_name}
         userEmail={currentUser?.email}
         loading={approvalLoading}
+        showPin={(() => {
+          const currentStep = workflowSteps.find(s => s.status === 'pending');
+          if (!currentStep) return true;
+          const isApprover = currentUser?.id === currentStep.approver_id || 
+                            (currentStep.approver_id === null && currentUser?.role === currentStep.role_required);
+          return !isApprover;
+        })()}
       />
 
       {/* Delegate Modal */}
