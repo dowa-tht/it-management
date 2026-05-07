@@ -34,7 +34,26 @@ export async function GET(request) {
           .maybeSingle()
 
         if (user.email?.toLowerCase() === 'admin@dowa-tht.co.th' || (whitelistEntry && !wError)) {
-          return NextResponse.redirect(`${origin}${next}`)
+          // 📝 เช็คสถานะ Onboarding
+          const { data: profile } = await supabaseAdmin
+            .from('user_profiles')
+            .select('is_onboarded')
+            .eq('id', user.id)
+            .single()
+
+          const needsOnboarding = profile && !profile.is_onboarded
+
+          // 📝 บันทึก Log
+          await supabaseAdmin.from('login_logs').insert([{
+            user_id: user.id,
+            user_email: user.email,
+            action: 'Login สำเร็จ (SSO)',
+            ip_address: 'SERVER_SIDE',
+            user_agent: 'Auth Callback'
+          }])
+
+          const target = needsOnboarding ? '/onboarding' : next
+          return NextResponse.redirect(`${origin}${target}`)
         } else {
           return NextResponse.redirect(`${origin}/access-denied?reason=not_whitelisted`)
         }

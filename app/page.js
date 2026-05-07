@@ -116,7 +116,11 @@ function LoginContent() {
       const res = await unifiedLogin(email, password)
 
       if (res.success) {
-        router.push('/dashboard')
+        if (res.needs_onboarding) {
+          router.push('/onboarding')
+        } else {
+          router.push('/dashboard')
+        }
       } else if (res.redirect_to_denied) {
         router.push('/access-denied')
       } else {

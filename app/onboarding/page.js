@@ -32,8 +32,12 @@ export default function OnboardingPage() {
         
         if (profile && !profile.is_onboarded) {
           setUser({ full_name: profile.full_name, email: profile.email })
-          // ถ้ามีรหัสผ่านแล้ว (มาจาก Condition 2) ให้ไป Step 3 (PIN) เลยก็ได้ หรือ Step 2 (Password) เพื่อเปลี่ยนรหัสผ่านครั้งแรก
-          setStep(2) 
+          // ถ้าตั้งรหัสผ่านมาแล้ว (เช่นจาก Forgot Password) ให้ข้ามไป Step 3 (PIN) ได้เลย
+          if (profile.force_password_change === false) {
+            setStep(3)
+          } else {
+            setStep(2)
+          }
           return
         } else if (profile && profile.is_onboarded) {
           // ถ้า Onboard แล้วแต่ยังเด้งมาหน้านี้ ให้เช็ค SSO (Step 4) หรือไป Dashboard

@@ -54,5 +54,27 @@ export async function unifiedLogin(email, password) {
   }
 
   // ✅ Login สำเร็จและผ่านทะเบียนขาว
-  return { success: true }
+  
+  // 🛡️ เช็คสถานะ Onboarding
+  const { data: profile } = await adminClient
+    .from('user_profiles')
+    .select('is_onboarded')
+    .eq('id', userId)
+    .single()
+
+  const needsOnboarding = profile && !profile.is_onboarded
+
+  // 📝 บันทึก Login Log
+  await adminClient.from('login_logs').insert([{
+    user_id: userId,
+    user_email: email,
+    action: 'Login สำเร็จ',
+    ip_address: 'SERVER_SIDE',
+    user_agent: 'Unified Login'
+  }])
+
+  return { 
+    success: true,
+    needs_onboarding: needsOnboarding
+  }
 }
