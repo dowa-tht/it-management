@@ -58,10 +58,12 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
       setMode('otp')
       setCode('')
       if (res.email) setUserEmail(res.email)
-      // ถ้าไม่มี ID แต่ส่งสำเร็จ ให้เตือนด้วยว่าเคสนี้ข้อมูลไม่สมบูรณ์
-      if (!memberId) setError('MISSING_ID')
     } else {
-      setError(res.error || 'ไม่สามารถส่ง OTP ได้')
+      if (!memberId) {
+        setError('MISSING_ID')
+      } else {
+        setError(res.error || 'ไม่สามารถส่ง OTP ได้')
+      }
     }
   }
 
@@ -136,7 +138,7 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
                 </div>
               )}
 
-              {error === 'MISSING_ID' && !otpSent ? (
+              {error === 'MISSING_ID' ? (
                 <div style={{ background:'rgba(239,68,68,0.05)', border:'1px solid rgba(239,68,68,0.1)', borderRadius:12, padding:16, marginBottom:20, marginTop:16 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:10, color:'#dc2626', fontWeight:600, fontSize:14, marginBottom:4 }}>
                     ❌ ไม่พบ ID ผู้ใช้ในระบบ
