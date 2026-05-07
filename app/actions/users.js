@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getCurrentUserSession } from './user'
 import { sendEmail } from '@/lib/resend'
 import { randomUUID } from 'crypto'
+import bcrypt from 'bcryptjs'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -282,7 +283,10 @@ export async function verifyMemberPIN(userId, pin) {
 
     if (!user) return { success: false, error: 'ไม่พบข้อมูลผู้ใช้ในระบบ' }
     if (!user.signature_pin) return { success: false, error: 'ผู้ใช้ท่านนี้ยังไม่ได้ตั้งรหัส PIN' }
-    if (user.signature_pin !== pin) return { success: false, error: 'PIN ไม่ถูกต้อง' }
+
+    // Use bcrypt to compare
+    const isValid = bcrypt.compareSync(pin, user.signature_pin)
+    if (!isValid) return { success: false, error: 'PIN ไม่ถูกต้อง' }
 
     return { success: true }
   } catch (err) {

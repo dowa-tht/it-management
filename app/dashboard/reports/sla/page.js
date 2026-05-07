@@ -34,13 +34,18 @@ export default function SLAReportPage() {
   const [currentUser, setCurrentUser] = useState(null)
   const [editedSettings, setEditedSettings] = useState(null)
   const [activeFilter, setActiveFilter] = useState('30days')
+  const [reportCache, setReportCache] = useState({}) // 👈 Cache object for SWR
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0]
   })
 
   useEffect(() => {
-    fetchData()
+    setPage(0)
+    fetchData(dateRange.start, dateRange.end, 0, false)
     const getUser = async () => {
       try {
         const { supabase } = await import('@/lib/supabase')
@@ -56,45 +61,83 @@ export default function SLAReportPage() {
     getUser()
   }, [])
 
-  const fetchData = async (overrideStart, overrideEnd) => {
-    setLoading(true)
-    try {
-      const res = await getSLAReportData(overrideStart || dateRange.start, overrideEnd || dateRange.end)
-      if (res.success) {
-        setData(res)
-      } else {
-        setData({ data: [], summary: { total: 0, resolved: 0, passed: 0, failed: 0, complianceRate: 0 } })
-      }
-    } catch (err) {
-      setData({ data: [], summary: { total: 0, resolved: 0, passed: 0, failed: 0, complianceRate: 0 } })
-    }
-    setLoading(false)
+  const loadMore = () => {
+    const nextPage = page + 1
+    setPage(nextPage)
+    fetchData(dateRange.start, dateRange.end, nextPage, true)
   }
 
-  const applyQuickFilter = (filter) => {
-    setActiveFilter(filter)
-    const now = new Date()
-    const end = now.toISOString().split('T')[0]
-    let start = new Date()
+  const fetchData = async (overrideStart, overrideEnd, pageToFetch = 0, isLoadMore = false) => {
+    const start = overrideStart || dateRange.start
+    const end = overrideEnd || dateRange.end
+    const cacheKey = `${start}-${end}-${pageToFetch}`
 
-    if (filter === 'today') {
-      // today
-    } else if (filter === '7days') {
-      start.setDate(now.getDate() - 7)
-    } else if (filter === '30days') {
-      start.setDate(now.getDate() - 30)
-    } else if (filter === 'month') {
-      start.setDate(1)
-    } else if (filter === '3months') {
-      start.setMonth(now.getMonth() - 3)
-    } else if (filter === 'year') {
-      start.setMonth(0)
-      start.setDate(1)
+    // 1. Stale: Check cache and display immediately if available
+    if (!isLoadMore && reportCache[cacheKey]) {
+      setData(reportCache[cacheKey])
+      // We don't set loading to true here to avoid flickering (SWR pattern)
+    } else if (!isLoadMore) {
+      setLoading(true)
+    } else {
+      setLoadingMore(true)
     }
 
-    const newStart = start.toISOString().split('T')[0]
-    setDateRange({ start: newStart, end })
-    fetchData(newStart, end)
+    try {
+      // 2. Revalidate: Always fetch fresh data from server
+      const res = await getSLAReportData(start, end, pageToFetch)
+      
+      if (res.success) {
+        if (isLoadMore) {
+          setData(prev => ({
+            ...res,
+            data: [...prev.data, ...res.data]
+          }))
+        } else {
+          setData(res)
+        }
+        
+        setHasMore(res.data.length === 20)
+        // 3. Update Cache: Store fresh results
+        setReportCache(prev => ({ ...prev, [cacheKey]: res }))
+      } else {
+        const fallback = { data: [], summary: { total: 0, resolved: 0, passed: 0, failed: 0, complianceRate: 0 } }
+        if (!isLoadMore) setData(fallback)
+        setReportCache(prev => ({ ...prev, [cacheKey]: fallback }))
+      }
+    } catch (err) {
+      console.error('SWR Fetch Error:', err)
+    }
+    setLoading(false)
+    setLoadingMore(false)
+  }
+
+  const applyQuickFilter = (type) => {
+    setActiveFilter(type)
+    const now = new Date()
+    const start = new Date()
+    if (type === 'today') {
+      start.setHours(0, 0, 0, 0)
+    } else if (type === '7days') {
+      start.setDate(now.getDate() - 7)
+    } else if (type === '30days') {
+      start.setDate(now.getDate() - 30)
+    } else if (type === 'month') {
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+    } else if (type === '3months') {
+      start.setMonth(now.getMonth() - 3)
+    } else if (type === 'year') {
+      start.setMonth(0)
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+    }
+    const newRange = {
+      start: start.toLocaleDateString('en-CA'),
+      end: now.toLocaleDateString('en-CA')
+    }
+    setDateRange(newRange)
+    setPage(0)
+    fetchData(newRange.start, newRange.end, 0, false)
   }
 
   const calculateDiffMinutes = (start, end) => {
@@ -279,7 +322,6 @@ export default function SLAReportPage() {
       
       {showHelp && <SLAGuideModal />}
       
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -296,17 +338,19 @@ export default function SLAReportPage() {
         </div>
       </div>
 
-      {/* Filters omitted for brevity but remain the same... */}
       <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: '16px', marginBottom: 24, display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-end', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>ช่วงเวลา (DATE RANGE)</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {DATE_FILTERS.map(f => (
                 <button key={f.value} onClick={() => applyQuickFilter(f.value)} style={{
-                  padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                  padding: '6px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
                   border: activeFilter === f.value ? 'none' : '1px solid #d1d5db',
                   background: activeFilter === f.value ? '#1d4ed8' : '#fff',
-                  color: activeFilter === f.value ? '#fff' : '#374151', fontFamily: 'inherit'
+                  color: activeFilter === f.value ? '#fff' : '#374151',
+                  fontWeight: activeFilter === f.value ? 700 : 400,
+                  fontFamily: 'inherit',
+                  transition: 'all 0.2s'
                 }}>
                   {f.label}
                 </button>
@@ -341,12 +385,11 @@ export default function SLAReportPage() {
           </div>
         </div>
 
-        <button onClick={() => fetchData()} disabled={loading} style={{ padding: '8px 20px', background: loading ? '#93c5fd' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', height: 35, display: 'flex', alignItems: 'center' }}>
+        <button onClick={() => { setPage(0); fetchData(dateRange.start, dateRange.end, 0, false); }} disabled={loading} style={{ padding: '8px 20px', background: loading ? '#93c5fd' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', height: 35, display: 'flex', alignItems: 'center' }}>
           {loading ? 'กำลังโหลด...' : 'กรองข้อมูล'}
         </button>
       </div>
 
-      {/* Summary Stats */}
       <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', borderRadius: 12, padding: 20, color: '#fff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', right: -10, top: -10, fontSize: 60, opacity: 0.15 }}>📊</div>
@@ -469,6 +512,24 @@ export default function SLAReportPage() {
               </tbody>
             </table>
           </div>
+          {hasMore && (
+            <div style={{ padding: '20px', textAlign: 'center', borderTop: '1px solid #f3f4f6' }}>
+              <button 
+                onClick={loadMore} 
+                disabled={loadingMore}
+                style={{
+                  padding: '10px 30px', background: '#fff', border: '1px solid #d1d5db',
+                  borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#374151',
+                  cursor: loadingMore ? 'default' : 'pointer', transition: 'all 0.2s',
+                  fontFamily: 'inherit'
+                }}
+                onMouseEnter={e => !loadingMore && (e.currentTarget.style.background = '#f9fafb')}
+                onMouseLeave={e => !loadingMore && (e.currentTarget.style.background = '#fff')}
+              >
+                {loadingMore ? '⏳ กำลังโหลด...' : '➕ แสดงข้อมูลเพิ่มเติม'}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -31,6 +31,10 @@ function IncidentsContent() {
   const searchParams = useSearchParams()
   const [incidents, setIncidents] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const [incidentsCache, setIncidentsCache] = useState({}) // SWR Cache
   const [dateFilter, setDateFilter] = useState(searchParams.get('date') || '30days')
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all')
   const [severityFilter, setSeverityFilter] = useState(searchParams.get('severity') || 'all')
@@ -49,7 +53,16 @@ function IncidentsContent() {
 
   const isVisitor = currentUser?.role === 'visitor'
 
-  useEffect(() => { fetchIncidents() }, [dateFilter, statusFilter, severityFilter])
+  useEffect(() => { 
+    setPage(0)
+    fetchIncidents(0, false) 
+  }, [dateFilter, statusFilter, severityFilter, currentUser?.id])
+
+  const loadMore = () => {
+    const nextPage = page + 1
+    setPage(nextPage)
+    fetchIncidents(nextPage, true)
+  }
 
   const getDateRange = () => {
     const now = new Date()
@@ -70,16 +83,28 @@ function IncidentsContent() {
       start.setDate(1)
       start.setHours(0, 0, 0, 0)
     }
-    return start.toISOString()
+    return start.toLocaleDateString('en-CA')
   }
 
-  const fetchIncidents = async () => {
-    setLoading(true)
+  const fetchIncidents = async (pageToFetch = 0, isLoadMore = false) => {
+    const cacheKey = `${dateFilter}-${statusFilter}-${severityFilter}-${pageToFetch}-${currentUser?.id || 'guest'}`
+    
+    // 1. Stale: Use cache if available
+    if (!isLoadMore && incidentsCache[cacheKey]) {
+      setIncidents(incidentsCache[cacheKey])
+      // Still refresh in background
+    } else if (!isLoadMore) {
+      setLoading(true)
+    } else {
+      setLoadingMore(true)
+    }
+
     let query = supabase
       .from('incidents')
-      .select('*')
+      .select('*', { count: 'exact' })
       .gte('created_at', getDateRange())
       .order('created_at', { ascending: false })
+      .range(pageToFetch * 20, (pageToFetch + 1) * 20 - 1)
 
     if (statusFilter !== 'all') {
       query = query.eq('status', statusFilter === 'InProgress' ? 'In Progress' : statusFilter)
@@ -88,14 +113,28 @@ function IncidentsContent() {
       query = query.eq('severity', severityFilter)
     }
 
-    // ROLE-BASED FILTERING FOR MEMBER
     if (currentUser?.role === 'member') {
       query = query.or(`created_by.eq.${currentUser.id},reported_by.eq.${currentUser.email}`)
     }
 
-    const { data, error } = await query
-    if (!error) setIncidents(data || [])
+    const { data, error, count } = await query
+    
+    if (!error) {
+      const freshData = data || []
+      if (isLoadMore) {
+        setIncidents(prev => [...prev, ...freshData])
+      } else {
+        setIncidents(freshData)
+      }
+      
+      setHasMore(count > (pageToFetch + 1) * 20)
+      
+      // Update Cache
+      setIncidentsCache(prev => ({ ...prev, [cacheKey]: freshData }))
+    }
+    
     setLoading(false)
+    setLoadingMore(false)
   }
 
   const stats = {
@@ -147,10 +186,13 @@ function IncidentsContent() {
           <div style={{ display: 'flex', gap: 6 }}>
             {DATE_FILTERS.map(f => (
               <button key={f.value} onClick={() => setDateFilter(f.value)} style={{
-                padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                padding: '6px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
                 border: dateFilter === f.value ? 'none' : '1px solid #d1d5db',
                 background: dateFilter === f.value ? '#1d4ed8' : '#fff',
-                color: dateFilter === f.value ? '#fff' : '#374151', fontFamily: 'inherit'
+                color: dateFilter === f.value ? '#fff' : '#374151',
+                fontWeight: dateFilter === f.value ? 700 : 400,
+                fontFamily: 'inherit',
+                transition: 'all 0.2s'
               }}>
                 {f.label}
               </button>
@@ -247,6 +289,25 @@ function IncidentsContent() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        
+        {hasMore && (
+          <div style={{ padding: '20px', textAlign: 'center', borderTop: '1px solid #f3f4f6' }}>
+            <button 
+              onClick={loadMore} 
+              disabled={loadingMore}
+              style={{
+                padding: '10px 30px', background: '#fff', border: '1px solid #d1d5db',
+                borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#374151',
+                cursor: loadingMore ? 'default' : 'pointer', transition: 'all 0.2s',
+                fontFamily: 'inherit'
+              }}
+              onMouseEnter={e => !loadingMore && (e.currentTarget.style.background = '#f9fafb')}
+              onMouseLeave={e => !loadingMore && (e.currentTarget.style.background = '#fff')}
+            >
+              {loadingMore ? '⏳ กำลังโหลด...' : '➕ แสดงข้อมูลเพิ่มเติม'}
+            </button>
           </div>
         )}
       </div>

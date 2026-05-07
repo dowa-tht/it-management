@@ -9,14 +9,56 @@ const getAdminClient = () => {
   )
 }
 
+/**
+ * 🔗 Cross-Module Sync & Final Actions
+ */
+async function onDocumentFinalApproval(docId, docType) {
+  try {
+    const supabaseAdmin = getAdminClient()
+    
+    if (docType === 'incident') {
+      const { data: incident } = await supabaseAdmin
+        .from('incidents')
+        .select('ref_type, ref_id, case_number, resolution')
+        .eq('id', docId)
+        .single()
+
+      if (incident?.ref_type === 'checklist' && incident?.ref_id) {
+        // Update checklist item to OK
+        const resolutionMark = `[Corrected: ${incident.case_number}] ${incident.resolution || ''}`
+        
+        const { data: item } = await supabaseAdmin
+          .from('checklist_items')
+          .select('notes')
+          .eq('id', incident.ref_id)
+          .single()
+
+        const newNotes = `${item?.notes || ''}${item?.notes ? '\n' : ''}${resolutionMark}`
+
+        await supabaseAdmin
+          .from('checklist_items')
+          .update({ 
+            status: 'OK',
+            notes: newNotes
+          })
+          .eq('id', incident.ref_id)
+          
+        await recordLog(incident.ref_id, 'checklist', 'System', `Auto-update OK | แก้ไขรายการ NG อัตโนมัติจากเคส ${incident.case_number}`, 'system@workflow.internal')
+      }
+    }
+  } catch (err) {
+    console.error('onDocumentFinalApproval Error:', err)
+  }
+}
+
 export async function recordLog(docId, type, action, details, userEmail) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAdmin = getAdminClient()
 
     const table = type === 'checklist' ? 'checklist_logs' : 'incident_logs'
-    const fullAction = details ? `${action}: ${details}` : action
+    
+    // Use ' | ' as a delimiter for the UI to split Action and Details
+    const fullAction = details ? `${action} | ${details}` : action
     
     const { error } = await supabaseAdmin.from(table).insert({
       doc_id: docId,
@@ -236,10 +278,18 @@ export async function getSystemLogs(type = 'audit') {
       const { data: profiles } = await supabaseAdmin.from('user_profiles').select('email, full_name').in('email', emails)
       const nameMap = Object.fromEntries(profiles?.map(p => [p.email, p.full_name]) || [])
 
-      const mapped = combined.map(l => ({
-        ...l,
-        full_name: nameMap[l.user_email] || l.user_email
-      })).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      const mapped = combined.map(l => {
+        const [action, ...detailsParts] = (l.action || '').split(' | ')
+        const details = detailsParts.join(' | ') || (l.action.includes(': ') ? l.action.split(': ')[1] : '')
+        const displayAction = detailsParts.length > 0 ? action : (l.action.includes(': ') ? l.action.split(': ')[0] : l.action)
+
+        return {
+          ...l,
+          action: displayAction,
+          details: details,
+          full_name: nameMap[l.user_email] || l.user_email
+        }
+      }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 
       return { data: mapped }
     }
@@ -369,7 +419,12 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail) {
 
     await recordLog(docId, targetType, finalAutoApprove ? 'Auto-Approved' : 'Submitted', finalAutoApprove 
       ? 'ระบบอนุมัติงานให้อัตโนมัติตามการตั้งค่า' 
-      : `ส่งเอกสารเพื่อขออนุมัติ (ระบบ Workflow ใหม่ - ผู้อนุมัติหลัก: ${approverName})`, userEmail)
+      : `ส่งเอกสารเพื่อขออนุมัติ (ผู้อนุมัติหลัก: ${approverName})`, userEmail)
+
+    // 🛡️ CRITICAL: Handle cross-module sync if auto-approved
+    if (finalAutoApprove) {
+      await onDocumentFinalApproval(docId, targetType)
+    }
 
     return { success: true, autoApproved: finalAutoApprove }
   } catch (err) {
@@ -493,44 +548,6 @@ export async function submitApprovalStep(docId, docType, stepId, signatureData, 
         })
         .eq('id', docId)
 
-      // NEW: Cross-module sync for Incident -> Checklist
-      if (docType === 'incident') {
-        const { data: incident } = await supabaseAdmin
-          .from('incidents')
-          .select('ref_type, ref_id, case_number, resolution')
-          .eq('id', docId)
-          .single()
-
-        if (incident?.ref_type === 'checklist' && incident.ref_id) {
-          // Update the checklist item to OK
-          const resolutionMark = `\n[RESOLVED by ${incident.case_number}] ${incident.resolution || ''}`.trim()
-          
-          // Get current notes to append
-          const { data: item } = await supabaseAdmin
-            .from('checklist_items')
-            .select('notes')
-            .eq('id', incident.ref_id)
-            .single()
-
-          const newNotes = `${item?.notes || ''}${item?.notes ? '\n' : ''}${resolutionMark}`
-
-          await supabaseAdmin
-            .from('checklist_items')
-            .update({ 
-              status: 'OK',
-              notes: newNotes
-            })
-            .eq('id', incident.ref_id)
-            
-          // Log the auto-update in checklist_logs
-          await supabaseAdmin.from('checklist_logs').insert({
-            doc_id: (await supabaseAdmin.from('checklist_items').select('doc_id').eq('id', incident.ref_id).single()).data?.doc_id,
-            action: 'System: Auto-update OK',
-            user_email: 'system@workflow.internal',
-            details: `แก้ไขรายการ NG อัตโนมัติจากเคส ${incident.case_number}`
-          })
-        }
-      }
     }
 
     // 4. Record Log with Verification Method
@@ -540,6 +557,10 @@ export async function submitApprovalStep(docId, docType, stepId, signatureData, 
     const verificationNote = verifiedByPin ? ' (Verify by PIN)' : ''
     
     await recordLog(docId, docType, 'Approved', `อนุมัติโดย: ${fullName} (${email})${verificationNote}`, session.user.email)
+
+    if (!nextStep) {
+      await onDocumentFinalApproval(docId, docType)
+    }
 
     return { success: true, isFinal: !nextStep }
   } catch (err) {

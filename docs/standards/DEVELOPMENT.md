@@ -14,11 +14,13 @@
 ## 🕒 2. Full Audit Trail (ระบบจดบันทึกที่ครอบคลุม)
 *   **Standard Fields:** ทุกตารางข้อมูลหลักต้องมีฟิลด์ `created_at`, `updated_at`, `created_by` (ID ของผู้ทำรายการ) และ `updated_by` เสมอ
 *   **Login/Logout Logs:** ทุกการเข้า-ออกจากระบบ ไม่ว่าจะผ่าน Email/Password หรือ Microsoft SSO ต้องมีการบันทึก Log ลงในตาราง `login_logs` พร้อมข้อมูล User Agent และ Timestamp
-*   **Action Tracking:** ฟังก์ชันที่สำคัญต้องมีการบันทึกประวัติการเปลี่ยนแปลง เพื่อให้สามารถตรวจสอบย้อนกลับ (Traceability) ได้ 100%
+*   **Action Tracking:** ฟังก์ชันที่สำคัญต้องมีการบันทึกประวัติการเปลี่ยนแปลง เพื่อให้สามารถตรวจสอบย้อนกลับ (Traceability) ได้ 100% โดยใช้รูปแบบ `Action | Details` เสมอ
+*   **Identity Integrity:** ทุกการยืนยันตัวตนผ่าน PIN ต้องมีการประทับตรา `(Verified by PIN)` ใน Log เพื่อรองรับกฎหมายธุรกรรมทางอิเล็กทรอนิกส์
 
 ---
 
 ## 🏛️ 3. Unified Architecture & Standards
+*   **Inter-Module Communication:** การสื่อสารระหว่าง Module (เช่น Incident และ Checklist) ต้องผ่าน Unified Action (`onDocumentFinalApproval`) เพื่อให้แน่ใจว่าเกิด Logging และ Side Effects ที่ถูกต้องครบถ้วน
 *   **Consistent Role Mapping:** ใช้ระบบ Role มาตรฐาน (`administrator`, `supervisor`, `approval`, `guest`) เท่านั้น ห้ามใช้ค่าอื่นนอกเหนือจากนี้เพื่อป้องกันความสับสน
 *   **Database Constraints:** ใช้ Check Constraints ในระดับ Database เพื่อเป็นด่านสุดท้ายในการควบคุมความถูกต้องของข้อมูล (Data Integrity)
 *   **UI/UX Consistency:** 

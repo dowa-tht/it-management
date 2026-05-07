@@ -11,9 +11,13 @@ const STATUS_COLORS = {
 
 const SYSTEMS = ['Server & File Share', 'Microsoft 365']
 
-const ENG_MONTHS_SHORT = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+const DATE_FILTERS = [
+  { label: 'วันนี้', value: 'today' },
+  { label: '7 วัน', value: '7days' },
+  { label: '30 วัน', value: '30days' },
+  { label: 'เดือนนี้', value: 'month' },
+  { label: '3 เดือน', value: '3months' },
+  { label: 'ปีนี้', value: 'year' },
 ]
 
 function MonthPicker({ value, onChange }) {
@@ -89,11 +93,12 @@ function MonthPicker({ value, onChange }) {
 export default function BackupPage() {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const [logsCache, setLogsCache] = useState({}) // SWR Cache
+  const [dateFilter, setDateFilter] = useState('month')
   const [showForm, setShowForm] = useState(false)
-  const [filterMonth, setFilterMonth] = useState(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  })
   const [currentUser, setCurrentUser] = useState(null)
   const [form, setForm] = useState({
     log_date: new Date().toISOString().split('T')[0],
@@ -105,11 +110,18 @@ export default function BackupPage() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    fetchLogs()
+    setPage(0)
+    fetchLogs(0, false)
     // Auto-refresh every 5 minutes
-    const interval = setInterval(fetchLogs, 5 * 60 * 1000)
+    const interval = setInterval(() => fetchLogs(0, false), 5 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [filterMonth])
+  }, [dateFilter, currentUser?.id])
+
+  const loadMore = () => {
+    const nextPage = page + 1
+    setPage(nextPage)
+    fetchLogs(nextPage, true)
+  }
 
   useEffect(() => {
     const getUser = async () => {
@@ -124,20 +136,59 @@ export default function BackupPage() {
 
   const isVisitor = currentUser?.role === 'visitor'
 
-  const fetchLogs = async () => {
-    setLoading(true)
-    const [year, month] = filterMonth.split('-')
-    const start = `${year}-${month}-01`
-    
-    // Fix: Use local date instead of toISOString to avoid timezone shifting
-    const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
-    const end = `${year}-${month}-${String(lastDay).padStart(2, '0')}`
+  const getDateRange = () => {
+    const now = new Date()
+    const start = new Date()
+    if (dateFilter === 'today') {
+      start.setHours(0, 0, 0, 0)
+    } else if (dateFilter === '7days') {
+      start.setDate(now.getDate() - 7)
+    } else if (dateFilter === '30days') {
+      start.setDate(now.getDate() - 30)
+    } else if (dateFilter === 'month') {
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+    } else if (dateFilter === '3months') {
+      start.setMonth(now.getMonth() - 3)
+    } else if (dateFilter === 'year') {
+      start.setMonth(0)
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+    }
+    return start.toLocaleDateString('en-CA')
+  }
 
-    const { data } = await supabase.from('backup_logs').select('*')
-      .gte('log_date', start).lte('log_date', end)
+  const fetchLogs = async (pageToFetch = 0, isLoadMore = false) => {
+    const cacheKey = `${dateFilter}-${pageToFetch}-${currentUser?.id || 'guest'}`
+    
+    if (!isLoadMore && logsCache[cacheKey]) {
+      setLogs(logsCache[cacheKey])
+    } else if (!isLoadMore) {
+      setLoading(true)
+    } else {
+      setLoadingMore(true)
+    }
+
+    const { data, error, count } = await supabase.from('backup_logs')
+      .select('*', { count: 'exact' })
+      .gte('log_date', getDateRange())
       .order('log_date', { ascending: false })
-    setLogs(data || [])
+      .range(pageToFetch * 20, (pageToFetch + 1) * 20 - 1)
+
+    if (!error) {
+      const freshData = data || []
+      if (isLoadMore) {
+        setLogs(prev => [...prev, ...freshData])
+      } else {
+        setLogs(freshData)
+      }
+      
+      setHasMore(count > (pageToFetch + 1) * 20)
+      setLogsCache(prev => ({ ...prev, [cacheKey]: freshData }))
+    }
+    
     setLoading(false)
+    setLoadingMore(false)
   }
 
   const handleSubmit = async (e) => {
@@ -207,7 +258,21 @@ export default function BackupPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>Backup Log</h1>
-            <MonthPicker value={filterMonth} onChange={setFilterMonth} />
+            <div style={{ display: 'flex', gap: 6 }}>
+              {DATE_FILTERS.map(f => (
+                <button key={f.value} onClick={() => setDateFilter(f.value)} style={{
+                  padding: '6px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+                  border: dateFilter === f.value ? 'none' : '1px solid #d1d5db',
+                  background: dateFilter === f.value ? '#1d4ed8' : '#fff',
+                  color: dateFilter === f.value ? '#fff' : '#374151',
+                  fontWeight: dateFilter === f.value ? 700 : 400,
+                  fontFamily: 'inherit',
+                  transition: 'all 0.2s'
+                }}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {!isVisitor && (
@@ -293,7 +358,7 @@ export default function BackupPage() {
 
         <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', fontSize: 13, fontWeight: 500, color: '#374151' }}>
-            รายการ Backup — {monthLabel()}
+            รายการ Backup — {dateFilter.toUpperCase()}
           </div>
           <div className="table-scroll">
             <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse', fontSize: 13 }}>
@@ -335,6 +400,25 @@ export default function BackupPage() {
             </table>
           </div>
         </div>
+        
+        {hasMore && (
+          <div style={{ padding: '20px', textAlign: 'center', borderTop: '1px solid #f3f4f6' }}>
+            <button 
+              onClick={loadMore} 
+              disabled={loadingMore}
+              style={{
+                padding: '10px 30px', background: '#fff', border: '1px solid #d1d5db',
+                borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#374151',
+                cursor: loadingMore ? 'default' : 'pointer', transition: 'all 0.2s',
+                fontFamily: 'inherit'
+              }}
+              onMouseEnter={e => !loadingMore && (e.currentTarget.style.background = '#f9fafb')}
+              onMouseLeave={e => !loadingMore && (e.currentTarget.style.background = '#fff')}
+            >
+              {loadingMore ? '⏳ กำลังโหลด...' : '➕ แสดงข้อมูลเพิ่มเติม'}
+            </button>
+          </div>
+        )}
       </div>
 
     </>

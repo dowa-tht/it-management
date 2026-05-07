@@ -706,7 +706,7 @@ export default function IncidentDetailPage() {
         resolved_by: currentUser.email
       }).eq('id', id)
 
-      await addLog('ปิดเคสและส่งอนุมัติ', incident.status, 'Pending Approval', `${slaNote} · ดำเนินการโดย: ${currentUser?.email}`)
+      await addLog('ปิดเคสและส่งอนุมัติ', incident.status, 'Pending Approval', `ผู้แจ้งเซ็นรับทราบ (Verified by PIN) | ${slaNote} · ดำเนินการโดย: ${currentUser?.email}`)
       fetchIncident()
       setShowResolveDialog(false)
     } else {

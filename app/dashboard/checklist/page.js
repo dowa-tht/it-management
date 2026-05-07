@@ -7,9 +7,23 @@ import { formatDate } from '@/lib/dateFormat'
 import { getNextNo } from '@/lib/noSeries'
 import { CHECKLIST_TEMPLATES } from '@/lib/checklistItems'
 
+const DATE_FILTERS = [
+  { label: 'วันนี้', value: 'today' },
+  { label: '7 วัน', value: '7days' },
+  { label: '30 วัน', value: '30days' },
+  { label: 'เดือนนี้', value: 'month' },
+  { label: '3 เดือน', value: '3months' },
+  { label: 'ปีนี้', value: 'year' },
+]
+
 function ChecklistListForm() {
   const [docs, setDocs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const [docsCache, setDocsCache] = useState({}) // SWR Cache
+  const [activeFilter, setActiveFilter] = useState('') 
   const [creating, setCreating] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [userEmail, setUserEmail] = useState(null)
@@ -49,22 +63,67 @@ function ChecklistListForm() {
 
   // Trigger fetch when filters change
   useEffect(() => {
-    fetchDocs()
-  }, [filters.freq_type, filters.status, filters.date_from, filters.date_to, filters.only_ng])
+    setPage(0)
+    fetchDocs(0, false)
+  }, [filters.freq_type, filters.status, filters.date_from, filters.date_to, filters.only_ng, currentUser?.id])
+
+  const loadMore = () => {
+    const nextPage = page + 1
+    setPage(nextPage)
+    fetchDocs(nextPage, true)
+  }
+
+  const applyQuickFilter = (type) => {
+    const now = new Date()
+    const start = new Date()
+    if (type === 'today') {
+      start.setHours(0,0,0,0)
+    } else if (type === '7days') {
+      start.setDate(now.getDate() - 7)
+    } else if (type === '30days') {
+      start.setDate(now.getDate() - 30)
+    } else if (type === 'month') {
+      start.setDate(1)
+      start.setHours(0,0,0,0)
+    } else if (type === '3months') {
+      start.setMonth(now.getMonth() - 3)
+    } else if (type === 'year') {
+      start.setMonth(0)
+      start.setDate(1)
+      start.setHours(0,0,0,0)
+    }
+    setActiveFilter(type)
+    setFilters({
+      ...filters,
+      date_from: start.toLocaleDateString('en-CA'),
+      date_to: now.toLocaleDateString('en-CA')
+    })
+  }
 
 
-  const fetchDocs = async () => {
-    setLoading(true)
+  const fetchDocs = async (pageToFetch = 0, isLoadMore = false) => {
+    const cacheKey = `${filters.freq_type}-${filters.status}-${filters.date_from}-${filters.date_to}-${filters.only_ng}-${pageToFetch}-${currentUser?.id || 'guest'}`
+    
+    if (!isLoadMore && docsCache[cacheKey]) {
+      setDocs(docsCache[cacheKey])
+    } else if (!isLoadMore) {
+      setLoading(true)
+    } else {
+      setLoadingMore(true)
+    }
+
     let query = supabase
       .from('checklist_docs')
-      .select('*')
+      .select('*', { count: 'exact' })
     
     if (filters.freq_type) query = query.eq('freq_type', filters.freq_type)
     if (filters.status) query = query.eq('status', filters.status)
     if (filters.date_from) query = query.gte('period_date', filters.date_from)
     if (filters.date_to) query = query.lte('period_date', filters.date_to)
 
-    const { data, error } = await query.order('doc_no', { ascending: false })
+    const { data, error, count } = await query
+      .order('doc_no', { ascending: false })
+      .range(pageToFetch * 20, (pageToFetch + 1) * 20 - 1)
     
     if (!error && data) {
       // Fetch stats for these docs
@@ -100,17 +159,25 @@ function ChecklistListForm() {
           }
         })
         
-        // Filter by only_ng if enabled
         if (filters.only_ng) {
           processedDocs = processedDocs.filter(d => d.ng_count > 0)
         }
         
-        setDocs(processedDocs)
+        if (isLoadMore) {
+          setDocs(prev => [...prev, ...processedDocs])
+        } else {
+          setDocs(processedDocs)
+        }
+        
+        setHasMore(count > (pageToFetch + 1) * 20)
+        setDocsCache(prev => ({ ...prev, [cacheKey]: processedDocs }))
       } else {
-        setDocs([])
+        if (!isLoadMore) setDocs([])
+        setHasMore(false)
       }
     }
     setLoading(false)
+    setLoadingMore(false)
   }
 
   const handleCreate = async (freqType) => {
@@ -149,42 +216,62 @@ function ChecklistListForm() {
 
       {/* Filters Bar */}
       <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 16, marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end' }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 6 }}>ช่วงวันที่</label>
+        <div style={{ flex: 1, minWidth: 300 }}>
+          <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 6 }}>ช่วงเวลา (DATE RANGE)</label>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+            {DATE_FILTERS.map(f => (
+              <button 
+                key={f.value} 
+                onClick={() => applyQuickFilter(f.value)} 
+                style={{
+                  padding: '4px 12px', borderRadius: 6, fontSize: 11, cursor: 'pointer',
+                  border: activeFilter === f.value ? 'none' : '1px solid #d1d5db',
+                  background: activeFilter === f.value ? '#1d4ed8' : '#fff',
+                  color: activeFilter === f.value ? '#fff' : '#374151',
+                  fontWeight: activeFilter === f.value ? 700 : 400,
+                  fontFamily: 'inherit',
+                  transition: 'all 0.2s',
+                  height: 28
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            
-            {/* Date From */}
             <div style={{ flex: 1, position: 'relative' }}>
               <div style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', color: filters.date_from ? '#111827' : '#9ca3af', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 33 }}>
-                <span>{filters.date_from ? formatDate(filters.date_from, false) : 'dd-mmm-yyyy'}</span>
+                <span>{filters.date_from ? formatDate(filters.date_from, false).replaceAll('-', '/') : 'dd/mm/yyyy'}</span>
                 <span style={{ fontSize: 12 }}>📅</span>
               </div>
               <input 
                 type="date" 
                 value={filters.date_from} 
                 onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
-                onChange={e => setFilters({...filters, date_from: e.target.value})} 
+                onChange={e => {
+                  setFilters({...filters, date_from: e.target.value})
+                  setActiveFilter('')
+                }} 
                 style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} 
               />
             </div>
-            
             <span style={{ color: '#9ca3af' }}>-</span>
-            
-            {/* Date To */}
             <div style={{ flex: 1, position: 'relative' }}>
               <div style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, background: '#fff', color: filters.date_to ? '#111827' : '#9ca3af', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 33 }}>
-                <span>{filters.date_to ? formatDate(filters.date_to, false) : 'dd-mmm-yyyy'}</span>
+                <span>{filters.date_to ? formatDate(filters.date_to, false).replaceAll('-', '/') : 'dd/mm/yyyy'}</span>
                 <span style={{ fontSize: 12 }}>📅</span>
               </div>
               <input 
                 type="date" 
                 value={filters.date_to} 
                 onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
-                onChange={e => setFilters({...filters, date_to: e.target.value})} 
+                onChange={e => {
+                  setFilters({...filters, date_to: e.target.value})
+                  setActiveFilter('')
+                }} 
                 style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} 
               />
             </div>
-
           </div>
         </div>
         
@@ -290,6 +377,25 @@ function ChecklistListForm() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        
+        {hasMore && (
+          <div style={{ padding: '20px', textAlign: 'center', borderTop: '1px solid #f3f4f6' }}>
+            <button 
+              onClick={loadMore} 
+              disabled={loadingMore}
+              style={{
+                padding: '10px 30px', background: '#fff', border: '1px solid #d1d5db',
+                borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#374151',
+                cursor: loadingMore ? 'default' : 'pointer', transition: 'all 0.2s',
+                fontFamily: 'inherit'
+              }}
+              onMouseEnter={e => !loadingMore && (e.currentTarget.style.background = '#f9fafb')}
+              onMouseLeave={e => !loadingMore && (e.currentTarget.style.background = '#fff')}
+            >
+              {loadingMore ? '⏳ กำลังโหลด...' : '➕ แสดงข้อมูลเพิ่มเติม'}
+            </button>
           </div>
         )}
       </div>

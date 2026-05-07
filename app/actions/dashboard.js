@@ -57,12 +57,13 @@ export async function getDashboardData(timezoneOffset = -420) {
     const results = await Promise.all([
       supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system').gte('created_at', startIso).order('created_at', { ascending: false }),
       supabaseAdmin.from('backup_logs').select('id, log_date, system_name, status, notes').gte('log_date', startIso.split('T')[0]).order('log_date', { ascending: false }),
-      supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').gte('period_date', streakStartStr),
+      supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, item_key, status)').gte('period_date', streakStartStr),
       supabaseAdmin.from('holidays').select('holiday_date').gte('holiday_date', streakStartStr),
       supabaseAdmin.from('system_settings').select('value').eq('key', 'working_hours').maybeSingle(),
       supabaseAdmin.from('incident_exclusions').select('*').gte('start_time', startIso),
       supabaseAdmin.from('system_settings').select('value').eq('key', 'sla_limits').maybeSingle(),
-      supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, status)').eq('freq_type', 'Yearly').gte('period_date', `${todayStr.substring(0, 4)}-01-01`),
+      supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, item_key, status)').eq('freq_type', 'Yearly').gte('period_date', `${todayStr.substring(0, 4)}-01-01`),
+      supabaseAdmin.from('checklist_templates').select('freq_type, item_key').eq('is_active', true),
       // Fetch Pending Approvals (Unified Workflow - For Approver)
       userProfile ? supabaseAdmin.from('document_approvals')
         .select('id')
@@ -75,7 +76,10 @@ export async function getDashboardData(timezoneOffset = -420) {
       supabaseAdmin.from('incidents').select('id, severity, status, created_at, acknowledged_at, assigned_at, resolved_at').gte('created_at', ytdStartIso)
     ])
 
-    const [incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes, slaLimitsRes, yearlyRes, pendingApprovalsRes, myPendingChkRes, myPendingIncRes, ytdIncRes] = results;
+    const [
+      incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes, slaLimitsRes, 
+      yearlyRes, templatesRes, pendingApprovalsRes, myPendingChkRes, myPendingIncRes, ytdIncRes
+    ] = results;
 
     if (chkRes.error) console.error('Checklists Fetch Error:', chkRes.error)
 
@@ -100,10 +104,15 @@ export async function getDashboardData(timezoneOffset = -420) {
     const streak = []
     let cursorDate = new Date(todayDate)
     
+    // Get all active templates and count them per frequency
+    const templates = templatesRes.data || []
+    const templateCountMap = { Daily: 0, Weekly: 0, Monthly: 0, Yearly: 0 }
+    templates.forEach(t => { if (templateCountMap[t.freq_type] !== undefined) templateCountMap[t.freq_type]++ })
+
     // We go backwards to find 7 valid working days
     while (streak.length < 7 && cursorDate >= streakStart) {
       const dStr = cursorDate.toISOString().split('T')[0]
-      const dayOfWeek = cursorDate.getUTCDay() // Use UTC because we adjusted the timestamp manually to the user's local time
+      const dayOfWeek = cursorDate.getUTCDay() 
       
       const isWorkingDay = wh.work_days.includes(dayOfWeek)
       const isHoliday = holidays.includes(dStr)
@@ -111,9 +120,10 @@ export async function getDashboardData(timezoneOffset = -420) {
       if (!isWorkingDay || isHoliday) {
         streak.unshift({ date: dStr, status: 'skip', label: isHoliday ? 'Holiday' : 'Weekend', ngCount: 0 })
       } else {
-        // It's a working day
-        const dailyDoc = allChecklists.find(c => c.period_date === dStr && c.freq_type === 'Daily')
-        if (!dailyDoc) {
+        // It's a working day - Aggregate all Daily documents for this day
+        const dailyDocs = allChecklists.filter(c => c.period_date === dStr && c.freq_type === 'Daily')
+        
+        if (dailyDocs.length === 0) {
           const isToday = dStr === todayStr
           streak.unshift({ 
             date: dStr, 
@@ -122,17 +132,28 @@ export async function getDashboardData(timezoneOffset = -420) {
             ngCount: 0 
           })
         } else {
-          const items = dailyDoc.checklist_items || []
-          const hasNG = items.some(i => i.status === 'NG')
-          const ngCount = items.filter(i => i.status === 'NG').length
+          // Combine all items from all documents for this day
+          const allItems = dailyDocs.flatMap(d => d.checklist_items || [])
+          const ngCount = allItems.filter(i => i.status === 'NG').length
+          const hasNG = ngCount > 0
           
-          if (dailyDoc.status === 'Closed') {
+          // Count unique items that are in CLOSED documents
+          const closedItemKeys = new Set(
+            dailyDocs
+              .filter(d => d.status === 'Closed')
+              .flatMap(d => (d.checklist_items || []).map(i => i.item_key))
+          )
+          
+          const totalItemsInDocs = new Set(allItems.map(i => i.item_key)).size
+          const expectedCount = templateCountMap.Daily || 6 // Fallback to 6 as per lib/checklistItems.js
+          
+          if (closedItemKeys.size >= expectedCount) {
             streak.unshift({ date: dStr, status: hasNG ? 'ng' : 'ok', label: hasNG ? `พบ ${ngCount} ปัญหา (NG)` : 'ตรวจครบถ้วน', ngCount })
           } else {
-            // It's Open
-            const hasProgress = items.some(i => i.status !== null)
-            if (hasProgress) {
-              streak.unshift({ date: dStr, status: 'in-progress', label: 'กำลังดำเนินการ', ngCount })
+            // Not all items are closed
+            const hasProgress = allItems.some(i => i.status !== null)
+            if (hasProgress || dailyDocs.length > 0) {
+              streak.unshift({ date: dStr, status: 'in-progress', label: 'อยู่ในระหว่างดำเนินการ', ngCount })
             } else {
               streak.unshift({ date: dStr, status: 'pending', label: 'รอตรวจสอบ', ngCount: 0 })
             }
@@ -145,31 +166,41 @@ export async function getDashboardData(timezoneOffset = -420) {
     // Keep only the last 7 to be exact
     const finalStreak = streak.slice(-7)
 
-    // Calculate other Action Cards data (Weekly / Monthly)
-    const getCardStatus = (doc) => {
-      if (!doc) return { status: 'pending', label: 'ยังไม่ได้ดำเนินการ', ngCount: 0 }
+    // Calculate other Action Cards data (Weekly / Monthly / Yearly) with Aggregation
+    const getCardStatus = (freqType, targetDocs) => {
+      if (!targetDocs || targetDocs.length === 0) return { status: 'pending', label: 'ยังไม่ได้ดำเนินการ', ngCount: 0 }
       
-      const items = doc.checklist_items || []
-      const ngCount = items.filter(i => i.status === 'NG') ? items.filter(i => i.status === 'NG').length : 0
-      const hasProgress = items.some(i => i.status !== null)
-
-      if (doc.status === 'Closed') {
+      const allItems = targetDocs.flatMap(d => d.checklist_items || [])
+      const ngCount = allItems.filter(i => i.status === 'NG').length
+      
+      // Count unique items that are in CLOSED documents
+      const closedItemKeys = new Set(
+        targetDocs
+          .filter(d => d.status === 'Closed')
+          .flatMap(d => (d.checklist_items || []).map(i => i.item_key))
+      )
+      
+      const expectedCount = templateCountMap[freqType] || (freqType === 'Weekly' ? 2 : freqType === 'Monthly' ? 3 : freqType === 'Yearly' ? 3 : 0)
+      
+      if (closedItemKeys.size >= expectedCount) {
         return { status: ngCount > 0 ? 'ng' : 'done', label: ngCount > 0 ? `พบ ${ngCount} ปัญหา (NG)` : 'ตรวจเสร็จสมบูรณ์', ngCount }
       }
       
-      if (hasProgress) return { status: 'in-progress', label: 'กำลังดำเนินการ', ngCount }
+      const hasProgress = allItems.some(i => i.status !== null)
+      if (hasProgress || targetDocs.length > 0) return { status: 'in-progress', label: 'อยู่ในระหว่างดำเนินการ', ngCount }
+      
       return { status: 'pending', label: 'รอการตรวจสอบ', ngCount: 0 }
     }
 
-    const weeklyDoc = allChecklists.find(c => c.freq_type === 'Weekly' && new Date(c.period_date) >= new Date(todayDate.getTime() - 7*24*60*60*1000))
-    const monthlyDoc = allChecklists.find(c => c.freq_type === 'Monthly' && c.period_date.startsWith(todayStr.substring(0, 7)))
-    const yearlyDoc = yearlyRes?.data ? yearlyRes.data.find(c => c.period_date.startsWith(todayStr.substring(0, 4))) : null
+    const weeklyDocs = allChecklists.filter(c => c.freq_type === 'Weekly' && new Date(c.period_date) >= new Date(todayDate.getTime() - 7*24*60*60*1000))
+    const monthlyDocs = allChecklists.filter(c => c.freq_type === 'Monthly' && c.period_date.startsWith(todayStr.substring(0, 7)))
+    const yearlyDocs = yearlyRes?.data ? yearlyRes.data : []
 
     const checklistActions = {
       dailyStatus: finalStreak[finalStreak.length - 1], // Today
-      weeklyStatus: getCardStatus(weeklyDoc),
-      monthlyStatus: getCardStatus(monthlyDoc),
-      yearlyStatus: getCardStatus(yearlyDoc),
+      weeklyStatus: getCardStatus('Weekly', weeklyDocs),
+      monthlyStatus: getCardStatus('Monthly', monthlyDocs),
+      yearlyStatus: getCardStatus('Yearly', yearlyDocs),
       streak: finalStreak
     }
 

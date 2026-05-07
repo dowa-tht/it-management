@@ -84,24 +84,34 @@
 ## 5. Logging Standard (มาตรฐานการบันทึกประวัติ)
 
 ทุกการอนุมัติจะต้องมีการบันทึก Log ในรูปแบบมาตรฐานเพื่อให้ตรวจสอบย้อนกลับได้ง่าย:
-*   **Format**: `อนุมัติโดย: [Full Name] ([Email]) [Verification Method]`
+*   **Format**: `[Action] | [Details]` (ใช้เครื่องหมาย Pipe ` | ` เป็นตัวคั่นเพื่อให้ UI แยกการแสดงผลได้ถูกต้อง)
+*   **Identity Verification**: ทุกการอนุมัติแบบ Remote หรือใช้ PIN ต้องระบุ `(Verified by PIN)` ไว้ใน Log เสมอ
 *   **ตัวอย่าง (Direct)**: `อนุมัติโดย: Admin Dowa (admin@dowa-tht.co.th)`
-*   **ตัวอย่าง (Remote)**: `อนุมัติโดย: Admin Dowa (admin@dowa-tht.co.th) (Verify by PIN)`
+*   **ตัวอย่าง (Remote)**: `อนุมัติโดย: Admin Dowa (admin@dowa-tht.co.th) | (Verified by PIN)`
 
 ---
 
-## 6. Error Handling & Safety (การจัดการข้อผิดพลาด)
+## 6. Post-Approval Sync (การซิงค์ข้อมูลหลังอนุมัติ)
+
+ระบบต้องรองรับการทำงานข้าม Module (Cross-Module Sync) เมื่อเอกสารได้รับการอนุมัติขั้นสุดท้าย (Final Approval):
+*   **Incident -> Checklist**: หาก Incident ถูกสร้างมาจาก Checklist (มี `ref_id`), เมื่อ Incident เปลี่ยนสถานะเป็น `Closed`, ระบบจะต้อง Update รายการใน Checklist เป็น `OK` และใส่หมายเหตุการแก้ไขให้โดยอัตโนมัติผ่านฟังก์ชัน `onDocumentFinalApproval`
+*   **Auto-Approve Support**: กฎการซิงค์ข้อมูลนี้ต้องทำงานครอบคลุมทั้งกรณีอนุมัติด้วยมือ และระบบอนุมัติให้อัตโนมัติตาม Config
+
+---
+
+## 7. Error Handling & Safety (การจัดการข้อผิดพลาด)
 
 *   **Missing PIN**: หากผู้อนุมัติที่ระบุในขั้นตอนยังไม่ได้ตั้งรหัส PIN ระบบจะต้องแจ้งเตือน "Approver has not set a PIN" และไม่อนุญาตให้ดำเนินการต่อจนกว่าจะมีการตั้งรหัสที่หน้า Profile
 *   **PIN Locking**: หากกรอก PIN ผิดเกิน 5 ครั้ง ระบบจะระงับการเข้าถึงชั่วคราว (15 นาที) ตามมาตรฐานความปลอดภัย
 
 ---
 
-## 7. Admin Management (หน้าจอตั้งค่า)
+## 8. Admin Management (หน้าจอตั้งค่า)
 Admin สามารถจัดการ Flow ได้ผ่านเมนู **Master Data > Workflow Settings**
 - สามารถแก้ไขผู้อนุมัติได้โดยไม่ต้องแก้โค้ด
 - สามารถเพิ่ม Step พิเศษสำหรับกรณีเฉพาะได้เอง
 
 ---
 > [!IMPORTANT]
-> **ผู้อนุมัติในระบบจะต้องคงอยู่และระบุตัวตนได้เสมอ (Non-repudiation)** ห้ามมีการเปลี่ยนตัวตนไปมาโดยไม่มีการบันทึกหลักฐานการยืนยันตัวตนที่ชัดเจน
+> **"ความแม่นยำและมาตรฐาน คือหัวใจของระบบเรา"**
+> ผู้พัฒนา (AI และมนุษย์) ต้องอ่านและปฏิบัติตามมาตรฐานนี้ในทุกการแก้ไขโค้ด (Git Commit/Code Update) โดยไม่มีข้อยกเว้น

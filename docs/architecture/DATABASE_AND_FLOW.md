@@ -170,5 +170,6 @@ All tiers now use standard authentication protocols.
 3. **Data Persistence:**
    - ผลการตรวจถูกเก็บลงใน `checklist_items.template_data` (JSONB)
    - ข้อมูลรูปภาพถูกบีบอัด (< 150kb) และประทับลายน้ำ (Timestamp Guard) ก่อนบันทึก
-4. **Audit & Incident:**
+4. **Audit & Incident Sync:**
    - หากตรวจพบความผิดปกติ (NG) ระบบรองรับการเปิด **Incident Case** เชื่อมโยงกับหัวข้อนั้นทันที
+   - **Critical Sync:** เมื่อ Incident ถูกปิด (`Closed`), ระบบจะส่งสัญญาณ `onDocumentFinalApproval` เพื่อย้อนกลับมา Update สถานะ Checklist เป็น `OK` พร้อมบันทึกหลักฐานการแก้ไขอัตโนมัติ

@@ -2,7 +2,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { calculateNetBusinessMinutes, SLA_LIMITS, calculateSLARates } from '@/lib/slaUtils'
 
-export async function getSLAReportData(startDate, endDate) {
+export async function getSLAReportData(startDate, endDate, page = 0) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -26,8 +26,16 @@ export async function getSLAReportData(startDate, endDate) {
       .gte('created_at', `${startDate}T00:00:00`)
       .lte('created_at', `${endDate}T23:59:59`)
       .order('created_at', { ascending: false })
+      .range(page * 20, (page + 1) * 20 - 1)
 
     if (incError) throw incError
+
+    // แยกดึงข้อมูลเพื่อคำนวณ Summary ทั้งหมด (เพื่อความแม่นยำของ Dashboard)
+    const { data: allIncidentsForSummary } = await supabaseAdmin
+      .from('incidents')
+      .select('id, severity, status, created_at, acknowledged_at, assigned_at, resolved_at')
+      .gte('created_at', `${startDate}T00:00:00`)
+      .lte('created_at', `${endDate}T23:59:59`)
 
     // ดึง Master Data ที่เกี่ยวข้อง
     const [holidayRes, settingsRes, exclusionsRes, slaLimitsRes] = await Promise.all([
@@ -78,7 +86,6 @@ export async function getSLAReportData(startDate, endDate) {
       }
     })
 
-    const total = reportData.length;
     const { 
       responseRate, 
       resolutionRate, 
@@ -87,7 +94,9 @@ export async function getSLAReportData(startDate, endDate) {
       resolvedCount: resolved,
       responsePassedCount,
       resolutionPassedCount 
-    } = calculateSLARates(reportData);
+    } = calculateSLARates(allIncidentsForSummary || []);
+
+    const total = (allIncidentsForSummary || []).length;
 
     return {
       success: true,

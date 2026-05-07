@@ -1,4 +1,57 @@
-# Change Logs (บันทึกการเปลี่ยนแปลง)
+### [2026-05-07 17:30] - Final Stability & UX Polish (Session Complete)
+- **Full System Validation**: Verified all Quick Filters (Today, 7D, 30D, Month, 3M, Year) are functioning correctly across all modules with precise timezone handling and instant SWR responses.
+- **Critical Bug Fix: Dashboard Approval Count**: 
+    - Resolved a destructuring error in `getDashboardData` where the "Approvals" badge incorrectly displayed the count of Checklist Templates (13) instead of actual pending tasks.
+    - Verified that the badge now strictly follows RBAC rules: showing ONLY documents assigned to the user or their role.
+- **Timezone-Safe Date Filtering**:
+    - Fixed a bug where "เดือนนี้" (This Month) filter selected the previous month's end date due to UTC conversion (shifting by 1 day).
+    - Standardized `toLocaleDateString('en-CA')` (YYYY-MM-DD) across **Incident, Backup, Checklist, and SLA Report** modules for perfect timezone alignment.
+- **UX Excellence: Active Filter Highlighting**: 
+    - Implemented a high-visibility "Active State" for all Quick Date Filters. 
+    - Selected filters are now highlighted with a **Solid Blue background (`#1d4ed8`) and Bold White text**, providing clear visual feedback on the current data scope.
+    - Applied consistently across all 4 main dashboard modules.
+- **Data Integrity**: Refined `getDashboardData` to ensure `startIso` (30-day window) is also consistent with local time expectations.
+
+- **UI Standard Maintenance**: Reverted all Sidebar and Page Titles to original standards (`Dashboard`, `Incident Management`) to ensure consistency across all user roles and prevent confusion during role transitions.
+
+### [2026-05-07 16:30] - IT Checklist Compliance Status Logic Fix (Dashboard)
+- **Logic Overhaul: Aggregated Compliance Tracking**: 
+    - Replaced the "Single Document" check logic with an **Aggregation Engine** in `getDashboardData`.
+    - Status now reflects the progress of **all unique tasks** defined in `checklist_templates` for a given frequency and period.
+    - Status "Checked completely" (ตรวจครบถ้วน) now correctly requires all items to be in **Closed** documents.
+- **Improved Transparency**: 
+    - Added "Under Inspection" (กำลังตรวจสอบอยู่) status to clearly indicate when some tasks are finished but others remain pending.
+    - Synchronized this logic across **Daily, Weekly, Monthly, and Yearly** compliance boxes.
+- **Data Integrity**: 
+    - Updated `checklist_items` fetch to include `item_key` for precise item-to-template mapping.
+    - Implemented a fallback mechanism to static template counts if the database table is unavailable.
+
+### [2026-05-07 16:50] - System-Wide Performance & UX Mastery
+- **Enterprise-Grade Pagination (Load More)**: 
+    - Implemented a "Load More" mechanism (20 items/page) across **Incidents, SLA Report, Backup Log, and IT Checklist**.
+    - This significantly reduces initial load times, memory consumption, and database strain for high-volume environments.
+- **Enhanced Data Filtering**:
+    - Standardized Quick Date Filters (Today, 7 days, 30 days, Month, etc.) across all 4 main modules.
+    - Replaced the restricted Month Picker in **Backup Log** with a more flexible Date Range system.
+- **Universal Manual SWR Caching**:
+    - Implemented the Stale-While-Revalidate pattern for all listing pages.
+    - Switching between filters or pages is now near-instant for previously loaded data.
+- **Optimized Server Actions**:
+    - Updated `getSLAReportData` to handle paginated list fetching while maintaining accurate overall summary statistics.
+
+### [2026-05-07 16:15] - Incident-Checklist Synchronization & Audit Log Standard v2
+- **Major Fix: Cross-Module Sync**: Implemented a centralized `onDocumentFinalApproval` engine in `workflow.js`.
+    - Automatically updates linked Checklist items to **OK** when an Incident is closed (Status: Closed).
+    - Works for both manual approval steps and Auto-Approve scenarios.
+    - Verified with a manual repair script for `DTT-CHK-2605-008`.
+- **Audit Trail Standardization**: 
+    - Implemented a new logging delimiter standard using ` | ` (Action | Details) to support multi-column display in the System Logs page.
+    - Standardized `recordLog` to split action strings and improved `getSystemLogs` to correctly map action and details.
+- **Security & Identity Hardening**: 
+    - **BCrypt Fix**: Resolved a critical bug where reporter signatures failed due to raw-vs-hashed PIN comparison mismatches.
+    - **Identity Stamping**: Mandated the use of `(Verified by PIN)` in logs for all remote/PIN-based signatures to ensure non-repudiation.
+- **Documentation Update**: Synchronized `WORKFLOW_ENGINE.md`, `DEVELOPMENT.md`, and `DATABASE_AND_FLOW.md` with the new logging and sync standards.
+- **UI/UX Refinement**: Optimized the System Logs & Audit page to show clearer activity history for Incidents and Checklists.
 
 ### [2026-05-07 14:35] - Workflow Standard Synchronization & Strict Identity Stamping
 - **Documentation Sync**: Updated `docs/standards/WORKFLOW_ENGINE.md` to include detailed standards for **Direct vs Remote Approval** and **PIN Verification Policy**.
