@@ -26,24 +26,8 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // ตรวจสอบ Session หากล็อกอินค้างไว้ให้ไปหน้า Dashboard หรือ Onboarding
-  useEffect(() => {
-    const checkSession = async () => {
-      const errorMsg = searchParams.get('error')
-      if (errorMsg) return 
-
-      const status = await getOnboardingStatus()
-      if (status.session) {
-        if (status.needs_onboarding) {
-          const tokenParam = status.onboarding_token ? `?token=${status.onboarding_token}` : ''
-          router.replace(`/onboarding${tokenParam}`)
-        } else {
-          router.replace('/dashboard')
-        }
-      }
-    }
-    checkSession()
-  }, [router, searchParams])
+  // 🛡️ [REMOVED] Client-side redirect moved to Server-side Proxy (Gatekeeper)
+  // เพื่อความปลอดภัยและเสถียรภาพสูงสุด ตามมาตรฐาน Next.js 16
 
   // ดักจับ Error จาก URL (เช่น จากหน้า Gatekeeper)
   useEffect(() => {
