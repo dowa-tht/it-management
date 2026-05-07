@@ -200,18 +200,39 @@ export async function verifySignatureOTP(userId, code) {
   try {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
     
-    const { data: user, error: fetchErr } = await supabaseAdmin
-      .from('user_profiles')
-      .select('otp_code, otp_expires_at, otp_attempts')
-      .eq('id', userId)
-      .single()
+    let user;
+    let fetchErr;
+
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+    if (isUUID) {
+      const { data, error } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, otp_code, otp_expires_at, otp_attempts')
+        .eq('id', userId)
+        .maybeSingle()
+      user = data;
+      fetchErr = error;
+    }
+
+    if (!user && userId) {
+      const { data, error } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, otp_code, otp_expires_at, otp_attempts')
+        .or(`email.eq."${userId}",full_name.eq."${userId}"`)
+        .maybeSingle()
+      user = data;
+      fetchErr = error;
+    }
 
     if (fetchErr || !user) throw new Error('ไม่พบข้อมูลผู้ใช้')
+    
+    // Use user.id (UUID) for subsequent updates
+    const realId = user.id
     
     if (user.otp_attempts >= 5) throw new Error('คุณกรอกรหัสผิดเกินจำนวนครั้งที่กำหนด กรุณาขอรหัสใหม่')
     
     if (!user.otp_code || user.otp_code !== code) {
-      await supabaseAdmin.from('user_profiles').update({ otp_attempts: (user.otp_attempts || 0) + 1 }).eq('id', userId)
+      await supabaseAdmin.from('user_profiles').update({ otp_attempts: (user.otp_attempts || 0) + 1 }).eq('id', realId)
       throw new Error('รหัส OTP ไม่ถูกต้อง')
     }
 
@@ -219,7 +240,7 @@ export async function verifySignatureOTP(userId, code) {
     if (expiresAt < new Date()) throw new Error('รหัส OTP หมดอายุแล้ว กรุณาขอรหัสใหม่')
 
     // OTP Verified! Clear it
-    await supabaseAdmin.from('user_profiles').update({ otp_code: null, otp_attempts: 0 }).eq('id', userId)
+    await supabaseAdmin.from('user_profiles').update({ otp_code: null, otp_attempts: 0 }).eq('id', realId)
 
     return { success: true }
   } catch (err) {
