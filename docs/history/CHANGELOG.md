@@ -1,4 +1,12 @@
 # Change Logs (บันทึกการเปลี่ยนแปลง)
+
+### [2026-05-07 11:30] - IT Checklist UI Responsiveness & Layout Fixes
+- **Global Table Scroll**: Moved `.table-scroll` utility to global scope in `app/globals.css`, ensuring horizontal scrollbars are available on all devices if content overflows, as per `docs/standards/UI_UX_RESPONSIVE.md`.
+- **Checklist Layout Stabilization**: 
+    - Added `whiteSpace: 'nowrap'` to the **ปัญหา (NG)** status column to prevent the badge from wrapping and breaking row alignment.
+    - Added `whiteSpace: 'nowrap'` to the **ผู้สร้าง (Creator)** column to handle long email addresses without increasing row height.
+- **Responsive Table Hardening**: Ensured the IT Checklist table remains readable on smaller screens by preventing cell squeezing in critical data columns.
+
   
 ### [2026-05-07 11:00] - Ultimate Onboarding Stabilization & UX Polish
 - **Advanced Gatekeeper Architecture**: Finalized the separation of concerns between Proxy (Dashboard Guard) and Login Page (Session Dispatcher). Re-implemented client-side redirects using `window.location.href` to ensure cookie persistence.

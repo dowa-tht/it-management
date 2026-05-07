@@ -232,7 +232,7 @@ function ChecklistListForm() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
                   {['เลขที่เอกสาร', 'ประเภท', 'วันที่ตรวจสอบ', 'Progress', 'สถานะ', 'ปัญหา (NG)', 'ผู้สร้าง', 'วันที่สร้าง'].map(h => (
@@ -268,16 +268,21 @@ function ChecklistListForm() {
                         {doc.displayStatus}
                       </span>
                     </td>
-                    <td style={{ padding: '12px 16px' }}>
+                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       {doc.ng_count > 0 ? (
-                        <span style={{ background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, border: '1px solid #fca5a5' }}>
-                          ⚠️ {doc.ng_count} NG
+                        <span style={{ 
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          background: '#fee2e2', color: '#dc2626', padding: '3px 8px', 
+                          borderRadius: 6, fontSize: 11, fontWeight: 600, border: '1px solid #fca5a5' 
+                        }}>
+                          <span>⚠️</span>
+                          <span>{doc.ng_count} NG</span>
                         </span>
                       ) : (
                         <span style={{ color: '#9ca3af', fontSize: 11 }}>-</span>
                       )}
                     </td>
-                    <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12 }}>{doc.created_by}</td>
+                    <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12, whiteSpace: 'nowrap' }}>{doc.created_by}</td>
                     <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12, whiteSpace: 'nowrap' }}>
                       {formatDate(doc.created_at)}
                     </td>
