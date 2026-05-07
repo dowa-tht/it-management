@@ -35,7 +35,8 @@ function LoginContent() {
       const status = await getOnboardingStatus()
       if (status.session) {
         if (status.needs_onboarding) {
-          router.replace('/onboarding')
+          const tokenParam = status.onboarding_token ? `?token=${status.onboarding_token}` : ''
+          router.replace(`/onboarding${tokenParam}`)
         } else {
           router.replace('/dashboard')
         }

@@ -103,12 +103,13 @@ export async function getOnboardingStatus() {
   const adminClient = await import('@supabase/supabase-js').then(m => m.createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY))
   const { data: profile } = await adminClient
     .from('user_profiles')
-    .select('is_onboarded')
+    .select('is_onboarded, onboarding_token')
     .eq('id', user.id)
     .single()
 
   return { 
     session: true,
-    needs_onboarding: profile ? !profile.is_onboarded : false 
+    needs_onboarding: profile ? !profile.is_onboarded : false,
+    onboarding_token: profile?.onboarding_token || null
   }
 }

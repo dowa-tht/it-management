@@ -33,41 +33,18 @@ export async function completeOnboarding({ token, password, pin }) {
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     
-    let profileId = null
-    let profileEmail = null
+    // 1. Validate Token again
+    const { data: profile, error: findError } = await supabase
+      .from('user_profiles')
+      .select('id, email, onboarding_token')
+      .eq('onboarding_token', token)
+      .single()
 
-    if (token) {
-      // 1a. Validate by Token
-      const { data: p, error: findError } = await supabase
-        .from('user_profiles')
-        .select('id, email, onboarding_token')
-        .eq('onboarding_token', token)
-        .single()
-
-      if (findError || !p) throw new Error('Token ไม่ถูกต้อง')
-      profileId = p.id
-      profileEmail = p.email
-    } else {
-      // 1b. Validate by Session (Gatekeeper fallback)
-      const { getCurrentUserSession } = await import('./user')
-      const session = await getCurrentUserSession()
-      
-      if (!session || !session.user) throw new Error('เซสชันหมดอายุ กรุณาล็อกอินใหม่อีกครั้ง')
-      
-      const { data: p } = await supabase
-        .from('user_profiles')
-        .select('id, email')
-        .eq('id', session.user.id)
-        .single()
-      
-      if (!p) throw new Error('ไม่พบข้อมูลผู้ใช้')
-      profileId = p.id
-      profileEmail = p.email
-    }
+    if (findError || !profile) throw new Error('Token ไม่ถูกต้อง')
 
     // 2. Update Password in Supabase Auth (ข้ามหากระบุมาเป็นค่าว่าง - กรณีเปลี่ยนรหัสผ่านไปแล้ว)
     if (password) {
-      const { error: authError } = await supabase.auth.admin.updateUserById(profileId, {
+      const { error: authError } = await supabase.auth.admin.updateUserById(profile.id, {
         password: password
       })
       if (authError) throw authError
@@ -87,7 +64,7 @@ export async function completeOnboarding({ token, password, pin }) {
         force_password_change: false,
         is_active: true
       })
-      .eq('id', profileId)
+      .eq('id', profile.id)
 
     if (updateError) throw updateError
 
