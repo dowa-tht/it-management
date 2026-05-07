@@ -133,7 +133,8 @@ export async function requestSignatureOTP(userId) {
     let fetchErr;
 
     // Try finding by UUID first
-    if (userId && userId.length > 20) {
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+    if (isUUID) {
       const { data, error } = await supabaseAdmin
         .from('user_profiles')
         .select('id, email, full_name')
