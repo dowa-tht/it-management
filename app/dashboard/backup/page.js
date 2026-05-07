@@ -4,9 +4,9 @@ import { supabase } from '@/lib/supabase'
 import { formatDate } from '@/lib/dateFormat'
 
 const STATUS_COLORS = {
-  Success: { bg: '#d1fae5', color: '#065f46' },
-  Failed: { bg: '#fee2e2', color: '#991b1b' },
-  'No Backup Task': { bg: '#f3f4f6', color: '#6b7280' },
+  Success: { backgroundColor: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' },
+  Failed: { backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' },
+  'No Backup Task': { backgroundColor: '#f9fafb', color: '#6b7280', border: '1px solid #e5e7eb' },
 }
 
 const SYSTEMS = ['Server & File Share', 'Microsoft 365']
@@ -218,16 +218,20 @@ export default function BackupPage() {
           </div>
         </div>
 
-        <div className="stat-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+        <div className="stat-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
           {[
-            { label: 'รายการทั้งหมด', value: stats.total, color: '#111827' },
-            { label: 'Success', value: stats.success, color: '#059669' },
-            { label: 'Failed', value: stats.failed, color: '#dc2626' },
-            { label: 'Success Rate', value: `${successRate}%`, color: successRate >= 90 ? '#059669' : '#d97706' },
+            { label: 'รายการทั้งหมด', value: stats.total, color: '#1e293b', icon: '📊', bg: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' },
+            { label: 'Success', value: stats.success, color: '#059669', icon: '✅', bg: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' },
+            { label: 'Failed', value: stats.failed, color: '#dc2626', icon: '❌', bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' },
+            { label: 'Success Rate', value: `${successRate}%`, color: successRate >= 90 ? '#059669' : '#d97706', icon: '📈', bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' },
           ].map(c => (
-            <div key={c.label} style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #e5e7eb' }}>
-              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{c.label}</div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: c.color }}>{c.value}</div>
+            <div key={c.label} style={{ 
+              background: c.bg, borderRadius: 16, padding: '20px', border: '1px solid rgba(0,0,0,0.05)',
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden'
+            }}>
+              <div style={{ position: 'absolute', right: -5, top: -5, fontSize: 40, opacity: 0.1 }}>{c.icon}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{c.label}</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: c.color }}>{c.value}</div>
             </div>
           ))}
         </div>
@@ -310,8 +314,14 @@ export default function BackupPage() {
                     <td style={{ padding: '11px 16px', color: '#374151', whiteSpace: 'nowrap' }}>{formatDate(log.log_date)}</td>
                     <td style={{ padding: '11px 16px', color: '#374151', whiteSpace: 'nowrap' }}>{log.system_name}</td>
                     <td style={{ padding: '11px 16px', color: '#6b7280', fontSize: 12 }}>{log.backup_type}</td>
-                    <td style={{ padding: '11px 16px', whiteSpace: 'nowrap' }}>
-                      <span style={{ ...STATUS_COLORS[log.status], padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500 }}>{log.status}</span>
+                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                      <span style={{ 
+                        ...STATUS_COLORS[log.status], 
+                        padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600 
+                      }}>
+                        {log.status === 'Success' ? '✅ ' : log.status === 'Failed' ? '❌ ' : '⚪ '}
+                        {log.status}
+                      </span>
                     </td>
                     <td style={{ padding: '11px 16px', color: '#6b7280' }}>{log.notes || '—'}</td>
                     <td style={{ padding: '11px 16px' }}>
