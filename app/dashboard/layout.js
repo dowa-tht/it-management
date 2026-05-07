@@ -34,7 +34,7 @@ export default function DashboardLayout({ children }) {
 
       const { data: profileData, error } = await supabase
         .from('user_profiles')
-        .select('role, full_name, is_active')
+        .select('role, full_name, is_active, is_onboarded, onboarding_token')
         .eq('id', sessionUser.id)
         .single()
 
@@ -44,9 +44,10 @@ export default function DashboardLayout({ children }) {
         return
       }
 
-      // 🛡️ Force Onboarding Check
+      // 🛡️ Force Onboarding Check (Security Standard)
       if (profileData.is_onboarded === false) {
-        router.push('/onboarding?mode=force') // ส่งไปหน้า Onboarding
+        const tokenParam = profileData.onboarding_token ? `?token=${profileData.onboarding_token}` : ''
+        router.push(`/onboarding${tokenParam}`) // ดีดไปหน้า Onboarding พร้อม Token
         return
       }
 
