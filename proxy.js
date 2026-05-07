@@ -4,7 +4,10 @@ import { NextResponse } from 'next/server'
 /**
  * 🕵️ DOWA IT Global Gatekeeper (Proxy Standard - Next.js 16)
  * มาตรฐานความปลอดภัยระดับ Audit (Zero-Hack Policy)
- * เปลี่ยนจาก middleware เป็น proxy ตามมาตรฐานใหม่ของ Next.js 16
+ *
+ * หลักการ:
+ * - Proxy อ่านได้อย่างเดียว (ANON_KEY) ห้ามเขียน DB โดยตรง
+ * - การ generate/refresh token ให้ทำผ่าน /api/onboarding/init (Service Role)
  */
 export async function proxy(request) {
   let response = NextResponse.next()
@@ -26,139 +29,61 @@ export async function proxy(request) {
     }
   )
 
-  // 1. ตรวจสอบ Session เบื้องต้น
   const { data: { session } } = await supabase.auth.getSession()
   const { pathname } = request.nextUrl
-  
-  // 2. ตรวจสอบ Onboarding Cookie (มาตรฐานความเร็วสูง)
-  const isOnboarded = request.cookies.get('dowa_onboarded')?.value === 'true'
 
-  // --- Logic การ Redirect ---
+  // ไม่แตะ path เหล่านี้เลย
+  const isAlwaysAllowed =
+    pathname === '/' ||
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/onboarding') ||
+    pathname.startsWith('/reset-password') ||
+    pathname.startsWith('/reset-pin') ||
+    pathname.startsWith('/access-denied') ||
+    pathname.startsWith('/api/onboarding') // ✅ อนุญาต API route นี้เสมอ
 
-  // A. หากล็อกอินแล้วแต่ยังไม่ทำ Onboarding -> ตรวจสอบให้แน่ใจ (Self-Healing Cookie)
-  if (session && !isOnboarded) {
-    const isPublicPath = 
-      pathname === '/' || 
-      pathname.startsWith('/auth') || 
-      pathname.startsWith('/onboarding') || 
-      pathname.startsWith('/reset-password') ||
-      pathname.startsWith('/reset-pin') ||
-      pathname.startsWith('/access-denied')
-
-    // ถ้าจะเข้าหน้า Dashboard แต่ Cookie บอกว่ายังไม่ Onboard -> เช็ค DB อีกรอบเพื่อความชัวร์ (กัน Loop)
-    if (!isPublicPath && pathname.startsWith('/dashboard')) {
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('is_onboarded')
-        .eq('id', session.user.id)
-        .single()
-
-      if (profile?.is_onboarded) {
-        // ✅ ใน DB บอกว่า Onboard แล้ว -> อัปเดต Cookie และให้ไปต่อได้เลย (แก้ Loop)
-        response.cookies.set('dowa_onboarded', 'true', {
-          path: '/',
-          maxAge: 60 * 60 * 24 * 7,
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax'
-        })
-        return response
-      }
-
-      // ❌ ถ้าใน DB ก็ยังไม่ Onboard -> บังคับไปหน้า Onboarding
-      // 🛡️ เสริมความแกร่ง: ถ้าใน DB ไม่มี Token ให้สร้างให้เลยกัน Loop (Step 1 -> Onboarding -> Step 1)
-      const { data: fullProfile } = await supabase
-        .from('user_profiles')
-        .select('onboarding_token, onboarding_token_expires')
-        .eq('id', session.user.id)
-        .single()
-
-      let finalToken = fullProfile?.onboarding_token
-      if (!finalToken) {
-        const token = crypto.randomUUID()
-        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        await supabase
-          .from('user_profiles')
-          .update({ onboarding_token: token, onboarding_token_expires: expires })
-          .eq('id', session.user.id)
-        finalToken = token
-      }
-
-      return NextResponse.redirect(new URL(`/onboarding?token=${finalToken}`, request.url))
-    }
+  if (isAlwaysAllowed) {
+    return response
   }
 
-  // B. หากยังไม่ได้ล็อกอิน แต่จะเข้าหน้า Dashboard -> ดีดกลับหน้า Login
+  // ตรวจสอบ Onboarding Cookie (อ่านเร็ว, ไม่ query DB)
+  const isOnboarded = request.cookies.get('dowa_onboarded')?.value === 'true'
+
+  // --- ป้องกันการเข้า Dashboard ---
+
+  // B. ไม่มี session -> กลับไป Login
   if (!session && pathname.startsWith('/dashboard')) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // C. หากล็อกอินแล้ว แต่จะเข้าหน้า Login -> ดีดไป Dashboard (หรือ Onboarding)
-  if (session && pathname === '/') {
-    let finalOnboarded = isOnboarded
-    
-    // ถ้า Cookie บอกว่ายังไม่ Onboard ให้เช็ค DB เพื่อความชัวร์ก่อนดีดไปหน้าอื่น
-    if (!finalOnboarded) {
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('is_onboarded')
-        .eq('id', session.user.id)
-        .single()
-      finalOnboarded = profile?.is_onboarded || false
-      
-      if (finalOnboarded) {
-        response.cookies.set('dowa_onboarded', 'true', {
-          path: '/',
-          maxAge: 60 * 60 * 24 * 7,
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax'
-        })
-      }
-    }
+  // A. มี session แต่ Cookie บอกว่ายังไม่ Onboard
+  if (session && !isOnboarded && pathname.startsWith('/dashboard')) {
+    // เช็ค DB ก่อน (กัน Cookie stale)
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('is_onboarded')
+      .eq('id', session.user.id)
+      .single()
 
-    const target = finalOnboarded ? '/dashboard' : '/onboarding'
-    
-    // 🛡️ หากต้องไปหน้า Onboarding ต้องแน่ใจว่ามี Token (กัน Loop)
-    let finalTarget = target
-    if (!finalOnboarded) {
-      const { data: fullProfile } = await supabase
-        .from('user_profiles')
-        .select('onboarding_token')
-        .eq('id', session.user.id)
-        .single()
-      
-      let token = fullProfile?.onboarding_token
-      if (!token) {
-        token = crypto.randomUUID()
-        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        await supabase
-          .from('user_profiles')
-          .update({ onboarding_token: token, onboarding_token_expires: expires })
-          .eq('id', session.user.id)
-      }
-      finalTarget = `/onboarding?token=${token}`
-    }
-
-    const redirectResponse = NextResponse.redirect(new URL(finalTarget, request.url))
-    
-    // ถ้าเราเพิ่งรู้ว่า Onboard แล้ว ให้แนบ Cookie ไปกับ Redirect ด้วย
-    if (finalOnboarded && !isOnboarded) {
-      redirectResponse.cookies.set('dowa_onboarded', 'true', {
+    if (profile?.is_onboarded) {
+      // DB บอกว่า Onboard แล้ว -> แก้ Cookie แล้วผ่านได้เลย
+      response.cookies.set('dowa_onboarded', 'true', {
         path: '/',
         maxAge: 60 * 60 * 24 * 7,
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax'
+        sameSite: 'lax',
       })
+      return response
     }
-    return redirectResponse
+
+    // ยังไม่ Onboard จริง -> ให้ API route จัดการ token แล้ว redirect
+    return NextResponse.redirect(new URL('/api/onboarding/init', request.url))
   }
 
   return response
 }
 
-// Named export 'proxy' is required in Next.js 16
 export default proxy
 
 export const config = {
