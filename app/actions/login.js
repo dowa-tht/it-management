@@ -103,13 +103,36 @@ export async function getOnboardingStatus() {
   const adminClient = await import('@supabase/supabase-js').then(m => m.createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY))
   const { data: profile } = await adminClient
     .from('user_profiles')
-    .select('is_onboarded, onboarding_token')
+    .select('is_onboarded, onboarding_token, onboarding_token_expires')
     .eq('id', user.id)
     .single()
 
+  if (!profile || profile.is_onboarded) {
+    return { session: true, needs_onboarding: false, onboarding_token: null }
+  }
+
+  // 🛡️ Auto-Refresh Logic (Gatekeeper Standard)
+  // หาก Token หมดอายุ หรือเป็น Null ให้สร้างใหม่ทันทีเพื่อให้เข้า Onboarding ได้อย่างไร้รอยต่อ
+  const isExpired = profile.onboarding_token_expires && new Date(profile.onboarding_token_expires) < new Date()
+  let finalToken = profile.onboarding_token
+
+  if (!finalToken || isExpired) {
+    const { randomUUID } = await import('crypto')
+    finalToken = randomUUID()
+    const newExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    
+    await adminClient
+      .from('user_profiles')
+      .update({ 
+        onboarding_token: finalToken, 
+        onboarding_token_expires: newExpires 
+      })
+      .eq('id', user.id)
+  }
+
   return { 
     session: true,
-    needs_onboarding: profile ? !profile.is_onboarded : false,
-    onboarding_token: profile?.onboarding_token || null
+    needs_onboarding: true,
+    onboarding_token: finalToken
   }
 }

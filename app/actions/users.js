@@ -45,6 +45,7 @@ export async function quickAddUser({ fullName, email, role = 'member' }) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString()
     const otpExpires = new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 mins
     const onboardingToken = randomUUID()
+    const onboardingExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
 
     // 1. Prepare Auth Account (Supabase Auth is required for foreign key)
     const finalEmail = email || `${randomUUID()}@dowa-it.local`
@@ -75,6 +76,7 @@ export async function quickAddUser({ fullName, email, role = 'member' }) {
         otp_code: otp,
         otp_expires_at: otpExpires,
         onboarding_token: onboardingToken,
+        onboarding_token_expires: onboardingExpires,
         force_password_change: true
       })
       .select()

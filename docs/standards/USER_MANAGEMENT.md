@@ -65,7 +65,8 @@
 ทุกจุดเชื่อมต่อ (Entry Points) ต้องตรวจสอบสถานะ `is_onboarded` ก่อนเสมอ:
 1. **Login Page**: เมื่อมีการกดปุ่ม Login ระบบต้องเช็ค Profile และดีดไปหน้า Onboarding หากยังทำไม่สำเร็จ
 2. **Session Persistence**: หากผู้ใช้เปิดหน้าเว็บมาแล้วมี Session ค้างอยู่ ระบบ "Gatekeeper" (ในหน้า Home) ต้องตรวจสอบสถานะ Onboarding ใหม่ทุกครั้งก่อน Redirect เข้า Dashboard
-3. **SSO Callback**: ระบบรับข้อมูลจาก Microsoft ต้องทำการเช็ค Profile เช่นเดียวกัน
+3. **Auto-Refresh Logic**: หาก Gatekeeper พบว่า Token หมดอายุ (เกิน 24 ชม.) หรือเป็นค่าว่าง ระบบต้อง Generate Token ใหม่ลง DB ทันทีเพื่อให้ User เข้าทำ Tour ได้อย่างไร้รอยต่อ
+4. **SSO Callback**: ระบบรับข้อมูลจาก Microsoft ต้องทำการเช็ค Profile เช่นเดียวกัน
 
 ### 6.1 Standard Onboarding Flow (ผ่านลิงก์คำเชิญ)
 1. **Quick Add**: Admin เพิ่มผู้ใช้ -> ระบบส่งอีเมลพร้อม Onboarding Token
