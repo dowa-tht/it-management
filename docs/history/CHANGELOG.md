@@ -1,6 +1,27 @@
 # Change Logs (บันทึกการเปลี่ยนแปลง)
 
+### [2026-05-07 14:15] - Approval Visibility Refinement & Strict RBAC Enforcement
+- **Critical Fix: Approval Visibility Logic**: Refactored the workflow system to enforce personal task visibility.
+    - Removed the "Administrator Override" in `getUnifiedPendingApprovals` and the dashboard count logic. Administrators now only see tasks specifically assigned to them or their role.
+    - Implemented a stricter query filter: `(approver_id IS NULL AND role_required = role) OR (approver_id = user_id)`.
+- **Workflow Engine Upgrade**: Updated the step generation logic to automatically assign the `primary_approver_id` (from configuration) to the first workflow step, ensuring tasks are correctly routed to individuals from the start.
+- **Incident Module Enhancement**: Added missing "Approve" and "Reject" buttons to the Incident detail page, synchronized with the new strict authorization logic.
+- **Data Integrity**: Migrated legacy pending approval steps to include the correct `approver_id`, clearing clutter from non-responsible administrator dashboards.
+- **Admin Management Guidance**: Redirected system-wide approval management (overrides/resets) to the specialized **Settings > Logs > Approval Logs** screen as per the new management standard.
+
+
+### [2026-05-07 13:30] - Dashboard Action Stabilization & Premium UI Sync
+- **Dashboard Data Optimization**: Finalized the `getDashboardData` server action by removing the legacy "Administrator Override" logic.
+    - Approval counts now strictly mirror the individual user's assigned tasks (or role-based tasks), ensuring consistency between the dashboard notification badges and the Approvals page.
+    - Synchronized "My Sent Pending" and "Waiting for Approval" tracking for all user tiers.
+- **Premium UI Overhaul for Incidents**: Synchronized the Incident Management list with the "Premium Design" standard:
+    - Implemented **gradient-filled stat cards** with semantic icons (🔥, ✅, ✍️, 📊) and glassmorphism depth.
+    - Upgraded status and severity badges to a **unified design system** with semantic icons and soft borders.
+    - Enforced a minimum table width of **1000px** with global horizontal scrolling to prevent layout breakage on smaller screens.
+- **[BACKFILL] IT Checklist UI Fix**: Applied `whiteSpace: 'nowrap'` to the NG status and Creator columns in the IT Checklist list view to prevent layout shifting on narrow viewports.
+
 ### [2026-05-07 12:00] - Premium UI Redesign for Backup Log
+
 - **Visual Excellence Upgrade**: Completely overhauled the Backup Log interface with rich aesthetics:
     - Replaced flat stat cards with **gradient-filled premium cards** featuring dynamic icons and subtle glassmorphism-style borders.
     - Fixed a logic error where status badge backgrounds were not displaying due to incorrect property naming (`bg` -> `backgroundColor`).

@@ -6,16 +6,16 @@ import { useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/dateFormat'
 
 const SEVERITY_COLORS = {
-  High: { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
-  Medium: { bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
-  Low: { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
+  High: { backgroundColor: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' },
+  Medium: { backgroundColor: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' },
+  Low: { backgroundColor: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' },
 }
 
 const STATUS_COLORS = {
-  Open: { bg: '#f3f4f6', color: '#4b5563', border: '#e5e7eb' },
-  'In Progress': { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
-  'Pending Approval': { bg: '#ffedd5', color: '#9a3412', border: '#fed7aa' },
-  Closed: { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
+  Open: { backgroundColor: '#f3f4f6', color: '#4b5563', border: '1px solid #e5e7eb' },
+  'In Progress': { backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' },
+  'Pending Approval': { backgroundColor: '#ffedd5', color: '#9a3412', border: '1px solid #fed7aa' },
+  Closed: { backgroundColor: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' },
 }
 
 const DATE_FILTERS = [
@@ -121,17 +121,21 @@ function IncidentsContent() {
         )}
       </div>
 
-      <div className="stat-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div className="stat-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         {[
-          { label: 'Total Incidents', value: stats.total, color: '#111827', sub: 'ที่ตรงเงื่อนไข' },
-          { label: 'High Severity', value: stats.high, color: '#dc2626', sub: 'ต้องดำเนินการทันที' },
-          { label: 'Pending Approval', value: stats.pending, color: '#701a75', sub: 'รอเซ็นชื่อ/อนุมัติ' },
-          { label: 'Closed', value: stats.closed, color: '#059669', sub: 'เสร็จสิ้น/ปิดงาน' },
+          { label: 'Total Incidents', value: stats.total, color: '#1e293b', icon: '📊', bg: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', sub: 'ที่ตรงเงื่อนไข' },
+          { label: 'High Severity', value: stats.high, color: '#dc2626', icon: '🔥', bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)', sub: 'ต้องดำเนินการทันที' },
+          { label: 'Pending Approval', value: stats.pending, color: '#701a75', icon: '✍️', bg: 'linear-gradient(135deg, #fae8ff 0%, #f5d0fe 100%)', sub: 'รอเซ็นชื่อ/อนุมัติ' },
+          { label: 'Closed', value: stats.closed, color: '#059669', icon: '✅', bg: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', sub: 'เสร็จสิ้น/ปิดงาน' },
         ].map(card => (
-          <div key={card.label} style={{ background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #e5e7eb' }}>
-            <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{card.label}</div>
-            <div style={{ fontSize: 28, fontWeight: 600, color: card.color }}>{card.value}</div>
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{card.sub}</div>
+          <div key={card.label} style={{ 
+            background: card.bg, borderRadius: 16, padding: '20px', border: '1px solid rgba(0,0,0,0.05)',
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden'
+          }}>
+            <div style={{ position: 'absolute', right: -5, top: -5, fontSize: 40, opacity: 0.1 }}>{card.icon}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{card.label}</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: card.color }}>{card.value}</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 6, fontWeight: 500 }}>{card.sub}</div>
           </div>
         ))}
       </div>
@@ -197,7 +201,7 @@ function IncidentsContent() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
                   {['Case ID', 'หัวข้อ / ระบบ', 'Severity', 'Status', 'วันที่', 'Action'].map(h => (
@@ -215,21 +219,21 @@ function IncidentsContent() {
                     </td>
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       <span style={{ 
-                        background: SEVERITY_COLORS[inc.severity]?.bg || '#f3f4f6', 
-                        color: SEVERITY_COLORS[inc.severity]?.color || '#4b5563', 
-                        border: `1px solid ${SEVERITY_COLORS[inc.severity]?.border || '#e5e7eb'}`,
-                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        ...SEVERITY_COLORS[inc.severity], 
+                        padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600 
                       }}>
-                        {inc.severity === 'High' ? '🔥 ' : ''}{inc.severity}
+                        {inc.severity === 'High' ? '🔥 ' : inc.severity === 'Medium' ? '⚠️ ' : '🟢 '}
+                        {inc.severity}
                       </span>
                     </td>
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       <span style={{ 
-                        background: STATUS_COLORS[inc.status]?.bg || '#f3f4f6', 
-                        color: STATUS_COLORS[inc.status]?.color || '#4b5563', 
-                        border: `1px solid ${STATUS_COLORS[inc.status]?.border || '#e5e7eb'}`,
-                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500 
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        ...STATUS_COLORS[inc.status], 
+                        padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600 
                       }}>
+                        {inc.status === 'Closed' ? '✅ ' : inc.status === 'Pending Approval' ? '✍️ ' : inc.status === 'In Progress' ? '⏳ ' : '⚪ '}
                         {inc.status}
                       </span>
                     </td>

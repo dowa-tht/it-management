@@ -926,6 +926,31 @@ export default function IncidentDetailPage() {
               </div>
             )}
 
+            {incident.status === 'Pending Approval' && !editing && (
+              <>
+                {(() => {
+                  const currentStep = workflowSteps.find(s => s.status === 'pending');
+                  if (!currentStep) return null;
+                  const isAuthorized = currentUser?.id === currentStep.approver_id || 
+                                     (currentStep.approver_id === null && currentUser?.role_name === currentStep.role_required);
+                  
+                  if (isAuthorized) {
+                    return (
+                      <>
+                        <button onClick={handleRejectIncident} style={{ padding:'7px 14px', border:'1px solid #dc2626', borderRadius:7, fontSize:13, background:'#fff', color:'#dc2626', cursor:'pointer', fontFamily:'inherit' }}>
+                          ❌ ตีกลับ (Reject)
+                        </button>
+                        <button onClick={() => setShowSignatureModal(true)} style={{ padding:'7px 14px', border:'none', borderRadius:7, fontSize:13, background:'#059669', color:'#fff', cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>
+                          ✅ อนุมัติ (Approve)
+                        </button>
+                      </>
+                    )
+                  }
+                  return null;
+                })()}
+              </>
+            )}
+
             {isLocked ? (
               isSuperUser && !isVisitor && <button onClick={() => setShowReopenDialog(true)} style={{ padding:'7px 14px', border:'none', borderRadius:7, fontSize:13, background:'#fef3c7', color:'#92400e', cursor:'pointer', fontFamily:'inherit' }}>🔓 Reopen</button>
             ) : !editing ? (

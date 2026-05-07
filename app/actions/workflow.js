@@ -50,14 +50,15 @@ export async function getUnifiedPendingApprovals() {
     if (!profile) return { error: 'Profile not found' }
 
     // 2. Fetch Pending Approval Steps first (The source of truth)
-    const { data: pendingSteps } = await (
-      profile.role === 'administrator'
-      ? supabaseAdmin.from('document_approvals').select('*').eq('status', 'pending')
-      : supabaseAdmin.from('document_approvals')
-          .select('*')
-          .eq('status', 'pending')
-          .or(`approver_id.eq.${profile.id},role_required.eq.${profile.role}`)
-    )
+    // Refined Query: Strict RBAC
+    // 1. If a step has a specific approver_id, ONLY that user sees it.
+    // 2. If approver_id is null, anyone with the matching role sees it.
+    // 3. Administrator bypass removed to follow "Job-based" visibility.
+    const { data: pendingSteps } = await supabaseAdmin
+      .from('document_approvals')
+      .select('*')
+      .eq('status', 'pending')
+      .or(`approver_id.eq.${profile.id},and(approver_id.is.null,role_required.eq.${profile.role})`)
 
     if (!pendingSteps || pendingSteps.length === 0) return { data: [] }
 
@@ -351,7 +352,7 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail) {
     const isAutoApprove = !config || !config.primary_approver_id
 
     // 2. Generate Steps in the new table
-    const { success, autoApproved } = await generateWorkflowSteps(docId, targetType, targetType === 'checklist' ? 'freq_type' : 'severity', triggerKey)
+    const { success, autoApproved } = await generateWorkflowSteps(docId, targetType, targetType === 'checklist' ? 'freq_type' : 'severity', triggerKey, config?.primary_approver_id)
 
     const finalAutoApprove = isAutoApprove || autoApproved
 
@@ -381,7 +382,7 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail) {
 // UNIFIED WORKFLOW ENGINE FUNCTIONS
 // ==========================================
 
-export async function generateWorkflowSteps(docId, targetType, conditionKey, conditionValue) {
+export async function generateWorkflowSteps(docId, targetType, configKey, triggerKey, initialApproverId = null) {
   try {
     const supabaseAdmin = getAdminClient()
 
@@ -390,8 +391,8 @@ export async function generateWorkflowSteps(docId, targetType, conditionKey, con
       .from('workflow_configs')
       .select('*')
       .eq('target_type', targetType)
-      .eq('condition_key', conditionKey)
-      .eq('condition_value', conditionValue)
+      .eq('condition_key', configKey)
+      .eq('condition_value', triggerKey)
       .eq('is_active', true)
       .order('step_order')
 
@@ -403,7 +404,8 @@ export async function generateWorkflowSteps(docId, targetType, conditionKey, con
       doc_type: targetType,
       step_order: c.step_order,
       status: idx === 0 ? 'pending' : 'waiting', // First step starts as pending
-      role_required: c.role_required
+      role_required: c.role_required,
+      approver_id: idx === 0 ? initialApproverId : null // Assign specific user to the first step if provided
     }))
 
     const { error } = await supabaseAdmin.from('document_approvals').insert(inserts)

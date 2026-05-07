@@ -667,8 +667,7 @@ export default function ChecklistDetailPage() {
                         if (!currentStep) return null;
 
                         const isAuthorized = currentUser?.id === currentStep.approver_id || 
-                                           currentUser?.role === currentStep.role_required ||
-                                           currentUser?.role === 'administrator';
+                                           (currentStep.approver_id === null && currentUser?.role === currentStep.role_required);
 
                         if (isAuthorized) {
                           return (
