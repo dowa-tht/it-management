@@ -135,10 +135,15 @@ export default function DashboardPage() {
           .stat-grid-dynamic { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important; gap: 8px !important; }
           .chart-row { grid-template-columns: 1fr !important; }
           .dashboard-grid { grid-template-columns: 1fr !important; }
+          .main-dashboard-grid { grid-template-columns: 1fr !important; }
           .checklist-status-grid { grid-template-columns: repeat(2, 1fr) !important; }
           .quick-action-card { padding: 16px !important; }
           .quick-action-title { font-size: 18px !important; }
           .dashboard-title { font-size: 20px !important; }
+        }
+        
+        @media (min-width: 769px) {
+          .main-dashboard-grid { grid-template-columns: 1.6fr 1fr !important; }
         }
         * { box-sizing: border-box; }
       `}</style>
@@ -239,10 +244,10 @@ export default function DashboardPage() {
       )}
 
       {/* IT Checklist & SLA Tracking (IT Only) */}
-      <div className="dashboard-grid" style={{ 
+      <div className="main-dashboard-grid" style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
-        gap: 20, 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+        gap: 16, 
         marginBottom: 20 
       }}>
         {/* IT Checklist Section */}
@@ -280,15 +285,15 @@ export default function DashboardPage() {
 
         {/* SLA KPI Card */}
         <Link href="/dashboard/reports/sla" style={{ textDecoration: 'none', display: 'flex' }}>
-          <div style={{ flex: 1, background: stats.slaComplianceRate >= 95 ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', borderRadius: 12, padding: 20, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-            <div style={{ position: 'absolute', right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>🎯</div>
-            <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>SLA Compliance Rate (YTD)</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <div style={{ fontSize: 36, fontWeight: 800 }}>{stats.slaComplianceRateYTD}%</div>
-              <div style={{ fontSize: 11, opacity: 0.8 }}>YTD</div>
+          <div style={{ flex: 1, background: stats.slaComplianceRate >= 95 ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', borderRadius: 12, padding: '14px 18px', color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+            <div style={{ position: 'absolute', right: -15, top: -15, fontSize: 80, opacity: 0.1 }}>🎯</div>
+            <div style={{ fontSize: 9, fontWeight: 600, opacity: 0.9, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>SLA Compliance Rate (YTD)</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+              <div style={{ fontSize: 28, fontWeight: 800 }}>{stats.slaComplianceRateYTD}%</div>
+              <div style={{ fontSize: 10, opacity: 0.8 }}>YTD</div>
             </div>
-            <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4 }}>คำนวณจากข้อมูลตั้งแต่ 01 ม.ค. {new Date().getFullYear() + 543}</div>
-            <div style={{ marginTop: 12, background: 'rgba(255,255,255,0.2)', height: 6, borderRadius: 10 }}>
+            <div style={{ fontSize: 9, opacity: 0.7, marginTop: 2 }}>ถึง 01 ม.ค. {new Date().getFullYear() + 543}</div>
+            <div style={{ marginTop: 10, background: 'rgba(255,255,255,0.2)', height: 5, borderRadius: 10 }}>
               <div style={{ background: '#fff', height: '100%', borderRadius: 10, width: `${Math.min(100, stats.slaComplianceRate)}%` }} />
             </div>
           </div>
