@@ -53,7 +53,18 @@ export async function GET(request) {
           }])
 
           const target = needsOnboarding ? '/onboarding' : next
-          return NextResponse.redirect(`${origin}${target}`)
+          const response = NextResponse.redirect(`${origin}${target}`)
+          
+          // 🛡️ ตั้งค่า Cookie สำหรับ Onboarding
+          response.cookies.set('dowa_onboarded', (!needsOnboarding).toString(), {
+            path: '/',
+            maxAge: 60 * 60 * 24 * 7,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax'
+          })
+
+          return response
         } else {
           return NextResponse.redirect(`${origin}/access-denied?reason=not_whitelisted`)
         }

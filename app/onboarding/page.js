@@ -31,6 +31,12 @@ export default function OnboardingPage() {
         const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single()
         
         if (profile && !profile.is_onboarded) {
+          // 🛡️ หากไม่มี Token ใน URL ให้เติมเข้าไปใหม่ (Self-healing) เพื่อให้ระบบมาตรฐาน Token ทำงานได้
+          if (!token && profile.onboarding_token) {
+            router.replace(`/onboarding?token=${profile.onboarding_token}`)
+            return
+          }
+
           setUser({ full_name: profile.full_name, email: profile.email })
           // ถ้าตั้งรหัสผ่านมาแล้ว (เช่นจาก Forgot Password) ให้ข้ามไป Step 3 (PIN) ได้เลย
           if (profile.force_password_change === false) {

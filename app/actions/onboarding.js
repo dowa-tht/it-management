@@ -73,6 +73,16 @@ export async function completeOnboarding({ token, password, pin }) {
 
     if (updateError) throw updateError
 
+    // 🛡️ อัปเดต Cookie เมื่อ Onboarding สำเร็จ
+    const cookieStore = await cookies()
+    cookieStore.set('dowa_onboarded', 'true', {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax'
+    })
+
     return { success: true }
   } catch (err) {
     console.error('completeOnboarding error:', err)

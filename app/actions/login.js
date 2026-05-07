@@ -68,6 +68,16 @@ export async function unifiedLogin(email, password) {
     user_agent: 'Unified Login'
   }])
 
+  // 🛡️ ตั้งค่า Cookie สำหรับ Onboarding (Gatekeeper Standard - Cookie based)
+  const cookieStore = await cookies()
+  cookieStore.set('dowa_onboarded', (!onboarding.needs_onboarding).toString(), {
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax'
+  })
+
   return { 
     success: true,
     needs_onboarding: onboarding.needs_onboarding,
