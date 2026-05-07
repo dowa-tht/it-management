@@ -50,51 +50,67 @@ export async function getUnifiedPendingApprovals() {
     if (!profile) return { error: 'Profile not found' }
 
     // 2. Fetch Pending Checklists
-    const chkQuery = supabaseAdmin
-      .from('checklist_docs')
-      .select(`
-        id, 
-        freq_type, 
-        period_date, 
-        status, 
-        assigned_approver_id,
-        created_by,
-        document_approvals!inner(id, status, role_required, approver_id)
-      `)
-      .eq('workflow_status', 'pending')
-      .eq('document_approvals.status', 'pending')
-
-    if (profile.role !== 'administrator') {
-      chkQuery.or(`document_approvals.approver_id.eq.${profile.id},document_approvals.role_required.eq.${profile.role}`)
+    // 2. Fetch Pending Checklists
+    let chkDocs = []
+    
+    // 🛡️ Admin sees everything pending
+    if (profile.role === 'administrator') {
+      const { data } = await supabaseAdmin
+        .from('checklist_docs')
+        .select(`
+          id, freq_type, period_date, status, assigned_approver_id, created_by,
+          document_approvals!inner(id, status)
+        `)
+        .eq('workflow_status', 'pending')
+        .eq('document_approvals.status', 'pending')
+      chkDocs = data || []
+    } else {
+      // Regular user/supervisor filter
+      const { data } = await supabaseAdmin
+        .from('document_approvals')
+        .select(`
+          doc_id,
+          checklist_docs!inner(id, freq_type, period_date, status, assigned_approver_id, created_by)
+        `)
+        .eq('doc_type', 'checklist')
+        .eq('status', 'pending')
+        .or(`approver_id.eq.${profile.id},role_required.eq.${profile.role}`)
+      
+      chkDocs = (data || []).map(d => d.checklist_docs)
     }
-
-    const { data: checklists, error: chkErr } = await chkQuery
 
     // 3. Fetch Pending Incidents
-    const incQuery = supabaseAdmin
-      .from('incidents')
-      .select(`
-        id, 
-        case_number, 
-        title, 
-        status, 
-        created_at,
-        assigned_approver_id,
-        user_profiles!incidents_created_by_fkey(full_name),
-        document_approvals!inner(id, status, role_required, approver_id)
-      `)
-      .eq('status', 'Pending Approval')
-      .eq('document_approvals.status', 'pending')
+    // 3. Fetch Pending Incidents
+    let incDocs = []
 
-    if (profile.role !== 'administrator') {
-      incQuery.or(`document_approvals.approver_id.eq.${profile.id},document_approvals.role_required.eq.${profile.role}`)
+    if (profile.role === 'administrator') {
+      const { data } = await supabaseAdmin
+        .from('incidents')
+        .select(`
+          id, case_number, title, status, created_at, assigned_approver_id,
+          user_profiles!incidents_created_by_fkey(full_name),
+          document_approvals!inner(id, status)
+        `)
+        .eq('status', 'Pending Approval')
+        .eq('document_approvals.status', 'pending')
+      incDocs = data || []
+    } else {
+      const { data } = await supabaseAdmin
+        .from('document_approvals')
+        .select(`
+          doc_id,
+          incidents!inner(id, case_number, title, status, created_at, assigned_approver_id, user_profiles!incidents_created_by_fkey(full_name))
+        `)
+        .eq('doc_type', 'incident')
+        .eq('status', 'pending')
+        .or(`approver_id.eq.${profile.id},role_required.eq.${profile.role}`)
+      
+      incDocs = (data || []).map(d => d.incidents)
     }
-
-    const { data: incidents, error: incErr } = await incQuery
 
     // 4. Transform into Unified Format
     const unified = [
-      ...(checklists || []).map(c => ({
+      ...(chkDocs || []).map(c => ({
         id: c.id,
         category: 'Checklist',
         type: c.freq_type,
@@ -104,7 +120,7 @@ export async function getUnifiedPendingApprovals() {
         requester: c.created_by || 'System',
         link: `/dashboard/checklist/${c.id}`
       })),
-      ...(incidents || []).map(i => ({
+      ...(incDocs || []).map(i => ({
         id: i.id,
         category: 'Incident',
         type: 'Ticket',
