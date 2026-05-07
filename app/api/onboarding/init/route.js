@@ -56,16 +56,13 @@ export async function GET(request) {
 
   // ตรวจสอบ / สร้าง Token
   let token = profile?.onboarding_token
-  const isExpired = profile?.onboarding_token_expires &&
-    new Date(profile.onboarding_token_expires) < new Date()
 
-  if (!token || isExpired) {
+  if (!token) {
     const { randomUUID } = await import('crypto')
     token = randomUUID()
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     const { error } = await adminClient
       .from('user_profiles')
-      .update({ onboarding_token: token, onboarding_token_expires: expires })
+      .update({ onboarding_token: token })
       .eq('id', session.user.id)
     
     if (error) {

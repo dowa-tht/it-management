@@ -19,6 +19,11 @@ export default function OnboardingPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [pin, setPin] = useState('')
   const [isSSOConnected, setIsSSOConnected] = useState(false)
+  
+  // Visibility States
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [showPin, setShowPin] = useState(false)
 
   useEffect(() => {
     async function checkToken() {
@@ -197,12 +202,48 @@ export default function OnboardingPage() {
             
             <div style={{ marginBottom:20 }}>
               <label style={{ fontSize:13, fontWeight:600, color:'#475569', display:'block', marginBottom:8 }}>New Password</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width:'100%', padding:'14px', border:'2px solid #e2e8f0', borderRadius:12, outline:'none', focusBorderColor:'#1d4ed8' }} />
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  value={password} 
+                  onChange={e => setPassword(e.target.value)} 
+                  style={{ width:'100%', padding:'14px 44px 14px 14px', border:'2px solid #e2e8f0', borderRadius:12, outline:'none' }} 
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  {showPassword ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.81l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.73-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div style={{ marginBottom:24 }}>
               <label style={{ fontSize:13, fontWeight:600, color:'#475569', display:'block', marginBottom:8 }}>Confirm New Password</label>
-              <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} style={{ width:'100%', padding:'14px', border:'2px solid #e2e8f0', borderRadius:12, outline:'none' }} />
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type={showConfirmPassword ? "text" : "password"} 
+                  value={confirmPassword} 
+                  onChange={e => setConfirmPassword(e.target.value)} 
+                  style={{ width:'100%', padding:'14px 44px 14px 14px', border:'2px solid #e2e8f0', borderRadius:12, outline:'none' }} 
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  {showConfirmPassword ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.81l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.73-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div style={{ background:'#f1f5f9', borderRadius:16, padding:20, marginBottom:32 }}>
@@ -234,17 +275,28 @@ export default function OnboardingPage() {
             <h2 style={{ fontSize:22, fontWeight:800, color:'#0f172a', marginBottom:8 }}>ตั้งรหัส Signature PIN</h2>
             <p style={{ color:'#64748b', fontSize:14, marginBottom:24 }}>รหัสตัวเลข 6 หลักสำหรับใช้เซ็นชื่อในเอกสาร (IT จะไม่ทราบรหัสนี้)</p>
             
-            <div style={{ textAlign:'center', marginBottom:32 }}>
+            <div style={{ textAlign:'center', marginBottom:32, position: 'relative' }}>
               <input 
-                type="password" 
+                type={showPin ? "text" : "password"} 
                 maxLength={6} 
                 value={pin} 
                 onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••••"
                 style={{ width:'100%', padding:'16px', border:'2px solid #e2e8f0', borderRadius:16, fontSize:40, letterSpacing:12, textAlign:'center', outline:'none' }}
               />
-              {pin.length > 0 && pin.length < 6 && <div style={{ marginTop:12, color:'#d97706', fontSize:12 }}>กรุณากรอกให้ครบ 6 หลัก</div>}
+              <button 
+                type="button"
+                onClick={() => setShowPin(!showPin)}
+                style={{ position: 'absolute', right: 20, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}
+              >
+                {showPin ? (
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                ) : (
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.81l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.73-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+                )}
+              </button>
             </div>
+            {pin.length > 0 && pin.length < 6 && <div style={{ marginTop:12, color:'#d97706', fontSize:12 }}>กรุณากรอกให้ครบ 6 หลัก</div>}
 
             <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:16, padding:16, marginBottom:32 }}>
               <div style={{ fontSize:12, color:'#92400e', lineHeight:1.6 }}>

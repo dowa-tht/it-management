@@ -121,15 +121,14 @@ All tiers now use standard authentication protocols.
     3. บันทึกข้อมูลส่วนตัว (Role, Name) ลงใน `user_profiles`
 - **หมายเหตุ:** หากขั้นตอนใดล้มเหลว ระบบจะทำการ Rollback หรือแจ้งเตือนจุดที่ผิดพลาดชัดเจน
 
-### 2. การเข้าสู่ระบบ (Authentication & Gatekeeping)
-- **จุดเริ่มต้น:** หน้า Login -> `unifiedLogin`
-- **ขั้นตอนการตรวจสอบ:**
-    1. **Whitelist Check:** ระบบจะนำ Email มา Hash และเช็คใน `user_whitelist` ก่อนเป็นด่านแรก
-    2. **Auth Check:** ตรวจสอบรหัสผ่านผ่าน Supabase Auth หรือตรวจสอบ Microsoft SSO
-    3. **Gatekeeper (Proxy):** ตรวจสอบสถานะ Onboarding หากยังไม่ทำ ระบบจะ Redirect ไปที่ `/api/onboarding/init`
-    4. **Token Generation (API):** `/api/onboarding/init` (Service Role) จะสร้างและบันทึก Token ลง DB เพื่อกัน Loop
-    5. **Onboarding:** ผู้ใช้เข้าสู่หน้า `/onboarding` เพื่อตั้งค่า PIN และ Password
-- **Session:** สร้าง JWT สำหรับพนักงาน และ Cookie `dowa_onboarded` เมื่อทำสำเร็จ
+### 2. การเข้าสู่ระบบ & Gatekeeping (Authentication Strategy)
+- **จุดเริ่มต้น:** หน้า Login (`/`)
+- **ขั้นตอนการตรวจสอบ (Logic Order):**
+    1. **Login Page (Client):** ตรวจสอบ Session หากพบว่าล็อกอินอยู่ -> เช็คสถานะ `is_onboarded`
+    2. **Onboarding Required:** หากยังไม่ Onboard ให้ใช้ `window.location.href` Redirect ไปที่ `/api/onboarding/init` เพื่อดึง Token
+    3. **Onboarding Init API:** ใช้ Service Role เพื่อดึง/สร้าง Token ลง DB ให้สำเร็จ -> ส่ง User ไปหน้า `/onboarding?token=...`
+    4. **Proxy (Server-side Guard):** คอยดักรออยู่ที่ประตู `/dashboard` หากพบใครพยายามข้ามขั้นเข้ามาโดยยังไม่ Onboard จะดีดกลับไปที่ `/api/onboarding/init` ทันที
+- **Key Success Factor:** การใช้ `window.location.href` ช่วยให้ Browser ทำ Full Request พร้อมส่ง Cookies ล่าสุดเสมอ ป้องกันปัญหา Session หลุดระหว่าง Redirect
 
 ### 3. การตรวจสอบสิทธิ์ (Security Definition)
 - **Handle New User:** ใช้ Database Trigger `handle_new_user()` ที่เป็น `SECURITY DEFINER` เพื่อให้ระบบสามารถเขียนข้อมูลลง Profile ได้อย่างปลอดภัยแม้ผู้ใช้จะยังไม่มีสิทธิ์ในตอนแรก

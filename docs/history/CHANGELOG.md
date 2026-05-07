@@ -1,11 +1,16 @@
 # Change Logs (บันทึกการเปลี่ยนแปลง)
   
+### [2026-05-07 11:00] - Ultimate Onboarding Stabilization & UX Polish
+- **Advanced Gatekeeper Architecture**: Finalized the separation of concerns between Proxy (Dashboard Guard) and Login Page (Session Dispatcher). Re-implemented client-side redirects using `window.location.href` to ensure cookie persistence.
+- **Redirect Loop Post-Mortem**: Documented the "Redirect Loop Trap" in `USER_MANAGEMENT.md` to prevent future regressions.
+- **Onboarding UI Enhancements**:
+    - Added **Show/Hide Password** toggles to New Password and Confirm Password fields.
+    - Added **Show/Hide PIN** toggle to the 6-digit Signature PIN field.
+    - Improved PIN setup UX by allowing users to verify their digits before submission.
+- **API Optimization**: Fixed `token_failed` error by removing the non-existent `onboarding_token_expires` column from the update query, ensuring 100% token generation success.
+- **Standardization**: Updated all architectural diagrams and security policies to reflect the final stable state.
+
 ### [2026-05-07 10:30] - Gatekeeper Rearchitecture & Redirect Loop Resolution
-- **Proxy Rearchitecture**: Completely redesigned the `proxy.js` (Next.js 16 Middleware) to be a **Read-Only Gatekeeper**. It now delegates data mutations (Token Generation) to a dedicated API route.
-- **Onboarding Initialization API**: Created `/api/onboarding/init` using the **Service Role Key** to guarantee successful onboarding token generation, bypassing RLS restrictions that caused silent update failures.
-- **Redirect Loop Resolution**: Fixed the infinite "Proxy -> Onboarding -> Home -> Proxy" loop by ensuring a valid token exists in the database *before* redirecting to the onboarding page.
-- **Self-Healing Cookie Logic**: Implemented a synchronization mechanism in the Proxy to detect and fix "Stale Cookies" by performing a single database check, ensuring users are never trapped in onboarding after completion.
-- **Robust Documentation**: Updated `docs/standards/USER_MANAGEMENT.md` and `docs/architecture/DATABASE_AND_FLOW.md` with detailed troubleshooting guides for the "Redirect Loop Trap."
 
 ### [2026-05-07 08:30] - Standardized Onboarding & Recovery Flows
 - **Standardized Onboarding**: Formalized two entry paths (Invitation vs. Recovery) to ensure 100% security setup coverage for new users.

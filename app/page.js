@@ -26,8 +26,35 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // 🛡️ [REMOVED] Client-side redirect moved to Server-side Proxy (Gatekeeper)
-  // เพื่อความปลอดภัยและเสถียรภาพสูงสุด ตามมาตรฐาน Next.js 16
+  // ตรวจสอบ Session — ให้ client-side จัดการ redirect เองเพื่อไม่ให้ขัดกับ Proxy
+  useEffect(() => {
+    const checkSession = async () => {
+      const errorMsg = searchParams.get('error')
+      if (errorMsg) return // มี error อยู่ให้แสดงก่อน ไม่ redirect
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return // ไม่มี session -> แสดงหน้า login ปกติ
+
+      // มี session -> เช็คว่า onboard หรือยัง
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('is_onboarded, onboarding_token')
+        .eq('id', session.user.id)
+        .single()
+
+      if (!profile) return
+
+      if (profile.is_onboarded) {
+        // Onboard แล้ว -> ไป Dashboard
+        router.replace('/dashboard')
+      } else {
+        // ยังไม่ Onboard -> ใช้ full redirect ไป API เพื่อสร้าง/ดึง Token
+        // (ใช้ window.location เพื่อให้ browser ส่ง cookie ครบถ้วน)
+        window.location.href = '/api/onboarding/init'
+      }
+    }
+    checkSession()
+  }, [router, searchParams])
 
   // ดักจับ Error จาก URL (เช่น จากหน้า Gatekeeper)
   useEffect(() => {
