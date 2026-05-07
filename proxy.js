@@ -66,7 +66,25 @@ export async function proxy(request) {
       }
 
       // ❌ ถ้าใน DB ก็ยังไม่ Onboard -> บังคับไปหน้า Onboarding
-      return NextResponse.redirect(new URL('/onboarding', request.url))
+      // 🛡️ เสริมความแกร่ง: ถ้าใน DB ไม่มี Token ให้สร้างให้เลยกัน Loop (Step 1 -> Onboarding -> Step 1)
+      const { data: fullProfile } = await supabase
+        .from('user_profiles')
+        .select('onboarding_token, onboarding_token_expires')
+        .eq('id', session.user.id)
+        .single()
+
+      let finalToken = fullProfile?.onboarding_token
+      if (!finalToken) {
+        const token = crypto.randomUUID()
+        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        await supabase
+          .from('user_profiles')
+          .update({ onboarding_token: token, onboarding_token_expires: expires })
+          .eq('id', session.user.id)
+        finalToken = token
+      }
+
+      return NextResponse.redirect(new URL(`/onboarding?token=${finalToken}`, request.url))
     }
   }
 
@@ -100,7 +118,29 @@ export async function proxy(request) {
     }
 
     const target = finalOnboarded ? '/dashboard' : '/onboarding'
-    const redirectResponse = NextResponse.redirect(new URL(target, request.url))
+    
+    // 🛡️ หากต้องไปหน้า Onboarding ต้องแน่ใจว่ามี Token (กัน Loop)
+    let finalTarget = target
+    if (!finalOnboarded) {
+      const { data: fullProfile } = await supabase
+        .from('user_profiles')
+        .select('onboarding_token')
+        .eq('id', session.user.id)
+        .single()
+      
+      let token = fullProfile?.onboarding_token
+      if (!token) {
+        token = crypto.randomUUID()
+        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        await supabase
+          .from('user_profiles')
+          .update({ onboarding_token: token, onboarding_token_expires: expires })
+          .eq('id', session.user.id)
+      }
+      finalTarget = `/onboarding?token=${token}`
+    }
+
+    const redirectResponse = NextResponse.redirect(new URL(finalTarget, request.url))
     
     // ถ้าเราเพิ่งรู้ว่า Onboard แล้ว ให้แนบ Cookie ไปกับ Redirect ด้วย
     if (finalOnboarded && !isOnboarded) {
