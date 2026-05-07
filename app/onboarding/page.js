@@ -32,9 +32,15 @@ export default function OnboardingPage() {
         
         if (profile && !profile.is_onboarded) {
           // 🛡️ หากไม่มี Token ใน URL ให้เติมเข้าไปใหม่ (Self-healing) เพื่อให้ระบบมาตรฐาน Token ทำงานได้
-          if (!token && profile.onboarding_token) {
-            router.replace(`/onboarding?token=${profile.onboarding_token}`)
-            return
+          if (!token) {
+            if (profile.onboarding_token) {
+              router.replace(`/onboarding?token=${profile.onboarding_token}`)
+              return
+            } else {
+              // 🚨 กรณีเลวร้ายสุด: ใน DB ก็ไม่มี Token ให้ดีดกลับไปหน้าแรกเพื่อให้ Gatekeeper สร้างใหม่
+              window.location.href = '/' 
+              return
+            }
           }
 
           setUser({ full_name: profile.full_name, email: profile.email })
@@ -100,6 +106,12 @@ export default function OnboardingPage() {
 
   const handleComplete = async () => {
     setLoading(true)
+    if (!token) {
+      setError('❌ ระบบขัดข้อง: ไม่พบ Token กรุณาลองใหม่อีกครั้ง')
+      setLoading(false)
+      setTimeout(() => window.location.href = '/', 2000)
+      return
+    }
     const res = await completeOnboarding({ token, password, pin })
     
     if (res.error) {

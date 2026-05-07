@@ -108,13 +108,20 @@ async function checkOnboardingInternal(userId, adminClient) {
     finalToken = randomUUID()
     const newExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     
-    await adminClient
+    console.log(`🛡️ Gatekeeper: Refreshing token for user ${userId}...`)
+    const { error: updateError } = await adminClient
       .from('user_profiles')
       .update({ 
         onboarding_token: finalToken, 
         onboarding_token_expires: newExpires 
       })
       .eq('id', userId)
+
+    if (updateError) {
+      console.error('❌ Gatekeeper: Failed to refresh token:', updateError)
+      // หาก Update พลาด ให้ใช้ค่าเดิมไปก่อน (ถ้ามี) เพื่อไม่ให้ขัดจังหวะการเข้า Onboarding
+      finalToken = profile.onboarding_token || finalToken 
+    }
   }
 
   return { 
