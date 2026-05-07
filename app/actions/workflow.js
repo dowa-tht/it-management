@@ -50,7 +50,7 @@ export async function getUnifiedPendingApprovals() {
     if (!profile) return { error: 'Profile not found' }
 
     // 2. Fetch Pending Checklists
-    const { data: checklists, error: chkErr } = await supabaseAdmin
+    const chkQuery = supabaseAdmin
       .from('checklist_docs')
       .select(`
         id, 
@@ -58,13 +58,20 @@ export async function getUnifiedPendingApprovals() {
         period_date, 
         status, 
         assigned_approver_id,
-        created_by
+        created_by,
+        document_approvals!inner(id, status, role_required, approver_id)
       `)
       .eq('workflow_status', 'pending')
-      .or(`assigned_approver_id.eq.${profile.id},assigned_approver_id.is.null`)
+      .eq('document_approvals.status', 'pending')
+
+    if (profile.role !== 'administrator') {
+      chkQuery.or(`document_approvals.approver_id.eq.${profile.id},document_approvals.role_required.eq.${profile.role}`)
+    }
+
+    const { data: checklists, error: chkErr } = await chkQuery
 
     // 3. Fetch Pending Incidents
-    const { data: incidents, error: incErr } = await supabaseAdmin
+    const incQuery = supabaseAdmin
       .from('incidents')
       .select(`
         id, 
@@ -73,10 +80,17 @@ export async function getUnifiedPendingApprovals() {
         status, 
         created_at,
         assigned_approver_id,
-        user_profiles!incidents_created_by_fkey(full_name)
+        user_profiles!incidents_created_by_fkey(full_name),
+        document_approvals!inner(id, status, role_required, approver_id)
       `)
       .eq('status', 'Pending Approval')
-      .or(`assigned_approver_id.eq.${profile.id},assigned_approver_id.is.null`)
+      .eq('document_approvals.status', 'pending')
+
+    if (profile.role !== 'administrator') {
+      incQuery.or(`document_approvals.approver_id.eq.${profile.id},document_approvals.role_required.eq.${profile.role}`)
+    }
+
+    const { data: incidents, error: incErr } = await incQuery
 
     // 4. Transform into Unified Format
     const unified = [

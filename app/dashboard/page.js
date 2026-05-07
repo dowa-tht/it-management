@@ -165,11 +165,12 @@ export default function DashboardPage() {
               cursor: 'pointer', 
               transition: 'transform 0.15s', 
               border: data.pendingApprovalsCount > 0 ? 'none' : '1px solid #e5e7eb',
-              boxShadow: data.pendingApprovalsCount > 0 ? '0 4px 10px rgba(79, 70, 229, 0.2)' : 'none'
+              boxShadow: data.pendingApprovalsCount > 0 ? '0 4px 10px rgba(79, 70, 229, 0.2)' : 'none',
+              minWidth: 140
             }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
               <div style={{ fontSize: 20, filter: data.pendingApprovalsCount > 0 ? 'none' : 'grayscale(1)' }}>🔔</div>
               <div>
-                <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Waiting for Approval</div>
+                <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Approvals</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                   <span style={{ fontSize: 18, fontWeight: 800 }}>{data.pendingApprovalsCount}</span>
                   <span style={{ fontSize: 11, opacity: 0.8 }}>Items</span>
@@ -240,8 +241,8 @@ export default function DashboardPage() {
       {/* IT Checklist & SLA Tracking (IT Only) */}
       <div className="dashboard-grid" style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-        gap: 16, 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+        gap: 20, 
         marginBottom: 20 
       }}>
         {/* IT Checklist Section */}
@@ -265,7 +266,11 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="checklist-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          <div className="checklist-status-grid" style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', 
+            gap: 10 
+          }}>
             <StatusCard title="Daily" value={ca?.dailyStatus?.label || 'รอตรวจ'} status={ca?.dailyStatus?.status} />
             <StatusCard title="Weekly" value={ca?.weeklyStatus?.label || 'รอตรวจ'} status={ca?.weeklyStatus?.status} />
             <StatusCard title="Monthly" value={ca?.monthlyStatus?.label || 'รอตรวจ'} status={ca?.monthlyStatus?.status} />
