@@ -168,7 +168,7 @@ export async function requestSignatureOTP(userId) {
         otp_expires_at: otpExpires,
         otp_attempts: 0
       })
-      .eq('id', userId)
+      .eq('id', user.id)
 
     if (updateErr) throw updateErr
 
