@@ -79,3 +79,36 @@ export async function unifiedLogin(email, password) {
     needs_onboarding: needsOnboarding
   }
 }
+
+/**
+ * 🕵️ ตรวจสอบสถานะ Onboarding สำหรับ Gatekeeper
+ */
+export async function getOnboardingStatus() {
+  const cookieStore = await cookies()
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  const supabase = createServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll: () => cookieStore.getAll(),
+      setAll: (cookiesToSet) => {
+        cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+      }
+    }
+  })
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { needs_onboarding: false, session: false }
+
+  const adminClient = await import('@supabase/supabase-js').then(m => m.createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY))
+  const { data: profile } = await adminClient
+    .from('user_profiles')
+    .select('is_onboarded')
+    .eq('id', user.id)
+    .single()
+
+  return { 
+    session: true,
+    needs_onboarding: profile ? !profile.is_onboarded : false 
+  }
+}

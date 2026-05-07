@@ -1,7 +1,7 @@
 'use client'
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { unifiedLogin } from '@/app/actions/login'
+import { unifiedLogin, getOnboardingStatus } from '@/app/actions/login'
 import { requestPasswordOTP, verifyPasswordOTP } from '@/app/actions/recovery'
 import { supabase } from '@/lib/supabase'
 
@@ -26,15 +26,19 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // ตรวจสอบ Session หากล็อกอินค้างไว้ให้ไปหน้า Dashboard ทันที
+  // ตรวจสอบ Session หากล็อกอินค้างไว้ให้ไปหน้า Dashboard หรือ Onboarding
   useEffect(() => {
     const checkSession = async () => {
       const errorMsg = searchParams.get('error')
-      if (errorMsg) return // ป้องกัน Redirect Loop หากถูกดีดออกมาพร้อม Error
+      if (errorMsg) return 
 
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        router.replace('/dashboard')
+      const status = await getOnboardingStatus()
+      if (status.session) {
+        if (status.needs_onboarding) {
+          router.replace('/onboarding')
+        } else {
+          router.replace('/dashboard')
+        }
       }
     }
     checkSession()

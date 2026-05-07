@@ -61,6 +61,12 @@
 
 เพื่อให้แน่ใจว่าผู้ใช้ทุกคนได้รับการตั้งค่าความปลอดภัยอย่างครบถ้วน ระบบจะบังคับใช้ Flow ดังนี้:
 
+### 6.0 The Gatekeeper Standard (มาตรฐานการตรวจสอบทางเข้า)
+ทุกจุดเชื่อมต่อ (Entry Points) ต้องตรวจสอบสถานะ `is_onboarded` ก่อนเสมอ:
+1. **Login Page**: เมื่อมีการกดปุ่ม Login ระบบต้องเช็ค Profile และดีดไปหน้า Onboarding หากยังทำไม่สำเร็จ
+2. **Session Persistence**: หากผู้ใช้เปิดหน้าเว็บมาแล้วมี Session ค้างอยู่ ระบบ "Gatekeeper" (ในหน้า Home) ต้องตรวจสอบสถานะ Onboarding ใหม่ทุกครั้งก่อน Redirect เข้า Dashboard
+3. **SSO Callback**: ระบบรับข้อมูลจาก Microsoft ต้องทำการเช็ค Profile เช่นเดียวกัน
+
 ### 6.1 Standard Onboarding Flow (ผ่านลิงก์คำเชิญ)
 1. **Quick Add**: Admin เพิ่มผู้ใช้ -> ระบบส่งอีเมลพร้อม Onboarding Token
 2. **First Interaction**: User กดลิงก์ในอีเมล -> เข้าสู่หน้า `/onboarding`
