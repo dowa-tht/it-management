@@ -136,7 +136,7 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
                 </div>
               )}
 
-              {error === 'MISSING_ID' ? (
+              {error === 'MISSING_ID' && !otpSent ? (
                 <div style={{ background:'rgba(239,68,68,0.05)', border:'1px solid rgba(239,68,68,0.1)', borderRadius:12, padding:16, marginBottom:20, marginTop:16 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:10, color:'#dc2626', fontWeight:600, fontSize:14, marginBottom:4 }}>
                     ❌ ไม่พบ ID ผู้ใช้ในระบบ
