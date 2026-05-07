@@ -69,7 +69,6 @@ export async function unifiedLogin(email, password) {
   }])
 
   // 🛡️ ตั้งค่า Cookie สำหรับ Onboarding (Gatekeeper Standard - Cookie based)
-  const cookieStore = await cookies()
   cookieStore.set('dowa_onboarded', (!onboarding.needs_onboarding).toString(), {
     path: '/',
     maxAge: 60 * 60 * 24 * 7, // 7 days
