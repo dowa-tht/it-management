@@ -20,7 +20,7 @@ This is the central documentation hub. You MUST read this file first before star
 - [WORKFLOW_ENGINE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/WORKFLOW_ENGINE.md) : มาตรฐานระบบการอนุมัติเอกสารและ Document Status (เช่น Open, In Progress, Pending Approval, Closed)
 - [UI_UX_SETTING.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_SETTING.md) : มาตรฐานการออกแบบหน้าจอ Setting/Master Data
 - [UI_UX_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_GUIDE.md) : มาตรฐานการทำระบบช่วยเหลือ (Help/Guides) ภายในระบบ
-- [USER_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/USER_MANAGEMENT.md) : มาตรฐานการจัดการผู้ใช้ ความปลอดภัย Onboarding และ Guest Expiry
+- [USER_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/USER_MANAGEMENT.md) : มาตรฐานการจัดการผู้ใช้, ความปลอดภัย, Onboarding Flow และ Guest Expiry
 - [PERMISSIONS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/PERMISSIONS.md) : มาตรฐานระบบสิทธิ์การใช้งานแบบ Dynamic (RW, RO, NONE)
 - [UI_UX_RESPONSIVE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_RESPONSIVE.md) : มาตรฐานการออกแบบหน้าจอให้รองรับทุกอุปกรณ์ (Multi-Device Support)
 

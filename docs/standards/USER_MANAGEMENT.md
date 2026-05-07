@@ -56,11 +56,26 @@
 
 ---
 
-## 5. Developer & Admin Tools (Clean Delete)
+---
+6. Detailed Onboarding & Recovery Flows (รายละเอียดขั้นตอนการเริ่มใช้งาน)
 
-เพื่อให้การทดสอบระบบเป็นไปได้อย่างรวดเร็วแต่ปลอดภัย:
-- **Hard Delete:** อนุญาตให้ลบข้อมูลหมดจด (Auth + Profile + Whitelist) ได้เฉพาะผ่านฟังก์ชันที่มี **Safety Confirmation** เท่านั้น
-- **Confirmation Logic:** ผู้ใช้ต้องพิมพ์ข้อความยืนยันเฉพาะ (เช่น `DELETE-[EMAIL]`) เพื่อป้องกันการกดพลาด
+เพื่อให้แน่ใจว่าผู้ใช้ทุกคนได้รับการตั้งค่าความปลอดภัยอย่างครบถ้วน ระบบจะบังคับใช้ Flow ดังนี้:
+
+### 6.1 Standard Onboarding Flow (ผ่านลิงก์คำเชิญ)
+1. **Quick Add**: Admin เพิ่มผู้ใช้ -> ระบบส่งอีเมลพร้อม Onboarding Token
+2. **First Interaction**: User กดลิงก์ในอีเมล -> เข้าสู่หน้า `/onboarding`
+3. **The Tour**: User ทำตามขั้นตอน (Welcome -> Password -> PIN -> SSO)
+4. **Completion**: ระบบตั้งค่า `is_onboarded = true` และ Redirect ไปหน้า Login
+5. **Final Result**: User ล็อกอินครั้งแรก -> เข้าสู่หน้า Dashboard ทันที (เพราะทำ Onboarding ไปแล้ว)
+
+### 6.2 Recovery Onboarding Flow (ผ่านการลืมรหัสผ่าน)
+1. **Quick Add**: Admin เพิ่มผู้ใช้ -> ผู้ใช้ไม่กดลิงก์อีเมล แต่มาที่หน้า Login เอง
+2. **Forgot Password**: User กด "ลืมรหัสผ่าน" -> ยืนยัน OTP -> ตั้งรหัสผ่านใหม่ที่ `/reset-password`
+3. **First Login**: User ล็อกอินด้วยรหัสใหม่ -> ระบบตรวจพบ `is_onboarded = false`
+4. **Forced Tour**: ระบบดีด User ไปที่หน้า `/onboarding` อัตโนมัติ
+5. **Smart Skip**: ระบบตรวจพบว่า User เพิ่งเปลี่ยนรหัสผ่านมา -> ข้ามขั้นตอน Password และไปที่ PIN/SSO ทันที
+6. **Completion**: เมื่อทำจบ ระบบตั้งค่า `is_onboarded = true`
+7. **Final Result**: การล็อกอินครั้งถัดไป จะเข้าสู่หน้า Dashboard ปกติ
 
 ---
-*บันทึกมาตรฐานนี้เมื่อ: 06-May-2026*
+*บันทึกมาตรฐานนี้เมื่อ: 07-May-2026 08:30*

@@ -1,5 +1,11 @@
 # Change Logs (บันทึกการเปลี่ยนแปลง)
 
+### [2026-05-07 08:30] - Standardized Onboarding & Recovery Flows
+- **Standardized Onboarding**: Formalized two entry paths (Invitation vs. Recovery) to ensure 100% security setup coverage for new users.
+- **Auto-Tour Trigger**: Implemented automatic redirection to the `/onboarding` page based on the `is_onboarded` profile status.
+- **Smart Onboarding**: Added logic to skip redundant password reset steps if the user has already performed a reset via the recovery flow.
+- **Documentation Update**: Updated `docs/standards/USER_MANAGEMENT.md` with the new onboarding lifecycle standards.
+
 ### [2026-05-07 06:50] - Enhanced Identity Sync & OTP Fallback
 - **Robust OTP Request**: Updated `requestSignatureOTP` to support searching by `full_name` as a fallback when `memberId` is missing, ensuring older records can still use OTP signatures.
 - **Improved Modal UX**: Redesigned `MemberSignatureModal` to handle missing ID cases more gracefully with helpful instructions instead of technical debug info.
