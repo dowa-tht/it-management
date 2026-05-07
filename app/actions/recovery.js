@@ -296,9 +296,20 @@ export async function verifyPasswordOTP(email, otp) {
 export async function resetPasswordWithToken({ token, newPassword }) {
   try {
     if (!token || !newPassword) throw new Error('ข้อมูลไม่ครบถ้วน')
-    if (newPassword.length < 8) throw new Error('รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร')
+    
+    // 🛡️ Password Complexity Check (Server-side)
+    const hasUpper = /[A-Z]/.test(newPassword)
+    const hasLower = /[a-z]/.test(newPassword)
+    const hasNumber = /[0-9]/.test(newPassword)
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword)
+    const isLongEnough = newPassword.length >= 8
+
+    if (!isLongEnough || !hasUpper || !hasLower || !hasNumber || !hasSpecial) {
+      throw new Error('รหัสผ่านไม่เป็นไปตามเกณฑ์ความปลอดภัย (ต้องมี A-Z, a-z, 0-9 และอักขระพิเศษ)')
+    }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const { hashEmail } = await import('@/lib/auth')
 
     // 1. ตรวจสอบ Token
     const { data: user, error: findError } = await supabaseAdmin
@@ -329,6 +340,23 @@ export async function resetPasswordWithToken({ token, newPassword }) {
         force_password_change: false // ปลดล็อค Force Change เมื่อรีเซ็ตเองแล้ว
       })
       .eq('id', user.id)
+
+    // 🛡️ 4. Sync Whitelist (เพื่อให้เข้าใช้งานได้ทันที)
+    if (user.email) {
+      const emailHash = hashEmail(user.email)
+      // เช็คว่ามีใน Whitelist หรือยัง
+      const { data: whitelist } = await supabaseAdmin
+        .from('user_whitelist')
+        .select('id')
+        .eq('email_hash', emailHash)
+        .maybeSingle()
+
+      if (!whitelist) {
+        await supabaseAdmin
+          .from('user_whitelist')
+          .insert([{ email_hash: emailHash }])
+      }
+    }
 
     return { success: true }
   } catch (err) {

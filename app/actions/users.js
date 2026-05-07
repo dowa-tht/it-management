@@ -82,6 +82,11 @@ export async function quickAddUser({ fullName, email, role = 'member' }) {
 
     if (error) throw error
 
+    // 🛡️ 3. Sync Whitelist (เพื่อให้เข้าใช้งานได้ทันที)
+    const { hashEmail } = await import('@/lib/auth')
+    const emailHash = hashEmail(finalEmail)
+    await supabaseAdmin.from('user_whitelist').insert([{ email_hash: emailHash }])
+
     // Send Welcome Email if email exists
     if (email) {
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'

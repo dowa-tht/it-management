@@ -13,6 +13,18 @@ function ResetPasswordContent() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ text: '', type: '' })
+  
+  const validatePassword = (pass) => {
+    const minLength = pass.length >= 8
+    const hasUpper = /[A-Z]/.test(pass)
+    const hasLower = /[a-z]/.test(pass)
+    const hasNumber = /[0-9]/.test(pass)
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(pass)
+    return { minLength, hasUpper, hasLower, hasNumber, hasSpecial }
+  }
+
+  const pwCheck = validatePassword(newPassword)
+  const isPasswordValid = Object.values(pwCheck).every(Boolean) && newPassword === confirmPassword
 
   const handleReset = async (e) => {
     e.preventDefault()
@@ -115,7 +127,20 @@ function ResetPasswordContent() {
                 style={{ width: '100%', padding: '14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 15, outline: 'none' }}
               />
             </div>
-            <button type="submit" disabled={loading} style={{ width: '100%', padding: '14px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 12, fontWeight: '700', cursor: 'pointer', marginTop: 10 }}>
+
+            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 16, padding: 16, border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>เกณฑ์ความปลอดภัย:</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <CheckItem label="8 ตัวอักษร" valid={pwCheck.minLength} />
+                <CheckItem label="ตัวพิมพ์ใหญ่" valid={pwCheck.hasUpper} />
+                <CheckItem label="ตัวพิมพ์เล็ก" valid={pwCheck.hasLower} />
+                <CheckItem label="ตัวเลข" valid={pwCheck.hasNumber} />
+                <CheckItem label="อักขระพิเศษ" valid={pwCheck.hasSpecial} />
+                <CheckItem label="รหัสตรงกัน" valid={newPassword && newPassword === confirmPassword} />
+              </div>
+            </div>
+
+            <button type="submit" disabled={loading || !isPasswordValid} style={{ width: '100%', padding: '14px', background: isPasswordValid ? '#1d4ed8' : '#334155', color: '#fff', border: 'none', borderRadius: 12, fontWeight: '700', cursor: isPasswordValid ? 'pointer' : 'not-allowed', marginTop: 10 }}>
               {loading ? 'Updating...' : 'Update Password'}
             </button>
           </form>
@@ -127,6 +152,17 @@ function ResetPasswordContent() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function CheckItem({ label, valid }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+      <div style={{ width:14, height:14, borderRadius:'50%', background:valid?'#10b981':'rgba(255,255,255,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff' }}>
+        {valid ? '✓' : ''}
+      </div>
+      <span style={{ fontSize:11, color:valid?'#fff':'#64748b' }}>{label}</span>
     </div>
   )
 }
