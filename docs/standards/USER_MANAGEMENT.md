@@ -62,11 +62,23 @@
 เพื่อให้แน่ใจว่าผู้ใช้ทุกคนได้รับการตั้งค่าความปลอดภัยอย่างครบถ้วน ระบบจะบังคับใช้ Flow ดังนี้:
 
 ### 6.0 The Gatekeeper Standard (มาตรฐานการตรวจสอบทางเข้า)
-ทุกจุดเชื่อมต่อ (Entry Points) ต้องตรวจสอบสถานะ `is_onboarded` ก่อนเสมอ:
-1. **Login Page**: เมื่อมีการกดปุ่ม Login ระบบต้องเช็ค Profile และดีดไปหน้า Onboarding หากยังทำไม่สำเร็จ
-2. **Session Persistence**: หากผู้ใช้เปิดหน้าเว็บมาแล้วมี Session ค้างอยู่ ระบบ "Gatekeeper" (ในหน้า Home) ต้องตรวจสอบสถานะ Onboarding ใหม่ทุกครั้งก่อน Redirect เข้า Dashboard
-3. **Auto-Refresh Logic**: หาก Gatekeeper พบว่า Token หมดอายุ (เกิน 24 ชม.) หรือเป็นค่าว่าง ระบบต้อง Generate Token ใหม่ลง DB ทันทีเพื่อให้ User เข้าทำ Tour ได้อย่างไร้รอยต่อ
-4. **SSO Callback**: ระบบรับข้อมูลจาก Microsoft ต้องทำการเช็ค Profile เช่นเดียวกัน
+เพื่อให้ระบบมีความปลอดภัยระดับสูงสุดและรองรับ Next.js 16 (App Router) ระบบจะใช้สถาปัตยกรรมแบบ **"Global Proxy & API-Initialization"**:
+
+1. **Server-Side Proxy (Gatekeeper)**:
+    - ใช้ `proxy.js` (Next.js 16 Standard) เป็นด่านตรวจระดับ Network ก่อนเข้าถึงทุก Route ใน Dashboard
+    - **Read-Only Mode**: Proxy จะใช้ `ANON_KEY` ในการอ่านค่า `is_onboarded` จาก Database เท่านั้น เพื่อความรวดเร็วและปลอดภัย (ห้ามใช้ Proxy เขียนข้อมูลลง DB โดยตรงเนื่องจากข้อจำกัดด้าน RLS)
+    - **Cookie Synchronization**: ตรวจสอบ Cookie `dowa_onboarded` หากไม่พบหรือค่าเป็น `false` จะทำการเช็ค DB ซ้ำหนึ่งครั้งเพื่ออัปเดต Cookie ให้เป็นปัจจุบัน (ป้องกันปัญหา Cookie Stale)
+
+2. **Onboarding Initialization API**:
+    - หาก Proxy พบว่าผู้ใช้จำเป็นต้องทำ Onboarding แต่ไม่มี Token ในระบบ ระบบจะ Redirect ไปที่ `/api/onboarding/init`
+    - **Service Role Power**: API นี้จะใช้ `SERVICE_ROLE_KEY` เพื่อสร้าง Onboarding Token และบันทึกลงฐานข้อมูลอย่างถูกต้อง (ข้ามขีดจำกัด RLS)
+    - **Guaranteed Token**: API นี้จะรับประกันว่าผู้ใช้จะมี Token ที่ถูกต้องก่อนถึงหน้า `/onboarding` เสมอ เพื่อป้องกันการเด้งกลับ (Redirect Loop)
+
+3. **Self-Healing UI**:
+    - หน้า `/onboarding` จะตรวจสอบ Token ใน URL หากหายไปจะพยายามดึงจาก DB หรือ Redirect กลับไปที่จุดเริ่มต้นเพื่อขอ Token ใหม่
+
+> [!CAUTION]
+> **Redirect Loop Prevention**: ห้ามให้ Proxy และ Frontend Layout ทำการ Redirect ไปมาโดยไม่มีจุดสิ้นสุด หากมีการตรวจพบสภาวะ Loop ระบบต้องดีดกลับไปที่หน้า Login (`/`) เพื่อล้างสถานะและเริ่มใหม่เสมอ
 
 ### 6.1 Standard Onboarding Flow (ผ่านลิงก์คำเชิญ)
 1. **Quick Add**: Admin เพิ่มผู้ใช้ -> ระบบส่งอีเมลพร้อม Onboarding Token
@@ -80,9 +92,17 @@
 2. **Forgot Password**: User กด "ลืมรหัสผ่าน" -> ยืนยัน OTP -> ตั้งรหัสผ่านใหม่ที่ `/reset-password`
 3. **First Login**: User ล็อกอินด้วยรหัสใหม่ -> ระบบตรวจพบ `is_onboarded = false`
 4. **Forced Tour**: ระบบดีด User ไปที่หน้า `/onboarding` อัตโนมัติ
-5. **Smart Skip**: ระบบตรวจพบว่า User เพิ่งเปลี่ยนรหัสผ่านมา -> ข้ามขั้นตอน Password และไปที่ PIN/SSO ทันที
-6. **Completion**: เมื่อทำจบ ระบบตั้งค่า `is_onboarded = true`
-7. **Final Result**: การล็อกอินครั้งถัดไป จะเข้าสู่หน้า Dashboard ปกติ
+7. Troubleshooting: The Redirect Loop Trap (กรณีศึกษาการเกิด Loop)
+ปัญหานี้เคยเกิดขึ้นและใช้เวลาแก้ไขนานเนื่องจากความซับซ้อนของ Layer ความปลอดภัย จึงต้องบันทึกไว้เป็นบทเรียน:
+
+- **สาเหตุของปัญหา**: 
+    1. Proxy (ANON_KEY) ตรวจพบว่า User ไม่มี Token -> พยายามสร้างและ `update` ลง DB -> **ล้มเหลว** เพราะ Anon Key ไม่มีสิทธิ์เขียนตาราง `user_profiles` (RLS Policy)
+    2. Proxy ไม่รู้ว่าเขียนไม่เข้า จึง Redirect ไปที่ `/onboarding?token=...`
+    3. หน้า Onboarding ตรวจสอบ Token ใน DB แล้วไม่พบ (เพราะเขียนไม่ติด) -> ดีดกลับไปหน้าแรก (`/`)
+    4. หน้าแรกดีดกลับไป Proxy -> เกิด Loop ไม่รู้จบ
+- **การป้องกัน**: 
+    - **กฎเหล็ก**: ห้ามให้ Proxy (หรือส่วนใดที่ใช้ Anon Key) ทำหน้าที่สร้าง/อัปเดต Token ใน DB
+    - **โซลูชัน**: ต้องส่งต่อไปยัง API Route ที่มีสิทธิ์ระดับ `SERVICE_ROLE` เท่านั้นเพื่อให้แน่ใจว่า Token จะถูกบันทึกสำเร็จก่อนถึงมือผู้ใช้
 
 ---
-*บันทึกมาตรฐานนี้เมื่อ: 07-May-2026 08:30*
+*บันทึกมาตรฐานนี้เมื่อ: 07-May-2026 10:30 (Updated Gatekeeper Architecture & Loop Prevention)*
