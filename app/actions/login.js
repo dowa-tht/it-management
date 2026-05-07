@@ -56,6 +56,7 @@ export async function unifiedLogin(email, password) {
   // ✅ Login สำเร็จและผ่านทะเบียนขาว
   
   // 🛡️ เช็คสถานะ Onboarding
+  const userId = authData.user.id
   const { data: profile } = await adminClient
     .from('user_profiles')
     .select('is_onboarded')
