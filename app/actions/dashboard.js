@@ -250,10 +250,15 @@ export async function getDashboardData(timezoneOffset = -420) {
       { name: 'Low', value: incidents.filter(i => i.severity === 'Low').length, color: '#10b981' },
     ].filter(d => d.value > 0)
 
+    const ngChecklistsCount = allChecklists.filter(c => 
+      c.checklist_items?.some(i => i.status === 'NG')
+    ).length
+
     return {
       stats: {
         totalIncidents,
         highSeverity,
+        ngChecklistsCount,
         inProgress,
         pending,
         openIncidents,

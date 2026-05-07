@@ -151,12 +151,12 @@ export async function requestSignatureOTP(userId) {
       fetchErr = error;
     }
 
-    // If not found by ID, try finding by matching name/email
+    // If not found by ID, try finding by matching email
     if (!user && userId) {
       const { data, error } = await supabaseAdmin
         .from('user_profiles')
         .select('id, email, full_name')
-        .or(`email.eq."${userId}",full_name.eq."${userId}"`)
+        .eq('email', userId)
         .maybeSingle()
       user = data;
       fetchErr = error;
@@ -225,7 +225,7 @@ export async function verifySignatureOTP(userId, code) {
       const { data, error } = await supabaseAdmin
         .from('user_profiles')
         .select('id, otp_code, otp_expires_at, otp_attempts')
-        .or(`email.eq."${userId}",full_name.eq."${userId}"`)
+        .eq('email', userId)
         .maybeSingle()
       user = data;
       fetchErr = error;
@@ -258,14 +258,31 @@ export async function verifySignatureOTP(userId, code) {
 export async function verifyMemberPIN(userId, pin) {
   try {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
-    const { data, error } = await supabaseAdmin
-      .from('user_profiles')
-      .select('signature_pin')
-      .eq('id', userId)
-      .single()
+    
+    let user;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+    
+    if (isUUID) {
+      const { data } = await supabaseAdmin
+        .from('user_profiles')
+        .select('signature_pin')
+        .eq('id', userId)
+        .maybeSingle()
+      user = data
+    }
 
-    if (error || !data) return { success: false, error: 'ไม่พบข้อมูลผู้ใช้' }
-    if (data.signature_pin !== pin) return { success: false, error: 'PIN ไม่ถูกต้อง' }
+    if (!user && userId) {
+      const { data } = await supabaseAdmin
+        .from('user_profiles')
+        .select('signature_pin')
+        .eq('email', userId)
+        .maybeSingle()
+      user = data
+    }
+
+    if (!user) return { success: false, error: 'ไม่พบข้อมูลผู้ใช้ในระบบ' }
+    if (!user.signature_pin) return { success: false, error: 'ผู้ใช้ท่านนี้ยังไม่ได้ตั้งรหัส PIN' }
+    if (user.signature_pin !== pin) return { success: false, error: 'PIN ไม่ถูกต้อง' }
 
     return { success: true }
   } catch (err) {

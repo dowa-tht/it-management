@@ -447,12 +447,21 @@ function CreateChecklistModal({ userEmail, onClose, onCreated }) {
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 8 }}>ประจำวันที่ (Period Date)</label>
                 <div style={{ position: 'relative' }}>
+                  {/* Styled Display Box */}
+                  <div style={{ width: '100%', padding: '12px', paddingRight: 80, borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 14, background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{formatDate(date)}</span>
+                    <span style={{ fontSize: 16 }}>📅</span>
+                  </div>
+                  
+                  {/* Invisible Native Input */}
                   <input 
                     type="date" 
                     value={date} 
                     onChange={e => setDate(e.target.value)} 
-                    style={{ width: '100%', padding: '12px', paddingRight: 80, borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 14 }} 
+                    onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
+                    style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} 
                   />
+
                   <button 
                     onClick={() => {
                       const d = new Date()
@@ -461,7 +470,7 @@ function CreateChecklistModal({ userEmail, onClose, onCreated }) {
                       const day = String(d.getDate()).padStart(2, '0')
                       setDate(`${y}-${m}-${day}`)
                     }}
-                    style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer', color: '#1e40af' }}
+                    style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer', color: '#1e40af', zIndex: 10 }}
                   >
                     TODAY
                   </button>

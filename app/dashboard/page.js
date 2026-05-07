@@ -102,6 +102,7 @@ export default function DashboardPage() {
   const statCards = [
     { label: 'Incident 30 วัน', value: stats.totalIncidents, color: '#1d4ed8', link: '/dashboard/incidents?date=30days' },
     { label: 'High Severity', value: stats.highSeverity, color: '#dc2626', link: '/dashboard/incidents?severity=High&date=30days' },
+    { label: 'Checklist NG', value: stats.ngChecklistsCount, color: '#ef4444', link: '/dashboard/checklist?filter=ng' },
     { label: 'รออนุมัติ', value: stats.pending, color: '#701a75', link: '/dashboard/incidents?status=Pending+Approval&date=30days' },
     { label: 'กำลังแก้ไข', value: stats.inProgress, color: '#d97706', link: '/dashboard/incidents?status=InProgress&date=30days' },
     { label: 'Backup Rate', value: `${stats.backupSuccessRate}%`, color: '#059669', link: '/dashboard/backup' },

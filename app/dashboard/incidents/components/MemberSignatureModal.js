@@ -24,7 +24,7 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
 
     let res;
     if (mode === 'pin') {
-      res = await verifyMemberPIN(memberId, code)
+      res = await verifyMemberPIN(memberId || memberName, code)
     } else {
       res = await verifySignatureOTP(memberId || memberName, code)
     }

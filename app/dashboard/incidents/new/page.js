@@ -166,7 +166,7 @@ function NewIncidentForm() {
     setLoading(true)
 
     try {
-      const { ref_doc_id, ...insertData } = form
+      const { ref_doc_id, reported_by_id, created_by, ...insertData } = form
       const { error } = await supabase.from('incidents').insert([{
         ...insertData,
         case_number: caseNo,
