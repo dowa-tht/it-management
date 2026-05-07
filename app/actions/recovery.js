@@ -64,8 +64,8 @@ export async function requestRecovery(email) {
       const { error: updateError } = await supabaseAdmin
         .from('user_profiles')
         .update({ 
-          pin_reset_token: token, 
-          pin_reset_expires: expires.toISOString() 
+          onboarding_token: token, 
+          otp_expires_at: expires.toISOString() 
         })
         .eq('id', profile.id)
 
@@ -145,8 +145,9 @@ export async function resetPINWithToken({ token, newPIN }) {
     // 1. ตรวจสอบ Token จาก user_profiles
     const { data: user, error: findError } = await supabaseAdmin
       .from('user_profiles')
-      .select('id, pin_reset_expires, is_active')
-      .eq('pin_reset_token', token)
+      .select('id, otp_expires_at, is_active')
+      .eq('onboarding_token', token)
+      .eq('is_onboarded', true) // เฉพาะคนที่เป็นสมาชิกแล้วเท่านั้นถึงจะเป็นการ Reset PIN
       .single()
 
     if (findError || !user) throw new Error('ลิงก์กู้คืนไม่ถูกต้องหรือถูกใช้งานไปแล้ว')
@@ -155,7 +156,7 @@ export async function resetPINWithToken({ token, newPIN }) {
     if (!user.is_active) throw new Error('บัญชีนี้ถูกระงับการใช้งาน')
 
     // 2. ตรวจสอบวันหมดอายุ
-    if (new Date(user.pin_reset_expires) < new Date()) {
+    if (new Date(user.otp_expires_at) < new Date()) {
       throw new Error('ลิงก์กู้คืนหมดอายุแล้ว กรุณาขอใหม่')
     }
 
@@ -168,8 +169,8 @@ export async function resetPINWithToken({ token, newPIN }) {
       .from('user_profiles')
       .update({
         signature_pin: pinHash,
-        pin_reset_token: null,
-        pin_reset_expires: null,
+        onboarding_token: null,
+        otp_expires_at: null,
         pin_attempts: 0,
         pin_locked_until: null
       })
@@ -213,8 +214,8 @@ export async function requestPasswordOTP(email) {
     const { error: updateError } = await supabaseAdmin
       .from('user_profiles')
       .update({ 
-        recovery_otp: otp, 
-        recovery_otp_expires: expires.toISOString() 
+        otp_code: otp, 
+        otp_expires_at: expires.toISOString() 
       })
       .eq('id', profile.id)
 
@@ -256,17 +257,17 @@ export async function verifyPasswordOTP(email, otp) {
     // 1. ตรวจสอบ OTP
     const { data: user, error: findError } = await supabaseAdmin
       .from('user_profiles')
-      .select('id, recovery_otp, recovery_otp_expires')
+      .select('id, otp_code, otp_expires_at')
       .eq('email', email)
       .single()
 
     if (findError || !user) throw new Error('ไม่พบข้อมูลผู้ใช้')
 
-    if (user.recovery_otp !== otp) {
+    if (user.otp_code !== otp) {
       throw new Error('รหัส OTP ไม่ถูกต้อง')
     }
 
-    if (new Date(user.recovery_otp_expires) < new Date()) {
+    if (new Date(user.otp_expires_at) < new Date()) {
       throw new Error('รหัส OTP หมดอายุแล้ว กรุณาขอใหม่')
     }
 
@@ -277,10 +278,9 @@ export async function verifyPasswordOTP(email, otp) {
     const { error: updateError } = await supabaseAdmin
       .from('user_profiles')
       .update({
-        recovery_otp: null,
-        recovery_otp_expires: null,
-        pin_reset_token: token, // Reuse existing token field for password reset too
-        pin_reset_expires: expires.toISOString()
+        otp_code: null,
+        otp_expires_at: expires.toISOString(), // reuse for token expiry
+        onboarding_token: token // reuse for reset token
       })
       .eq('id', user.id)
 
@@ -303,13 +303,13 @@ export async function resetPasswordWithToken({ token, newPassword }) {
     // 1. ตรวจสอบ Token
     const { data: user, error: findError } = await supabaseAdmin
       .from('user_profiles')
-      .select('id, pin_reset_expires, email')
-      .eq('pin_reset_token', token)
+      .select('id, otp_expires_at, email')
+      .eq('onboarding_token', token)
       .single()
 
     if (findError || !user) throw new Error('ลิงก์กู้คืนไม่ถูกต้องหรือหมดอายุ')
 
-    if (new Date(user.pin_reset_expires) < new Date()) {
+    if (new Date(user.otp_expires_at) < new Date()) {
       throw new Error('ลิงก์กู้คืนหมดอายุแล้ว')
     }
 
@@ -324,8 +324,9 @@ export async function resetPasswordWithToken({ token, newPassword }) {
     await supabaseAdmin
       .from('user_profiles')
       .update({
-        pin_reset_token: null,
-        pin_reset_expires: null
+        onboarding_token: null,
+        otp_expires_at: null,
+        force_password_change: false // ปลดล็อค Force Change เมื่อรีเซ็ตเองแล้ว
       })
       .eq('id', user.id)
 
