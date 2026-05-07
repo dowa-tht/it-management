@@ -49,88 +49,64 @@ export async function getUnifiedPendingApprovals() {
 
     if (!profile) return { error: 'Profile not found' }
 
-    // 2. Fetch Pending Checklists
-    // 2. Fetch Pending Checklists
-    let chkDocs = []
-    
-    // 🛡️ Admin sees everything pending
-    if (profile.role === 'administrator') {
-      const { data } = await supabaseAdmin
-        .from('checklist_docs')
-        .select(`
-          id, freq_type, period_date, status, assigned_approver_id, created_by,
-          document_approvals!inner(id, status)
-        `)
-        .eq('workflow_status', 'pending')
-        .eq('document_approvals.status', 'pending')
-      chkDocs = data || []
-    } else {
-      // Regular user/supervisor filter
-      const { data } = await supabaseAdmin
-        .from('document_approvals')
-        .select(`
-          doc_id,
-          checklist_docs!inner(id, freq_type, period_date, status, assigned_approver_id, created_by)
-        `)
-        .eq('doc_type', 'checklist')
-        .eq('status', 'pending')
-        .or(`approver_id.eq.${profile.id},role_required.eq.${profile.role}`)
-      
-      chkDocs = (data || []).map(d => d.checklist_docs)
-    }
+    // 2. Fetch Pending Approval Steps first (The source of truth)
+    const { data: pendingSteps } = await (
+      profile.role === 'administrator'
+      ? supabaseAdmin.from('document_approvals').select('*').eq('status', 'pending')
+      : supabaseAdmin.from('document_approvals')
+          .select('*')
+          .eq('status', 'pending')
+          .or(`approver_id.eq.${profile.id},role_required.eq.${profile.role}`)
+    )
 
-    // 3. Fetch Pending Incidents
-    // 3. Fetch Pending Incidents
-    let incDocs = []
+    if (!pendingSteps || pendingSteps.length === 0) return { data: [] }
 
-    if (profile.role === 'administrator') {
-      const { data } = await supabaseAdmin
-        .from('incidents')
-        .select(`
-          id, case_number, title, status, created_at, assigned_approver_id,
-          user_profiles!incidents_created_by_fkey(full_name),
-          document_approvals!inner(id, status)
-        `)
-        .eq('status', 'Pending Approval')
-        .eq('document_approvals.status', 'pending')
-      incDocs = data || []
-    } else {
-      const { data } = await supabaseAdmin
-        .from('document_approvals')
-        .select(`
-          doc_id,
-          incidents!inner(id, case_number, title, status, created_at, assigned_approver_id, user_profiles!incidents_created_by_fkey(full_name))
-        `)
-        .eq('doc_type', 'incident')
-        .eq('status', 'pending')
-        .or(`approver_id.eq.${profile.id},role_required.eq.${profile.role}`)
-      
-      incDocs = (data || []).map(d => d.incidents)
-    }
+    const checklistIds = pendingSteps.filter(s => s.doc_type === 'checklist').map(s => s.doc_id)
+    const incidentIds = pendingSteps.filter(s => s.doc_type === 'incident').map(s => s.doc_id)
 
-    // 4. Transform into Unified Format
-    const unified = [
-      ...(chkDocs || []).map(c => ({
-        id: c.id,
-        category: 'Checklist',
-        type: c.freq_type,
-        docNo: `CHK-${c.period_date}-${c.freq_type.charAt(0)}`,
-        subject: `IT Checklist (${c.freq_type}) - ${c.period_date}`,
-        requestDate: c.period_date,
-        requester: c.created_by || 'System',
-        link: `/dashboard/checklist/${c.id}`
-      })),
-      ...(incDocs || []).map(i => ({
-        id: i.id,
-        category: 'Incident',
-        type: 'Ticket',
-        docNo: i.case_number,
-        subject: i.title,
-        requestDate: i.created_at.split('T')[0],
-        requester: i.user_profiles?.full_name || 'Unknown',
-        link: `/dashboard/incidents/${i.id}`
-      }))
-    ]
+    // 3. Fetch Document Details
+    const [checklistsRes, incidentsRes] = await Promise.all([
+      checklistIds.length > 0 
+        ? supabaseAdmin.from('checklist_docs').select('id, freq_type, period_date, status, created_by').in('id', checklistIds)
+        : Promise.resolve({ data: [] }),
+      incidentIds.length > 0
+        ? supabaseAdmin.from('incidents').select('id, case_number, title, status, created_at, user_profiles!incidents_created_by_fkey(full_name)').in('id', incidentIds)
+        : Promise.resolve({ data: [] })
+    ])
+
+    const checklistMap = Object.fromEntries((checklistsRes.data || []).map(c => [c.id, c]))
+    const incidentMap = Object.fromEntries((incidentsRes.data || []).map(i => [i.id, i]))
+
+    // 4. Transform into Unified Format using pendingSteps as the driver
+    const unified = pendingSteps.map(step => {
+      if (step.doc_type === 'checklist') {
+        const c = checklistMap[step.doc_id]
+        if (!c) return null
+        return {
+          id: c.id,
+          category: 'Checklist',
+          type: c.freq_type,
+          docNo: `CHK-${c.period_date}-${c.freq_type.charAt(0)}`,
+          subject: `IT Checklist (${c.freq_type}) - ${c.period_date}`,
+          requestDate: c.period_date,
+          requester: c.created_by || 'System',
+          link: `/dashboard/checklist/${c.id}`
+        }
+      } else {
+        const i = incidentMap[step.doc_id]
+        if (!i) return null
+        return {
+          id: i.id,
+          category: 'Incident',
+          type: 'Ticket',
+          docNo: i.case_number,
+          subject: i.title,
+          requestDate: i.created_at?.split('T')[0] || 'N/A',
+          requester: i.user_profiles?.full_name || 'Unknown',
+          link: `/dashboard/incidents/${i.id}`
+        }
+      }
+    }).filter(Boolean)
 
     // Sort by date descending
     unified.sort((a, b) => new Date(b.requestDate) - new Date(a.requestDate))
