@@ -72,6 +72,108 @@ export async function recordLog(docId, type, action, details, userEmail) {
     return { success: false, error: err.message }
   }
 }
+/**
+ * 📋 Approval Audit Log
+ * Returns ALL document_approvals rows (approved, pending, waiting) across both modules,
+ * enriched with document details — one row per sequence step.
+ * Used by the "ประวัติการอนุมัติ" tab in /dashboard/approvals.
+ */
+export async function getApprovalAuditLog({ limit = 200 } = {}) {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return { error: 'Unauthorized' }
+
+    const supabaseAdmin = getAdminClient()
+
+    // 1. Fetch all approval steps with approver profile
+    const { data: steps, error } = await supabaseAdmin
+      .from('document_approvals')
+      .select(`
+        id, doc_id, doc_type, step_order, status,
+        role_required, approver_id, action_at, comment,
+        approver:user_profiles!document_approvals_approver_id_fkey(full_name, email)
+      `)
+      .order('action_at', { ascending: false })
+      .limit(limit)
+
+    if (error) throw error
+    if (!steps || steps.length === 0) return { data: [] }
+
+    // 2. Collect doc IDs by type
+    const incidentIds = [...new Set(steps.filter(s => s.doc_type === 'incident').map(s => s.doc_id))]
+    const checklistIds = [...new Set(steps.filter(s => s.doc_type === 'checklist').map(s => s.doc_id))]
+
+    // 3. Fetch document details in parallel
+    const [incidentsRes, checklistsRes] = await Promise.all([
+      incidentIds.length > 0
+        ? supabaseAdmin
+            .from('incidents')
+            .select('id, case_number, title, reported_by, severity, reporter:user_profiles!incidents_reported_by_id_fkey(full_name)')
+            .in('id', incidentIds)
+        : Promise.resolve({ data: [] }),
+      checklistIds.length > 0
+        ? supabaseAdmin
+            .from('checklist_docs')
+            .select('id, freq_type, period_date')
+            .in('id', checklistIds)
+        : Promise.resolve({ data: [] }),
+    ])
+
+    const incidentMap = Object.fromEntries((incidentsRes.data || []).map(i => [i.id, i]))
+    const checklistMap = Object.fromEntries((checklistsRes.data || []).map(c => [c.id, c]))
+
+    // 4. Build unified rows — one row per step
+    const rows = steps.map(step => {
+      const statusLabel = { approved: 'อนุมัติแล้ว', pending: 'รออนุมัติ', waiting: 'รอลำดับก่อน' }
+
+      if (step.doc_type === 'incident') {
+        const inc = incidentMap[step.doc_id]
+        if (!inc) return null
+        return {
+          id: step.id,
+          category: 'Incident',
+          docId: inc.id,
+          docNo: inc.case_number,
+          subject: inc.title,
+          requester: inc.reporter?.full_name || inc.reported_by || '—',
+          stepOrder: step.step_order,
+          roleRequired: step.role_required,
+          approverName: step.approver?.full_name || step.approver?.email || '—',
+          status: step.status,
+          statusLabel: statusLabel[step.status] || step.status,
+          actionAt: step.action_at,
+          comment: step.comment,
+          link: `/dashboard/incidents/${inc.id}`,
+          severity: inc.severity
+        }
+      } else {
+        const chk = checklistMap[step.doc_id]
+        if (!chk) return null
+        return {
+          id: step.id,
+          category: 'Checklist',
+          docId: chk.id,
+          docNo: `CHK-${chk.period_date}-${chk.freq_type?.charAt(0) || '?'}`,
+          subject: `IT Checklist (${chk.freq_type}) — ${chk.period_date}`,
+          requester: '—',
+          stepOrder: step.step_order,
+          roleRequired: step.role_required,
+          approverName: step.approver?.full_name || step.approver?.email || '—',
+          status: step.status,
+          statusLabel: statusLabel[step.status] || step.status,
+          actionAt: step.action_at,
+          comment: step.comment,
+          link: `/dashboard/checklist/${chk.id}`,
+        }
+      }
+    }).filter(Boolean)
+
+    return { data: rows }
+  } catch (err) {
+    console.error('getApprovalAuditLog Error:', err)
+    return { error: err.message }
+  }
+}
 
 export async function getUnifiedPendingApprovals() {
   try {
@@ -113,7 +215,7 @@ export async function getUnifiedPendingApprovals() {
         ? supabaseAdmin.from('checklist_docs').select('id, freq_type, period_date, status, created_by').in('id', checklistIds)
         : Promise.resolve({ data: [] }),
       incidentIds.length > 0
-        ? supabaseAdmin.from('incidents').select('id, case_number, title, status, created_at, user_profiles!incidents_created_by_fkey(full_name)').in('id', incidentIds)
+        ? supabaseAdmin.from('incidents').select('id, case_number, title, status, created_at, severity, user_profiles!incidents_created_by_fkey(full_name)').in('id', incidentIds)
         : Promise.resolve({ data: [] })
     ])
 
@@ -146,7 +248,8 @@ export async function getUnifiedPendingApprovals() {
           subject: i.title,
           requestDate: i.created_at?.split('T')[0] || 'N/A',
           requester: i.user_profiles?.full_name || 'Unknown',
-          link: `/dashboard/incidents/${i.id}`
+          link: `/dashboard/incidents/${i.id}`,
+          severity: i.severity
         }
       }
     }).filter(Boolean)
@@ -372,7 +475,84 @@ export async function getSystemLogs(type = 'audit') {
   }
 }
 
-export async function submitRequest(docId, targetType, triggerKey, userEmail) {
+/**
+ * 🔏 Auto-consume signatures from Resolve dialog into document_approvals steps.
+ * Called immediately after generateWorkflowSteps() during Incident Resolve.
+ * Logs each auto-approved step individually for full audit trail.
+ *
+ * @param {string} docId
+ * @param {Object} initialSignatures - { it: { sig, userId, name, email }, reporter: { sig, userId, name, email }, manager: { sig, userId, name, email } }
+ * @param {string} submitterEmail - Email of the IT who pressed Resolve (for log attribution)
+ */
+async function applySignaturesToWorkflow(docId, initialSignatures, submitterEmail) {
+  if (!initialSignatures) return
+  const supabaseAdmin = getAdminClient()
+
+  // Fetch all steps for this doc ordered by step_order
+  const { data: steps } = await supabaseAdmin
+    .from('document_approvals')
+    .select('*')
+    .eq('doc_id', docId)
+    .order('step_order')
+
+  if (!steps || steps.length === 0) return
+
+  // Map step_order to signature data
+  const sigMap = {
+    1: initialSignatures.it,       // IT Officer
+    2: initialSignatures.reporter,  // Reporter / ผู้แจ้ง
+    3: initialSignatures.manager,   // Manager (High severity only)
+  }
+
+  const now = new Date().toISOString()
+  let lastApprovedOrder = 0
+
+  for (const step of steps) {
+    const sigData = sigMap[step.step_order]
+    if (!sigData?.sig) break // Stop at first missing signature — remaining steps stay pending/waiting
+
+    // Mark this step as approved with the signature
+    const { error: updateErr } = await supabaseAdmin
+      .from('document_approvals')
+      .update({
+        status: 'approved',
+        approver_id: sigData.userId || null,
+        signature_data: sigData.sig,
+        action_at: now,
+        comment: '(Auto-approved during Resolve)'
+      })
+      .eq('id', step.id)
+
+    if (updateErr) {
+      console.error(`applySignaturesToWorkflow: failed to update step ${step.step_order}`, updateErr)
+      break
+    }
+
+    // Record individual log per step
+    const approverLabel = sigData.name
+      ? `${sigData.name}${sigData.email ? ` (${sigData.email})` : ''}`
+      : `Step ${step.step_order}`
+    await recordLog(
+      docId, 'incident',
+      'Approved',
+      `อนุมัติขั้นที่ ${step.step_order} | ${approverLabel} (Auto-approved during Resolve)`,
+      submitterEmail
+    )
+
+    lastApprovedOrder = step.step_order
+  }
+
+  // Unlock the NEXT pending step if it exists
+  const nextStep = steps.find(s => s.step_order === lastApprovedOrder + 1)
+  if (nextStep && nextStep.status === 'waiting') {
+    await supabaseAdmin
+      .from('document_approvals')
+      .update({ status: 'pending' })
+      .eq('id', nextStep.id)
+  }
+}
+
+export async function submitRequest(docId, targetType, triggerKey, userEmail, initialSignatures = null) {
   try {
     const session = await getCurrentUserSession()
     if (!session) return { error: 'Unauthorized' }
@@ -420,6 +600,28 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail) {
     await recordLog(docId, targetType, finalAutoApprove ? 'Auto-Approved' : 'Submitted', finalAutoApprove 
       ? 'ระบบอนุมัติงานให้อัตโนมัติตามการตั้งค่า' 
       : `ส่งเอกสารเพื่อขออนุมัติ (ผู้อนุมัติหลัก: ${approverName})`, userEmail)
+
+    // 🔏 PHASE 1 FIX: Apply signatures from Resolve dialog into workflow steps immediately
+    if (targetType === 'incident' && initialSignatures && !finalAutoApprove) {
+      await applySignaturesToWorkflow(docId, initialSignatures, userEmail)
+
+      // Re-check: if all steps are now approved, close the document
+      const { data: allSteps } = await supabaseAdmin
+        .from('document_approvals')
+        .select('status')
+        .eq('doc_id', docId)
+
+      const allApproved = allSteps && allSteps.length > 0 && allSteps.every(s => s.status === 'approved')
+      if (allApproved) {
+        await supabaseAdmin
+          .from('incidents')
+          .update({ status: 'Closed', workflow_status: 'approved' })
+          .eq('id', docId)
+        await recordLog(docId, 'incident', 'Auto-Closed', 'ปิดเคสอัตโนมัติ — ลายเซ็นครบทุกขั้นตอน (Resolve)', userEmail)
+        await onDocumentFinalApproval(docId, 'incident')
+        return { success: true, autoApproved: true, allSigned: true }
+      }
+    }
 
     // 🛡️ CRITICAL: Handle cross-module sync if auto-approved
     if (finalAutoApprove) {
@@ -489,6 +691,43 @@ export async function getDocumentWorkflowStatus(docId) {
     return { data }
   } catch (err) {
     console.error('getDocumentWorkflowStatus Error:', err)
+    return { error: err.message }
+  }
+}
+
+export async function rejectDocumentWorkflow(docId, docType, reason) {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return { error: 'Unauthorized' }
+
+    const supabaseAdmin = getAdminClient()
+    const table = docType.toLowerCase() === 'checklist' ? 'checklist_docs' : 'incidents'
+
+    // 1. Update Main Table
+    const { error: updateErr } = await supabaseAdmin
+      .from(table)
+      .update({
+        workflow_status: 'draft',
+        status: docType.toLowerCase() === 'incident' ? 'In Progress' : 'Open', // Return to editing state
+        assigned_approver_id: null
+      })
+      .eq('id', docId)
+
+    if (updateErr) throw updateErr
+
+    // 2. Mark current pending steps as rejected
+    await supabaseAdmin
+      .from('document_approvals')
+      .update({ status: 'rejected', comment: `Rejected: ${reason}` })
+      .eq('doc_id', docId)
+      .eq('status', 'pending')
+
+    // 3. Record Log
+    await recordLog(docId, docType.toLowerCase(), 'Rejected', `ตีกลับเอกสาร | เหตุผล: ${reason}`, session.user.email)
+
+    return { success: true }
+  } catch (err) {
+    console.error('rejectDocumentWorkflow Error:', err)
     return { error: err.message }
   }
 }
@@ -656,6 +895,23 @@ export async function runWorkflowMigration() {
   }
 }
 
+export async function resetDocumentWorkflow(docId, docType) {
+  try {
+    const supabaseAdmin = getAdminClient()
+    const { error } = await supabaseAdmin
+      .from('document_approvals')
+      .delete()
+      .eq('doc_id', docId)
+      .eq('doc_type', docType.toLowerCase())
+    
+    if (error) throw error
+    return { success: true }
+  } catch (err) {
+    console.error('resetDocumentWorkflow Error:', err)
+    return { error: err.message }
+  }
+}
+
 export async function adminResetWorkflow(docId, docType, password) {
   try {
     const session = await getCurrentUserSession()
@@ -683,7 +939,7 @@ export async function adminResetWorkflow(docId, docType, password) {
 
     if (authError) return { error: 'รหัสผ่านไม่ถูกต้อง การยืนยันตัวตนล้มเหลว' }
 
-    // 3. Reset Workflow
+    // 3. Reset Workflow in Main Table
     const table = docType === 'Checklist' ? 'checklist_docs' : 'incidents'
     const updateData = {
       workflow_status: null,
@@ -700,7 +956,10 @@ export async function adminResetWorkflow(docId, docType, password) {
 
     if (resetError) throw resetError
 
-    // 4. Record Log
+    // 4. Reset document_approvals table
+    await resetDocumentWorkflow(docId, docType)
+
+    // 5. Record Log
     await recordLog(docId, docType.toLowerCase(), 'Admin Override', `ยกเลิกการอนุมัติ (Workflow Reset) โดย ${profile.full_name} ผ่านหน้าจอ Approval Logs`, session.user.email)
 
     return { success: true }

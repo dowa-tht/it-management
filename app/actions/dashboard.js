@@ -30,8 +30,8 @@ export async function getDashboardData(timezoneOffset = -420) {
     if (session && session.user) {
       const { data: profile } = await supabaseAdmin
         .from('user_profiles')
-        .select('id, role, email')
-        .eq(session.type === 'internal' ? 'email' : 'id', (session.user.email || session.user.id))
+        .select('id, role, email, full_name')
+        .or(`id.eq.${session.user.id},email.eq.${session.user.email || '___'}`)
         .maybeSingle()
       userProfile = profile
     }
@@ -55,7 +55,7 @@ export async function getDashboardData(timezoneOffset = -420) {
     const ytdStartIso = `${todayStr.substring(0, 4)}-01-01T00:00:00`
 
     const results = await Promise.all([
-      supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system').gte('created_at', startIso).order('created_at', { ascending: false }),
+      supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system, reported_by').gte('created_at', startIso).order('created_at', { ascending: false }),
       supabaseAdmin.from('backup_logs').select('id, log_date, system_name, status, notes').gte('log_date', startIso.split('T')[0]).order('log_date', { ascending: false }),
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, item_key, status)').gte('period_date', streakStartStr),
       supabaseAdmin.from('holidays').select('holiday_date').gte('holiday_date', streakStartStr),
@@ -72,8 +72,8 @@ export async function getDashboardData(timezoneOffset = -420) {
       // Fetch My Sent Pending Items (For Sender Tracking)
       userProfile?.email ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING', 'Pending Approval']).eq('created_by', userProfile.email) : Promise.resolve({ data: [] }),
       userProfile ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval')
-          .or(`reported_by_id.eq.${userProfile.id},reported_by.eq.${userProfile.email || '___'}`) : Promise.resolve({ data: [] }),
-      supabaseAdmin.from('incidents').select('id, severity, status, created_at, acknowledged_at, assigned_at, resolved_at').gte('created_at', ytdStartIso)
+          .eq('reported_by', userProfile.email || '___') : Promise.resolve({ data: [] }),
+      supabaseAdmin.from('incidents').select('id, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system, reported_by').gte('created_at', ytdStartIso)
     ])
 
     const [
@@ -85,10 +85,13 @@ export async function getDashboardData(timezoneOffset = -420) {
 
     let incidents = incRes.data || []
     
-    // 🛡️ แยกข้อมูล: เก็บงานของตนเองไว้แสดงผลแยกต่างหาก (สำหรับ Member)
+    // 🛡️ แยกข้อมูล: เก็บงานของตนเองไว้แสดงผลแยกต่างหาก (สำหรับ Member หรือผู้ที่ต้องการดูงานตนเอง)
     let myIncidents = []
     if (userProfile) {
-      myIncidents = incidents.filter(i => i.reported_by_id === userProfile.id || i.reported_by === userProfile.email)
+      myIncidents = incidents.filter(i => 
+        i.reported_by === userProfile.full_name || 
+        i.reported_by === userProfile.email
+      )
     }
     const backups = bakRes.data || []
     const allChecklists = chkRes.error ? [] : (chkRes.data || [])
@@ -300,13 +303,58 @@ export async function getDashboardData(timezoneOffset = -420) {
       incidentByDay,
       severityData,
       recentIncidents: incidents.slice(0, 5),
-      myRecentIncidents: myIncidents.slice(0, 5), // 👈 เพิ่มส่วนนี้
+      myRecentIncidents: myIncidents.slice(0, 5),
       recentBackups: backups.slice(0, 5),
       checklists,
       checklistActions,
-      userProfile, // 👈 เพิ่ม profile เพื่อใช้เช็ค role ในหน้าบ้าน
+      userProfile, 
       pendingApprovalsCount: pendingApprovalsRes?.data?.length || 0,
-      myPendingFollowupsCount: (myPendingChkRes?.data?.length || 0) + (myPendingIncRes?.data?.length || 0)
+      myPendingFollowupsCount: (myPendingChkRes?.data?.length || 0) + (myPendingIncRes?.data?.length || 0),
+      
+      // --- Member Specific Data (For Redesigned Dashboard) ---
+      memberStats: userProfile?.role === 'member' ? {
+        total: ytdIncidents.filter(i => i.reported_by === userProfile.email || i.reported_by === userProfile.full_name).length,
+        inProgress: incidents.filter(i => (i.reported_by === userProfile.email || i.reported_by === userProfile.full_name) && (i.status === 'Open' || i.status === 'In Progress')).length,
+        pendingConfirm: incidents.filter(i => (i.reported_by === userProfile.email || i.reported_by === userProfile.full_name) && i.status === 'Pending Approval').length,
+        closed: ytdIncidents.filter(i => (i.reported_by === userProfile.email || i.reported_by === userProfile.full_name) && i.status === 'Closed').length,
+        
+        // Trend Data (Last 6 Months from YTD)
+        trend: (() => {
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const myYtd = ytdIncidents.filter(i => i.reported_by === userProfile.email || i.reported_by === userProfile.full_name);
+          const map = {};
+          
+          // Initialize last 6 months
+          for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(new Date().getMonth() - i); 
+            const m = months[d.getMonth()];
+            map[m] = 0;
+          }
+          
+          myYtd.forEach(i => {
+            const m = months[new Date(i.created_at).getMonth()];
+            if (map[m] !== undefined) map[m]++;
+          });
+          
+          return Object.entries(map).map(([name, value]) => ({ name, value }));
+        })(),
+        
+        // Category Breakdown (Top Systems)
+        categories: (() => {
+          const myYtd = ytdIncidents.filter(i => i.reported_by === userProfile.email || i.reported_by === userProfile.full_name);
+          const map = {};
+          myYtd.forEach(i => {
+            const s = i.affected_system || 'อื่นๆ (Other)';
+            map[s] = (map[s] || 0) + 1;
+          });
+          const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+          return Object.entries(map)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([name, value], idx) => ({ name, value, color: colors[idx % colors.length] }));
+        })()
+      } : null
     }
   } catch (err) {
     console.error('Dashboard Server Action Exception:', err)

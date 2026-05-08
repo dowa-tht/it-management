@@ -82,6 +82,7 @@ function NewIncidentForm() {
   useEffect(() => {
     loadNoSeries()
     loadMasterData()
+    loadCurrentUser()
     handleChecklistRef()
     const timer = setInterval(() => setElapsed(calcElapsedNow(createdAt)), 30000)
     return () => clearInterval(timer)
@@ -121,6 +122,26 @@ function NewIncidentForm() {
       setAssignedAt(null)
     }
   }, [form.assigned_to])
+
+  const loadCurrentUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email')
+        .eq('id', user.id)
+        .single()
+      
+      if (profile) {
+        setForm(prev => ({
+          ...prev,
+          reported_by: profile.full_name || user.email, // Use full_name, fallback to email if missing in DB
+          reported_by_id: profile.id,
+          created_by: profile.id
+        }))
+      }
+    }
+  }
 
   const loadMasterData = async () => {
     setLoadingMaster(true)
@@ -166,7 +187,9 @@ function NewIncidentForm() {
     setLoading(true)
 
     try {
-      const { ref_doc_id, reported_by_id, created_by, ...insertData } = form
+      // Include reported_by_id and created_by per DEVELOPMENT.md §6 (Reporter ID Storage)
+      // ref_doc_id is a local UI-only field, exclude it from DB insert
+      const { ref_doc_id, ...insertData } = form
       const { error } = await supabase.from('incidents').insert([{
         ...insertData,
         case_number: caseNo,
@@ -288,9 +311,17 @@ function NewIncidentForm() {
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>สถานะ</label>
-              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} disabled={!!form.assigned_to} style={{ ...selectStyle(''), background: form.assigned_to ? '#f0fdf4' : '#fff' }}>
-                {['Open', 'In Progress', 'Closed'].map(o => <option key={o}>{o}</option>)}
-              </select>
+              <div style={{
+                padding: '7px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                background: form.assigned_to ? '#eff6ff' : '#f9fafb',
+                color: form.assigned_to ? '#1d4ed8' : '#6b7280',
+                border: '1px solid',
+                borderColor: form.assigned_to ? '#bfdbfe' : '#e5e7eb',
+                display: 'inline-flex', alignItems: 'center', height: 38, width: '100%'
+              }}>
+                <span style={{ marginRight: 8 }}>{form.assigned_to ? '🔵' : '⚪'}</span>
+                {form.assigned_to ? 'In Progress' : 'Open'}
+              </div>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

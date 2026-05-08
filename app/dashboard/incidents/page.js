@@ -34,10 +34,10 @@ function IncidentsContent() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
-  const [incidentsCache, setIncidentsCache] = useState({}) // SWR Cache
   const [dateFilter, setDateFilter] = useState(searchParams.get('date') || '30days')
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all')
   const [severityFilter, setSeverityFilter] = useState(searchParams.get('severity') || 'all')
+  const [showOnlyMine, setShowOnlyMine] = useState(searchParams.get('filter') === 'my')
   const [currentUser, setCurrentUser] = useState(null)
 
   useEffect(() => {
@@ -56,7 +56,7 @@ function IncidentsContent() {
   useEffect(() => { 
     setPage(0)
     fetchIncidents(0, false) 
-  }, [dateFilter, statusFilter, severityFilter, currentUser?.id])
+  }, [dateFilter, statusFilter, severityFilter, showOnlyMine, currentUser?.id])
 
   const loadMore = () => {
     const nextPage = page + 1
@@ -87,13 +87,7 @@ function IncidentsContent() {
   }
 
   const fetchIncidents = async (pageToFetch = 0, isLoadMore = false) => {
-    const cacheKey = `${dateFilter}-${statusFilter}-${severityFilter}-${pageToFetch}-${currentUser?.id || 'guest'}`
-    
-    // 1. Stale: Use cache if available
-    if (!isLoadMore && incidentsCache[cacheKey]) {
-      setIncidents(incidentsCache[cacheKey])
-      // Still refresh in background
-    } else if (!isLoadMore) {
+    if (!isLoadMore) {
       setLoading(true)
     } else {
       setLoadingMore(true)
@@ -113,25 +107,40 @@ function IncidentsContent() {
       query = query.eq('severity', severityFilter)
     }
 
-    if (currentUser?.role === 'member') {
-      query = query.or(`created_by.eq.${currentUser.id},reported_by.eq.${currentUser.email}`)
+    if (showOnlyMine) {
+      if (!currentUser) {
+        setLoading(false)
+        return
+      }
+      const name = (currentUser.full_name || '').trim()
+      const email = (currentUser.email || '').trim()
+      
+      const filters = []
+      if (name) filters.push(`reported_by.eq."${name}"`)
+      if (email) filters.push(`reported_by.eq."${email}"`)
+      
+      if (filters.length > 0) {
+        query = query.or(filters.join(','))
+      }
     }
 
     const { data, error, count } = await query
     
-    if (!error) {
-      const freshData = data || []
-      if (isLoadMore) {
-        setIncidents(prev => [...prev, ...freshData])
-      } else {
-        setIncidents(freshData)
-      }
-      
-      setHasMore(count > (pageToFetch + 1) * 20)
-      
-      // Update Cache
-      setIncidentsCache(prev => ({ ...prev, [cacheKey]: freshData }))
+    if (error) {
+      console.error('Fetch Incidents Error:', error)
+      setLoading(false)
+      setLoadingMore(false)
+      return
     }
+
+    const freshData = data || []
+    if (isLoadMore) {
+      setIncidents(prev => [...prev, ...freshData])
+    } else {
+      setIncidents(freshData)
+    }
+    
+    setHasMore(count > (pageToFetch + 1) * 20)
     
     setLoading(false)
     setLoadingMore(false)
@@ -223,6 +232,19 @@ function IncidentsContent() {
             <option value="Medium">Medium</option>
             <option value="Low">Low</option>
           </select>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'flex-end', paddingBottom: 6 }}>
+          <input 
+            type="checkbox" 
+            id="showOnlyMine" 
+            checked={showOnlyMine} 
+            onChange={e => setShowOnlyMine(e.target.checked)}
+            style={{ width: 16, height: 16, cursor: 'pointer' }}
+          />
+          <label htmlFor="showOnlyMine" style={{ fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+            แสดงเฉพาะรายการของฉัน (My Incidents)
+          </label>
         </div>
       </div>
 

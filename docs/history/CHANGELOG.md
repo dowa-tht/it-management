@@ -1,4 +1,82 @@
-### [2026-05-07 17:30] - Final Stability & UX Polish (Session Complete)
+### [2026-05-08 08:20] - Project Checker: Workflow Documentation & Manuals
+- **[NEW MANUAL] `docs/manuals/WORKFLOW_GUIDE.md`**: จัดทำคู่มือระบบ Workflow แบบละเอียด แสดงขั้นตอนการทำงาน (Flow), เงื่อนไข (If/Else), การตรวจสอบ PIN และการซิงค์ข้อมูลข้าม Module (Incident -> Checklist)
+- **[UPDATE] `docs/standards/WORKFLOW_ENGINE.md`**: เพิ่มรายละเอียดตาราง `approval_configs` (Section 1.3) ซึ่งใช้สำหรับกำหนดผู้อนุมัติหลัก (Primary Approver) ตามความถี่หรืองาน ที่ตกหล่นในเอกสารเดิม
+- **[UPDATE] `docs/INDEX.md`**: เพิ่มหมวดหมู่ "4. Manuals & Guides" เพื่อรวบรวมคู่มือการใช้งานระบบ และเพิ่มลิงก์ไปยังคู่มือ Workflow ใหม่
+- **[VERIFICATION]**: ตรวจสอบ Logic ใน `app/actions/workflow.js` พบว่าทำงานสอดคล้องกับมาตรฐาน (Evidence: `applySignaturesToWorkflow` จัดการ Auto-consume ลายเซ็นในช่วง Resolve ได้ถูกต้อง)
+
+### [2026-05-08 08:05] - Unified Workflow Execution (Phase 1-3)
+- **[REFACTOR] `app/dashboard/incidents/[id]/page.js`**: 
+    - **Step 1.1**: สร้าง `unifiedHistory` State และ `useEffect` เพื่อ Merge ข้อมูลจาก `logs` และ `workflowSteps` แสดงผลแบบ Timeline ที่ L1249
+    - **Step 1.2**: ลบส่วนแสดงผล Signature Grid (L1232-1250) เพื่อลดความซ้ำซ้อน
+    - **Step 2.1**: แก้ไข `handleResolve` (L755) เลิกเขียนลายเซ็นลงตาราง `incidents` โดยตรง (Double Writing)
+    - **Step 2.2**: แก้ไข `handleReopen` (L828) ให้เรียกใช้ `resetDocumentWorkflow` ก่อนอัปเดตสถานะหลัก
+    - **Step 2.3**: แก้ไข `handleRejectIncident` (L816) ให้เรียกใช้ `rejectDocumentWorkflow` แทนการอัปเดตตาราง Manual
+    - **Step 3.1**: จำกัด Status Options ใน `field` Helper (L1064) เหลือเพียง 'Open' และ 'In Progress' (Zero-Hack Guard)
+- **[NEW ACTION] `app/actions/workflow.js`**:
+    - เพิ่ม `resetDocumentWorkflow` เพื่อลบประวัติการอนุมัติใน `document_approvals`
+    - เพิ่ม `rejectDocumentWorkflow` เพื่อจัดการการตีกลับเอกสารในระบบ Unified
+    - อัปเดต `adminResetWorkflow` ให้เรียกใช้การล้างข้อมูลในตาราง Workflow ด้วย
+- **[PROGRESS]** ดำเนินการตาม [workflow_unification_plan.md](file:///C:/Users/Lenovo/.gemini/antigravity/brain/9b767f56-b86e-452e-bf77-74893a5c789d/implementation_plan.md) เสร็จสมบูรณ์ 100% (ดูรายละเอียดใน [task.md](file:///C:/Users/Lenovo/.gemini/antigravity/brain/9b767f56-b86e-452e-bf77-74893a5c789d/task.md))
+
+### [2026-05-07 22:30] - Documentation & Agent Standards Update
+- **[WORKFLOW_ENGINE.md]** เพิ่ม 3 Section ใหม่ที่เป็น Mandatory Standard:
+  - **§10 Incident Resolve & Auto-Approve**: กำหนดลำดับขั้นตอนการ Resolve + Auto-consume ลายเซ็น + Anti-patterns ที่ห้ามทำ
+  - **§11 Reporter Identity**: บังคับให้ Incidents มี `reported_by_id` (UUID), ใช้ Live JOIN สำหรับแสดงชื่อ, PIN Verification Lookup Order
+  - **§12 Approval Audit Log**: กำหนดมาตรฐานว่าต้องแสดง 1 บรรทัดต่อ 1 Sequence Step
+- **[AGENTS.md]** เพิ่ม Rule ข้อ 7 **[EVIDENCE-BASED VERIFICATION]**:
+  - บังคับ AI อ่านไฟล์จริงก่อนตอบคำถามการตรวจสอบ ห้ามตอบจากความจำ
+  - คำตอบต้องอ้างอิงชื่อไฟล์ + หมายเลขบรรทัด + โค้ดจริง
+  - ต้องเปรียบเทียบกับมาตรฐานใน `docs/standards/` โดยระบุ Section
+  - ห้ามตอบแบบ "น่าจะ" และต้องรายงานตามความจริงเสมอ
+
+
+- **[NEW] `getApprovalAuditLog()` Server Action** (`workflow.js`): ดึงข้อมูลทุก Row ใน `document_approvals` (approved / pending / waiting) พร้อม JOIN ชื่อเอกสารจาก `incidents` และ `checklist_docs` และ JOIN ชื่อผู้อนุมัติจาก `user_profiles`
+- **[REDESIGN] หน้า `/dashboard/approvals`**: ปรับเป็น 2-Tab Layout:
+  - **Tab "รออนุมัติ"**: Queue เดิม (ไม่เปลี่ยนแปลง Logic)
+  - **Tab "ประวัติการอนุมัติ"**: แสดง 1 บรรทัดต่อ 1 Sequence — เห็นทุก Step ของทุกเอกสารพร้อมกัน
+- **Filter**: กรองด้วย Status Pill (อนุมัติแล้ว / รออนุมัติ / รอลำดับก่อน), ประเภทเอกสาร, และ Keyword Search
+- **Summary Pills**: แสดงจำนวนแต่ละสถานะ สามารถกด Filter ได้ทันที
+
+
+> **Objective**: แก้ไขให้การ Resolve Incident เชื่อมกับ `document_approvals` โดยตรง ไม่ต้องเซ็นซ้ำซ้อน
+- **[PHASE 1] Backend `workflow.js`**: `applySignaturesToWorkflow()`, Log ต่อ Step, Auto-Close
+- **[PHASE 2] Frontend `incidents/[id]/page.js`**: `handleResolve()` ส่ง `initialSignatures`, Log สะท้อนสถานะจริง
+- **[PHASE 3 + BUG FIX] `reported_by_id` Chain**:
+  - ลบ `full_name` fallback ออกจาก `verifyMemberPIN` (ZERO_HACK_POLICY)
+  - แก้ `new/page.js` บรรทัด 190: Include `reported_by_id` ใน Insert แทนการ Destructure ทิ้ง
+  - สร้าง + รัน `scripts/migration_reported_by_id.sql`: ADD COLUMN + Backfill (7/16 สำเร็จ, 9 เป็น Test data)
+- **[IMPROVEMENT] Live JOIN Reporter**:
+  - `fetchIncident()` JOIN `user_profiles` ผ่าน `reported_by_id` → ชื่อผู้แจ้งเป็น Real-time เสมอ แม้มีการเปลี่ยน `full_name`
+  - `handleResolve` ดึง `reporter.email` จาก JOIN มาใช้ใน Audit Log (UUID + Email + Name)
+
+### [2026-05-07 21:20] - Member Dashboard Fixes & Layout Refinement
+- **Critical Fix: Member Stats & Charts**: Resolved an issue where stats and charts showed zero/empty by including `full_name` in the user profile query and synchronizing data filters.
+- **UI Refinement: Recent Activity**: Updated the layout of "My Recent Requests" to a single-column stack (1 item per row) as requested, improving readability on all devices.
+- **Improved Data Accuracy**: Ensured all personal metrics match the global incident list by using a unified filtering logic (ID + Email + Full Name).
+
+### [2026-05-07 21:15] - Member Dashboard Redesign & Personalized UX
+- **Redesigned Member Dashboard**: Implemented a completely separate dashboard view for users with the `member` role, focusing on personal data and clarity.
+- **Personalized Stats**: Added 4 premium status cards for members (Total, In Progress, Wait Confirm, Closed).
+- **Advanced Data Visualization**: Added **Incident Trend** (BarChart) and **Category Breakdown** (PieChart) for personal history.
+- **Actionable UI**: Status cards now lead to filtered Incident list views.
+- **Navigation Sync**: Updated `IncidentsPage` to handle `filter=my` and `status` parameters from dashboard links.
+- **Server Action Optimization**: Enhanced `getDashboardData` with specific member statistic computation.
+
+### [2026-05-07 21:05] - Standardization & Documentation Sync
+- **Official System Standards**: Formalized the following logic into `docs/standards/`:
+    - **Incident Lifecycle Management**: Added to `WORKFLOW_ENGINE.md` to enforce automatic status transitions.
+    - **Identity & Filtering Standard**: Added to `DEVELOPMENT.md` to standardize name-first display and robust personal data filtering.
+- **Documentation Sync**: Verified and updated `docs/INDEX.md` to ensure all new standards are properly linked and categorized.
+
+### [2026-05-07 17:48] - Personalized Workflow & UX Refinement
+- **Automatic Status Flow**: Replaced the manual Status dropdown in the "New Incident" form with an automatic badge. Status now transitions from **Open** to **In Progress** based on the presence of an assignee, ensuring workflow integrity.
+- **Identity Priority**: Updated the "Reported By" field logic to prioritize the user's **Full Name** over their email address for a more professional and readable identity.
+- **Universal 'My Incidents' Filter**: Added a persistent checkbox to the Incident Management page for all roles, allowing instant toggling between global and personal incident lists.
+- **Dashboard: Enhanced Request Tracking**: Fixed and optimized the "My Recent Requests" section on the dashboard. The filter now intelligently matches the user's Full Name and Email against the database to ensure personal tickets are never missed.
+- **Schema-Aware Filtering**: Adjusted server-side and client-side queries to use available database columns (`reported_by`) instead of non-existent ID columns, resolving filtering issues.
+- **Auto-Default Reporter**: The "New Incident" form now automatically defaults the **Reported By** field to the currently logged-in user's full name.
+- **Status Flow Enforcement**: Replaced the manual Status dropdown with an automatic badge that reflects the internal state (Open/In Progress) based on assignments.
+- **Identity Linkage**: Improved internal data consistency by automatically setting the `created_by` and `reported_by_id` fields.
 - **Full System Validation**: Verified all Quick Filters (Today, 7D, 30D, Month, 3M, Year) are functioning correctly across all modules with precise timezone handling and instant SWR responses.
 - **Critical Bug Fix: Dashboard Approval Count**: 
     - Resolved a destructuring error in `getDashboardData` where the "Approvals" badge incorrectly displayed the count of Checklist Templates (13) instead of actual pending tasks.

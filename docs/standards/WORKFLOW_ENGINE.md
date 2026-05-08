@@ -18,6 +18,13 @@
 - `role_required`: บทบาทที่ต้องอนุมัติ (`it_officer`, `manager`, `director`)
 - `is_active`: สถานะการใช้งาน
 
+### 1.3 `approval_configs` (ตารางกำหนดผู้อนุมัติหลัก)
+ใช้สำหรับกำหนดว่าใครเป็นผู้รับผิดชอบหลักในแต่ละความถี่หรืองาน
+- `id`: UUID (PK)
+- `target_type`: ประเภทเอกสาร (`checklist`, `incident`)
+- `freq_type`: ความถี่หรือเงื่อนไข (`Daily`, `High`, etc.)
+- `primary_approver_id`: UUID ของผู้อนุมัติหลัก (เชื่อมกับ `user_profiles.id`)
+
 ### 1.2 `document_approvals` (ตารางบันทึกการอนุมัติจริง)
 ใช้สำหรับเก็บประวัติการเซ็นชื่อและสถานะปัจจุบันของแต่ละใบงาน
 - `id`: UUID (PK)
@@ -112,6 +119,90 @@ Admin สามารถจัดการ Flow ได้ผ่านเมน�
 - สามารถเพิ่ม Step พิเศษสำหรับกรณีเฉพาะได้เอง
 
 ---
+
+## 9. Incident Lifecycle & Automatic Status Management
+
+เพื่อให้กระบวนการแจ้งซ่อม (Incident Management) มีความเสถียรและลด Human Error ระบบจะใช้การควบคุมสถานะแบบอัตโนมัติ (Automated State Transitions):
+
+### 9.1 Status Hierarchy (ลำดับชั้นของสถานะ)
+*   **Open**: สถานะเริ่มต้นเมื่อมีการสร้าง Incident ใหม่และยังไม่ได้ระบุผู้รับผิดชอบ (Assigned To)
+*   **In Progress**: ระบบจะเปลี่ยนสถานะเป็น In Progress ทันทีโดยอัตโนมัติเมื่อมีการมอบหมายงาน (Assign) หรือระบุผู้รับผิดชอบในเอกสาร
+*   **Pending Approval**: สถานะเมื่อการแก้ไขเสร็จสิ้นและอยู่ระหว่างการรอลายเซ็นจากผู้ที่เกี่ยวข้องตาม Workflow Config
+*   **Closed**: สถานะสุดท้ายเมื่อทุกลำดับอนุมัติเซ็นชื่อครบถ้วน
+
+### 9.2 Data Locking & Integrity
+*   **Input Protection**: ห้ามให้ผู้ใช้เลือกสถานะ (Status) เองผ่าน Dropdown ในขั้นตอนการสร้างเอกสารใหม่ เพื่อป้องกันการข้ามขั้นตอน Workflow
+*   **Auto-Priority**: เมื่อมีการระบุ "ผู้รับผิดชอบ" ระบบต้องแสตมป์ Timestamp `assigned_at` และเปลี่ยน `status` ทันทีเพื่อความแม่นยำในการวัด SLA
+
+---
+
+## 10. Incident Resolve & Auto-Approve Standard (มาตรฐานการ Resolve และ Auto-Approve)
+
+> **บังคับใช้ตั้งแต่ 07-May-2026** — อ้างอิงจากการแก้ไข Unified Workflow Integration
+
+เมื่อ IT Officer กด **"Resolve"** บน Incident ระบบต้องดำเนินการตามลำดับต่อไปนี้ **ทันทีในคำสั่งเดียว**:
+
+### 10.1 ลำดับการทำงาน (Required Sequence)
+1. IT เซ็นชื่อในหน้าต่าง Resolve
+2. ผู้แจ้ง (Reporter) ยืนยันตัวตนด้วย PIN แล้วเซ็นชื่อ
+3. ระบบเรียก `submitRequest()` โดยส่ง `initialSignatures` ที่รวบรวมลายเซ็นไว้
+4. `submitRequest()` สร้าง Workflow Steps ใน `document_approvals` ผ่าน `generateWorkflowSteps()`
+5. `applySignaturesToWorkflow()` ถูกเรียกทันที เพื่อ **Auto-consume** ลายเซ็นที่ได้รับ:
+   - แต่ละ Step ที่มีลายเซ็น → อัปเดตสถานะเป็น `approved` พร้อมบันทึก `signature_data`, `approver_id`, `action_at`
+   - Comment: `(Auto-approved during Resolve)` บันทึกใน `document_approvals.comment`
+   - Log แยกต่างหากบันทึกใน `incident_logs` ทุก Step ด้วย Format: `Approved | อนุมัติขั้นที่ X | [ชื่อผู้อนุมัติ] (Auto-approved during Resolve)`
+6. หากลายเซ็นครบทุก Step → ปิดเคส (`Closed`) ทันที และเรียก `onDocumentFinalApproval()`
+7. หากลายเซ็นไม่ครบ → สถานะเป็น `Pending Approval` และ Step ถัดไปถูกปลดล็อค (`pending`)
+
+### 10.2 ข้อห้าม (Anti-Patterns)
+- ❌ **ห้าม** บันทึกลายเซ็นลงตาราง `incidents` โดยตรงแทน `document_approvals` (ยกเว้นเพื่อ Backward-Compatible Preview เท่านั้น)
+- ❌ **ห้าม** สร้าง Workflow Steps แล้วปล่อยให้ทุก Step เป็น `pending`/`waiting` โดยไม่นำลายเซ็นที่มีอยู่แล้วไป Consume
+- ❌ **ห้าม** ใช้ `full_name` ในการค้นหาผู้ใช้ (เช่น ใน PIN Verification) — ต้องใช้ UUID หรือ Email เท่านั้น
+
+---
+
+## 11. Reporter Identity Standard (มาตรฐานการระบุตัวตนผู้แจ้ง)
+
+> **บังคับใช้ตั้งแต่ 07-May-2026** — อ้างอิงจาก DEVELOPMENT.md §6
+
+### 11.1 Database Requirement
+- ตาราง `incidents` **ต้องมีคอลัมน์** `reported_by_id UUID REFERENCES user_profiles(id)`
+- ทุก Insert และ Update ของ Incident **ต้องบันทึก `reported_by_id`** (UUID) ควบคู่กับ `reported_by` (Display Name)
+- `reported_by` (text) ใช้เพื่อแสดงผลเท่านั้น ไม่ควรใช้เป็น Key ในการค้นหาหรือยืนยันตัวตน
+
+### 11.2 Display (Live JOIN)
+- หน้า Incident Detail ต้อง **JOIN** `user_profiles` ผ่าน `reported_by_id` สำหรับแสดงชื่อ
+- ห้ามอ่าน `reported_by` text โดยตรงสำหรับการแสดงผลหลัก (อาจ Stale หากผู้ใช้เปลี่ยนชื่อ)
+- Pattern ที่ถูกต้อง:
+  ```js
+  .select('*, reporter:user_profiles!incidents_reported_by_id_fkey(id, full_name, email)')
+  // แสดงผล: data.reporter?.full_name || data.reported_by
+  ```
+
+### 11.3 PIN Verification Lookup Order
+ฟังก์ชัน `verifyMemberPIN(userId, pin)` ต้องค้นหาตาม **ลำดับนี้เท่านั้น**:
+1. **UUID** (ถ้า `userId` เป็น UUID format)
+2. **Email** (ถ้าไม่ใช่ UUID)
+3. ❌ **ห้ามใช้ `full_name`** เป็น Fallback — ผิดมาตรฐาน ZERO_HACK_POLICY
+
+---
+
+## 12. Approval Audit Log Standard (มาตรฐานการแสดงประวัติการอนุมัติ)
+
+> **บังคับใช้ตั้งแต่ 07-May-2026**
+
+- ระบบต้องมีหน้า **Approval Audit Log** ที่แสดงทุก Record ใน `document_approvals`
+- **1 บรรทัด = 1 Sequence Step** ของ 1 เอกสาร
+- เอกสารที่มี 3 Sequence ต้องแสดง **3 บรรทัด** เรียงตาม `step_order`
+- ข้อมูลที่แสดงขั้นต่ำ: ประเภทเอกสาร, เลขที่, หัวข้อ, ลำดับที่, บทบาท, ผู้อนุมัติ, สถานะ, วันที่
+- ต้องรองรับการ Filter ตามสถานะ (approved / pending / waiting)
+- Server Action: `getApprovalAuditLog()` ใน `app/actions/workflow.js`
+
+---
+
 > [!IMPORTANT]
 > **"ความแม่นยำและมาตรฐาน คือหัวใจของระบบเรา"**
 > ผู้พัฒนา (AI และมนุษย์) ต้องอ่านและปฏิบัติตามมาตรฐานนี้ในทุกการแก้ไขโค้ด (Git Commit/Code Update) โดยไม่มีข้อยกเว้น
+
+---
+*Last Updated: 07-May-2026 21:30 — Added §10 Incident Resolve Auto-Approve, §11 Reporter Identity, §12 Approval Audit Log*

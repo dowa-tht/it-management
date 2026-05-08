@@ -263,6 +263,7 @@ export async function verifyMemberPIN(userId, pin) {
     let user;
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
     
+    // 1. Try by UUID (most reliable — standard per DEVELOPMENT.md §6)
     if (isUUID) {
       const { data } = await supabaseAdmin
         .from('user_profiles')
@@ -272,6 +273,7 @@ export async function verifyMemberPIN(userId, pin) {
       user = data
     }
 
+    // 2. Try by email (fallback if UUID not available)
     if (!user && userId) {
       const { data } = await supabaseAdmin
         .from('user_profiles')
@@ -281,10 +283,12 @@ export async function verifyMemberPIN(userId, pin) {
       user = data
     }
 
-    if (!user) return { success: false, error: 'ไม่พบข้อมูลผู้ใช้ในระบบ' }
+    // NOTE: full_name fallback intentionally removed — violates ZERO_HACK_POLICY & DEVELOPMENT.md §6
+    // Root fix: incidents.reported_by_id column must be populated at insert time
+
+    if (!user) return { success: false, error: 'ไม่พบข้อมูลผู้ใช้ในระบบ (กรุณาตรวจสอบว่า Incident บันทึก reported_by_id ถูกต้อง)' }
     if (!user.signature_pin) return { success: false, error: 'ผู้ใช้ท่านนี้ยังไม่ได้ตั้งรหัส PIN' }
 
-    // Use bcrypt to compare
     const isValid = bcrypt.compareSync(pin, user.signature_pin)
     if (!isValid) return { success: false, error: 'PIN ไม่ถูกต้อง' }
 

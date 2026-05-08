@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { calculateNetBusinessMinutes, SLA_LIMITS } from '@/lib/slaUtils'
-import { recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep } from '@/app/actions/workflow'
+import { recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow } from '@/app/actions/workflow'
 import { isSubstituteOf } from '@/lib/workflow'
 import { SignatureModal } from '@/app/dashboard/checklist/components/SignatureModal'
 import { MemberSignatureModal } from '../components/MemberSignatureModal'
@@ -388,6 +388,7 @@ export default function IncidentDetailPage() {
   const [isSub, setIsSub] = useState(false)
   const [isAutoApprove, setIsAutoApprove] = useState(false)
   const [workflowSteps, setWorkflowSteps] = useState([])
+  const [unifiedHistory, setUnifiedHistory] = useState([])
 
   // Master Data
   const [categories, setCategories] = useState([])
@@ -457,10 +458,21 @@ export default function IncidentDetailPage() {
   const isVisitor = currentUser?.role === 'visitor'
 
   const fetchIncident = async () => {
-    const { data } = await supabase.from('incidents').select('*').eq('id', id).single()
+    // JOIN user_profiles via reported_by_id for a live, always-current reporter name
+    // Fallback to stored reported_by text if reported_by_id is null (legacy/test data)
+    const { data } = await supabase
+      .from('incidents')
+      .select('*, reporter:user_profiles!incidents_reported_by_id_fkey(id, full_name, email)')
+      .eq('id', id)
+      .single()
     if (data) {
-      setIncident(data)
-      setForm(data)
+      // Enrich: use live reporter name if available, else keep stored text
+      const enriched = {
+        ...data,
+        reported_by: data.reporter?.full_name || data.reported_by,
+      }
+      setIncident(enriched)
+      setForm(enriched)
       if (currentUser?.id && data.assigned_approver_id) {
         const subCheck = await isSubstituteOf(currentUser.id, data.assigned_approver_id)
         setIsSub(subCheck)
@@ -503,6 +515,28 @@ export default function IncidentDetailPage() {
     const { data: hl } = await supabase.from('holidays').select('holiday_date')
     if (hl) setHolidays(hl.map(h => h.holiday_date))
   }
+
+  // Merge Logs and Workflow Steps into Unified History
+  useEffect(() => {
+    const history = [
+      ...logs.map(l => ({ ...l, type: 'log', time: l.created_at })),
+      ...workflowSteps
+        .filter(s => s.status === 'approved')
+        .map(s => ({
+          id: `wf-${s.id}`,
+          type: 'approval',
+          time: s.action_at,
+          action: `อนุมัติขั้นตอนที่ ${s.step_order}: ${s.role_required}`,
+          note: `ดำเนินการโดย: ${s.user_profiles?.full_name || 'System'}`,
+          user_email: s.user_profiles?.email || '',
+          signature_data: s.signature_data,
+          from_status: null,
+          to_status: null
+        }))
+    ].sort((a, b) => new Date(a.time) - new Date(b.time))
+    
+    setUnifiedHistory(history)
+  }, [logs, workflowSteps])
 
   const handleAddExclusion = async () => {
     if (!newExclusion.reason_id || !newExclusion.start_time) {
@@ -693,20 +727,50 @@ export default function IncidentDetailPage() {
       return
     }
 
-    // FINAL SUBMISSION: USE WORKFLOW ENGINE
-    const res = await submitRequest(id, 'incident', incident.severity, currentUser.email)
+    // FINAL SUBMISSION: USE WORKFLOW ENGINE (Phase 2 Fix)
+    // Bundle signatures so the engine can record them directly into document_approvals
+    const initialSignatures = {
+      it: sigIT ? {
+        sig: sigIT,
+        userId: currentUser?.id,
+        name: currentUser?.full_name,
+        email: currentUser?.email
+      } : null,
+      reporter: sigReporter ? {
+        sig: sigReporter,
+        // Use UUID from reported_by_id (now reliably stored) — live from JOIN
+        userId: incident?.reported_by_id || null,
+        // Use live-joined name; fallback to stored text
+        name: incident?.reporter?.full_name || incident?.reported_by || null,
+        email: incident?.reporter?.email || null
+      } : null,
+      manager: sigManager ? {
+        sig: sigManager,
+        userId: null,
+        name: 'ผู้จัดการ',
+        email: null
+      } : null,
+    }
+
+    const res = await submitRequest(id, 'incident', incident.severity, currentUser.email, initialSignatures)
     
     if (res.success) {
-      // Also update signatures in main table for compatibility/preview
+      // 3. Keep main table updated with resolution summary & metadata
       await supabase.from('incidents').update({
-        signature_it: sigIT,
-        signature_reporter: sigReporter,
-        signature_manager: sigManager,
+        resolution: form.resolution,
+        root_cause: form.root_cause,
+        corrective_action: form.corrective_action,
         resolved_at: now,
         resolved_by: currentUser.email
       }).eq('id', id)
 
-      await addLog('ปิดเคสและส่งอนุมัติ', incident.status, 'Pending Approval', `ผู้แจ้งเซ็นรับทราบ (Verified by PIN) | ${slaNote} · ดำเนินการโดย: ${currentUser?.email}`)
+      // Determine resulting status from workflow response
+      const nextStatus = res.allSigned ? 'Closed' : 'Pending Approval'
+      const logMsg = res.allSigned
+        ? `ลายเซ็นครบ ปิดเคสอัตโนมัติ | ${slaNote}`
+        : `ส่งอนุมัติสำเร็จ รอผู้อนุมัติลำดับถัดไป | ${slaNote}`
+      await addLog('Resolve & Submit', incident.status, nextStatus, logMsg)
+
       fetchIncident()
       setShowResolveDialog(false)
     } else {
@@ -752,19 +816,21 @@ export default function IncidentDetailPage() {
     const reason = prompt('กรุณาระบุเหตุผลที่ตีกลับ:')
     if (reason === null) return
 
-    const { error } = await supabase.from('incidents').update({
-      workflow_status: 'draft',
-      assigned_approver_id: null
-    }).eq('id', id)
-
-    if (!error) {
-      await addLog('ตีกลับการปิดเคส (Rejected)', incident.status, incident.status, `เหตุผล: ${reason}`)
+    setSaving(true)
+    const res = await rejectDocumentWorkflow(id, 'incident', reason)
+    
+    if (res.success) {
       fetchIncident()
+    } else {
+      alert(`ตีกลับไม่สำเร็จ: ${res.error}`)
     }
+    setSaving(false)
   }
 
   const handleReopen = async () => {
-    setSaving(true)
+    // Reset new workflow table
+    await resetDocumentWorkflow(id, 'incident')
+
     const updateData = { 
       ...incident, 
       status:'Open', 
@@ -787,6 +853,7 @@ export default function IncidentDetailPage() {
     }
     await addLog('Reopen', incident.status, 'Open', `Reopen โดย: ${currentUser?.email}`)
     setIncident(updateData); setForm(updateData); setShowReopenDialog(false); setSaving(false)
+    fetchIncident() // Refresh workflow steps
   }
 
   const handleDelete = async () => {
@@ -1020,7 +1087,7 @@ export default function IncidentDetailPage() {
             {field('ระบบที่ได้รับผลกระทบ', 'affected_system', 'select', 'master_system')}
             {field('ประเภท Incident', 'category', 'select', 'master_category')}
             {field('ระดับความรุนแรง', 'severity', 'select', ['High','Medium','Low'])}
-            {field('สถานะ', 'status', 'select', ['Open','In Progress','Pending Approval','Closed'])}
+            {field('สถานะ', 'status', 'select', ['Open', 'In Progress'])}
             
             {/* Require Corrective Action Checkbox */}
             <div style={{ marginBottom:14, padding:'8px 12px', background:form.require_ca?'#eff6ff':'#f9fafb', borderRadius:8, border:`1px solid ${form.require_ca?'#bfdbfe':'#e5e7eb'}`, transition:'all 0.2s' }}>
@@ -1187,54 +1254,46 @@ export default function IncidentDetailPage() {
           </div>
         </div>
 
-        {/* Dynamic Signatures from Workflow Engine */}
-        {workflowSteps.some(s => s.signature_data) && (
-          <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e5e7eb', padding:20, marginBottom:16 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:14, paddingBottom:10, borderBottom:'1px solid #f3f4f6' }}>✍️ ลายเซ็นต์ดิจิตัล (Workflow System)</div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:16 }}>
-              {workflowSteps.filter(s => s.signature_data).map((step) => (
-                <div key={step.id}>
-                  <div style={{ fontSize:11, color:'#6b7280', marginBottom:8 }}>Step {step.step_order}: {step.role_required}</div>
-                  <div style={{ border:'1px solid #e5e7eb', borderRadius:8, overflow:'hidden', background:'#fafafa', display:'inline-block' }}>
-                    <img src={step.signature_data} alt="sig" style={{ display:'block', height:80, maxWidth:280 }} />
-                  </div>
-                  <div style={{ fontSize:11, color:'#9ca3af', marginTop:6 }}>
-                    {step.user_profiles?.full_name || '—'}
-                    {step.action_at ? ` · ${formatDateTime(step.action_at)}` : ''}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Transaction Log */}
         <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e5e7eb', padding:20 }}>
-          <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #f3f4f6' }}>📋 Transaction Log</div>
-          {logs.length === 0 ? (
-            <div style={{ color:'#9ca3af', fontSize:13, textAlign:'center', padding:'16px 0' }}>ยังไม่มี Log</div>
-          ) : logs.map((log, i) => (
-            <div key={log.id} style={{ display:'flex', gap:12, marginBottom: i<logs.length-1?16:0 }}>
+          <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:16, paddingBottom:10, borderBottom:'1px solid #f3f4f6' }}>📋 ประวัติเอกสารและกิจกรรม (Unified History)</div>
+          {unifiedHistory.length === 0 ? (
+            <div style={{ color:'#9ca3af', fontSize:13, textAlign:'center', padding:'16px 0' }}>ยังไม่มีประวัติกิจกรรม</div>
+          ) : unifiedHistory.map((item, i) => (
+            <div key={item.id} style={{ display:'flex', gap:12, marginBottom: i<unifiedHistory.length-1?16:0 }}>
               <div style={{ display:'flex', flexDirection:'column', alignItems:'center', flexShrink:0 }}>
-                <div style={{ width:32, height:32, borderRadius:'50%', background: log.action.includes('ปิดเคส')?'#d1fae5':log.action.includes('Reopen')?'#fef3c7':log.action.includes('กำหนด')?'#eff6ff':'#f3f4f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>
-                  {log.action.includes('ปิดเคส')?'✅':log.action.includes('Reopen')?'🔓':log.action.includes('กำหนด')?'👤':log.action.includes('สถานะ')?'🔄':'📝'}
+                <div style={{ 
+                  width:32, height:32, borderRadius:'50%', 
+                  background: item.type === 'approval' ? '#d1fae5' : (item.action.includes('Reopen') ? '#fef3c7' : '#f3f4f6'),
+                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:14,
+                  border: item.type === 'approval' ? '1px solid #10b981' : 'none'
+                }}>
+                  {item.type === 'approval' ? '🖋️' : (item.action.includes('ปิดเคส')?'✅':item.action.includes('Reopen')?'🔓':item.action.includes('กำหนด')?'👤':item.action.includes('สถานะ')?'🔄':'📝')}
                 </div>
-                {i<logs.length-1 && <div style={{ width:1, flex:1, background:'#e5e7eb', marginTop:4 }} />}
+                {i<unifiedHistory.length-1 && <div style={{ width:1, flex:1, background:'#e5e7eb', marginTop:4 }} />}
               </div>
-              <div style={{ flex:1, paddingBottom: i<logs.length-1?8:0 }}>
+              <div style={{ flex:1, paddingBottom: i<unifiedHistory.length-1?8:0 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:4 }}>
-                  <div style={{ fontSize:13, fontWeight:500, color:'#111827' }}>{log.action}</div>
-                  <div style={{ fontSize:11, color:'#9ca3af', whiteSpace:'nowrap' }}>{formatDateTime(log.created_at)}</div>
+                  <div style={{ fontSize:13, fontWeight:600, color: item.type === 'approval' ? '#059669' : '#111827' }}>
+                    {item.action}
+                  </div>
+                  <div style={{ fontSize:11, color:'#9ca3af', whiteSpace:'nowrap' }}>{formatDateTime(item.time)}</div>
                 </div>
-                {log.from_status && log.to_status && log.from_status!==log.to_status && (
+                {item.from_status && item.to_status && item.from_status!==item.to_status && (
                   <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4 }}>
-                    <span style={{ ...STATUS_COLORS[log.from_status], padding:'1px 8px', borderRadius:20, fontSize:11 }}>{log.from_status}</span>
+                    <span style={{ ...STATUS_COLORS[item.from_status], padding:'1px 8px', borderRadius:20, fontSize:11 }}>{item.from_status}</span>
                     <span style={{ color:'#9ca3af', fontSize:12 }}>→</span>
-                    <span style={{ ...STATUS_COLORS[log.to_status], padding:'1px 8px', borderRadius:20, fontSize:11 }}>{log.to_status}</span>
+                    <span style={{ ...STATUS_COLORS[item.to_status], padding:'1px 8px', borderRadius:20, fontSize:11 }}>{item.to_status}</span>
                   </div>
                 )}
-                {log.note && <div style={{ fontSize:12, color:'#6b7280', marginTop:4 }}>{log.note}</div>}
-                {log.user_email && <div style={{ fontSize:11, color:'#9ca3af', marginTop:2 }}>โดย: {log.user_email}</div>}
+                {item.note && <div style={{ fontSize:12, color:'#4b5563', marginTop:4, lineHeight:1.4 }}>{item.note}</div>}
+                {item.signature_data && (
+                  <div style={{ marginTop:8, border:'1px solid #e5e7eb', borderRadius:6, padding:4, display:'inline-block', background:'#fcfcfc' }}>
+                    <img src={item.signature_data} height={40} alt="signature" />
+                  </div>
+                )}
+                {item.user_email && item.type === 'log' && <div style={{ fontSize:11, color:'#9ca3af', marginTop:2 }}>โดย: {item.user_email}</div>}
               </div>
             </div>
           ))}

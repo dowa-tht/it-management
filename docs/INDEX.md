@@ -30,6 +30,13 @@ This is the central documentation hub. You MUST read this file first before star
 เอกสารหมวดนี้ใช้สำหรับดูประวัติการพัฒนาและสถานะของระบบ
 - [CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md) : บันทึกการเปลี่ยนแปลงและอัปเดตระบบในแต่ละวัน
 - [STATUS_REPORT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/STATUS_REPORT.md) : รายงานสถานะปัจจุบันของฟีเจอร์ต่างๆ ว่าทำงานปกติหรือไม่
+- [INCIDENT_APPROVAL_MIGRATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/INCIDENT_APPROVAL_MIGRATION.md) : บันทึกประวัติการย้ายข้อมูลประวัติการอนุมัติ Incident เข้าสู่ระบบ Unified Workflow
+
+---
+
+## 📖 4. Manuals & Guides (`docs/manuals/`)
+เอกสารคู่มือการใช้งานระบบสำหรับผู้ใช้และผู้พัฒนา
+- [WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/WORKFLOW_GUIDE.md) : คู่มือการทำงานของระบบ Workflow (Incident & Checklist)
 
 ---
 
