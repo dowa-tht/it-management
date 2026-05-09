@@ -40,9 +40,9 @@ export async function POST(req) {
     const role = data[0].user_role
     let tier = 'not_found'
     
-    if (['administrator', 'supervisor'].includes(role)) {
+    if (['admin', 'it_staff'].includes(role)) {
       tier = 'internal'
-    } else if (['approval', 'guest'].includes(role)) {
+    } else if (['approver', 'auditor', 'employee'].includes(role)) {
       tier = 'external'
     }
 

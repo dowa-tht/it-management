@@ -20,7 +20,7 @@ export default function ApprovalFlowsPage() {
     setLoading(true)
     const [configsRes, usersRes] = await Promise.all([
       supabase.from('approval_configs').select('*'),
-      supabase.from('user_profiles').select('id, full_name, role').in('role', ['administrator', 'supervisor', 'approval']).eq('is_active', true)
+      supabase.from('user_profiles').select('id, full_name, role').in('role', ['admin', 'it_staff', 'approver']).eq('is_active', true)
     ])
 
     if (configsRes.data) setConfigs(configsRes.data)
@@ -42,7 +42,7 @@ export default function ApprovalFlowsPage() {
         primary_approver_id: finalApproverId,
         target_type: freqType === 'Incident' ? 'incident' : 'checklist',
         category: freqType === 'Incident' ? 'high_priority' : 'general',
-        allowed_roles: ['administrator', 'supervisor', 'approval']
+        allowed_roles: ['admin', 'it_staff', 'approver']
       }, { onConflict: 'freq_type, category' })
 
     if (error) {
@@ -162,7 +162,7 @@ export default function ApprovalFlowsPage() {
       <div style={{ marginTop: 24, padding: 16, background: '#eff6ff', borderRadius: 12, border: '1px solid #dbeafe', display: 'flex', gap: 12 }}>
         <span style={{ fontSize: 20 }}>💡</span>
         <div style={{ fontSize: 13, color: '#1e40af', lineHeight: 1.6 }}>
-          <strong>Tip:</strong> การตั้งค่าที่นี่จะเป็นแบบ "Approval Pool" เบื้องต้น หากผู้อนุมัติหลักไม่อยู่ ระบบจะอนุญาตให้ผู้ที่มีตำแหน่งเดียวกัน (ในระดับ Supervisor หรือ Admin) สามารถเซ็นแทนได้โดยใช้ PIN ของตนเองครับ
+          <strong>Tip:</strong> การตั้งค่าที่นี่จะเป็นแบบ "Approval Pool" เบื้องต้น หากผู้อนุมัติหลักไม่อยู่ ระบบจะอนุญาตให้ผู้ที่มีสิทธิ์ในระดับเดียวกัน (IT Staff, Approver หรือ Admin) สามารถเซ็นแทนได้โดยใช้ PIN ของตนเองครับ
         </div>
       </div>
     </div>

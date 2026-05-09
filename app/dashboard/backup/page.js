@@ -98,6 +98,7 @@ export default function BackupPage() {
   const [hasMore, setHasMore] = useState(true)
   const [logsCache, setLogsCache] = useState({}) // SWR Cache
   const [dateFilter, setDateFilter] = useState('month')
+  const [filterStats, setFilterStats] = useState({ total: 0, success: 0, failed: 0, noTask: 0 })
   const [showForm, setShowForm] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
   const [form, setForm] = useState({
@@ -159,7 +160,7 @@ export default function BackupPage() {
   }
 
   const fetchLogs = async (pageToFetch = 0, isLoadMore = false) => {
-    const cacheKey = `${dateFilter}-${pageToFetch}-${currentUser?.id || 'guest'}`
+    const cacheKey = `${dateFilter}-${pageToFetch}-${currentUser?.id || 'auditor'}`
     
     if (!isLoadMore && logsCache[cacheKey]) {
       setLogs(logsCache[cacheKey])
@@ -169,6 +170,7 @@ export default function BackupPage() {
       setLoadingMore(true)
     }
 
+    // 1. Fetch Paginated Logs
     const { data, error, count } = await supabase.from('backup_logs')
       .select('*', { count: 'exact' })
       .gte('log_date', getDateRange())
@@ -185,6 +187,23 @@ export default function BackupPage() {
       
       setHasMore(count > (pageToFetch + 1) * 20)
       setLogsCache(prev => ({ ...prev, [cacheKey]: freshData }))
+    }
+
+    // 2. Fetch Summary Stats for the ENTIRE filter period (not just paginated)
+    if (!isLoadMore) {
+      const { data: allData } = await supabase.from('backup_logs')
+        .select('status')
+        .gte('log_date', getDateRange())
+      
+      if (allData) {
+        const s = {
+          total: allData.length,
+          success: allData.filter(l => l.status === 'Success').length,
+          failed: allData.filter(l => l.status === 'Failed').length,
+          noTask: allData.filter(l => l.status === 'No Backup Task').length,
+        }
+        setFilterStats(s)
+      }
     }
     
     setLoading(false)
@@ -237,13 +256,7 @@ export default function BackupPage() {
   }
 
 
-  const stats = {
-    total: logs.length,
-    success: logs.filter(l => l.status === 'Success').length,
-    failed: logs.filter(l => l.status === 'Failed').length,
-    noTask: logs.filter(l => l.status === 'No Backup Task').length,
-  }
-
+  const stats = filterStats
   const successRate = stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0
 
   const monthLabel = () => {
@@ -253,6 +266,14 @@ export default function BackupPage() {
 
   return (
     <>
+      <style>{`
+        .table-row-hover:hover { background-color: #f8fafc !important; }
+        .table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .table-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+        .table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .table-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      `}</style>
+
       {/* SCREEN VIEW */}
       <div className="no-print" style={{ padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
@@ -360,12 +381,16 @@ export default function BackupPage() {
           <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', fontSize: 13, fontWeight: 500, color: '#374151' }}>
             รายการ Backup — {dateFilter.toUpperCase()}
           </div>
-          <div className="table-scroll">
-            <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse', fontSize: 13 }}>
+          <div className="table-scroll" style={{ maxHeight: 'calc(100vh - 400px)', overflowY: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
               <thead>
-                <tr style={{ background: '#f9fafb' }}>
-                  {['วันที่', 'ระบบ', 'ประเภท', 'สถานะ', 'หมายเหตุ', ''].map(h => (
-                    <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500, fontSize: 12, borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>{h}</th>
+                <tr style={{ background: '#f9fafb', position: 'sticky', top: 0, zIndex: 10 }}>
+                  {['วันที่', 'ระบบ', 'ประเภท', 'สถานะ', 'หมายเหตุ', ''].map((h, i) => (
+                    <th key={h} style={{ 
+                      padding: '12px 16px', textAlign: 'left', color: '#64748b', 
+                      fontWeight: 700, fontSize: 12, borderBottom: '2px solid #f1f5f9', 
+                      whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.5px'
+                    }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -375,7 +400,7 @@ export default function BackupPage() {
                 ) : logs.length === 0 ? (
                   <tr><td colSpan={6} style={{ padding: 30, textAlign: 'center', color: '#9ca3af' }}>ยังไม่มีข้อมูล Backup Log ในเดือนนี้</td></tr>
                 ) : logs.map(log => (
-                  <tr key={log.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                  <tr key={log.id} className="table-row-hover" style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }}>
                     <td style={{ padding: '11px 16px', color: '#374151', whiteSpace: 'nowrap' }}>{formatDate(log.log_date)}</td>
                     <td style={{ padding: '11px 16px', color: '#374151', whiteSpace: 'nowrap' }}>{log.system_name}</td>
                     <td style={{ padding: '11px 16px', color: '#6b7280', fontSize: 12 }}>{log.backup_type}</td>

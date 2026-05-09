@@ -21,7 +21,7 @@ async function requireAdmin() {
     .single()
 
   const role = normalizeRole(profile?.role)
-  if (role !== 'administrator') return null
+  if (role !== 'admin') return null
   return session.user
 }
 
@@ -41,11 +41,15 @@ export async function POST(request) {
 
     const adminClient = getSupabaseAdmin()
 
+    // 1. นำสิทธิ์มาทำความสะอาด (Normalization)
+    const normalizedRole = normalizeRole(role)
+
     // สร้าง Auth User
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
+      user_metadata: { full_name, role: normalizedRole }
     })
     if (authError) return Response.json({ error: authError.message }, { status: 400 })
 
@@ -55,7 +59,7 @@ export async function POST(request) {
       .insert({
         id: authData.user.id,
         full_name,
-        role: role === 'administrator' ? 'superuser' : 'user',
+        role: normalizedRole,
         can_be_assignee: can_be_assignee || false,
         is_active: true,
       })
@@ -65,7 +69,7 @@ export async function POST(request) {
     await adminClient.from('user_registry').upsert({
       email,
       full_name,
-      user_role: role || 'supervisor',
+      user_role: normalizedRole,
       supabase_user_id: authData.user.id,
       is_active: true,
     }, { onConflict: 'email' })

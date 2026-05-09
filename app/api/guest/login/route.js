@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import bcrypt from 'bcryptjs'
 import { cookies } from 'next/headers'
 
-// POST /api/guest/login
+// POST /api/auditor/login
 export async function POST(request) {
   try {
     const { email, pin } = await request.json()
@@ -13,46 +13,80 @@ export async function POST(request) {
 
     const adminClient = getSupabaseAdmin()
 
-    // 1. ค้นหา Guest ใน external_users
-    const { data: guest, error } = await adminClient
+    // 1. ค้นหา Auditor ใน external_users
+    const { data: auditor, error } = await adminClient
       .from('external_users')
       .select('*')
       .eq('email', email)
       .eq('is_active', true)
       .single()
 
-    if (error || !guest) {
-      return Response.json({ error: 'ไม่พบข้อมูล Guest หรือบัญชีถูกระงับ' }, { status: 404 })
+    if (error || !auditor) {
+      return Response.json({ error: 'ไม่พบข้อมูล Auditor หรือบัญชีถูกระงับ' }, { status: 404 })
     }
 
-    // 2. ตรวจสอบวันหมดอายุ
-    if (new Date(guest.expires_at) < new Date()) {
-      return Response.json({ error: 'บัญชี Guest นี้หมดอายุการใช้งานแล้ว' }, { status: 403 })
+    // 2. ตรวจสอบ Lockout
+    if (auditor.pin_locked_until) {
+      const lockedUntil = new Date(auditor.pin_locked_until)
+      if (lockedUntil > new Date()) {
+        return Response.json({ 
+          error: `บัญชีถูกระงับชั่วคราว กรุณาลองใหม่หลังจาก ${lockedUntil.toLocaleTimeString()}` 
+        }, { status: 403 })
+      }
     }
 
-    // 3. ตรวจสอบ PIN (bcrypt)
-    const isPinValid = await bcrypt.compare(pin, guest.pin_hash)
-    if (!isPinValid) {
-      return Response.json({ error: 'PIN ไม่ถูกต้อง' }, { status: 401 })
+    // 3. ตรวจสอบวันหมดอายุ
+    if (new Date(auditor.expires_at) < new Date()) {
+      return Response.json({ error: 'บัญชี Auditor นี้หมดอายุการใช้งานแล้ว' }, { status: 403 })
     }
 
-    // 4. สร้าง Guest Session (ในที่นี้เราจะใช้ Cookie พิเศษ)
-    // หมายเหตุ: ในระบบจริง เราอาจจะใช้ Supabase Auth sign-in ด้วย account กลาง 
-    // หรือสร้าง JWT ของเราเอง ในที่นี้ผมจะเซ็ต cookie เพื่อให้ middleware ตรวจสอบ
+    // 4. ตรวจสอบ PIN (bcrypt)
+    const isPinValid = await bcrypt.compare(pin, auditor.pin_hash)
+    
+    if (isPinValid) {
+      // SUCCESS: Reset attempts
+      await adminClient
+        .from('external_users')
+        .update({ pin_attempts: 0, pin_locked_until: null, last_accessed_at: new Date().toISOString() })
+        .eq('id', auditor.id)
+    } else {
+      // FAILURE: Increment attempts
+      const newAttempts = (auditor.pin_attempts || 0) + 1
+      let updateData = { pin_attempts: newAttempts }
+
+      if (newAttempts >= 5) {
+        const lockUntil = new Date()
+        lockUntil.setMinutes(lockUntil.getMinutes() + 30) // Lock for 30 mins
+        updateData.pin_locked_until = lockUntil.toISOString()
+      }
+
+      await adminClient
+        .from('external_users')
+        .update(updateData)
+        .eq('id', auditor.id)
+
+      const remaining = 5 - newAttempts
+      return Response.json({ 
+        error: newAttempts >= 5 
+          ? 'คุณกรอก PIN ผิดครบ 5 ครั้ง ระบบถูกระงับ 30 นาที' 
+          : `PIN ไม่ถูกต้อง (เหลือโอกาสอีก ${remaining} ครั้ง)` 
+      }, { status: 401 })
+    }
+
+    // 5. สร้าง Auditor Session
     const cookieStore = await cookies()
-    const guestData = {
-      id: guest.id,
-      email: guest.email,
-      role: 'guest',
-      name: guest.full_name,
-      exp: new Date(guest.expires_at).getTime()
+    const auditorData = {
+      id: auditor.id,
+      email: auditor.email,
+      role: auditor.role || 'auditor',
+      name: auditor.full_name,
+      exp: new Date(auditor.expires_at).getTime()
     }
     
-    // เข้ารหัสแบบง่าย (ใน production ควรใช้ JWT + Secret)
-    const sessionToken = btoa(JSON.stringify(guestData))
+    const sessionToken = Buffer.from(JSON.stringify(auditorData)).toString('base64')
     
     cookieStore.set('guest-session', sessionToken, {
-      expires: new Date(guest.expires_at),
+      expires: new Date(auditor.expires_at),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

@@ -1,4 +1,4 @@
-'use client'
+'use client' // Triggering Re-compile
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/dateFormat'
@@ -247,11 +247,11 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>สิทธิ์การใช้งาน (Role)</label>
                   <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} disabled={isSelf} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 14, background: isSelf ? '#f8fafc' : '#fff' }}>
-                    <option value="administrator">Administrator</option>
-                    <option value="supervisor">Supervisor</option>
-                    <option value="approval">Approval</option>
-                    <option value="member">Member</option>
-                    <option value="guest">Guest</option>
+                    <option value="admin">Administrator</option>
+                    <option value="it_staff">IT Team</option>
+                    <option value="approver">Approver</option>
+                    <option value="employee">Employee</option>
+                    <option value="auditor">Auditor</option>
                   </select>
                 </div>
               </div>
@@ -438,7 +438,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState(null)
   const [showNew, setShowNew] = useState(false)
-  const [newUser, setNewUser] = useState({ email: '', password: '', full_name: '', role: 'guest', can_be_assignee: false, sendEmailInvite: true })
+  const [newUser, setNewUser] = useState({ email: '', password: '', full_name: '', role: 'auditor', can_be_assignee: false, sendEmailInvite: true })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState({ text: '', type: '' })
   const [setupUser, setSetupUser] = useState(null)
@@ -463,7 +463,11 @@ export default function UsersPage() {
 
   const fetchUsers = async () => {
     const res = await getAdminUsers()
-    if (res.success) setUsers(res.data)
+    if (res.success) {
+      setUsers(res.data)
+    } else {
+      setMsg({ text: `ไม่สามารถโหลดข้อมูลผู้ใช้: ${res.error}`, type: 'error' })
+    }
   }
 
   const fetchGuide = async () => {
@@ -482,17 +486,20 @@ export default function UsersPage() {
 ---
 #### **2. การจัดการสิทธิ์ (The 4 Tiers of RBAC)**
 
-#### **Tier 1: Administrator**
+#### **Tier 1: Administrator (admin)**
 **หน้าที่:** ควบคุมระบบสูงสุด, จัดการบัญชีผู้ใช้ทั้งหมด, ตั้งค่า Master Data (เช่น วันหยุด, No. Series) และแก้ไขคู่มือการใช้งาน
 
-#### **Tier 2: Supervisor**
+#### **Tier 2: IT Team (it_staff)**
 **หน้าที่:** ตรวจสอบภาพรวมผ่าน Dashboard, เรียกดูรายงาน SLA/KPI, จัดการเคส Incident และตรวจสอบประวัติการทำ Backup
 
-#### **Tier 3: Approval**
-**หน้าที่:** พิจารณาอนุมัติคำขอเข้าใช้งานของ Guest และลงนามรับรองความถูกต้องในระบบ Checklist ประจำเดือน
+#### **Tier 3: Approver (approver)**
+**หน้าที่:** พิจารณาอนุมัติขั้นตอนการทำงาน และลงนามรับรองความถูกต้องในระบบ Checklist ประจำเดือน
 
-#### **Tier 4: Guest**
-**หน้าที่:** สร้างเคส Incident (แจ้งซ่อม/แจ้งปัญหา), ติดตามสถานะงานของตัวเอง และกรอกข้อมูล Checklist พื้นฐาน
+#### **Tier 4: Employee (employee)**
+**หน้าที่:** สร้างเคส Incident (แจ้งซ่อม/แจ้งปัญหา) และติดตามสถานะงานของตัวเอง
+
+#### **Tier 5: Auditor (auditor)**
+**หน้าที่:** ตรวจสอบข้อมูลในระบบ (Read-only) สำหรับหน่วยงานภายนอกหรือ Partner
 
 ---
 #### **3. ระบบผู้รับมอบหมายงาน (Assignee)**
@@ -543,7 +550,7 @@ export default function UsersPage() {
   const handleCreateResult = (result) => {
     if (result.success) {
       setMsg({ text: newUser.password ? `สร้าง User "${newUser.full_name}" สำเร็จ` : `ส่งคำเชิญให้คุณ "${newUser.full_name}" เรียบร้อยแล้ว`, type: 'success' })
-      setNewUser({ email: '', password: '', full_name: '', role: 'guest', can_be_assignee: false, sendEmailInvite: true })
+      setNewUser({ email: '', password: '', full_name: '', role: 'auditor', can_be_assignee: false, sendEmailInvite: true })
       setShowNew(false); fetchUsers()
     } else {
       setMsg({ text: `เกิดข้อผิดพลาด: ${result.error}`, type: 'error' })
@@ -628,7 +635,7 @@ export default function UsersPage() {
               </label>
               <input type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} placeholder="ปล่อยว่างเพื่อทำ Self-Register" />
             </div>
-            <div><label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>สิทธิ์การใช้งาน</label><select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}><option value="administrator">Administrator</option><option value="supervisor">Supervisor</option><option value="approval">Approval</option><option value="member">Member</option><option value="guest">Guest</option></select></div>
+            <div><label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>สิทธิ์การใช้งาน</label><select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}><option value="admin">Administrator</option><option value="it_staff">IT Team</option><option value="approver">Approver</option><option value="employee">Employee</option><option value="auditor">Auditor</option></select></div>
             <div style={{ gridColumn: 'span 2', display: 'flex', gap: 24 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>การมอบหมายงาน (Work Assignment)</label>
@@ -682,7 +689,7 @@ export default function UsersPage() {
           </thead>
           <tbody>
             {users.map(u => {
-              const badge = ROLE_BADGE[normalizeRole(u.role)] || ROLE_BADGE.guest
+              const badge = ROLE_BADGE[normalizeRole(u.role)] || ROLE_BADGE.auditor
               const isSelf = u.id === currentUser?.id
               const isExpired = u.expires_at && new Date(u.expires_at) < new Date()
               return (
@@ -751,7 +758,7 @@ export default function UsersPage() {
             <div style={{ padding: '28px 36px', background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{display:'flex', alignItems:'center', gap:16}}><span style={{fontSize:28}}>👥</span><div><h3 style={{margin:0, fontSize:22, fontWeight:800}}>Account Management Guide</h3><p style={{margin:0, fontSize:13, opacity:0.85}}>คู่มือการจัดการสิทธิ์และบัญชีผู้ใช้</p></div></div>
               <div style={{ display: 'flex', gap: 12 }}>
-                {currentUser?.role === 'administrator' && <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{editingGuide ? '👁 View' : '✏️ Edit'}</button>}
+                {currentUser?.role === 'admin' && <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{editingGuide ? '👁 View' : '✏️ Edit'}</button>}
                 <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 32, cursor: 'pointer' }}>&times;</button>
               </div>
             </div>

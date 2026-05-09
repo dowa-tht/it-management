@@ -90,11 +90,13 @@
 
 ## 5. Logging Standard (มาตรฐานการบันทึกประวัติ)
 
-ทุกการอนุมัติจะต้องมีการบันทึก Log ในรูปแบบมาตรฐานเพื่อให้ตรวจสอบย้อนกลับได้ง่าย:
-*   **Format**: `[Action] | [Details]` (ใช้เครื่องหมาย Pipe ` | ` เป็นตัวคั่นเพื่อให้ UI แยกการแสดงผลได้ถูกต้อง)
-*   **Identity Verification**: ทุกการอนุมัติแบบ Remote หรือใช้ PIN ต้องระบุ `(Verified by PIN)` ไว้ใน Log เสมอ
-*   **ตัวอย่าง (Direct)**: `อนุมัติโดย: Admin Dowa (admin@dowa-tht.co.th)`
-*   **ตัวอย่าง (Remote)**: `อนุมัติโดย: Admin Dowa (admin@dowa-tht.co.th) | (Verified by PIN)`
+> [!IMPORTANT]
+> ตั้งแต่ **08-May-2026** เป็นต้นไป ระบบใช้ **Centralized Logging** ผ่านตารางเดียว
+
+- **Centralized Table**: `system_audit_logs`
+- **Format**: บันทึกแยกคอลัมน์ `action` และ `details` เพื่อความยืดหยุ่นในการ Filter
+- **Legacy Support**: ตาราง `incident_logs` และ `checklist_logs` จะถูกเก็บไว้เพื่อ Backward Compatibility แต่ระบบใหม่จะบันทึกลงตารางกลางเพียงที่เดียว
+- **Metadata**: ใช้คอลัมน์ `metadata` (JSONB) เพื่อเก็บข้อมูลเสริม เช่น `step_order`, `is_remote`, `doc_no`
 
 ---
 
@@ -200,9 +202,35 @@ Admin สามารถจัดการ Flow ได้ผ่านเมน�
 
 ---
 
+## 13. Transactional Workflow Standard (การทำงานแบบ Transaction)
+
+> [!IMPORTANT]
+> การอัปเดตสถานะ Workflow ที่มีการเปลี่ยนแปลงหลายตารางพร้อมกัน **ต้อง** ทำงานผ่าน Database Transaction เสมอ
+
+- **Pattern**: ใช้ PostgreSQL RPC Function (`handle_approval_step`)
+- **ความรับผิดชอบของ RPC**:
+    1. อัปเดตสถานะ Step ปัจจุบันใน `document_approvals`
+    2. ค้นหาและปลดล็อค Step ถัดไป (ถ้ามี)
+    3. อัปเดตสถานะเอกสารในตารางหลัก (Incident/Checklist) หากเป็นขั้นตอนสุดท้าย
+    4. บันทึก Log ลงใน `system_audit_logs`
+- **ข้อดี**: ป้องกันข้อมูลไม่ตรงกัน (Race Condition/Partial Failures)
+
+## 14. Centralized Audit Log Standard (มาตรฐาน Log กลาง)
+
+- **Source of Truth**: ทุกกิจกรรมสำคัญต้องบันทึกลง `system_audit_logs`
+- **Schema**:
+    - `doc_id`: UUID ของเอกสาร
+    - `doc_type`: ประเภท (`incident`, `checklist`, `user`)
+    - `action`: ประเภทกิจกรรม (`Approved`, `Rejected`, `Submitted`, `Updated`)
+    - `details`: รายละเอียดที่อ่านเข้าใจง่าย
+    - `metadata`: ข้อมูลเชิงเทคนิค (JSONB)
+- **UI Integration**: หน้า Dashboard และ Logs ต้องดึงข้อมูลจากตารางนี้เป็นหลัก
+
+---
+
 > [!IMPORTANT]
 > **"ความแม่นยำและมาตรฐาน คือหัวใจของระบบเรา"**
 > ผู้พัฒนา (AI และมนุษย์) ต้องอ่านและปฏิบัติตามมาตรฐานนี้ในทุกการแก้ไขโค้ด (Git Commit/Code Update) โดยไม่มีข้อยกเว้น
 
 ---
-*Last Updated: 07-May-2026 21:30 — Added §10 Incident Resolve Auto-Approve, §11 Reporter Identity, §12 Approval Audit Log*
+*Last Updated: 08-May-2026 15:45 — Added §13 Transactional Workflow, §14 Centralized Logging (Phase 2 Refinement)*

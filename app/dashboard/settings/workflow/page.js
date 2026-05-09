@@ -12,7 +12,7 @@ export default function WorkflowSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
 
-  const roles = ['administrator', 'supervisor', 'approval', 'member']
+  const roles = ['admin', 'it_staff', 'approver', 'employee', 'auditor']
 
   useEffect(() => {
     fetchInitialData()
@@ -45,7 +45,7 @@ export default function WorkflowSettingsPage() {
 
   const addStep = () => {
     const nextOrder = steps.length > 0 ? Math.max(...steps.map(s => s.step_order)) + 1 : 1
-    setSteps([...steps, { step_order: nextOrder, role_required: 'supervisor', approver_id: null }])
+    setSteps([...steps, { step_order: nextOrder, role_required: 'it_staff', approver_id: null }])
   }
 
   const removeStep = (idx) => {

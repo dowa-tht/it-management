@@ -33,7 +33,7 @@ export default function SubstitutesPage() {
 
     const [subsRes, usersRes] = await Promise.all([
       supabase.from('approval_substitutes').select('*').eq('primary_approver_id', userId).order('created_at', { ascending: false }),
-      supabase.from('user_profiles').select('id, full_name, role').in('role', ['administrator', 'supervisor', 'approval']).neq('id', userId).eq('is_active', true)
+      supabase.from('user_profiles').select('id, full_name, role').in('role', ['admin', 'it_staff', 'approver']).eq('is_active', true)
     ])
 
     if (subsRes.data) setMySubs(subsRes.data)

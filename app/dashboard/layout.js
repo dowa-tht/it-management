@@ -74,7 +74,7 @@ export default function DashboardLayout({ children }) {
       
       const isPublicPath = pathname === '/dashboard' || pathname.startsWith('/dashboard/profile')
       
-      if (access === 'NONE' && normalized !== 'administrator' && !isPublicPath) {
+      if (access === 'NONE' && normalized !== 'admin' && !isPublicPath) {
         router.push('/dashboard?error=access_denied')
       }
     }
@@ -116,16 +116,16 @@ export default function DashboardLayout({ children }) {
   }
 
   const navItems = [
-    { href: '/dashboard',                          label: 'Dashboard',       icon: '▦', section: 'operations', roles: ['administrator','supervisor','approval','member','guest'] },
-    { href: '/dashboard/incidents',                label: 'Incident',        icon: '⚠', section: 'operations', roles: ['administrator','supervisor','approval','member','guest'] },
-    { href: '/dashboard/reports/sla',             label: 'SLA Report',      icon: '📊', section: 'operations', roles: ['administrator','supervisor','approval','guest'] },
-    { href: '/dashboard/backup',                   label: 'Backup Log',      icon: '☁', section: 'operations', roles: ['administrator','supervisor','approval','guest'] },
-    { href: '/dashboard/checklist',                label: 'IT Checklist',    icon: '✅', section: 'operations', roles: ['administrator','supervisor','approval','guest'] },
-    { href: '/dashboard/settings/no-series',       label: 'No. Series',      icon: '⚙', section: 'settings',   roles: ['administrator','guest'] },
-    { href: '/dashboard/settings/master-data',     label: 'Master Data',     icon: '📋', section: 'settings',   roles: ['administrator','guest'] },
-    { href: '/dashboard/settings/users',           label: 'Users',           icon: '👤', section: 'settings',   roles: ['administrator','guest'] },
-    { href: '/dashboard/settings/logs',            label: 'System Logs',     icon: '📝', section: 'settings',   roles: ['administrator','guest'] },
-    { href: '/dashboard/settings/permissions',     label: 'Permissions',     icon: '🛡️', section: 'settings',   roles: ['administrator'] },
+    { href: '/dashboard',                          label: 'Dashboard',       icon: '▦', section: 'operations', roles: ['admin','it_staff','approver','employee','auditor'] },
+    { href: '/dashboard/incidents',                label: 'Incident',        icon: '⚠', section: 'operations', roles: ['admin','it_staff','approver','employee','auditor'] },
+    { href: '/dashboard/reports/sla',             label: 'SLA Report',      icon: '📊', section: 'operations', roles: ['admin','it_staff','approver','auditor'] },
+    { href: '/dashboard/backup',                   label: 'Backup Log',      icon: '☁', section: 'operations', roles: ['admin','it_staff','approver','auditor'] },
+    { href: '/dashboard/checklist',                label: 'IT Checklist',    icon: '✅', section: 'operations', roles: ['admin','it_staff','approver','auditor'] },
+    { href: '/dashboard/settings/no-series',       label: 'No. Series',      icon: '⚙', section: 'settings',   roles: ['admin','auditor'] },
+    { href: '/dashboard/settings/master-data',     label: 'Master Data',     icon: '📋', section: 'settings',   roles: ['admin','auditor'] },
+    { href: '/dashboard/settings/users',           label: 'Users',           icon: '👤', section: 'settings',   roles: ['admin','auditor'] },
+    { href: '/dashboard/settings/logs',            label: 'System Logs',     icon: '📝', section: 'settings',   roles: ['admin','auditor'] },
+    { href: '/dashboard/settings/permissions',     label: 'Permissions',     icon: '🛡️', section: 'settings',   roles: ['admin'] },
   ]
 
   const currentFeature = pathname.split('/')[2] || 'dashboard'
@@ -161,7 +161,7 @@ export default function DashboardLayout({ children }) {
             )
           })}
         </div>
-        {(role === 'administrator') && (
+        {(role === 'admin') && (
           <>
             <div onClick={() => toggleSection('settings')} className="nav-section-title">
               <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>SETTINGS</span>
@@ -172,7 +172,7 @@ export default function DashboardLayout({ children }) {
                 const itemFeature = item.href.split('/')[2] || 'dashboard'
                 // สำหรับหน้า Settings เราจะเช็คสิทธิ์รวมของ 'settings' หรือเช็ครายหน้า
                 const itemAccess = checkPermission(permissions, itemFeature)
-                if (itemAccess === 'NONE' && role !== 'administrator') return null // Admin เข้าได้เสมอเพื่อป้องกันการ Lockout
+                if (itemAccess === 'NONE' && role !== 'admin') return null // Admin เข้าได้เสมอเพื่อป้องกันการ Lockout
 
                 return (
                   <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
@@ -191,7 +191,7 @@ export default function DashboardLayout({ children }) {
               {profile?.full_name || user?.email || 'User'}
             </div>
             {(() => {
-              const badge = ROLE_BADGE[role] || ROLE_BADGE.guest
+              const badge = ROLE_BADGE[role] || ROLE_BADGE.auditor
               return (
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: '2px 8px', marginTop: 4 }}>
                   <span style={{ fontSize: 9 }}>{badge.emoji}</span>
@@ -297,8 +297,8 @@ export default function DashboardLayout({ children }) {
       }}>
         {isReadOnly && (
           <>
-            {/* 🚩 แสดงแถบแดงเฉพาะ Guest เท่านั้น */}
-            {role === 'guest' && (
+            {/* 🚩 แสดงแถบแดงเฉพาะ Auditor เท่านั้น */}
+            {role === 'auditor' && (
               <div style={{
                 position: 'sticky', top: 0, left: 0, right: 0, zIndex: 9999,
                 background: 'linear-gradient(to right, #ef4444, #dc2626)', color: '#fff',
@@ -306,7 +306,7 @@ export default function DashboardLayout({ children }) {
                 letterSpacing: '1px', backdropFilter: 'blur(4px)',
                 boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
               }}>
-                🔒 READ-ONLY MODE (GUEST) - คุณสามารถดูข้อมูลได้ แต่ไม่สามารถแก้ไขได้
+                🔒 READ-ONLY MODE (AUDITOR) - คุณสามารถดูข้อมูลได้ แต่ไม่สามารถแก้ไขได้
               </div>
             )}
             <style>{`

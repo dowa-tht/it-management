@@ -1,28 +1,44 @@
 'use server'
-
-import { createClient } from '@supabase/supabase-js'
-import { revalidatePath, unstable_noStore as noStore } from 'next/cache'
-import { hashEmail } from '@/lib/auth'
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
+import { unstable_noStore as noStore } from 'next/cache'
 import { randomBytes, randomUUID } from 'crypto'
+import { normalizeRole, hashEmail } from '@/lib/auth'
+import { getCurrentUserSession } from './user'
+
+/**
+ * 📝 บันทึกประวัติการดำเนินการของ Admin (Audit Log)
+ */
+async function recordAdminAction(targetUserId, action, details = {}) {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return
+
+    const adminClient = getSupabaseAdmin()
+
+    await adminClient.from('admin_audit_logs').insert([{
+      admin_id: session.user.id,
+      admin_email: session.user.email,
+      target_user_id: targetUserId,
+      action,
+      details
+    }])
+  } catch (err) {
+    console.warn('Failed to record admin audit log:', err)
+  }
+}
 
 /**
  * 🚀 ยกระดับการสร้าง User เป็นระบบ Unified Auth (Supabase Auth 100%)
  */
 export async function createAdminUser({ email, password, full_name, role, can_be_assignee, sendEmailInvite = true }) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
+    const adminClient = getSupabaseAdmin()
 
     const isInviteOnly = !password;
     const finalPassword = password || randomBytes(16).toString('hex');
 
     // 1. นำสิทธิ์มาทำความสะอาด (Normalization)
-    const normalizedRole = (role === 'administrator' || role === 'superuser') ? 'administrator' : 
-                           (role === 'supervisor') ? 'supervisor' : 
-                           (role === 'member' || role === 'user') ? 'member' : role
+    const normalizedRole = normalizeRole(role)
 
     // 2. สร้าง User ใน Supabase Auth
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
@@ -51,9 +67,9 @@ export async function createAdminUser({ email, password, full_name, role, can_be
       throw new Error(`Whitelist Error: ${whitelistError.message}`)
     }
 
-    // 2.2 Calculate Expiry for Guest
+    // 2.2 Calculate Expiry for Auditor
     let expiresAt = null
-    if (normalizedRole === 'guest') {
+    if (normalizedRole === 'auditor') {
       const d = new Date()
       d.setDate(d.getDate() + 3) // 3 Days
       expiresAt = d.toISOString()
@@ -80,6 +96,14 @@ export async function createAdminUser({ email, password, full_name, role, can_be
       console.error('Profile Error:', profileError)
       throw new Error(`Profile Error: ${profileError.message}`)
     }
+
+    // 🛡️ บันทึก Audit Log
+    await recordAdminAction(userId, 'CREATE_USER', { 
+      email, 
+      full_name, 
+      role: normalizedRole,
+      can_be_assignee 
+    })
 
     // 4. ส่ง Email ตามเงื่อนไข
     if (sendEmailInvite) {
@@ -150,18 +174,20 @@ export async function createAdminUser({ email, password, full_name, role, can_be
  * 📋 ดึงข้อมูลผู้ใช้จาก Source of Truth เดียว (user_profiles)
  */
 export async function getAdminUsers() {
-  noStore()
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+    const adminClient = getSupabaseAdmin()
 
     const { data: profiles, error } = await adminClient
       .from('user_profiles')
       .select('*')
       .order('created_at', { ascending: false })
 
-    if (error) throw error
+    if (error) {
+      console.error('getAdminUsers Database Error:', error)
+      throw error
+    }
+
+    console.log(`getAdminUsers success: fetched ${profiles?.length || 0} users`)
 
     return { success: true, data: profiles }
   } catch (err) {
@@ -174,11 +200,7 @@ export async function getAdminUsers() {
  */
 export async function updateAdminUser({ id, email, full_name, role, can_be_assignee, is_active }) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
+    const adminClient = getSupabaseAdmin()
 
     await adminClient.auth.admin.updateUserById(id, {
       user_metadata: { full_name, role }
@@ -193,6 +215,14 @@ export async function updateAdminUser({ id, email, full_name, role, can_be_assig
 
     if (error) throw error
 
+    // 🛡️ บันทึก Audit Log
+    await recordAdminAction(id, 'UPDATE_USER', {
+      full_name,
+      role,
+      can_be_assignee,
+      is_active
+    })
+
     revalidatePath('/dashboard/settings/users')
     return { success: true }
   } catch (err) {
@@ -205,11 +235,7 @@ export async function updateAdminUser({ id, email, full_name, role, can_be_assig
  */
 export async function updateAdminUserPassword(userId, newPassword) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
+    const adminClient = getSupabaseAdmin()
 
     const { error } = await adminClient.auth.admin.updateUserById(userId, {
       password: newPassword
@@ -239,11 +265,7 @@ export async function secureCleanDeleteUser(email, confirmationText) {
       throw new Error('ข้อความยืนยันไม่ถูกต้อง กรุณาพิมพ์ DELETE-[อีเมล] เพื่อยืนยัน')
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
+    const adminClient = getSupabaseAdmin()
 
     const { data: profile } = await adminClient.from('user_profiles').select('id, email').eq('email', email).single()
     if (!profile) throw new Error('User not found')
@@ -254,6 +276,9 @@ export async function secureCleanDeleteUser(email, confirmationText) {
 
     await adminClient.from('user_profiles').delete().eq('id', profile.id)
     await adminClient.auth.admin.deleteUser(profile.id)
+
+    // 🛡️ บันทึก Audit Log
+    await recordAdminAction(profile.id, 'DELETE_USER', { email })
 
     revalidatePath('/dashboard/settings/users')
     return { success: true }
@@ -268,9 +293,7 @@ export async function secureCleanDeleteUser(email, confirmationText) {
  */
 export async function getUserIdentities(userId) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+    const adminClient = getSupabaseAdmin()
 
     const { data: { user }, error } = await adminClient.auth.admin.getUserById(userId)
     if (error) throw error
@@ -290,9 +313,7 @@ export async function updateAdminUserPin(userId, newPin) {
     const bcrypt = await import('bcryptjs')
     const hashedPin = await bcrypt.hash(newPin, 10)
     
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+    const adminClient = getSupabaseAdmin()
 
     const { error } = await adminClient.from('user_profiles').update({
       signature_pin: hashedPin,
@@ -301,6 +322,10 @@ export async function updateAdminUserPin(userId, newPin) {
     }).eq('id', userId)
 
     if (error) throw error
+
+    // 🛡️ บันทึก Audit Log
+    await recordAdminAction(userId, 'UPDATE_PIN', { action: 'Admin changed user PIN' })
+
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message }
@@ -312,9 +337,7 @@ export async function updateAdminUserPin(userId, newPin) {
  */
 export async function unlockUserPin(userId) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+    const adminClient = getSupabaseAdmin()
 
     const { error } = await adminClient.from('user_profiles').update({
       pin_attempts: 0,
@@ -322,6 +345,10 @@ export async function unlockUserPin(userId) {
     }).eq('id', userId)
 
     if (error) throw error
+
+    // 🛡️ บันทึก Audit Log
+    await recordAdminAction(userId, 'UNLOCK_PIN', { action: 'Admin unlocked user account' })
+
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message }

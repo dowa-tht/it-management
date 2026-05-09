@@ -14,7 +14,7 @@ async function requireAdmin() {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return null
   const { data: profile } = await supabase.from('user_profiles').select('role').eq('id', session.user.id).single()
-  if (normalizeRole(profile?.role) !== 'administrator') return null
+  if (normalizeRole(profile?.role) !== 'admin') return null
   return session.user
 }
 
@@ -26,7 +26,7 @@ export async function POST(request) {
 
     const { email, targetTier, targetRole, pin } = await request.json()
     // targetTier: 'internal' (Tier 1/2) หรือ 'external' (Tier 3/4)
-    // targetRole: 'administrator', 'supervisor', 'approval', 'guest'
+    // targetRole: 'admin', 'it_staff', 'approver', 'auditor', 'employee'
 
     const adminClient = getSupabaseAdmin()
 
@@ -56,7 +56,7 @@ export async function POST(request) {
         .insert({
           email: email,
           full_name: registry.full_name,
-          role: targetRole, // 'approval' หรือ 'guest'
+          role: targetRole, // 'approver', 'auditor' หรือ 'employee'
           pin_hash: pinHash,
           expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days default
           is_active: true
@@ -110,20 +110,20 @@ export async function POST(request) {
       })
 
       // 4. อัปเดต Bridge Table
-      const legacyRole = targetRole === 'administrator' ? 'superuser' : 'user'
+      const normalizedRole = normalizeRole(targetRole)
       await adminClient
         .from('user_registry')
         .update({
-          user_role: targetRole,
+          user_role: normalizedRole,
           supabase_user_id: supabaseId,
           last_role_changed_at: new Date().toISOString()
         })
         .eq('email', email)
-
+ 
       // Sync user_profiles
       await adminClient.from('user_profiles').upsert({
         id: supabaseId,
-        role: legacyRole,
+        role: normalizedRole,
         full_name: registry.full_name,
         is_active: true
       })

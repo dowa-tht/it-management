@@ -223,7 +223,7 @@ export async function getDashboardData(timezoneOffset = -420) {
     const responseLimits = dynamicSlaLimits.Response || { High: 15, Medium: 60, Low: 240 }
 
     const reportData = incidents.map(inc => {
-      const respTime = inc.acknowledged_at || inc.assigned_at
+      const respTime = inc.acknowledged_at || inc.assigned_at || (inc.status !== 'Open' ? inc.created_at : null)
       const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
       
       const resLimit = dynamicSlaLimits[inc.severity] || dynamicSlaLimits.Medium
@@ -249,7 +249,7 @@ export async function getDashboardData(timezoneOffset = -420) {
     // YTD Calculation
     const ytdIncidents = ytdIncRes.data || []
     const ytdReportData = ytdIncidents.map(inc => {
-      const respTime = inc.acknowledged_at || inc.assigned_at
+      const respTime = inc.acknowledged_at || inc.assigned_at || (inc.status !== 'Open' ? inc.created_at : null)
       const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
       const resLimit = dynamicSlaLimits[inc.severity] || dynamicSlaLimits.Medium
       const respLimit = responseLimits[inc.severity] || responseLimits.Medium
@@ -310,9 +310,11 @@ export async function getDashboardData(timezoneOffset = -420) {
       userProfile, 
       pendingApprovalsCount: pendingApprovalsRes?.data?.length || 0,
       myPendingFollowupsCount: (myPendingChkRes?.data?.length || 0) + (myPendingIncRes?.data?.length || 0),
+      wh: wh,
+      holidays: holidays,
       
-      // --- Member Specific Data (For Redesigned Dashboard) ---
-      memberStats: userProfile?.role === 'member' ? {
+      // --- Employee Specific Data (For Redesigned Dashboard) ---
+      employeeStats: (userProfile?.role === 'employee') ? {
         total: ytdIncidents.filter(i => i.reported_by === userProfile.email || i.reported_by === userProfile.full_name).length,
         inProgress: incidents.filter(i => (i.reported_by === userProfile.email || i.reported_by === userProfile.full_name) && (i.status === 'Open' || i.status === 'In Progress')).length,
         pendingConfirm: incidents.filter(i => (i.reported_by === userProfile.email || i.reported_by === userProfile.full_name) && i.status === 'Pending Approval').length,

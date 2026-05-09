@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/dateFormat'
+import ViewToggle from '@/components/ViewToggle'
+import WorkflowMiniProgress from '@/components/workflow/WorkflowMiniProgress'
 
 const SEVERITY_COLORS = {
   High: { backgroundColor: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' },
@@ -27,6 +29,97 @@ const DATE_FILTERS = [
   { label: 'ปีนี้', value: 'year' },
 ]
 
+function IncidentCard({ inc, steps = [] }) {
+  const currentStep = steps.find(s => s.status === 'pending') || steps.find(s => s.status === 'waiting')
+  
+  return (
+    <Link href={`/dashboard/incidents/${inc.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+      <div style={{ 
+        background: '#fff', 
+        borderRadius: '20px', 
+        padding: '20px', 
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+        transition: 'all 0.2s',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        height: '100%',
+        cursor: 'pointer'
+      }}
+      className="card-hover"
+      >
+        <style>{`
+          .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            border-color: #3b82f6;
+          }
+        `}</style>
+        
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>
+            {inc.case_number}
+          </span>
+          <span style={{ 
+            ...SEVERITY_COLORS[inc.severity], 
+            padding: '4px 10px', 
+            borderRadius: '20px', 
+            fontSize: '10px', 
+            fontWeight: 700,
+            boxShadow: inc.severity === 'High' ? '0 0 8px rgba(239, 68, 68, 0.3)' : 'none'
+          }}>
+            {inc.severity.toUpperCase()}
+          </span>
+        </div>
+
+        <div style={{ flex: 1 }}>
+          <div style={{ 
+            fontSize: '15px', 
+            fontWeight: 700, 
+            color: '#1e293b', 
+            marginBottom: '4px',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            lineHeight: 1.4
+          }}>
+            {inc.title}
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b' }}>
+            {inc.affected_system || 'General System'}
+          </div>
+        </div>
+
+        <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '8px', color: '#64748b', fontWeight: 600 }}>
+            <span>Workflow Progress</span>
+            <span style={{ color: '#3b82f6' }}>
+              {currentStep ? currentStep.role_required : 'Approved'}
+            </span>
+          </div>
+          <WorkflowMiniProgress steps={steps} />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#3b82f6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700 }}>
+              {(inc.reported_by || 'U').charAt(0).toUpperCase()}
+            </div>
+            <span style={{ fontSize: '12px', color: '#334155', fontWeight: 500 }}>
+              {inc.reported_by}
+            </span>
+          </div>
+          <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+            {formatDate(inc.created_at)}
+          </span>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
 function IncidentsContent() {
   const searchParams = useSearchParams()
   const [incidents, setIncidents] = useState([])
@@ -39,6 +132,8 @@ function IncidentsContent() {
   const [severityFilter, setSeverityFilter] = useState(searchParams.get('severity') || 'all')
   const [showOnlyMine, setShowOnlyMine] = useState(searchParams.get('filter') === 'my')
   const [currentUser, setCurrentUser] = useState(null)
+  const [viewMode, setViewMode] = useState('list')
+  const [workflowMap, setWorkflowMap] = useState({})
 
   useEffect(() => {
     const getUser = async () => {
@@ -51,7 +146,7 @@ function IncidentsContent() {
     getUser()
   }, [])
 
-  const isVisitor = currentUser?.role === 'visitor'
+  const isAuditor = currentUser?.role === 'auditor'
 
   useEffect(() => { 
     setPage(0)
@@ -134,6 +229,24 @@ function IncidentsContent() {
     }
 
     const freshData = data || []
+    
+    // Fetch Workflow Steps for these incidents
+    if (freshData.length > 0) {
+      const ids = freshData.map(i => i.id)
+      const { data: steps } = await supabase
+        .from('document_approvals')
+        .select('*')
+        .in('doc_id', ids)
+        .order('step_order', { ascending: true })
+      
+      const map = {}
+      steps?.forEach(s => {
+        if (!map[s.doc_id]) map[s.doc_id] = []
+        map[s.doc_id].push(s)
+      })
+      setWorkflowMap(prev => ({ ...prev, ...map }))
+    }
+
     if (isLoadMore) {
       setIncidents(prev => [...prev, ...freshData])
     } else {
@@ -157,16 +270,23 @@ function IncidentsContent() {
   return (
     <div style={{ padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>Incident Management</h1>
-        {!isVisitor && (
-          <Link href="/dashboard/incidents/new" style={{
-            background: '#1d4ed8', color: '#fff', padding: '8px 16px',
-            borderRadius: 8, fontSize: 13, textDecoration: 'none',
-            display: 'flex', alignItems: 'center', gap: 6
-          }}>
-            + Add Incident
-          </Link>
-        )}
+        <div>
+          <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>Incident Management</h1>
+          <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>จัดการและติดตามปัญหาทางเทคนิค</p>
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
+          {!isAuditor && (
+            <Link href="/dashboard/incidents/new" style={{
+              background: '#1d4ed8', color: '#fff', padding: '10px 20px',
+              borderRadius: 12, fontSize: 13, textDecoration: 'none',
+              display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600,
+              boxShadow: '0 4px 12px rgba(29, 78, 216, 0.2)'
+            }}>
+              + Add Incident
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="stat-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
@@ -249,26 +369,35 @@ function IncidentsContent() {
       </div>
 
       <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', fontSize: 13, fontWeight: 500, color: '#374151' }}>
-          รายการ Incident ({incidents.length} รายการ)
-        </div>
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>กำลังโหลด...</div>
         ) : incidents.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>
             ไม่พบข้อมูลตามเงื่อนไขที่เลือก<br />
-            {!isVisitor && (
+            {!isAuditor && (
               <Link href="/dashboard/incidents/new" style={{ color: '#1d4ed8', fontSize: 13, marginTop: 8, display: 'inline-block' }}>
                 + เพิ่ม Incident ใหม่
               </Link>
             )}
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
+            gap: 20, 
+            padding: 16,
+            background: '#f8fafc'
+          }}>
+            {incidents.map(inc => (
+              <IncidentCard key={inc.id} inc={inc} steps={workflowMap[inc.id] || []} />
+            ))}
           </div>
         ) : (
           <div className="table-scroll">
             <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
-                  {['Case ID', 'หัวข้อ / ระบบ', 'Severity', 'Status', 'วันที่', 'Action'].map(h => (
+                  {['Case ID', 'หัวข้อ / ระบบ', 'Severity', 'Status', 'Workflow Progress', 'วันที่', 'Action'].map(h => (
                     <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500, fontSize: 12, borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -300,6 +429,12 @@ function IncidentsContent() {
                         {inc.status === 'Closed' ? '✅ ' : inc.status === 'Pending Approval' ? '✍️ ' : inc.status === 'In Progress' ? '⏳ ' : '⚪ '}
                         {inc.status}
                       </span>
+                    </td>
+                    <td style={{ padding: '12px 16px', minWidth: '150px' }}>
+                      <WorkflowMiniProgress steps={workflowMap[inc.id] || []} currentStatus={inc.status} />
+                      <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', marginTop: '4px', textTransform: 'uppercase' }}>
+                        {workflowMap[inc.id]?.find(s => s.status === 'pending')?.role_required || (inc.status === 'Closed' ? 'Completed' : 'Wait Resolve')}
+                      </div>
                     </td>
                     <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12, whiteSpace: 'nowrap' }}>
                       {formatDate(inc.created_at)}

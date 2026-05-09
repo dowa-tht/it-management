@@ -40,9 +40,9 @@ export async function checkUserTier(email) {
     const registry = data[0]
     const role = registry.user_role
 
-    if (['administrator', 'supervisor'].includes(role)) {
+    if (['admin', 'it_staff'].includes(role)) {
       return { success: true, tier: 'internal', role }
-    } else if (['approval', 'guest'].includes(role)) {
+    } else if (['approver', 'auditor', 'employee'].includes(role)) {
       return { success: true, tier: 'external', role }
     }
 

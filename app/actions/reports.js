@@ -57,7 +57,7 @@ export async function getSLAReportData(startDate, endDate, page = 0) {
       const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
       
       let responseMin = null
-      const respTime = inc.acknowledged_at || inc.assigned_at
+      const respTime = inc.acknowledged_at || inc.assigned_at || (inc.status !== 'Open' ? inc.created_at : null)
       if (respTime) {
         responseMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, [])
       }
@@ -86,6 +86,30 @@ export async function getSLAReportData(startDate, endDate, page = 0) {
       }
     })
 
+    const processedAllIncidents = (allIncidentsForSummary || []).map(inc => {
+      const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
+      
+      let responseMin = null
+      const respTime = inc.acknowledged_at || inc.assigned_at || (inc.status !== 'Open' ? inc.created_at : null)
+      if (respTime) {
+        responseMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, [])
+      }
+
+      let resolveMin = null
+      if (inc.resolved_at) {
+        resolveMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions)
+      }
+
+      const resLimit = dynamicSlaLimits[inc.severity] || dynamicSlaLimits.Medium
+      const respLimit = responseLimits[inc.severity] || responseLimits.Medium
+      
+      return {
+        ...inc,
+        isResponseOK: responseMin !== null ? responseMin <= respLimit : (inc.status === 'Open' ? null : false),
+        isResolveOK: resolveMin !== null ? resolveMin <= resLimit : (inc.status === 'Closed' ? false : null)
+      }
+    })
+
     const { 
       responseRate, 
       resolutionRate, 
@@ -94,7 +118,7 @@ export async function getSLAReportData(startDate, endDate, page = 0) {
       resolvedCount: resolved,
       responsePassedCount,
       resolutionPassedCount 
-    } = calculateSLARates(allIncidentsForSummary || []);
+    } = calculateSLARates(processedAllIncidents);
 
     const total = (allIncidentsForSummary || []).length;
 

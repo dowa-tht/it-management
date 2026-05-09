@@ -14,7 +14,7 @@ async function requireAdmin() {
   if (!session) return null
   const { data: profile } = await supabase
     .from('user_profiles').select('role').eq('id', session.user.id).single()
-  if (normalizeRole(profile?.role) !== 'administrator') return null
+  if (normalizeRole(profile?.role) !== 'admin') return null
   return session.user
 }
 

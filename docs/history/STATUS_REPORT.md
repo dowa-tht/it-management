@@ -28,6 +28,12 @@
 
 ## 📝 Recent System Updates (Highlights)
 
+- **08-May-2026**: 
+  - ✅ **UI/UX Modernization**: โอเวอร์ฮอลหน้า Dashboard และ Detail Pages เป็นระบบ Card-based (Premium Enterprise Standard)
+  - ✅ **Incident Save Fix**: แก้ไข Bug 400 Bad Request (Field Collision) ในหน้า Incident Detail
+  - ✅ **SLA Calculation Hardening**: เพิ่มระบบ Smart Fallback สำหรับกรณี Timestamp หาย และปรับปรุงความเสถียรในการคำนวณ Business Minutes
+  - ✅ **Standardization**: จัดทำมาตรฐาน `SLA_MANAGEMENT.md` และคู่มือการใช้งานระบบ Workflow/User Management ใหม่
+
 - **07-May-2026**: 
   - ✅ แก้ไขระบบ Sync ข้าม Module (Incident -> Checklist) สำเร็จ
   - ✅ เพิ่มระบบ Audit Log แยก Action/Details ด้วย delimiter ` | `

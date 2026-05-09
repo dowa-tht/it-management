@@ -154,8 +154,8 @@ export default function MasterDataPage() {
     getUser()
   }, [])
 
-  const isVisitor = currentUser?.role === 'visitor'
-  const isAdmin = currentUser?.role === 'administrator'
+  const isAuditor = currentUser?.role === 'auditor'
+  const isAdmin = currentUser?.role === 'admin'
   const currentType = MASTER_GROUPS.flatMap(g => g.items).find(t => t.key === activeType)
 
   const fetchGuide = async () => {
@@ -438,7 +438,7 @@ export default function MasterDataPage() {
   const handleToggle = async (id, cur, tbl = 'master_data') => { await supabase.from(tbl).update({ is_active: !cur }).eq('id', id); fetchItems() }
   const handleDelete = async (id, val, tbl = 'master_data') => { if (confirm(`ลบ "${val}"?`)) { await supabase.from(tbl).delete().eq('id', id); fetchItems() } }
 
-  if (isVisitor) return <div style={{ padding: 100, textAlign: 'center' }}><h2>Access Denied</h2></div>
+  if (isAuditor) return <div style={{ padding: 100, textAlign: 'center' }}><h2>Access Denied</h2></div>
 
   return (
     <div className="master-data-container" style={{ 

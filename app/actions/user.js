@@ -32,6 +32,27 @@ export async function getCurrentUserSession() {
   
   const { data: { user } } = await supabase.auth.getUser()
   if (user) {
+    // 🛡️ [Security Hardening] Check for Auditor Auto-Deactivation
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const adminClient = createClient(supabaseUrl, serviceKey)
+    
+    const { data: profile } = await adminClient
+      .from('user_profiles')
+      .select('role, expires_at, is_active')
+      .eq('id', user.id)
+      .single()
+
+    if (profile && profile.role === 'auditor' && profile.expires_at) {
+      if (new Date(profile.expires_at) < new Date()) {
+        // บัญชีหมดอายุ -> สั่ง Deactivate ทันที
+        if (profile.is_active) {
+          await adminClient.from('user_profiles').update({ is_active: false }).eq('id', user.id)
+        }
+        await supabase.auth.signOut()
+        return null
+      }
+    }
+
     return { type: 'internal', user: user }
   }
   

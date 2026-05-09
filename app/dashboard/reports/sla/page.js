@@ -152,7 +152,7 @@ export default function SLAReportPage() {
   const SLAGuideModal = () => {
     const settings = editedSettings || data?.settings || {
       working_hours: { start: '08:30', end: '17:30' },
-      sla_limits: { High: 240, Medium: 480, Low: 4320, Response: { High: 15, Medium: 60, Low: 240 } }
+      sla_limits: { High: 240, Medium: 480, Low: 1620, Response: { High: 15, Medium: 60, Low: 240 } }
     }
     
     // Ensure Response settings exist in fallbacks
@@ -179,7 +179,7 @@ export default function SLAReportPage() {
           <div style={{ padding: '24px 30px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: 0 }}>📊 เกณฑ์การคำนวณ SLA Compliance</h2>
-              {(currentUser?.role?.toLowerCase() === 'superuser' || currentUser?.role?.toLowerCase() === 'administrator') && !isEditing && (
+              {currentUser?.role === 'admin' && !isEditing && (
                 <button 
                   onClick={() => {
                     setEditedSettings(JSON.parse(JSON.stringify(settings)))
@@ -391,22 +391,58 @@ export default function SLAReportPage() {
       </div>
 
       <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-        <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', borderRadius: 12, padding: 20, color: '#fff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ 
+          background: summary.complianceRate >= 95 
+            ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)' 
+            : summary.complianceRate >= 90 
+              ? 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)'
+              : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', 
+          borderRadius: 16, 
+          padding: 24, 
+          color: '#fff', 
+          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', 
+          position: 'relative', 
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center'
+        }}>
           <div style={{ position: 'absolute', right: -10, top: -10, fontSize: 60, opacity: 0.15 }}>📊</div>
-          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.8, marginBottom: 4, textTransform: 'uppercase' }}>Compliance</div>
-          <div style={{ fontSize: 32, fontWeight: 800 }}>{summary.complianceRate}%</div>
+          <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.9, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '1px' }}>Compliance</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+            <div style={{ fontSize: 36, fontWeight: 900 }}>{summary.complianceRate}%</div>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 10, fontWeight: 600, opacity: 0.8 }}>Target: 95%</div>
         </div>
-        <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>RESPONSE</div>
-          <div style={{ fontSize: 32, fontWeight: 700, color: (summary.responseRate >= 95 ? '#059669' : '#dc2626') }}>{summary.responseRate}%</div>
+
+        <div style={{ background: '#fff', borderRadius: 16, padding: 24, border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '1px' }}>RESPONSE</div>
+          <div style={{ 
+            fontSize: 36, 
+            fontWeight: 900, 
+            color: summary.responseRate >= 95 ? '#059669' : summary.responseRate >= 90 ? '#d97706' : '#dc2626' 
+          }}>
+            {summary.responseRate}%
+          </div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', marginTop: 4 }}>Target: 95%</div>
         </div>
-        <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>RESOLUTION</div>
-          <div style={{ fontSize: 32, fontWeight: 700, color: (summary.resolutionRate >= 95 ? '#059669' : '#dc2626') }}>{summary.resolutionRate}%</div>
+
+        <div style={{ background: '#fff', borderRadius: 16, padding: 24, border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '1px' }}>RESOLUTION</div>
+          <div style={{ 
+            fontSize: 36, 
+            fontWeight: 900, 
+            color: summary.resolutionRate >= 95 ? '#059669' : summary.resolutionRate >= 90 ? '#d97706' : '#dc2626' 
+          }}>
+            {summary.resolutionRate}%
+          </div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', marginTop: 4 }}>Target: 95%</div>
         </div>
-        <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>TOTAL</div>
-          <div style={{ fontSize: 32, fontWeight: 700, color: '#111827' }}>{summary.total}</div>
+
+        <div style={{ background: '#fff', borderRadius: 16, padding: 24, border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '1px' }}>TOTAL CASES</div>
+          <div style={{ fontSize: 36, fontWeight: 900, color: '#1e293b' }}>{summary.total}</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', marginTop: 4 }}>Incident Reported</div>
         </div>
       </div>
 
@@ -433,8 +469,8 @@ export default function SLAReportPage() {
                   
                   return (
                     <tr key={inc.id}>
-                      <td>
-                        <div style={{ fontFamily: 'monospace', color: '#6b7280', fontSize: 11 }}>{inc.case_number}</div>
+                      <td style={{ whiteSpace: 'nowrap', minWidth: '120px' }}>
+                        <div style={{ fontFamily: 'monospace', color: '#6b7280', fontSize: 11, fontWeight: 600 }}>{inc.case_number}</div>
                       </td>
                       <td>
                         <div style={{ fontWeight: 600, color: '#111827', fontSize: 13, marginBottom: 2 }}>{inc.title}</div>

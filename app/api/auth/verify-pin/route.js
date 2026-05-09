@@ -50,7 +50,7 @@ export async function POST(req) {
 
       if (newAttempts >= 5) {
         const lockUntil = new Date()
-        lockUntil.setMinutes(lockUntil.getMinutes() + 15) // Lock for 15 mins
+        lockUntil.setMinutes(lockUntil.getMinutes() + 30) // Lock for 30 mins
         updateData.pin_locked_until = lockUntil.toISOString()
       }
 
@@ -63,7 +63,7 @@ export async function POST(req) {
       return NextResponse.json({ 
         success: false, 
         error: newAttempts >= 5 
-          ? 'คุณกรอกรหัสผิดครบ 5 ครั้ง ระบบถูกระงับ 15 นาที' 
+          ? 'คุณกรอกรหัสผิดครบ 5 ครั้ง ระบบถูกระงับ 30 นาที' 
           : `รหัส PIN ไม่ถูกต้อง (เหลือโอกาสอีก ${remaining} ครั้ง)` 
       }, { status: 401 })
     }

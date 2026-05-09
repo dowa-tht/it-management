@@ -20,7 +20,7 @@ async function requireAdmin() {
     .single()
 
   const role = normalizeRole(profile?.role)
-  if (role !== 'administrator') return null
+  if (role !== 'admin') return null
   return { ...session.user, profileId: profile.id }
 }
 
@@ -45,7 +45,7 @@ export async function PATCH(request) {
     const adminClient = getSupabaseAdmin()
 
     // ตรวจสอบ Admin คนสุดท้าย
-    if (newRole !== 'administrator') {
+    if (newRole !== 'admin') {
       const { data: admins } = await adminClient
         .from('user_profiles')
         .select('id')
@@ -67,7 +67,7 @@ export async function PATCH(request) {
     }
 
     // อัปเดต user_profiles (ใช้ค่า legacy: superuser / user)
-    const legacyRole = newRole === 'administrator' ? 'superuser' : 'user'
+    const legacyRole = newRole === 'admin' ? 'admin' : 'user'
     const { error } = await adminClient
       .from('user_profiles')
       .update({ role: legacyRole })

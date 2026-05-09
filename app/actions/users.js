@@ -10,7 +10,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 export async function searchUsers(query) {
   try {
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAdmin = getSupabaseAdmin()
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
       .select('id, full_name, email, role')
@@ -26,12 +26,12 @@ export async function searchUsers(query) {
   }
 }
 
-export async function quickAddUser({ fullName, email, role = 'member' }) {
+export async function quickAddUser({ fullName, email, role = 'employee' }) {
   try {
     const session = await getCurrentUserSession()
     if (!session) return { error: 'Unauthorized' }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAdmin = getSupabaseAdmin()
 
     // Check if user already exists
     const { data: existing } = await supabaseAdmin
@@ -105,17 +105,16 @@ export async function quickAddUser({ fullName, email, role = 'member' }) {
               <p>สวัสดีคุณ <strong>${fullName}</strong>,</p>
               <p>บัญชีของคุณถูกสร้างขึ้นในระบบเรียบร้อยแล้ว กรุณาใช้ข้อมูลด้านล่างในการยืนยันตัวตน:</p>
               
-              <div style="background-color: #eff6ff; padding: 24px; border-radius: 12px; margin: 24px 0; text-align: center;">
-                <div style="font-size: 14px; color: #1e40af; margin-bottom: 8px; font-weight: bold;">รหัส OTP สำหรับเซ็นชื่อเอกสาร (มีอายุ 30 นาที)</div>
-                <div style="font-size: 32px; font-weight: 800; color: #1d4ed8; letter-spacing: 4px;">${otp}</div>
-              </div>
-
-              <p style="margin-top: 32px;">กรุณากดปุ่มด้านล่างเพื่อทำการลงทะเบียนและตั้งค่าความปลอดภัย (รหัสผ่าน และ Signature PIN) เพื่อเข้าใช้งานระบบอย่างเต็มรูปแบบ:</p>
+              <p style="margin-top: 32px;">กรุณากดปุ่มด้านล่างเพื่อทำการลงทะเบียนและตั้งค่าความปลอดภัย (รหัสผ่าน และ Signature PIN) เพื่อเข้าใช้งานระบบอย่างเต็มรูปแบบและยืนยันตัวตนในการลงนามเอกสาร:</p>
               <div style="text-align: center; margin: 32px 0;">
-                <a href="${setupUrl}" style="display: inline-block; padding: 14px 28px; background-color: #1d4ed8; color: white; text-decoration: none; border-radius: 10px; font-weight: bold;">ตั้งค่าบัญชี (Self-Registration)</a>
+                <a href="${setupUrl}" style="display: inline-block; padding: 14px 28px; background-color: #1d4ed8; color: white; text-decoration: none; border-radius: 10px; font-weight: bold; box-shadow: 0 4px 6px rgba(29, 78, 216, 0.2);">ตั้งค่าบัญชี (Self-Registration)</a>
               </div>
               
-              <p style="font-size: 12px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+              <p style="font-size: 13px; color: #475569; background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px; border-radius: 4px;">
+                <strong>💡 คำแนะนำ:</strong> หลังจากการตั้งค่าบัญชีเสร็จสิ้น คุณจะสามารถใช้ <strong>Signature PIN</strong> ในการเซ็นชื่อเอกสารได้ทันทีโดยไม่ต้องรอรับ OTP ทางอีเมลในครั้งถัดไป
+              </p>
+
+              <p style="font-size: 12px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 20px; margin-top: 32px;">
                 * ลิงก์สำหรับการลงทะเบียนนี้มีอายุ 24 ชั่วโมง<br/>
                 หากคุณไม่ได้เป็นผู้ขอใช้งานระบบนี้ กรุณาแจ้งฝ่าย IT ทันที
               </p>
@@ -132,9 +131,9 @@ export async function quickAddUser({ fullName, email, role = 'member' }) {
   }
 }
 
-export async function requestSignatureOTP(userId) {
+export async function requestEmployeeSignatureOTP(userId) {
   try {
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAdmin = getSupabaseAdmin()
     
     // Check user and email
     let user;
@@ -204,9 +203,9 @@ export async function requestSignatureOTP(userId) {
   }
 }
 
-export async function verifySignatureOTP(userId, code) {
+export async function verifyEmployeeSignatureOTP(userId, code) {
   try {
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAdmin = getSupabaseAdmin()
     
     let user;
     let fetchErr;
@@ -256,9 +255,11 @@ export async function verifySignatureOTP(userId, code) {
   }
 }
 
-export async function verifyMemberPIN(userId, pin) {
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
+
+export async function verifyEmployeePIN(userId, pin) {
   try {
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAdmin = getSupabaseAdmin()
     
     let user;
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
@@ -286,10 +287,8 @@ export async function verifyMemberPIN(userId, pin) {
     // NOTE: full_name fallback intentionally removed — violates ZERO_HACK_POLICY & DEVELOPMENT.md §6
     // Root fix: incidents.reported_by_id column must be populated at insert time
 
-    if (!user) return { success: false, error: 'ไม่พบข้อมูลผู้ใช้ในระบบ (กรุณาตรวจสอบว่า Incident บันทึก reported_by_id ถูกต้อง)' }
-    if (!user.signature_pin) return { success: false, error: 'ผู้ใช้ท่านนี้ยังไม่ได้ตั้งรหัส PIN' }
-
-    const isValid = bcrypt.compareSync(pin, user.signature_pin)
+    const isValid = await bcrypt.compare(pin, user.signature_pin)
+    
     if (!isValid) return { success: false, error: 'PIN ไม่ถูกต้อง' }
 
     return { success: true }

@@ -6,34 +6,74 @@ import { getSystemLogs, adminResetWorkflow } from '@/app/actions/workflow'
 
 export default function LogsPage() {
   const [activeTab, setActiveTab] = useState('audit')
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  
-  // Admin Reset States
-  const [showResetModal, setShowResetModal] = useState(false)
   const [selectedLog, setSelectedLog] = useState(null)
+  const [showResetModal, setShowResetModal] = useState(false)
   const [adminPassword, setAdminPassword] = useState('')
   const [resetLoading, setResetLoading] = useState(false)
   const [resetError, setResetError] = useState(null)
+  const [showGuide, setShowGuide] = useState(false)
+  const [guideContent, setGuideContent] = useState('')
+  const [editingGuide, setEditingGuide] = useState(false)
 
-  const loadLogs = async (type) => {
-    setLoading(true)
+  const loadLogs = async (type, pageToLoad = 0, isLoadMore = false) => {
+    if (isLoadMore) setLoadingMore(true)
+    else setLoading(true)
+    
     setError(null)
     try {
-      const res = await getSystemLogs(type)
+      const res = await getSystemLogs(type, { page: pageToLoad, limit: 20 })
       if (res.error) throw new Error(res.error)
-      setLogs(res.data || [])
+      
+      const newLogs = res.data || []
+      if (isLoadMore) {
+        setLogs(prev => [...prev, ...newLogs])
+      } else {
+        setLogs(newLogs)
+      }
+      
+      // Determine if there's more to load
+      // For combined logs, we check if we got a full batch of 20
+      setHasMore(newLogs.length === 20)
+      
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }
 
   useEffect(() => {
-    loadLogs(activeTab)
+    setPage(0)
+    setHasMore(true)
+    loadLogs(activeTab, 0, false)
   }, [activeTab])
+
+  const handleLoadMore = () => {
+    const nextPage = page + 1
+    setPage(nextPage)
+    loadLogs(activeTab, nextPage, true)
+  }
+
+  const renderTimestamp = (dateStr) => {
+    const full = formatDateTime(dateStr)
+    if (full === '—') return '—'
+    const parts = full.split(' ')
+    const time = parts.pop()
+    const date = parts.join(' ')
+    return (
+      <div style={{ lineHeight: 1.4 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', whiteSpace: 'nowrap' }}>{date}</div>
+        <div style={{ fontSize: 11, color: '#94a3b8' }}>{time}</div>
+      </div>
+    )
+  }
 
   const handleOpenReset = (log) => {
     setSelectedLog(log)
@@ -72,16 +112,14 @@ export default function LogsPage() {
   // Group logs to find latest for each doc
   const latestDocLogIds = new Set();
   const seenDocs = new Set();
-  logs.forEach(log => {
-    if (log.doc_id && !seenDocs.has(log.doc_id)) {
-      latestDocLogIds.add(log.id);
-      seenDocs.add(log.doc_id);
-    }
-  });
-
-  const [showGuide, setShowGuide] = useState(false)
-  const [guideContent, setGuideContent] = useState('')
-  const [editingGuide, setEditingGuide] = useState(false)
+  if (Array.isArray(logs)) {
+    logs.forEach(log => {
+      if (log.doc_id && !seenDocs.has(log.doc_id)) {
+        latestDocLogIds.add(log.id);
+        seenDocs.add(log.doc_id);
+      }
+    });
+  }
 
   const fetchGuide = async () => {
     const { data } = await supabase.from('system_settings').select('value').eq('key', 'logs_guide_content').single()
@@ -128,7 +166,11 @@ export default function LogsPage() {
   }
 
   return (
-    <div className="logs-page-container" style={{ padding: 'var(--page-padding, 24px)', maxWidth: 1200, margin: '0 auto', background: '#f8fafc', minHeight: '100vh', paddingBottom: 60 }}>
+    <div className="logs-page-container" style={{ 
+      padding: 'var(--page-padding, 24px)', maxWidth: 1200, margin: '0 auto', 
+      background: '#f8fafc', height: '100vh', display: 'flex', flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
       <style>{`
         :root { --page-padding: 24px; }
         @media (max-width: 768px) {
@@ -153,6 +195,12 @@ export default function LogsPage() {
           .logs-page-container { padding: 0 !important; background: #fff !important; }
         }
         * { box-sizing: border-box; }
+        .table-row-hover:hover { background-color: #f8fafc !important; }
+        .logs-table th { position: sticky; top: 0; z-index: 10; background: #f9fafb; box-shadow: inset 0 -1px 0 #e5e7eb; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       `}</style>
       {showGuide && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
@@ -241,15 +289,29 @@ export default function LogsPage() {
       </div>
 
       {/* Content Table */}
-      <div className="table-wrapper" style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-        {loading ? (
-          <div style={{ padding: 60, textAlign: 'center', color: '#6b7280' }}>กำลังโหลดข้อมูล Log...</div>
+      <div className="table-wrapper custom-scrollbar" style={{ 
+        background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', 
+        overflow: 'auto', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)',
+        flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column'
+      }}>
+        {loading && logs.length === 0 ? (
+          <div style={{ padding: 80, textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>⏳</div>
+            <div style={{ color: '#64748b', fontWeight: 500 }}>กำลังโหลดประวัติระบบ...</div>
+          </div>
         ) : error ? (
-          <div style={{ padding: 60, textAlign: 'center', color: '#dc2626' }}>เกิดข้อผิดพลาด: {error}</div>
+          <div style={{ padding: 80, textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>⚠️</div>
+            <div style={{ color: '#dc2626', fontWeight: 600 }}>เกิดข้อผิดพลาด: {error}</div>
+            <button onClick={() => loadLogs(activeTab, 0, false)} style={{ marginTop: 16, padding: '8px 20px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer' }}>ลองใหม่</button>
+          </div>
         ) : logs.length === 0 ? (
-          <div style={{ padding: 60, textAlign: 'center', color: '#6b7280' }}>ไม่พบข้อมูลในหมวดหมู่นี้</div>
+          <div style={{ padding: 80, textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>📁</div>
+            <div style={{ color: '#64748b', fontWeight: 500 }}>ไม่พบข้อมูลในหมวดหมู่นี้</div>
+          </div>
         ) : (
-          <div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <table className="logs-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
@@ -271,6 +333,7 @@ export default function LogsPage() {
                   ) : (
                     <>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Category</th>
+                      <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Doc No.</th>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Action</th>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Details</th>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>User</th>
@@ -280,9 +343,9 @@ export default function LogsPage() {
               </thead>
               <tbody>
                 {logs.map((log, idx) => (
-                  <tr key={log.id || idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '16px 20px', fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>
-                      {formatDateTime(log.created_at || log.timestamp)}
+                  <tr key={log.id || idx} className="table-row-hover" style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }}>
+                    <td style={{ padding: '12px 20px', width: 120 }}>
+                      {renderTimestamp(log.created_at || log.timestamp)}
                     </td>
                     
                     {activeTab === 'approval' ? (
@@ -296,8 +359,8 @@ export default function LogsPage() {
                         <td style={{ padding: '16px 20px' }}>
                           <span style={{ 
                             padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                            background: log.action === 'Approved' ? '#d1fae5' : log.action === 'Rejected' ? '#fee2e2' : '#f3f4f6',
-                            color: log.action === 'Approved' ? '#065f46' : log.action === 'Rejected' ? '#991b1b' : '#374151'
+                            background: (log.action === 'Approved' || log.action.startsWith('Approved:') || log.action.includes('ปิดเคส') || log.action === 'Auto-Closed') ? '#d1fae5' : (log.action === 'Rejected' || log.action.startsWith('Rejected:') || log.action.includes('ตีกลับ')) ? '#fee2e2' : log.action.includes('Submit') ? '#eff6ff' : '#f3f4f6',
+                            color: (log.action === 'Approved' || log.action.startsWith('Approved:') || log.action.includes('ปิดเคส') || log.action === 'Auto-Closed') ? '#065f46' : (log.action === 'Rejected' || log.action.startsWith('Rejected:') || log.action.includes('ตีกลับ')) ? '#991b1b' : log.action.includes('Submit') ? '#1e40af' : '#374151'
                           }}>
                             {log.action}
                           </span>
@@ -332,10 +395,15 @@ export default function LogsPage() {
                     ) : (
                       <>
                         <td style={{ padding: '16px 20px' }}>
-                          <span style={{ padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: '#f3f4f6', color: '#4b5563' }}>
+                          <span style={{ 
+                            padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, 
+                            background: log.category === 'Checklist' ? '#e0e7ff' : log.category === 'Incident' ? '#fef3c7' : '#f3f4f6', 
+                            color: log.category === 'Checklist' ? '#4338ca' : log.category === 'Incident' ? '#92400e' : '#4b5563' 
+                          }}>
                             {log.category || 'System'}
                           </span>
                         </td>
+                        <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 700, color: '#334155', fontFamily: 'monospace' }}>{log.docNo || '—'}</td>
                         <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{log.action}</td>
                         <td style={{ padding: '16px 20px', fontSize: 13, color: '#4b5563' }}>{log.details}</td>
                         <td style={{ padding: '16px 20px', fontSize: 13, color: '#6b7280' }}>{log.full_name || log.user_email}</td>
@@ -345,6 +413,30 @@ export default function LogsPage() {
                 ))}
               </tbody>
             </table>
+            
+            {hasMore && (
+              <div style={{ padding: '24px', textAlign: 'center', background: '#fff', borderTop: '1px solid #f1f5f9' }}>
+                <button 
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  style={{ 
+                    padding: '12px 40px', background: '#fff', border: '1px solid #e2e8f0', 
+                    borderRadius: 14, fontSize: 14, fontWeight: 700, color: '#1e293b',
+                    cursor: loadingMore ? 'default' : 'pointer', transition: 'all 0.2s',
+                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                    display: 'inline-flex', alignItems: 'center', gap: 10
+                  }}
+                  onMouseEnter={e => !loadingMore && (e.currentTarget.style.background = '#f8fafc')}
+                  onMouseLeave={e => !loadingMore && (e.currentTarget.style.background = '#fff')}
+                >
+                  {loadingMore ? (
+                    <>⏳ กำลังโหลด...</>
+                  ) : (
+                    <>➕ แสดงข้อมูลเพิ่มเติม</>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

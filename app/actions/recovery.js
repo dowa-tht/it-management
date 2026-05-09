@@ -44,7 +44,7 @@ export async function requestRecovery(email) {
       return { success: false, error: 'อีเมลนี้ไม่มีสิทธิ์ใช้งานระบบ กรุณาติดต่อผู้ดูแลระบบ' }
     }
 
-    const isExternal = ['approval', 'guest'].includes(profile.role)
+    const isExternal = ['approver', 'auditor'].includes(profile.role)
 
 
     if (!isExternal) {

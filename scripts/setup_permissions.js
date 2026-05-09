@@ -20,18 +20,18 @@ async function setupPermissions() {
 
   // 2. ถ้ามีตารางแล้ว ให้อัปเดตสิทธิ์เริ่มต้น
   const defaultPerms = [
-    { role_name: 'administrator', feature_key: 'dashboard', access_level: 'RW' },
-    { role_name: 'administrator', feature_key: 'incidents', access_level: 'RW' },
-    { role_name: 'administrator', feature_key: 'reports', access_level: 'RW' },
-    { role_name: 'administrator', feature_key: 'backup', access_level: 'RW' },
-    { role_name: 'administrator', feature_key: 'checklist', access_level: 'RW' },
-    { role_name: 'administrator', feature_key: 'settings', access_level: 'RW' },
-    { role_name: 'guest', feature_key: 'dashboard', access_level: 'RO' },
-    { role_name: 'guest', feature_key: 'incidents', access_level: 'RO' },
-    { role_name: 'guest', feature_key: 'reports', access_level: 'RO' },
-    { role_name: 'guest', feature_key: 'backup', access_level: 'RO' },
-    { role_name: 'guest', feature_key: 'checklist', access_level: 'RO' },
-    { role_name: 'guest', feature_key: 'settings', access_level: 'RO' },
+    { role_name: 'admin', feature_key: 'dashboard', access_level: 'RW' },
+    { role_name: 'admin', feature_key: 'incidents', access_level: 'RW' },
+    { role_name: 'admin', feature_key: 'reports', access_level: 'RW' },
+    { role_name: 'admin', feature_key: 'backup', access_level: 'RW' },
+    { role_name: 'admin', feature_key: 'checklist', access_level: 'RW' },
+    { role_name: 'admin', feature_key: 'settings', access_level: 'RW' },
+    { role_name: 'auditor', feature_key: 'dashboard', access_level: 'RO' },
+    { role_name: 'auditor', feature_key: 'incidents', access_level: 'RO' },
+    { role_name: 'auditor', feature_key: 'reports', access_level: 'RO' },
+    { role_name: 'auditor', feature_key: 'backup', access_level: 'RO' },
+    { role_name: 'auditor', feature_key: 'checklist', access_level: 'RO' },
+    { role_name: 'auditor', feature_key: 'settings', access_level: 'RO' },
   ];
 
   console.log('📝 Seeding default permissions...');

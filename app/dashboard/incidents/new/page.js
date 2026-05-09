@@ -3,14 +3,15 @@ import { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { getNextNo, updateLastNo } from '@/lib/noSeries'
+import { createIncident } from '@/app/actions/incidents'
+import { getNextNo } from '@/lib/noSeries'
 import { formatDateTime } from '@/lib/dateFormat'
 import { UserAutocomplete } from '../components/UserAutocomplete'
 
 const SLA_MINUTES = {
   High:   { response: 60,   resolve: 240  },
   Medium: { response: 120,  resolve: 480  },
-  Low:    { response: 360,  resolve: 4320 },
+  Low:    { response: 360,  resolve: 1620 },
 }
 const SLA_LABELS = {
   High:   { response: 'ทันที (ภายใน 1 ชั่วโมง)', resolve: 'ภายใน 4 ชั่วโมง' },
@@ -71,7 +72,6 @@ function NewIncidentForm() {
     title: '', description: '', severity: 'Medium',
     status: 'Open', category: '', affected_system: '',
     reported_by: '', reported_by_id: null, assigned_to: '',
-    created_by: null,
     root_cause: '', resolution: '',
     ref_type: null, ref_id: null, ref_doc_no: null, ref_doc_id: null
   })
@@ -135,9 +135,8 @@ function NewIncidentForm() {
       if (profile) {
         setForm(prev => ({
           ...prev,
-          reported_by: profile.full_name || user.email, // Use full_name, fallback to email if missing in DB
-          reported_by_id: profile.id,
-          created_by: profile.id
+          reported_by: profile.full_name || user.email,
+          reported_by_id: profile.id
         }))
       }
     }
@@ -187,53 +186,17 @@ function NewIncidentForm() {
     setLoading(true)
 
     try {
-      // Include reported_by_id and created_by per DEVELOPMENT.md §6 (Reporter ID Storage)
-      // ref_doc_id is a local UI-only field, exclude it from DB insert
-      const { ref_doc_id, ...insertData } = form
-      const { error } = await supabase.from('incidents').insert([{
-        ...insertData,
-        case_number: caseNo,
-        created_at: createdAt,
-        assigned_at: assignedAt,
-      }])
-      if (error) throw error
+      // Call Server Action instead of manual Supabase inserts
+      const res = await createIncident(form)
 
-      try { await updateLastNo('INC', caseNo) } catch {}
-
-      const { data: newInc } = await supabase.from('incidents').select('id').eq('case_number', caseNo).single()
-      if (newInc?.id) {
-        await supabase.from('incident_logs').insert([{
-          incident_id: newInc.id,
-          action: 'สร้างเคสใหม่',
-          from_status: null,
-          to_status: form.status,
-          note: `แจ้งโดย: ${form.reported_by}${form.ref_doc_no ? ` (อ้างอิง ${form.ref_doc_no})` : ''}`,
-          user_email: form.reported_by,
-        }])
-        if (form.assigned_to && assignedAt) {
-          await supabase.from('incident_logs').insert([{
-            incident_id: newInc.id,
-            action: 'กำหนดผู้รับผิดชอบ',
-            from_status: 'Open',
-            to_status: 'In Progress',
-            note: `มอบหมายให้: ${form.assigned_to} · Response Time เริ่มนับแล้ว`,
-            user_email: form.reported_by,
-          }])
-        }
-
-        // --- เพิ่ม Audit Log กลับไปยัง Checklist กรณีมาจากหน้า Checklist ---
-        if (form.ref_type === 'checklist' && form.ref_doc_id) {
-          await supabase.from('checklist_logs').insert([{
-            doc_id: form.ref_doc_id,
-            action: `เปิด Incident Case (${caseNo}) หัวข้อ: ${form.title.replace('[Checklist Ref] ', '')}`,
-            user_email: form.reported_by || 'System'
-          }])
-        }
+      if (res.success) {
+        router.push('/dashboard/incidents')
+      } else {
+        throw new Error(res.error || 'Failed to create incident')
       }
-      router.push('/dashboard/incidents')
     } catch (err) {
       console.error(err)
-      alert('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      alert(`เกิดข้อผิดพลาด: ${err.message}`)
       setLoading(false)
     }
   }
@@ -351,7 +314,7 @@ function NewIncidentForm() {
               <label style={{ fontSize: 12, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 6 }}>ผู้แจ้ง / Reported By{req}</label>
               <UserAutocomplete 
                 value={{ id: form.reported_by_id, full_name: form.reported_by }}
-                onChange={(u) => setForm({ ...form, reported_by: u.full_name, reported_by_id: u.id })}
+                onChange={(u) => setForm({ ...form, reported_by: u?.full_name || '', reported_by_id: u?.id || null })}
               />
               {errMsg('reported_by')}
             </div>

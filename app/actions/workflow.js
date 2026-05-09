@@ -1,13 +1,9 @@
 'use server'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import { getCurrentUserSession } from './user'
+import { verifyEmployeePIN } from './users'
 
-const getAdminClient = () => {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  )
-}
+const getAdminClient = getSupabaseAdmin
 
 /**
  * 🔗 Cross-Module Sync & Final Actions
@@ -52,23 +48,62 @@ async function onDocumentFinalApproval(docId, docType) {
 }
 
 export async function recordLog(docId, type, action, details, userEmail) {
+  return recordAuditLog({ docId, docType: type, action, details, userEmail })
+}
+
+/**
+ * 🛠️ Record System Error Log
+ */
+export async function recordSystemError(category, message, metadata = {}) {
   try {
     const supabaseAdmin = getAdminClient()
-
-    const table = type === 'checklist' ? 'checklist_logs' : 'incident_logs'
-    
-    // Use ' | ' as a delimiter for the UI to split Action and Details
-    const fullAction = details ? `${action} | ${details}` : action
-    
-    const { error } = await supabaseAdmin.from(table).insert({
-      doc_id: docId,
-      action: fullAction,
-      user_email: userEmail
+    await supabaseAdmin.from('system_logs').insert({
+      category,
+      message,
+      metadata,
+      created_at: new Date().toISOString()
     })
-    if (error) throw error
+  } catch (err) {
+    console.error('recordSystemError Failed:', err)
+  }
+}
+
+/**
+ * 🛡️ Unified Audit Logging System
+ * Records activity to module-specific logs and prepares for a centralized audit table.
+ */
+export async function recordAuditLog({ docId, docType, action, details, userEmail, metadata = {} }) {
+  try {
+    const supabaseAdmin = getAdminClient()
+    const type = docType.toLowerCase()
+    
+    // 1. Record to system_audit_logs (Centralized)
+    const { error } = await supabaseAdmin.from('system_audit_logs').insert({
+      doc_id: docId,
+      doc_type: type,
+      action: action,
+      details: details,
+      user_email: userEmail,
+      metadata: metadata
+    })
+
+    if (error) {
+      console.error('system_audit_logs Error:', error)
+      // Fallback or secondary log could be here, but we prioritize the centralized one
+    }
+
+    // 2. Backward Compatibility: Record to Legacy Module Logs if needed
+    // (Optional: We can keep this for a transition period)
+    const table = type === 'checklist' ? 'checklist_logs' : 'incident_logs'
+    const fullAction = details ? `${action} | ${details}` : action
+    const legacyData = { action: fullAction, user_email: userEmail }
+    if (type === 'checklist') legacyData.doc_id = docId; else legacyData.incident_id = docId;
+    
+    await supabaseAdmin.from(table).insert(legacyData).catch(e => console.warn('Legacy Logging Warning:', e))
+
     return { success: true }
   } catch (err) {
-    console.error('recordLog Error:', err)
+    console.error('recordAuditLog Error:', err)
     return { success: false, error: err.message }
   }
 }
@@ -180,9 +215,7 @@ export async function getUnifiedPendingApprovals() {
     const session = await getCurrentUserSession()
     if (!session) return { error: 'Unauthorized' }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAdmin = getAdminClient()
 
     // 1. Get User Profile ID
     const { data: profile } = await supabaseAdmin
@@ -269,9 +302,7 @@ export async function getUnifiedMyPendingItems() {
     const session = await getCurrentUserSession()
     if (!session) return { error: 'Unauthorized' }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAdmin = getAdminClient()
 
     // 1. Get User Profile
     const { data: profile } = await supabaseAdmin
@@ -328,21 +359,22 @@ export async function getUnifiedMyPendingItems() {
   }
 }
 
-export async function getSystemLogs(type = 'audit') {
+export async function getSystemLogs(type = 'audit', { page = 0, limit = 20 } = {}) {
   try {
     const session = await getCurrentUserSession()
     if (!session) return { error: 'Unauthorized' }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAdmin = getAdminClient()
+    const from = page * limit
+    const to = (page + 1) * limit - 1
 
     if (type === 'login') {
-      const { data, error } = await supabaseAdmin
+      const { data, error, count } = await supabaseAdmin
         .from('login_logs')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(200)
+        .range(from, to)
+      
       if (error) throw error
 
       // Map names for login logs
@@ -355,120 +387,89 @@ export async function getSystemLogs(type = 'audit') {
         full_name: nameMap[l.user_email] || l.user_email
       }))
 
-      return { data: mapped }
+      return { data: mapped, count }
     }
 
     if (type === 'audit') {
-      const { data: chkLogs } = await supabaseAdmin
-        .from('checklist_logs')
-        .select('id, action, created_at, user_email')
+      const { data, error, count } = await supabaseAdmin
+        .from('system_audit_logs')
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(100)
+        .range(from, to)
       
-      const { data: incLogs } = await supabaseAdmin
-        .from('incident_logs')
-        .select('id, action, created_at, user_email')
-        .order('created_at', { ascending: false })
-        .limit(100)
-
-      const combined = [
-        ...(chkLogs || []).map(l => ({ ...l, category: 'Checklist' })),
-        ...(incLogs || []).map(l => ({ ...l, category: 'Incident' }))
-      ]
+      if (error) throw error
 
       // Fetch names for all emails
-      const emails = [...new Set(combined.map(l => l.user_email).filter(Boolean))]
+      const emails = [...new Set(data.map(l => l.user_email).filter(Boolean))]
       const { data: profiles } = await supabaseAdmin.from('user_profiles').select('email, full_name').in('email', emails)
       const nameMap = Object.fromEntries(profiles?.map(p => [p.email, p.full_name]) || [])
 
-      const mapped = combined.map(l => {
-        const [action, ...detailsParts] = (l.action || '').split(' | ')
-        const details = detailsParts.join(' | ') || (l.action.includes(': ') ? l.action.split(': ')[1] : '')
-        const displayAction = detailsParts.length > 0 ? action : (l.action.includes(': ') ? l.action.split(': ')[0] : l.action)
+      const mapped = data.map(l => ({
+        ...l,
+        category: l.doc_type === 'checklist' ? 'Checklist' : (l.doc_type === 'incident' ? 'Incident' : l.doc_type),
+        full_name: nameMap[l.user_email] || l.user_email,
+        docNo: l.metadata?.doc_no || '—'
+      }))
 
-        return {
-          ...l,
-          action: displayAction,
-          details: details,
-          full_name: nameMap[l.user_email] || l.user_email
-        }
-      }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-
-      return { data: mapped }
+      return { data: mapped, count }
     }
 
     if (type === 'approval') {
-      const approvalActions = [
-        'Submitted', 'Approved', 'Rejected', 'Delegated', 'Auto-Approved', 'Cancelled',
-        'ปิดเอกสาร (Closed)', 'บันทึกร่าง', 'ส่งเอกสารเพื่อขออนุมัติ',
-        'Submitted: ส่งเอกสารขออนุมัติ', 'Cancelled: ยกเลิกการส่งอนุมัติโดยผู้แจ้ง'
-      ]
-      
-      const { data: chkLogs } = await supabaseAdmin
-        .from('checklist_logs')
-        .select(`
-          id, doc_id, action, created_at, user_email,
-          checklist_docs(doc_no, period_date, freq_type, workflow_status, status)
-        `)
+      const { data, error, count } = await supabaseAdmin
+        .from('system_audit_logs')
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
+        .range(from, to)
 
-      const { data: incLogs } = await supabaseAdmin
-        .from('incident_logs')
-        .select(`
-          id, doc_id, action, created_at, user_email,
-          incidents(case_number, title, status)
-        `)
-        .order('created_at', { ascending: false })
+      if (error) throw error
 
-      const combined = [
-        ...(chkLogs || []).map(l => ({
-          id: l.id,
-          doc_id: l.doc_id,
-          category: 'Checklist',
-          docNo: l.checklist_docs?.doc_no || 'N/A',
-          subject: `${l.checklist_docs?.freq_type} - ${l.checklist_docs?.period_date}`,
-          current_workflow_status: l.checklist_docs?.workflow_status,
-          current_status: l.checklist_docs?.status,
-          action: l.action,
-          timestamp: l.created_at,
-          user: l.user_email
-        })),
-        ...(incLogs || []).map(l => ({
-          id: l.id,
-          doc_id: l.doc_id,
-          category: 'Incident',
-          docNo: l.incidents?.case_number || 'N/A',
-          subject: l.incidents?.title || 'N/A',
-          current_workflow_status: l.incidents?.status === 'Pending Approval' ? 'pending' : 'other',
-          current_status: l.incidents?.status,
-          action: l.action,
-          timestamp: l.created_at,
-          user: l.user_email
-        }))
-      ]
-      
-      // Fetch names for all emails
-      const emails = [...new Set(combined.map(l => l.user).filter(Boolean))]
+      const emails = [...new Set(data.map(l => l.user_email).filter(Boolean))]
       const { data: profiles } = await supabaseAdmin.from('user_profiles').select('email, full_name').in('email', emails)
       const nameMap = Object.fromEntries(profiles?.map(p => [p.email, p.full_name]) || [])
 
-      const filtered = combined.map(l => ({
-        ...l,
-        user: nameMap[l.user] || l.user
-      })).filter(l => 
-        approvalActions.includes(l.action) || 
-        l.action.startsWith('Submitted:') || 
-        l.action.startsWith('Cancelled:') ||
-        l.action.startsWith('Approved:') ||
-        l.action.startsWith('Rejected:')
-      )
+      // Fetch current status for all docs in this page
+      const checklistIds = data.filter(l => l.doc_type === 'checklist').map(l => l.doc_id)
+      const incidentIds = data.filter(l => l.doc_type === 'incident').map(l => l.doc_id)
+      
+      const [chkRes, incRes] = await Promise.all([
+        checklistIds.length > 0 ? supabaseAdmin.from('checklist_docs').select('id, status, workflow_status').in('id', checklistIds) : { data: [] },
+        incidentIds.length > 0 ? supabaseAdmin.from('incidents').select('id, status').in('id', incidentIds) : { data: [] }
+      ])
+      
+      const chkStatusMap = Object.fromEntries(chkRes.data?.map(d => [d.id, d]) || [])
+      const incStatusMap = Object.fromEntries(incRes.data?.map(d => [d.id, d]) || [])
 
-      filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      const mapped = data.map(l => {
+        const cur = l.doc_type === 'checklist' ? chkStatusMap[l.doc_id] : incStatusMap[l.doc_id]
+        return {
+          id: l.id,
+          doc_id: l.doc_id,
+          category: l.doc_type === 'checklist' ? 'Checklist' : 'Incident',
+          docNo: l.metadata?.doc_no || '—',
+          subject: l.details || l.action,
+          action: l.action,
+          timestamp: l.created_at,
+          user: nameMap[l.user_email] || l.user_email,
+          current_status: cur?.status,
+          current_workflow_status: l.doc_type === 'checklist' ? cur?.workflow_status : (cur?.status === 'Pending Approval' ? 'pending' : 'other')
+        }
+      })
 
-      return { data: filtered }
+      return { data: mapped, count }
     }
 
-    return { data: [] }
+    if (type === 'system') {
+      const { data, error, count } = await supabaseAdmin
+        .from('system_logs')
+        .select('*', { count: 'exact' })
+        .eq('category', 'error')
+        .order('created_at', { ascending: false })
+        .range(from, to)
+      if (error) throw error
+      return { data: data || [], count }
+    }
+
+    return { data: [], count: 0 }
   } catch (err) {
     console.error('getSystemLogs Error:', err)
     return { error: err.message }
@@ -557,9 +558,7 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail, in
     const session = await getCurrentUserSession()
     if (!session) return { error: 'Unauthorized' }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAdmin = getAdminClient()
 
     // 1. Find the current assigned approver from config
     const { data: config } = await supabaseAdmin
@@ -732,7 +731,7 @@ export async function rejectDocumentWorkflow(docId, docType, reason) {
   }
 }
 
-export async function submitApprovalStep(docId, docType, stepId, signatureData, comment = '', verifiedByPin = true, overrideApproverId = null) {
+export async function submitApprovalStep(docId, docType, stepId, signatureData, comment = '', pin = null, overrideApproverId = null) {
   try {
     const session = await getCurrentUserSession()
     if (!session) return { error: 'Unauthorized' }
@@ -748,60 +747,52 @@ export async function submitApprovalStep(docId, docType, stepId, signatureData, 
 
     if (!currentStep || currentStep.status !== 'pending') return { error: 'Step not ready for approval' }
 
-    // 2. Mark current step as approved
+    // 🛡️ SECURITY: PIN Verification Enforcement
+    const isDirectApproval = !overrideApproverId || overrideApproverId === session.user.id
     const actualApproverId = overrideApproverId || session.user.id
-    const { error: updateErr } = await supabaseAdmin
-      .from('document_approvals')
-      .update({
-        status: 'approved',
-        approver_id: actualApproverId,
-        signature_data: signatureData,
-        comment: comment,
-        action_at: new Date().toISOString()
-      })
-      .eq('id', stepId)
 
-    if (updateErr) throw updateErr
-
-    // 3. Find and unlock the NEXT step
-    const { data: nextStep } = await supabaseAdmin
-      .from('document_approvals')
-      .select('*')
-      .eq('doc_id', docId)
-      .eq('step_order', currentStep.step_order + 1)
-      .single()
-
-    if (nextStep) {
-      await supabaseAdmin
-        .from('document_approvals')
-        .update({ status: 'pending' })
-        .eq('id', nextStep.id)
+    // หากไม่ใช่เจ้าตัวเซ็นเอง (Remote Approval) "ต้อง" มี PIN และต้องตรวจผ่านเสมอ
+    if (!isDirectApproval) {
+      if (!pin) return { error: 'การอนุมัติแทนจำเป็นต้องระบุรหัส PIN ของผู้อนุมัติ' }
+      const pinCheck = await verifyEmployeePIN(actualApproverId, pin)
+      if (!pinCheck.success) return { error: pinCheck.error || 'รหัส PIN ของผู้อนุมัติไม่ถูกต้อง' }
     } else {
-      // All steps completed! Update main document to Closed
-      const table = docType === 'checklist' ? 'checklist_docs' : 'incidents'
-      await supabaseAdmin
-        .from(table)
-        .update({ 
-          status: 'Closed',
-          workflow_status: 'approved'
-        })
-        .eq('id', docId)
-
+      // กรณีเซ็นเอง หากมี PIN ส่งมาก็ตรวจ (เพื่อความปลอดภัยเสริม) 
+      if (pin) {
+        const pinCheck = await verifyEmployeePIN(actualApproverId, pin)
+        if (!pinCheck.success) return { error: pinCheck.error || 'รหัส PIN ไม่ถูกต้อง' }
+      }
     }
 
-    // 4. Record Log with Verification Method
+    // 2. Execute Transactional Approval via RPC
     const { data: profile } = await supabaseAdmin.from('user_profiles').select('full_name, email').eq('id', actualApproverId).single()
     const fullName = profile?.full_name || (overrideApproverId ? 'Unknown Approver' : session.user.email)
     const email = profile?.email || session.user.email
-    const verificationNote = verifiedByPin ? ' (Verify by PIN)' : ''
     
-    await recordLog(docId, docType, 'Approved', `อนุมัติโดย: ${fullName} (${email})${verificationNote}`, session.user.email)
+    const isRemote = !isDirectApproval
+    const logDetails = `อนุมัติโดย: ${fullName} (${email})${isRemote ? ' [Verify by PIN]' : ''}${comment ? ` | Note: ${comment}` : ''}`
 
-    if (!nextStep) {
+    const { data: rpcRes, error: rpcErr } = await supabaseAdmin.rpc('handle_approval_step', {
+      p_doc_id: docId,
+      p_doc_type: docType,
+      p_step_id: stepId,
+      p_approver_id: actualApproverId,
+      p_user_email: session.user.email,
+      p_sig_data: signatureData,
+      p_comment: comment,
+      p_is_remote: isRemote,
+      p_log_details: logDetails
+    })
+
+    if (rpcErr) throw rpcErr
+    if (!rpcRes.success) return { error: rpcRes.error }
+
+    // 3. Cross-module sync if final
+    if (rpcRes.is_final) {
       await onDocumentFinalApproval(docId, docType)
     }
 
-    return { success: true, isFinal: !nextStep }
+    return { success: true, isFinal: rpcRes.is_final }
   } catch (err) {
     console.error('submitApprovalStep Error:', err)
     return { error: err.message }
@@ -827,12 +818,12 @@ export async function runWorkflowMigration() {
       const isApproved = doc.status === 'Closed'
       let approverId = doc.assigned_approver_id || doc.approved_by
       if (approverId && !approverId.includes('-')) {
-          const { data: p } = await supabaseAdmin.from('user_profiles').select('id').eq('email', approverId).single()
+          const { data: p } = await supabaseAdmin.from('user_profiles').select('id').eq('email', approverId).limit(1).maybeSingle()
           if (p) approverId = p.id
       }
 
       // 🛡️ Determine role_required from config if not approved
-      let roleReq = 'administrator' // Default fallback
+      let roleReq = 'admin' // Default fallback
       if (!isApproved) {
         const { data: config } = await supabaseAdmin
           .from('workflow_configs')
@@ -917,9 +908,7 @@ export async function adminResetWorkflow(docId, docType, password) {
     const session = await getCurrentUserSession()
     if (!session || session.type !== 'internal') return { error: 'Unauthorized' }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const supabaseAdmin = getAdminClient()
 
     // 1. Verify Admin Role
     const { data: profile } = await supabaseAdmin
@@ -928,7 +917,7 @@ export async function adminResetWorkflow(docId, docType, password) {
       .eq('id', session.user.id)
       .single()
 
-    if (profile?.role !== 'administrator') return { error: 'Access Denied: Administrator role required.' }
+    if (profile?.role !== 'admin') return { error: 'Access Denied: Administrator role required.' }
 
     // 2. Verify Password (by trying to sign in with a fresh client)
     const { error: authError } = await createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)

@@ -203,7 +203,7 @@ function ProfileContent() {
   ]
 
   const normalized = normalizeRole(profile?.role)
-  const badge = ROLE_BADGE[normalized] || ROLE_BADGE.guest
+  const badge = ROLE_BADGE[normalized] || ROLE_BADGE.auditor
 
   return (
     <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>

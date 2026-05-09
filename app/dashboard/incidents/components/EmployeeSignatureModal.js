@@ -1,9 +1,9 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import SignaturePad from 'react-signature-canvas'
-import { verifyMemberPIN, requestSignatureOTP, verifySignatureOTP } from '@/app/actions/users'
+import { verifyEmployeePIN, requestEmployeeSignatureOTP, verifyEmployeeSignatureOTP } from '@/app/actions/users'
 
-export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, memberId, loading }) {
+export function EmployeeSignatureModal({ isOpen, onConfirm, onCancel, memberName, memberId, loading }) {
   const [mode, setMode] = useState('pin') // 'pin' or 'otp'
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
@@ -24,9 +24,9 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
 
     let res;
     if (mode === 'pin') {
-      res = await verifyMemberPIN(memberId || memberName, code)
+      res = await verifyEmployeePIN(memberId || memberName, code)
     } else {
-      res = await verifySignatureOTP(memberId || memberName, code)
+      res = await verifyEmployeeSignatureOTP(memberId || memberName, code)
     }
 
     if (res.success) {
@@ -50,8 +50,7 @@ export function MemberSignatureModal({ isOpen, onConfirm, onCancel, memberName, 
   const handleRequestOTP = async () => {
     setOtpLoading(true)
     setError('')
-    // Fallback: ใช้ชื่อแทนถ้าไม่มี ID
-    const res = await requestSignatureOTP(memberId || memberName)
+    const res = await requestEmployeeSignatureOTP(memberId || memberName)
     setOtpLoading(false)
     if (res.success) {
       setOtpSent(true)

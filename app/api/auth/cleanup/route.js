@@ -47,7 +47,7 @@ export async function POST(req) {
           id: userId,
           email: email,
           full_name: 'Dowa Admin',
-          role: 'administrator',
+          role: 'admin',
           is_active: true
         }])
       }
@@ -91,7 +91,7 @@ export async function POST(req) {
         id: userId,
         email: email,
         full_name: email.split('@')[0],
-        role: 'guest',
+        role: 'auditor',
         is_active: true
       }])
     }

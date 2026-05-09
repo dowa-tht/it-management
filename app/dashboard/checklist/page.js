@@ -6,6 +6,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/dateFormat'
 import { getNextNo } from '@/lib/noSeries'
 import { CHECKLIST_TEMPLATES } from '@/lib/checklistItems'
+import { recordLog } from '@/app/actions/workflow'
+import ViewToggle from '@/components/ViewToggle'
+import WorkflowMiniProgress from '@/components/workflow/WorkflowMiniProgress'
 
 const DATE_FILTERS = [
   { label: 'วันนี้', value: 'today' },
@@ -16,6 +19,91 @@ const DATE_FILTERS = [
   { label: 'ปีนี้', value: 'year' },
 ]
 
+function ChecklistCard({ doc, steps = [] }) {
+  const radius = 30
+  const circumference = 2 * Math.PI * radius
+  const offset = circumference - (doc.progress / 100) * circumference
+
+  return (
+    <Link href={`/dashboard/checklist/${doc.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+      <div style={{ 
+        background: '#fff', 
+        borderRadius: '20px', 
+        padding: '24px', 
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+        transition: 'all 0.2s',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+        height: '100%',
+        cursor: 'pointer',
+        position: 'relative'
+      }}
+      className="card-hover"
+      >
+        <style>{`
+          .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            border-color: #3b82f6;
+          }
+        `}</style>
+
+        {doc.ng_count > 0 && (
+          <div style={{ 
+            position: 'absolute', top: '16px', right: '16px',
+            background: '#fee2e2', color: '#dc2626', padding: '4px 10px',
+            borderRadius: '10px', fontSize: '11px', fontWeight: 800,
+            border: '1px solid #fca5a5', zIndex: 2
+          }}>
+            ⚠️ {doc.ng_count} NG
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+          <div style={{ position: 'relative', width: '70px', height: '70px' }}>
+            <svg width="70" height="70" viewBox="0 0 70 70">
+              <circle cx="35" cy="35" r={radius} fill="transparent" stroke="#f1f5f9" strokeWidth="6" />
+              <circle 
+                cx="35" cy="35" r={radius} fill="transparent" stroke={doc.progress === 100 ? '#10b981' : '#3b82f6'} 
+                strokeWidth="6" strokeDasharray={circumference} strokeDashoffset={offset}
+                strokeLinecap="round" transform="rotate(-90 35 35)" style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+              />
+            </svg>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 800, color: '#1e293b' }}>
+              {doc.progress}%
+            </div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px' }}>{doc.freq_type}</div>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: '#1e293b', marginBottom: '2px' }}>{doc.doc_no}</div>
+            <div style={{ fontSize: '12px', color: '#64748b' }}>{formatDate(doc.period_date)}</div>
+          </div>
+        </div>
+
+        <div style={{ flex: 1 }}>
+           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '8px', color: '#64748b', fontWeight: 600 }}>
+            <span>Approval Progress</span>
+            <span style={{ 
+              color: doc.displayStatus === 'Closed' ? '#10b981' : (doc.displayStatus === 'Pending Approval' ? '#f59e0b' : '#3b82f6'),
+              fontWeight: 700
+            }}>
+              {doc.displayStatus}
+            </span>
+          </div>
+          <WorkflowMiniProgress steps={steps} />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', borderTop: '1px solid #f1f5f9', paddingTop: '12px', fontSize: '11px', color: '#94a3b8' }}>
+          <span>โดย: {doc.created_by?.split('@')[0]}</span>
+          <span>{formatDate(doc.created_at)}</span>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
 function ChecklistListForm() {
   const [docs, setDocs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -23,6 +111,8 @@ function ChecklistListForm() {
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
   const [docsCache, setDocsCache] = useState({}) // SWR Cache
+  const [viewMode, setViewMode] = useState('list')
+  const [workflowMap, setWorkflowMap] = useState({})
   const [activeFilter, setActiveFilter] = useState('') 
   const [creating, setCreating] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
@@ -50,7 +140,7 @@ function ChecklistListForm() {
     })
   }, [])
 
-  const isVisitor = currentUser?.role === 'visitor'
+  const isAuditor = currentUser?.role === 'auditor' || currentUser?.role === 'visitor'
 
   // Sync filters with URL params
   useEffect(() => {
@@ -102,7 +192,7 @@ function ChecklistListForm() {
 
 
   const fetchDocs = async (pageToFetch = 0, isLoadMore = false) => {
-    const cacheKey = `${filters.freq_type}-${filters.status}-${filters.date_from}-${filters.date_to}-${filters.only_ng}-${pageToFetch}-${currentUser?.id || 'guest'}`
+    const cacheKey = `${filters.freq_type}-${filters.status}-${filters.date_from}-${filters.date_to}-${filters.only_ng}-${pageToFetch}-${currentUser?.id || 'auditor'}`
     
     if (!isLoadMore && docsCache[cacheKey]) {
       setDocs(docsCache[cacheKey])
@@ -171,6 +261,20 @@ function ChecklistListForm() {
         
         setHasMore(count > (pageToFetch + 1) * 20)
         setDocsCache(prev => ({ ...prev, [cacheKey]: processedDocs }))
+
+        // Fetch Workflow Steps for these documents
+        const { data: steps } = await supabase
+          .from('document_approvals')
+          .select('*')
+          .in('doc_id', docIds)
+          .order('step_order', { ascending: true })
+        
+        const map = {}
+        steps?.forEach(s => {
+          if (!map[s.doc_id]) map[s.doc_id] = []
+          map[s.doc_id].push(s)
+        })
+        setWorkflowMap(prev => ({ ...prev, ...map }))
       } else {
         if (!isLoadMore) setDocs([])
         setHasMore(false)
@@ -188,19 +292,25 @@ function ChecklistListForm() {
   return (
     <div style={{ padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>IT Checklist Documents</h1>
-        {!isVisitor && (
-          <button 
-            onClick={() => setShowCreate(true)}
-            style={{
-              background: '#1d4ed8', color: '#fff', padding: '10px 24px',
-              borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600,
-              boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)'
-            }}>
-            + สร้างเอกสารใหม่ (New Checklist)
-          </button>
-        )}
+        <div>
+          <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>IT Checklist Documents</h1>
+          <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>แบบฟอร์มตรวจสอบระบบรายวัน/สัปดาห์</p>
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
+          {!isAuditor && (
+            <button 
+              onClick={() => setShowCreate(true)}
+              style={{
+                background: '#1d4ed8', color: '#fff', padding: '10px 24px',
+                borderRadius: 12, fontSize: 13, border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600,
+                boxShadow: '0 4px 12px rgba(29, 78, 216, 0.2)'
+              }}>
+              + สร้างเอกสารใหม่
+            </button>
+          )}
+        </div>
       </div>
 
       {showCreate && (
@@ -317,12 +427,24 @@ function ChecklistListForm() {
           <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>
             ไม่พบเอกสารตามเงื่อนไขที่เลือก
           </div>
+        ) : viewMode === 'grid' ? (
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
+            gap: 20, 
+            padding: 16,
+            background: '#f8fafc'
+          }}>
+            {docs.map(doc => (
+              <ChecklistCard key={doc.id} doc={doc} steps={workflowMap[doc.id] || []} />
+            ))}
+          </div>
         ) : (
           <div className="table-scroll">
             <table style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
-                  {['เลขที่เอกสาร', 'ประเภท', 'วันที่ตรวจสอบ', 'Progress', 'สถานะ', 'ปัญหา (NG)', 'ผู้สร้าง', 'วันที่สร้าง'].map(h => (
+                  {['เลขที่เอกสาร', 'ประเภท', 'วันที่ตรวจสอบ', 'Progress', 'Workflow', 'สถานะ', 'ปัญหา (NG)', 'ผู้สร้าง', 'วันที่สร้าง'].map(h => (
                     <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: 500, fontSize: 12, borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -343,6 +465,12 @@ function ChecklistListForm() {
                           <div style={{ background: doc.progress === 100 ? '#10b981' : '#3b82f6', height: '100%', width: `${doc.progress}%` }}></div>
                         </div>
                         <span style={{ fontSize: 11, color: '#6b7280', width: 28, textAlign: 'right' }}>{doc.progress}%</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px', minWidth: 150 }}>
+                      <WorkflowMiniProgress steps={workflowMap[doc.id] || []} currentStatus={doc.status} />
+                      <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', marginTop: '4px', textTransform: 'uppercase' }}>
+                        {workflowMap[doc.id]?.find(s => s.status === 'pending')?.role_required || (doc.status === 'Closed' ? 'Completed' : 'Wait Resolve')}
                       </div>
                     </td>
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
@@ -526,7 +654,7 @@ function CreateChecklistModal({ userEmail, onClose, onCreated }) {
     })
 
     await supabase.from('checklist_items').insert(inserts)
-    await supabase.from('checklist_logs').insert([{ doc_id: newDoc.id, action: `สร้างเอกสาร (${freq}) - เลือก ${selectedKeys.length} รายการ`, user_email: userEmail }])
+    await recordLog(newDoc.id, 'checklist', `สร้างเอกสาร (${freq})`, `เลือก ${selectedKeys.length} รายการ`, userEmail)
     
     onCreated(newDoc.id)
   }
