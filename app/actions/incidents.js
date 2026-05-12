@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getCurrentUserSession } from './user'
 import { getNextNo, updateLastNo } from '@/lib/noSeries'
 import { generateWorkflowSteps, recordLog } from './workflow'
+import { WORKFLOW_DOC_REGISTRY } from '@/lib/workflowRegistry'
 
 const getAdminClient = () => {
   return createClient(
@@ -25,8 +26,8 @@ export async function createIncident(formData) {
     const userEmail = session.user.email || 'system@internal'
     const userId = session.user.id
 
-    // 1. ดึงเลขที่เอกสารล่าสุด
-    const nextNoData = await getNextNo('INC')
+    // 1. ดึงเลขที่เอกสารล่าสุด (ใช้ Admin Client เพื่อข้าม RLS และเช็คเลขที่ซ้ำได้แม่นยำ)
+    const nextNoData = await getNextNo('INC', new Date(), supabaseAdmin)
     const caseNo = nextNoData ? nextNoData.nextNo : `INC-${Date.now()}`
 
     // 2. เตรียมข้อมูลสำหรับบันทึก (แยก ref_doc_id ออกเพราะเป็น UI field)
@@ -54,14 +55,13 @@ export async function createIncident(formData) {
 
     // 4. อัปเดตเลขที่เอกสารล่าสุดใน No Series
     try {
-      await updateLastNo('INC', caseNo)
+      await updateLastNo('INC', caseNo, null, supabaseAdmin)
     } catch (err) {
       console.warn('Failed to update No Series:', err)
     }
 
-    // 5. เริ่มระบบ Unified Workflow (generateWorkflowSteps)
-    // ใช้ Severity เป็นเกณฑ์ในการตัดสินใจ Workflow ตามมาตรฐาน
-    await generateWorkflowSteps(docId, 'incident', 'severity', formData.severity)
+    // 5. [Phase 2] ข้ามการสร้าง Workflow ในขั้นตอนนี้ 
+    // ย้ายไปสร้างในขั้นตอน Resolve (submitRequest) ตามมาตรฐาน Unified Workflow v2
 
     // 6. บันทึก Incident Log (สร้างเคสใหม่)
     await recordLog(
@@ -97,6 +97,49 @@ export async function createIncident(formData) {
     return { success: true, docId: docId, caseNo: caseNo }
   } catch (err) {
     console.error('createIncident Error:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+/**
+ * ✅ [Phase 2] Server Action: รับเรื่อง (Acknowledge)
+ */
+export async function acknowledgeIncident(id, severity, assigneeId) {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return { success: false, error: 'Unauthorized' }
+
+    const supabaseAdmin = getAdminClient()
+    const userEmail = session.user.email || 'system@internal'
+    
+    // Fetch profile of the assignee
+    const { data: profile } = await supabaseAdmin.from('user_profiles').select('full_name').eq('id', assigneeId).single()
+
+    const { error } = await supabaseAdmin
+      .from('incidents')
+      .update({
+        status: 'In Progress',
+        severity: severity,
+        assigned_to_id: assigneeId,
+        assigned_to: profile?.full_name || userEmail,
+        acknowledged_at: new Date().toISOString(),
+        assigned_at: new Date().toISOString()
+      })
+      .eq('id', id)
+
+    if (error) throw error
+
+    await recordLog(
+      id, 
+      'incident', 
+      'รับเรื่อง (Acknowledge)', 
+      `เจ้าหน้าที่: ${profile?.full_name || userEmail} รับเรื่อง | ระดับ: ${severity}`, 
+      userEmail
+    )
+
+    return { success: true }
+  } catch (err) {
+    console.error('acknowledgeIncident Error:', err)
     return { success: false, error: err.message }
   }
 }

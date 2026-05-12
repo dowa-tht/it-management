@@ -28,6 +28,12 @@ CREATE INDEX IF NOT EXISTS idx_system_audit_logs_doc_id ON public.system_audit_l
 CREATE INDEX IF NOT EXISTS idx_system_audit_logs_doc_type ON public.system_audit_logs(doc_type);
 CREATE INDEX IF NOT EXISTS idx_system_audit_logs_created_at ON public.system_audit_logs(created_at);
 
+-- 1.1 Approval verification metadata
+-- Required by handle_approval_step() for Remote Approval audit evidence.
+-- Safe for databases where document_approvals existed before Phase 2.
+ALTER TABLE public.document_approvals
+    ADD COLUMN IF NOT EXISTS verified_by_pin BOOLEAN DEFAULT FALSE;
+
 -- 2. Migrate existing logs (Optional/Safe Insert)
 DO $$
 BEGIN

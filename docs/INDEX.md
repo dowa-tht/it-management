@@ -25,6 +25,9 @@ This is the central documentation hub. You MUST read this file first before star
 - [UI_UX_RESPONSIVE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_RESPONSIVE.md) : มาตรฐานหน้าจอ Multi-Device
 - [ENVIRONMENT_AND_SERVER_ACTIONS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/ENVIRONMENT_AND_SERVER_ACTIONS.md) : มาตรฐานการจัดการ Environment Variables และ Server Actions
 - [SLA_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SLA_MANAGEMENT.md) : มาตรฐานการคำนวณและบริหารจัดการ SLA (KPI)
+- [INCIDENT_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INCIDENT_MANAGEMENT.md) : มาตรฐานการจัดการเหตุการณ์และขั้นตอนการทำงาน
+- [INCIDENT_LIFECYCLE_OVERHAUL_SPEC.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INCIDENT_LIFECYCLE_OVERHAUL_SPEC.md) : รายละเอียดทางเทคนิคสำหรับการปรับปรุงวงจรชีวิต Incident
+- [DOCUMENT_MAPPING_STANDARD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DOCUMENT_MAPPING_STANDARD.md) : มาตรฐานการจับคู่ข้อมูลและสถานะ Workflow ของระบบ
 
 ### 👤 Agent Roles
 - [roles/README.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/roles/README.md) : สารบัญและโครงสร้างของบทบาท Agent ย่อย
@@ -44,8 +47,11 @@ This is the central documentation hub. You MUST read this file first before star
 - [REF_ROLE_AUDITOR_REFACTOR.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_ROLE_AUDITOR_REFACTOR.md) : [PLAN] แผนการเปลี่ยนชื่อ Role จาก Guest เป็น Auditor
 - [REF_USER_MANAGEMENT_HARDENING.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_USER_MANAGEMENT_HARDENING.md) : [PLAN] แผนการเสริมความปลอดภัย User Management
 - [REF_SLA_CALCULATION_FIX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_SLA_CALCULATION_FIX.md) : [PLAN] แผนการแก้ไขสูตรคำนวณ SLA (Working Hours)
+- [REF_WORKFLOW_SCALABLE_UPGRADE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_WORKFLOW_SCALABLE_UPGRADE.md) : [PLAN] แผนการอัปเกรด Workflow Engine (Scalable & Integer-based)
+- [REF_DASHBOARD_WORKFLOW_FIX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_DASHBOARD_WORKFLOW_FIX.md) : [PLAN] แผนการปรับปรุง Dashboard และ Incident Workflow (Phase 3)
 - [STATUS_REPORT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/STATUS_REPORT.md) : รายงานสถานะฟีเจอร์ปัจจุบัน
 - [INCIDENT_APPROVAL_MIGRATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/INCIDENT_APPROVAL_MIGRATION.md) : ประวัติการย้ายข้อมูล Workflow
+- [AUDIT_REPORT_INCIDENT_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_INCIDENT_FLOW.md) : รายงานการตรวจสอบกระบวนการ Incident (Create-Resolve-Approve)
 
 ---
 

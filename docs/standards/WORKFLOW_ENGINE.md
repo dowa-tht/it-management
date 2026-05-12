@@ -36,6 +36,7 @@
 - `signature_data`: ลายเซ็นดิจิทัล (Base64)
 - `comment`: ความคิดเห็นเพิ่มเติม
 - `action_at`: วันที่และเวลาที่ดำเนินการ
+- `verified_by_pin`: Boolean สำหรับบันทึกหลักฐานว่า Step นี้ผ่านการยืนยัน PIN ของผู้อนุมัติ โดยเฉพาะ Remote Approval
 
 ---
 
@@ -171,6 +172,8 @@ Admin สามารถจัดการ Flow ได้ผ่านเมน�
 - ตาราง `incidents` **ต้องมีคอลัมน์** `reported_by_id UUID REFERENCES user_profiles(id)`
 - ทุก Insert และ Update ของ Incident **ต้องบันทึก `reported_by_id`** (UUID) ควบคู่กับ `reported_by` (Display Name)
 - `reported_by` (text) ใช้เพื่อแสดงผลเท่านั้น ไม่ควรใช้เป็น Key ในการค้นหาหรือยืนยันตัวตน
+- Workflow Step ที่มี `role_required = reporter` **ต้อง resolve เป็น `document_approvals.approver_id = incidents.reported_by_id` เสมอ** เพื่อให้ไม่ขึ้นกับ Role จริงของผู้แจ้ง (ผู้แจ้งอาจเป็น `employee`, `it_staff`, `approver`, `admin` หรือ Role อื่นที่มีสิทธิ์สร้างเคส)
+- หากมีการแก้ไข Requester (`reported_by_id`) หลังสร้าง Workflow แล้ว ระบบต้อง Sync `approver_id` ของ Step ที่ยัง `pending`/`waiting` และมี `role_required = reporter` ให้ตรงกับ `reported_by_id` ใหม่ ห้ามปล่อยเป็น `NULL` หรือใช้ `role_required = reporter` เป็น Role Pool
 
 ### 11.2 Display (Live JOIN)
 - หน้า Incident Detail ต้อง **JOIN** `user_profiles` ผ่าน `reported_by_id` สำหรับแสดงชื่อ
@@ -210,6 +213,7 @@ Admin สามารถจัดการ Flow ได้ผ่านเมน�
 - **Pattern**: ใช้ PostgreSQL RPC Function (`handle_approval_step`)
 - **ความรับผิดชอบของ RPC**:
     1. อัปเดตสถานะ Step ปัจจุบันใน `document_approvals`
+    1.1. บันทึก `verified_by_pin = true` เมื่อเป็น Remote Approval หรือมีการยืนยันตัวตนด้วย PIN
     2. ค้นหาและปลดล็อค Step ถัดไป (ถ้ามี)
     3. อัปเดตสถานะเอกสารในตารางหลัก (Incident/Checklist) หากเป็นขั้นตอนสุดท้าย
     4. บันทึก Log ลงใน `system_audit_logs`

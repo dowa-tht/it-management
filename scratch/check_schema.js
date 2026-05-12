@@ -1,9 +1,14 @@
-
 const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient('https://fhcsvvlwhwqzlsltrkuq.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoY3N2dmx3aHdxemxzbHRya3VxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzA5NjI0MiwiZXhwIjoyMDkyNjcyMjQyfQ.LQBWUrOfgg8KZ2lP-kShMqqj4wONj01hY7AVB2GTfY8');
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
 
 async function checkSchema() {
-  const { data, error } = await supabase.from('incidents').select('*').limit(1);
-  console.log(Object.keys(data[0] || {}));
+  const { data: user } = await supabase.from('user_profiles').select('signature_pin').eq('email', 'admin@dowa-tht.co.th').single();
+  console.log('signature_pin length:', user.signature_pin?.length);
+  console.log('signature_pin value:', user.signature_pin);
 }
+
 checkSchema();

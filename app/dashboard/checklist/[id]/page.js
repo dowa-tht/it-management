@@ -201,7 +201,7 @@ export default function ChecklistDetailPage() {
     try {
       const currentStep = workflowSteps.find(s => s.status === 'pending')
       if (!currentStep) throw new Error('No pending step found')
-      const res = await submitApprovalStep(id, 'checklist', currentStep.id, signatureData, comment, pin)
+      const res = await submitApprovalStep(id, 'checklist', currentStep.id, signatureData, comment, pin, currentStep.approver_id || null)
       if (res.success) {
         alert('✅ อนุมัติเรียบร้อย')
         setShowSignatureModal(false); fetchData()
@@ -277,13 +277,15 @@ export default function ChecklistDetailPage() {
       {activeNgItem && <NgDialog item={activeNgItem} onConfirm={handleNgConfirm} onCancel={() => setActiveNgItem(null)} />}
       {activeInstruction && <InstructionDialog item={activeInstruction} onCancel={() => setActiveInstruction(null)} />}
       
-      <UnifiedApprovalModal 
-        isOpen={showSignatureModal} 
+      <UnifiedApprovalModal
+        isOpen={showSignatureModal}
         onCancel={() => setShowSignatureModal(false)}
         onConfirm={handleApprove}
-        approverName={currentStep?.role_required || currentUser?.full_name}
-        userEmail={currentUser?.email}
+        approverName={currentStep?.user_profiles?.full_name || currentStep?.role_required || currentUser?.full_name}
+        approverEmail={currentStep?.user_profiles?.email || currentUser?.email}
+        userEmail={currentStep?.user_profiles?.email || currentUser?.email}
         loading={approvalLoading}
+        isCreator={currentUser?.id === doc?.created_by_id}
       />
 
       <WorkflowActionBar 

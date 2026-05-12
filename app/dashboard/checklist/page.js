@@ -314,8 +314,9 @@ function ChecklistListForm() {
       </div>
 
       {showCreate && (
-        <CreateChecklistModal 
+        <CreateChecklistModal
           userEmail={userEmail}
+          userId={currentUser?.id}
           onClose={() => setShowCreate(false)}
           onCreated={(id) => {
             setShowCreate(false)
@@ -535,7 +536,7 @@ function ChecklistListForm() {
 // ==========================================
 // Modal: CreateChecklistModal
 // ==========================================
-function CreateChecklistModal({ userEmail, onClose, onCreated }) {
+function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
   const [step, setStep] = useState(1)
   const [freq, setFreq] = useState('Daily')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
@@ -627,7 +628,8 @@ function CreateChecklistModal({ userEmail, onClose, onCreated }) {
         freq_type: freq,
         period_date: date,
         status: 'Open',
-        created_by: userEmail
+        created_by: userEmail,
+        created_by_id: userId
       }])
       .select().single()
 

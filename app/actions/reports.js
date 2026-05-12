@@ -51,13 +51,27 @@ export async function getSLAReportData(startDate, endDate, page = 0) {
     
     // SLA Limits fallback
     const dynamicSlaLimits = slaLimitsRes.data?.value || SLA_LIMITS
-    const responseLimits = dynamicSlaLimits.Response || { High: 15, Medium: 60, Low: 240 }
+    
+    // Extract limits with deep fallback to the new standard
+    const responseLimits = dynamicSlaLimits.Response || { 
+      High: dynamicSlaLimits.High_Response || 60, 
+      Medium: dynamicSlaLimits.Medium_Response || 120, 
+      Low: dynamicSlaLimits.Low_Response || 360 
+    }
+    const resolutionLimits = dynamicSlaLimits.Resolution || {
+      High: dynamicSlaLimits.High || 240,
+      Medium: dynamicSlaLimits.Medium || 480,
+      Low: dynamicSlaLimits.Low || 1620
+    }
 
     const reportData = (incidents || []).map(inc => {
       const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
       
+      const resLimit = resolutionLimits[inc.severity] || resolutionLimits.Medium
+      const respLimit = responseLimits[inc.severity] || responseLimits.Medium
+
       let responseMin = null
-      const respTime = inc.acknowledged_at || inc.assigned_at || (inc.status !== 'Open' ? inc.created_at : null)
+      const respTime = inc.acknowledged_at || inc.assigned_at
       if (respTime) {
         responseMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, [])
       }
@@ -67,11 +81,25 @@ export async function getSLAReportData(startDate, endDate, page = 0) {
         resolveMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions)
       }
 
-      const resLimit = dynamicSlaLimits[inc.severity] || dynamicSlaLimits.Medium
-      const respLimit = responseLimits[inc.severity] || responseLimits.Medium
-      
-      const isResponseOK = responseMin !== null ? responseMin <= respLimit : (inc.status === 'Open' ? null : false) 
-      const isResolveOK = resolveMin !== null ? resolveMin <= resLimit : (inc.status === 'Closed' ? false : null)
+      // --- Strict Mode Logic ---
+      // For Response: If not yet responded, check current time against limit
+      let isResponseOK = null
+      if (responseMin !== null) {
+        isResponseOK = responseMin <= respLimit
+      } else {
+        const currentMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, [])
+        isResponseOK = currentMin > respLimit ? false : null
+      }
+
+      // For Resolution: If not yet resolved, check current time against limit
+      let isResolveOK = null
+      if (resolveMin !== null) {
+        isResolveOK = resolveMin <= resLimit
+      } else {
+        const currentResMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, incExclusions)
+        isResolveOK = (inc.status !== 'Closed') ? (currentResMin > resLimit ? false : null) : false
+      }
+
       const isSlaPassed = (isResponseOK !== false) && (isResolveOK !== false)
 
       return {
@@ -89,8 +117,11 @@ export async function getSLAReportData(startDate, endDate, page = 0) {
     const processedAllIncidents = (allIncidentsForSummary || []).map(inc => {
       const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
       
+      const resLimit = resolutionLimits[inc.severity] || resolutionLimits.Medium
+      const respLimit = responseLimits[inc.severity] || responseLimits.Medium
+
       let responseMin = null
-      const respTime = inc.acknowledged_at || inc.assigned_at || (inc.status !== 'Open' ? inc.created_at : null)
+      const respTime = inc.acknowledged_at || inc.assigned_at
       if (respTime) {
         responseMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, [])
       }
@@ -99,14 +130,28 @@ export async function getSLAReportData(startDate, endDate, page = 0) {
       if (inc.resolved_at) {
         resolveMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions)
       }
-
-      const resLimit = dynamicSlaLimits[inc.severity] || dynamicSlaLimits.Medium
-      const respLimit = responseLimits[inc.severity] || responseLimits.Medium
       
+      // --- Strict Mode Logic (Summary) ---
+      let isResponseOK = null
+      if (responseMin !== null) {
+        isResponseOK = responseMin <= respLimit
+      } else {
+        const currentMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, [])
+        isResponseOK = currentMin > respLimit ? false : null
+      }
+
+      let isResolveOK = null
+      if (resolveMin !== null) {
+        isResolveOK = resolveMin <= resLimit
+      } else {
+        const currentResMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, incExclusions)
+        isResolveOK = (inc.status !== 'Closed') ? (currentResMin > resLimit ? false : null) : false
+      }
+
       return {
         ...inc,
-        isResponseOK: responseMin !== null ? responseMin <= respLimit : (inc.status === 'Open' ? null : false),
-        isResolveOK: resolveMin !== null ? resolveMin <= resLimit : (inc.status === 'Closed' ? false : null)
+        isResponseOK,
+        isResolveOK
       }
     })
 

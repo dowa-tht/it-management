@@ -54,9 +54,9 @@
 
 ## 🔍 7. Data Filtering & Privacy Standard
 *   **"My Data" Defaulting:** ในหน้าจอที่มีข้อมูลส่วนตัว (เช่น Incident, My Recent Requests) ระบบต้องมีกลไกการกรองข้อมูลที่แม่นยำ:
-    *   **Logic**: ตรวจสอบความสัมพันธ์จากทั้ง `reported_by_id`, `created_by`, `reported_by (Name)` และ `reported_by (Email)` เพื่อให้ครอบคลุมทุกสถานะข้อมูล
+    *   **Logic**: ตรวจสอบความสัมพันธ์จากทั้ง `reported_by_id`, `created_by`, `reported_by (Name)` และ `reported_by (Email)` เพื่อให้ครอบคลุมทุกสถานะข้อมูล (ดูรายละเอียดการ Implement ใน [INCIDENT_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INCIDENT_MANAGEMENT.md))
     *   **Role-Based Visibility**: สำหรับผู้ใช้ระดับ `member` ระบบควรตั้งค่าเริ่มต้น (Default Filter) ให้เห็นเฉพาะงานของตนเองเพื่อความเป็นส่วนตัวและความปลอดภัย
-*   **Universal Toggle**: ในหน้าจัดการข้อมูลส่วนกลาง ต้องมีตัวเลือก (Checkbox/Toggle) ให้ผู้ใช้สามารถกรองดูเฉพาะงานที่ตนเองเกี่ยวข้องได้เสมอ
+*   **Universal Toggle**: ในหน้าจัดการข้อมูลส่วนกลาง ต้องมีตัวเลือก (Checkbox/Toggle) ให้ผู้ใช้สามารถกรองดูเฉพาะงานที่ตนเองเกี่ยวข้องได้เสมอ (รวมถึงงานที่ได้รับมอบหมายในบริบทของเจ้าหน้าที่ IT)
 
 ---
 

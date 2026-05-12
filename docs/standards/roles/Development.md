@@ -39,25 +39,21 @@ Development team รับผิดชอบการพัฒนาระบบ
 ---
 
 ## Tech Stack
-> *(กรอกตาม project จริง)*
-
 | Layer | Technology |
 |-------|------------|
-| Frontend | - |
-| Backend | - |
-| Database | - |
-| Cloud / Infrastructure | - |
-| Other | - |
+| Frontend | Next.js (App Router), React, Vanilla CSS (Premium UI) |
+| Backend | Next.js Server Actions, Node.js |
+| Database | Supabase (PostgreSQL), Transactional RPC Functions |
+| Cloud / Infrastructure | Supabase Cloud, GitHub (Version Control) |
+| Other | Bcrypt (PIN Hashing), Resend (Email), Lucide React (Icons) |
 
 ---
 
 ## Project-Specific Details
-> *(ให้กรอกรายละเอียดเพิ่มเติมเมื่อนำไปใช้กับ project จริง)*
-
 | Item | Detail |
 |------|--------|
-| Project Name | - |
-| Architecture Pattern | Monolith / Microservices / Serverless |
-| Branching Strategy | Gitflow / Trunk-based |
-| Coding Convention | - |
-| Performance Requirement | - |
+| Project Name | DOWA IT System (ระบบจัดการงานไอที Dowa) |
+| Architecture Pattern | Unified Next.js Monolith (Server Actions Driven) |
+| Branching Strategy | Trunk-based (Fast Iteration & Integration) |
+| Coding Convention | Zero-Trust Security, Full Audit Trail, Server-side PIN Check |
+| Performance Requirement | Responsive UI, Image Compression (<150kb), Real-time Dashboard |

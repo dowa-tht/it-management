@@ -19,16 +19,24 @@
 
 | Severity | Response Target | Resolution Target |
 | :--- | :--- | :--- |
-| **🔴 High** | ทันที (ภายใน 60 นาที) | ภายใน 4 ชั่วโมงทำการ |
-| **🟠 Medium** | ภายใน 2 ชั่วโมงทำการ | ภายใน 8 ชั่วโมงทำการ |
-| **🟢 Low** | ภายใน 4 ชั่วโมงทำการ | ภายใน 24 ชั่วโมงทำการ (3 วันทำการ) |
+| **🔴 High** | 60 นาที | 240 นาที (4 ชม. ทำการ) |
+| **🟠 Medium** | 120 นาที (2 ชม. ทำการ) | 480 นาที (8 ชม. ทำการ) |
+| **🟢 Low** | 360 นาที (6 ชม. ทำการ) | 1,620 นาที (3 วันทำการ) |
 
 > [!IMPORTANT]
 > **Resolution Limit for Low Severity**: กำหนดไว้ที่ **1,620 นาที** (9 ชม. x 3 วัน) โดยไม่นับรวมเวลา 24 ชม. เต็ม เพื่อให้สอดคล้องกับเวลาเข้างานจริง
 
 ---
 
-## 3. Calculation Logic (Algorithm)
+## 3. SLA Exclusions (Stop the clock)
+เพื่อความเป็นธรรมในการวัดผล ระบบจะหยุดนับเวลา (Pause SLA) ในกรณีต่อไปนี้:
+- **Waiting for Vendor**: อยู่ระหว่างรอการสนับสนุนจากผู้ผลิตหรือผู้ให้บริการภายนอก
+- **Waiting for spare parts**: อยู่ระหว่างรออะไหล่หรืออุปกรณ์ทดแทน
+- **External events**: เหตุสุดวิสัยภายนอก (ไฟฟ้าดับทั้งนิคม, ISP ล่ม, ภัยธรรมชาติ)
+
+---
+
+## 4. Calculation Logic (Algorithm)
 
 ### 3.1 Net Business Minutes
 การคำนวณจะใช้ฟังก์ชัน `calculateNetBusinessMinutes` ใน `lib/slaUtils.js` ซึ่งมีเงื่อนไขดังนี้:
@@ -37,13 +45,20 @@
 3.  นับเฉพาะเวลาในช่วง 08:30 - 17:30
 4.  หักลบเวลาที่อยู่ในช่วง **Exclusions** (เช่น การรอข้อมูลจากผู้ใช้ หรือการพักเบรคตามตาราง `sla_exclusions`)
 
-### 3.2 Data Resiliency (Fallbacks)
-เพื่อให้ระบบแสดงผลได้เสถียรแม้ข้อมูลใน Database บางฟิลด์จะขาดหาย (Legacy Data) ระบบจะใช้ลำดับการอ้างอิงเวลาดังนี้:
+### 3.3 Mathematical Formulas (Reporting)
+เพื่อให้ตัวเลขสะท้อนความเป็นจริงและประสิทธิภาพการทำงานแบบ Real-time ระบบใช้สูตรดังนี้:
 
-**สำหรับ Response Time End:**
-1.  `acknowledged_at` (เวลาที่รับงานจริง)
-2.  `assigned_at` (เวลาที่ถูกมอบหมาย)
-3.  **Fallback**: หากมีชื่อผู้รับผิดชอบ (`assigned_to`) แต่ไม่มี Timestamp ข้างต้น ให้ใช้ `created_at` (ถือว่ารับงานทันที)
+1.  **Response Rate (%)**: `(Passed Responses / (Passed + Failed Responses)) * 100`
+    - **PASS**: เคสที่ตอบสนองแล้ว (Acknowledged/Assigned) และใช้เวลาภายในเกณฑ์
+    - **FAIL**:
+        - เคสที่ตอบสนองแล้วแต่ใช้เวลาเกินเกณฑ์
+        - **[Strict Mode]**: เคสที่ยังไม่ตอบสนอง (`Open`) แต่เวลาปัจจุบัน (Business Minutes) เกินเกณฑ์แล้ว
+2.  **Resolution Rate (%)**: `(Passed Resolutions / (Passed + Failed Resolutions)) * 100`
+    - **PASS**: เคสที่ปิดงานแล้ว (`Closed`) และใช้เวลาภายในเกณฑ์
+    - **FAIL**:
+        - เคสที่ปิดงานแล้วแต่ใช้เวลาเกินเกณฑ์
+        - **[Strict Mode]**: เคสที่ยังไม่ปิดงาน แต่เวลาปัจจุบัน (Business Minutes) เกินเกณฑ์แล้ว
+3.  **Overall Compliance (%)**: `(Response Rate + Resolution Rate) / 2`
 
 ---
 

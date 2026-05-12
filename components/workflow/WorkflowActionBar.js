@@ -6,18 +6,22 @@
  */
 export function WorkflowActionBar({ 
   status, 
+  canEdit = true,
   canSubmit, 
-  canApprove, 
+  canApprove,
+  canRemoteApprove,
   canReject, 
   canReopen,
   onSave, 
   onSubmit, 
-  onApprove, 
+  onApprove,
+  onRemoteApprove,
   onReject, 
   onReopen,
   onEdit,
   isEditing,
   onCancelEdit,
+  onAcknowledge,
   loading 
 }) {
   const isDraft = status === 'Open' || status === 'In Progress'
@@ -96,13 +100,24 @@ export function WorkflowActionBar({
                 {/* Draft Actions */}
                 {isDraft && (
                   <>
-                    <button
-                      onClick={onEdit}
-                      disabled={loading}
-                      style={{ padding: '8px 20px', borderRadius: '10px', border: '1px solid #e2e8f0', fontWeight: 700, color: '#64748b', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}
-                    >
-                      ✏️ แก้ไข
-                    </button>
+                    {status === 'Open' && (
+                      <button
+                        onClick={onAcknowledge}
+                        disabled={loading}
+                        style={{ padding: '8px 24px', borderRadius: '10px', background: 'linear-gradient(to right, #6366f1, #4f46e5)', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.2)', fontFamily: 'inherit', fontSize: '13px', marginRight: '8px' }}
+                      >
+                        ⚡ รับเรื่อง (Accept)
+                      </button>
+                    )}
+                    {canEdit && (
+                      <button
+                        onClick={onEdit}
+                        disabled={loading}
+                        style={{ padding: '8px 20px', borderRadius: '10px', border: '1px solid #e2e8f0', fontWeight: 700, color: '#64748b', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}
+                      >
+                        ✏️ แก้ไข
+                      </button>
+                    )}
                     {canSubmit && (
                       <button
                         onClick={onSubmit}
@@ -116,22 +131,35 @@ export function WorkflowActionBar({
                 )}
 
                 {/* Approval Actions */}
-                {isPending && canApprove && (
+                {isPending && (
                   <>
-                    <button
-                      onClick={onReject}
-                      disabled={loading}
-                      style={{ padding: '8px 20px', borderRadius: '10px', border: '1px solid #fecaca', background: '#fff1f2', color: '#e11d48', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}
-                    >
-                      ❌ ตีกลับ
-                    </button>
-                    <button
-                      onClick={onApprove}
-                      disabled={loading}
-                      style={{ padding: '8px 24px', borderRadius: '10px', background: 'linear-gradient(to right, #059669, #0d9488)', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)', fontFamily: 'inherit', fontSize: '13px' }}
-                    >
-                      ✅ อนุมัติงาน
-                    </button>
+                    {canApprove && (
+                      <>
+                        <button
+                          onClick={onReject}
+                          disabled={loading}
+                          style={{ padding: '8px 20px', borderRadius: '10px', border: '1px solid #fecaca', background: '#fff1f2', color: '#e11d48', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}
+                        >
+                          ❌ ตีกลับ
+                        </button>
+                        <button
+                          onClick={onApprove}
+                          disabled={loading}
+                          style={{ padding: '8px 24px', borderRadius: '10px', background: 'linear-gradient(to right, #059669, #0d9488)', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)', fontFamily: 'inherit', fontSize: '13px' }}
+                        >
+                          ✅ อนุมัติงาน
+                        </button>
+                      </>
+                    )}
+                    {canRemoteApprove && (
+                      <button
+                        onClick={onRemoteApprove}
+                        disabled={loading}
+                        style={{ padding: '8px 20px', borderRadius: '10px', background: '#475569', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(71, 85, 105, 0.2)', fontFamily: 'inherit', fontSize: '13px' }}
+                      >
+                        🔏 อนุมัติแทน (Remote)
+                      </button>
+                    )}
                   </>
                 )}
 

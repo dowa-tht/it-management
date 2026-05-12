@@ -72,41 +72,77 @@ export function WorkflowProgressBar({ currentStatus, steps = [] }) {
         </div>
       </div>
 
-      {/* Detail Approval Steps */}
-      {steps.length > 0 && currentStatus === 'Pending Approval' && (
+      {/* Detail Approval Steps (Transparency Box) */}
+      {steps.length > 0 && (
         <div style={{ 
-          marginTop: '40px', 
-          display: 'flex', 
-          justifyContent: 'center', 
-          gap: '10px', 
-          flexWrap: 'wrap' 
+          marginTop: '32px', 
+          padding: '20px',
+          background: '#fff',
+          borderRadius: '20px',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
         }}>
-          {steps.map((step, idx) => (
-            <div 
-              key={step.id} 
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px', 
-                padding: '6px 12px', 
-                borderRadius: '8px', 
-                background: step.status === 'approved' ? '#f0fdf4' : (step.status === 'pending' ? '#eff6ff' : '#f8fafc'),
-                border: `1px solid ${step.status === 'approved' ? '#bbf7d0' : (step.status === 'pending' ? '#bfdbfe' : '#e2e8f0')}`,
-                color: step.status === 'approved' ? '#166534' : (step.status === 'pending' ? '#1e40af' : '#64748b'),
-                fontSize: '11px',
-                fontWeight: 600
-              }}
-            >
-              <span style={{ 
-                width: '16px', height: '16px', borderRadius: '50%', 
-                background: step.status === 'approved' ? '#10b981' : (step.status === 'pending' ? '#3b82f6' : '#94a3b8'),
-                color: '#fff', fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>
-                {step.status === 'approved' ? '✓' : idx + 1}
-              </span>
-              {step.role_required}
-            </div>
-          ))}
+          <div style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>📝 ลำดับขั้นตอนการอนุมัติ (Approval Flow)</span>
+            {steps.some(s => s.is_preview) && (
+              <span style={{ fontSize: '10px', background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>พรีวิว</span>
+            )}
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {steps.map((step, idx) => {
+              const isApproved = step.status === 'approved'
+              const isPending = step.status === 'pending'
+              const name = step.user_profiles?.full_name || 'ใครก็ได้ที่มีสิทธิ์'
+              const roleLabel = step.role_required?.replace('_', ' ').toUpperCase()
+              
+              return (
+                <div 
+                  key={step.id} 
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    padding: '12px 16px', 
+                    borderRadius: '12px', 
+                    background: isApproved ? '#f0fdf4' : (isPending ? '#eff6ff' : '#f8fafc'),
+                    border: `1px solid ${isApproved ? '#bbf7d0' : (isPending ? '#bfdbfe' : '#e2e8f0')}`,
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ 
+                      width: '24px', height: '24px', borderRadius: '50%', 
+                      background: isApproved ? '#10b981' : (isPending ? '#3b82f6' : '#94a3b8'),
+                      color: '#fff', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      {isApproved ? '✓' : idx + 1}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: isApproved ? '#166534' : (isPending ? '#1e40af' : '#1e293b') }}>
+                        {name}
+                      </div>
+                      <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+                        {roleLabel}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div style={{ 
+                    fontSize: '11px', 
+                    fontWeight: 800, 
+                    padding: '4px 10px', 
+                    borderRadius: '20px',
+                    background: isApproved ? '#dcfce7' : (isPending ? '#dbeafe' : '#f1f5f9'),
+                    color: isApproved ? '#16a34a' : (isPending ? '#2563eb' : '#64748b'),
+                    textTransform: 'uppercase'
+                  }}>
+                    {isApproved ? 'อนุมัติแล้ว' : (isPending ? 'รออนุมัติ' : 'ยังไม่ถึงคิว')}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>

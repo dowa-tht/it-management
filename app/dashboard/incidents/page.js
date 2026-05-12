@@ -100,6 +100,11 @@ function IncidentCard({ inc, steps = [] }) {
             </span>
           </div>
           <WorkflowMiniProgress steps={steps} />
+          {inc.reported_by && (
+            <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '6px', fontWeight: 500 }}>
+              ผู้สร้าง: {inc.reported_by}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
@@ -210,9 +215,18 @@ function IncidentsContent() {
       const name = (currentUser.full_name || '').trim()
       const email = (currentUser.email || '').trim()
       
+      // Build a robust OR filter:
+      // 1. Matching by UUID (Strongest)
+      // 2. Matching by String Name (Legacy/Manual)
+      // 3. Matching by Email (Fallback)
+      // 4. Matching by Assigned To (For IT Staff context)
       const filters = []
-      if (name) filters.push(`reported_by.eq."${name}"`)
-      if (email) filters.push(`reported_by.eq."${email}"`)
+      filters.push(`reported_by_id.eq.${currentUser.id}`)
+      if (name) {
+        filters.push(`reported_by.ilike."%${name}%"`)
+        filters.push(`assigned_to.ilike."%${name}%"`)
+      }
+      if (email) filters.push(`reported_by.ilike."%${email}%"`)
       
       if (filters.length > 0) {
         query = query.or(filters.join(','))
@@ -435,6 +449,11 @@ function IncidentsContent() {
                       <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', marginTop: '4px', textTransform: 'uppercase' }}>
                         {workflowMap[inc.id]?.find(s => s.status === 'pending')?.role_required || (inc.status === 'Closed' ? 'Completed' : 'Wait Resolve')}
                       </div>
+                      {inc.reported_by && (
+                        <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '3px', fontWeight: 500 }}>
+                          ผู้สร้าง: {inc.reported_by}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '12px 16px', color: '#6b7280', fontSize: 12, whiteSpace: 'nowrap' }}>
                       {formatDate(inc.created_at)}

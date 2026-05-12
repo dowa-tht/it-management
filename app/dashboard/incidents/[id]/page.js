@@ -2,19 +2,23 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
+import SignaturePad from 'react-signature-canvas'
+import { verifyEmployeePIN } from '@/app/actions/users'
 import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { calculateNetBusinessMinutes } from '@/lib/slaUtils'
-import { recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow } from '@/app/actions/workflow'
+import { getPotentialWorkflowSteps, recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow, syncDynamicWorkflowApprovers, diagnoseApprovalPin } from '@/app/actions/workflow'
+import { acknowledgeIncident } from '@/app/actions/incidents'
 import { isSubstituteOf } from '@/lib/workflow'
 import { WorkflowProgressBar } from '@/components/workflow/WorkflowProgressBar'
 import { UnifiedApprovalModal } from '@/components/workflow/UnifiedApprovalModal'
 import { WorkflowActionBar } from '@/components/workflow/WorkflowActionBar'
+import { WORKFLOW_DOC_REGISTRY } from '@/lib/workflowRegistry'
 
 const SLA_LABELS = {
   High:   { response: 'ทันที (ภายใน 1 ชั่วโมง)', resolve: 'ภายใน 4 ชั่วโมง' },
   Medium: { response: 'ภายใน 2 ชั่วโมง',     resolve: 'ภายใน 8 ชั่วโมง' },
-  Low:    { response: 'ภายใน 4 ชั่วโมง',     resolve: 'ภายใน 24 ชั่วโมง' }
+  Low:    { response: 'ภายใน 6 ชั่วโมง',     resolve: 'ภายใน 3 วันทำการ' }
 }
 
 const SEVERITY_COLORS = {
@@ -117,9 +121,10 @@ function SLAWidget({ label, targetLabel, start, end, severity, type, settings, h
     return () => clearInterval(timer)
   }, [start, end, settings, holidays, exclusions])
 
+  const reg = WORKFLOW_DOC_REGISTRY.incident
   const targetMins = type === 'response' ? 
-    (severity === 'High' ? 60 : severity === 'Medium' ? 120 : 240) : 
-    (severity === 'High' ? 240 : severity === 'Medium' ? 480 : 1440)
+    (reg.sla_targets[severity]?.response || 120) : 
+    (reg.sla_targets[severity]?.resolve || 480)
   
   const isOver = mins > targetMins
   const isDone = !!end
@@ -169,6 +174,7 @@ export default function IncidentDetailPage() {
   const [approvalLoading, setApprovalLoading] = useState(false)
   const [showResolveDialog, setShowResolveDialog] = useState(false)
   const [showReopenDialog, setShowReopenDialog] = useState(false)
+  const [showAcknowledgeDialog, setShowAcknowledgeDialog] = useState(false)
 
   const [workingHours, setWorkingHours] = useState(null)
   const [holidays, setHoneydays] = useState([])
@@ -218,7 +224,24 @@ export default function IncidentDetailPage() {
       if (excl) setExclusions(excl)
 
       const { data: wfs } = await getDocumentWorkflowStatus(id)
-      if (wfs) setWorkflowSteps(wfs)
+      
+      const enrichSteps = (steps) => {
+        return steps?.map(s => {
+          // 🛡️ Step 2 in Incidents is always the Reporter
+          if (s.step_order === 2 && !s.user_profiles && inc.reporter) {
+            return { ...s, user_profiles: { ...inc.reporter } }
+          }
+          return s
+        })
+      }
+
+      if (wfs && wfs.length > 0) {
+        setWorkflowSteps(enrichSteps(wfs))
+      } else if (inc && inc.status !== 'Closed') {
+        // Preview potential steps if not yet generated
+        const { data: preview } = await getPotentialWorkflowSteps('incident', inc.severity)
+        setWorkflowSteps(enrichSteps(preview) || [])
+      }
     } catch (err) {
       console.error(err)
     }
@@ -228,43 +251,93 @@ export default function IncidentDetailPage() {
   const handleSave = async () => {
     setSaving(true)
     
-    // Check if severity has changed to record a special log
+    // Handle Severity Change and Workflow Sync
     if (form.severity !== incident.severity) {
+      if (incident.workflow_status === 'pending') {
+        const confirmReset = window.confirm('⚠️ คุณกำลังเปลี่ยนระดับความรุนแรงในขณะที่เคสกำลังรออนุมัติ การดำเนินการนี้จะรีเซ็ตลำดับการอนุมัติใหม่ทั้งหมด คุณต้องการดำเนินการต่อหรือไม่?')
+        if (!confirmReset) {
+          setSaving(false)
+          return
+        }
+      }
+
       await recordLog(
         id, 
         'incident', 
-        'Updated', 
+        'Change Severity', 
         `Severity changed from ${incident.severity} to ${form.severity}`, 
         currentUser.email
       )
+
+      if (incident.workflow_status === 'pending') {
+        const reg = WORKFLOW_DOC_REGISTRY.incident
+        await generateWorkflowSteps(id, 'incident', reg.condition_key, form.severity, incident.assigned_approver_id)
+      }
     }
 
     const { reporter, ...updateData } = form
     const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
     if (error) alert(error.message)
     else {
+      if (updateData.reported_by_id !== incident.reported_by_id && incident.workflow_status === 'pending') {
+        const syncRes = await syncDynamicWorkflowApprovers(id, 'incident')
+        if (!syncRes.success) {
+          alert('บันทึกข้อมูลแล้ว แต่ไม่สามารถ Sync ผู้อนุมัติ Reporter ได้: ' + syncRes.error)
+        }
+      }
       setEditing(false)
       fetchData()
     }
     setSaving(false)
   }
 
-  const handleResolveIncident = async (data) => {
+  const handleResolveIncident = async (resolveData) => {
     setSaving(true)
-    const res = await submitRequest(id, 'incident', incident.severity, currentUser.email, data)
+    const { signatures, reporter_pin, ...updateFields } = resolveData
+
+    const { error: updateErr } = await supabase.from('incidents').update({
+      ...updateFields,
+      resolved_at: new Date().toISOString(),
+      resolved_by: currentUser.id
+    }).eq('id', id)
+
+    if (updateErr) {
+      alert('ไม่สามารถบันทึกข้อมูลการแก้ไขได้: ' + updateErr.message)
+      setSaving(false)
+      return
+    }
+
+    const signaturesWithIds = {
+      ...signatures,
+      it: { ...signatures.it, userId: currentUser.id },
+      reporter: { ...signatures.reporter, userId: incident.reported_by_id }
+    }
+
+    const res = await submitRequest(id, 'incident', incident.severity, currentUser.email, signaturesWithIds, reporter_pin)
     if (res.success) {
       setShowResolveDialog(false)
       fetchData()
-    } else alert(res.error)
+    } else {
+      alert('เกิดข้อผิดพลาดในการส่งอนุมัติ: ' + res.error)
+    }
     setSaving(false)
   }
 
+  const [isRemoteApprovalMode, setIsRemoteApprovalMode] = useState(false)
+
   const handleApprove = async ({ pin, signatureData, comment }) => {
     setApprovalLoading(true)
-    const currentStep = workflowSteps.find(s => s.status === 'pending')
-    const res = await submitApprovalStep(id, 'incident', currentStep.id, signatureData, comment, pin)
+    let currentStep = workflowSteps.find(s => s.status === 'pending')
+    if (isRemoteApprovalMode && currentStep?.role_required === 'reporter' && !currentStep.approver_id && incident?.reported_by_id) {
+      currentStep = { ...currentStep, approver_id: incident.reported_by_id }
+    }
+    const overrideApproverId = isRemoteApprovalMode
+      ? (currentStep?.approver_id || incident?.reported_by_id || null)
+      : (currentStep?.approver_id || null)
+    const res = await submitApprovalStep(id, 'incident', currentStep.id, signatureData, comment, pin, overrideApproverId)
     if (res.success) {
       setShowSignatureModal(false)
+      setIsRemoteApprovalMode(false)
       fetchData()
     } else alert(res.error)
     setApprovalLoading(false)
@@ -288,18 +361,38 @@ export default function IncidentDetailPage() {
     setSaving(false)
   }
 
+  const handleAcknowledge = async (acknowledgeData) => {
+    setSaving(true)
+    const res = await acknowledgeIncident(id, acknowledgeData.severity, acknowledgeData.assignee_id)
+    if (res.success) {
+      setShowAcknowledgeDialog(false)
+      fetchData()
+    } else alert(res.error)
+    setSaving(false)
+  }
+
   if (loading) return <div style={{ padding: '100px', textAlign: 'center', color: '#94a3b8' }}>กำลังโหลดข้อมูล...</div>
   if (!incident) return <div style={{ padding: '100px', textAlign: 'center', color: '#94a3b8' }}>ไม่พบข้อมูลเคส</div>
 
-  const isLocked = incident.status === 'Pending Approval' || incident.status === 'Closed'
-  const isSuperUser = currentUser?.role === 'admin' || currentUser?.role === 'it_staff'
+  const hasFullAccess = currentUser?.role === 'admin' || currentUser?.role === 'it_staff'
+  const isLocked = incident.status === 'Pending Approval' || incident.status === 'Closed' || (incident.status === 'In Progress' && !hasFullAccess)
   const isAuditor = currentUser?.role === 'auditor'
   const currentStep = workflowSteps.find(s => s.status === 'pending')
+  const isCreator = currentUser?.id === incident?.reported_by_id
+  const latestRejectedStep = workflowSteps.find(s => s.status === 'rejected')
+  const latestRejectedLog = logs.find(log => log.action === 'Rejected')
+  const rejectReason = latestRejectedStep?.comment?.replace(/^Rejected:\s*/i, '') || latestRejectedLog?.details?.split('เหตุผล:').pop()?.trim() || ''
+  const wasRejected = Boolean(latestRejectedStep || latestRejectedLog)
   const canApprove = currentStep && (
     currentStep.approver_id === currentUser?.id || 
     (currentStep.role_required === currentUser?.role && !currentStep.approver_id) ||
-    isSubstituteOf(currentUser?.role, currentStep.role_required)
+    isSubstituteOf(currentUser?.role, currentStep.role_required) ||
+    (currentStep.role_required === 'reporter' && isCreator)
   )
+
+  const canEditDetails = !isLocked && (hasFullAccess || incident.reported_by_id === currentUser?.id)
+  const canSubmitForApproval = incident.status === 'In Progress' && hasFullAccess
+  const canRemoteApprove = hasFullAccess && incident.status === 'Pending Approval' && !canApprove
 
   const field = (label, name, value, options = null) => (
     <div style={{ marginBottom: '20px' }}>
@@ -332,27 +425,59 @@ export default function IncidentDetailPage() {
     <div style={{ minHeight: '100vh', background: '#f8fafc', paddingBottom: '120px' }}>
       <PageStyles />
       
-      {showResolveDialog && <ResolveDialog onCancel={() => setShowResolveDialog(false)} onConfirm={handleResolveIncident} loading={saving} />}
+      {showAcknowledgeDialog && (
+        <AcknowledgeDialog 
+          onCancel={() => setShowAcknowledgeDialog(false)} 
+          onConfirm={handleAcknowledge} 
+          loading={saving} 
+          currentSeverity={incident.severity}
+          currentAssigneeId={currentUser?.id}
+        />
+      )}
+
+      {showResolveDialog && (
+        <ResolveDialog 
+          onCancel={() => setShowResolveDialog(false)} 
+          onConfirm={handleResolveIncident} 
+          loading={saving} 
+          initialData={form}
+          severity={incident.severity}
+          reporterName={incident.reporter?.full_name}
+        />
+      )}
       {showReopenDialog && <ReopenDialog onCancel={() => setShowReopenDialog(false)} onConfirm={handleReopen} loading={saving} />}
       
-      <UnifiedApprovalModal 
-        isOpen={showSignatureModal} 
-        onCancel={() => setShowSignatureModal(false)}
+      <UnifiedApprovalModal
+        isOpen={showSignatureModal}
+        onCancel={() => { setShowSignatureModal(false); setIsRemoteApprovalMode(false); }}
         onConfirm={handleApprove}
-        approverName={currentStep?.role_required || currentUser?.full_name}
-        userEmail={currentUser?.email}
+        approverName={currentStep?.user_profiles?.full_name || (isRemoteApprovalMode && incident?.reporter?.full_name) || currentStep?.role_required || currentUser?.full_name}
+        approverEmail={currentStep?.user_profiles?.email || (isRemoteApprovalMode && incident?.reporter?.email) || currentUser?.email}
+        userEmail={currentStep?.user_profiles?.email || (isRemoteApprovalMode && incident?.reporter?.email) || currentUser?.email}
         loading={approvalLoading}
+        isCreator={currentUser?.id === incident?.reported_by_id}
+        isRemote={isRemoteApprovalMode}
+        onTestPin={async (pin) => {
+          const pendingStep = workflowSteps.find(s => s.status === 'pending')
+          const res = await diagnoseApprovalPin(id, 'incident', pendingStep.id, pin)
+          if (res.success) return { success: true, message: `PIN ถูกต้องสำหรับ ${res.approver?.full_name || res.approver?.email || 'ผู้อนุมัติ'}` }
+          return { success: false, message: res.error || 'PIN ไม่ถูกต้อง', details: res }
+        }}
       />
 
       <WorkflowActionBar 
         status={incident.status}
-        canSubmit={!isLocked && incident.status !== 'Pending Approval' && !isAuditor}
+        canEdit={canEditDetails}
+        canSubmit={canSubmitForApproval}
         canApprove={canApprove}
+        canRemoteApprove={canRemoteApprove}
         canReject={canApprove}
-        canReopen={isSuperUser && isLocked}
+        canReopen={hasFullAccess && (incident.status === 'Closed' || incident.status === 'Pending Approval')}
         onSave={handleSave}
+        onAcknowledge={() => setShowAcknowledgeDialog(true)}
         onSubmit={() => setShowResolveDialog(true)}
-        onApprove={() => setShowSignatureModal(true)}
+        onApprove={() => { setIsRemoteApprovalMode(false); setShowSignatureModal(true); }}
+        onRemoteApprove={() => { setIsRemoteApprovalMode(true); setShowSignatureModal(true); }}
         onReject={handleRejectIncident}
         onReopen={() => setShowReopenDialog(true)}
         onEdit={() => setEditing(true)}
@@ -420,6 +545,25 @@ export default function IncidentDetailPage() {
             <h2 style={{ fontSize: '12px', fontWeight: 800, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>Workflow Progress</h2>
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>{workflowSteps.filter(s => s.status === 'approved').length} / {workflowSteps.length} Steps Completed</div>
           </div>
+          {wasRejected && (
+            <div style={{
+              marginBottom: '16px', padding: '14px 16px', borderRadius: '16px',
+              background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 900, marginBottom: '6px' }}>
+                <span>↩️</span>
+                <span>เอกสารถูกตีกลับจากการอนุมัติ</span>
+              </div>
+              <div style={{ fontSize: '12px', lineHeight: 1.6, color: '#7c2d12' }}>
+                <strong>เหตุผล:</strong> {rejectReason || 'ไม่พบรายละเอียดเหตุผล'}
+              </div>
+              {latestRejectedLog?.created_at && (
+                <div style={{ marginTop: '6px', fontSize: '10px', fontWeight: 700, color: '#c2410c' }}>
+                  ตีกลับเมื่อ: {formatDateTime(latestRejectedLog.created_at)} โดย {latestRejectedLog.user_full_name || latestRejectedLog.user_email || 'ไม่พบผู้ดำเนินการ'}
+                </div>
+              )}
+            </div>
+          )}
           <WorkflowProgressBar currentStatus={incident.status} steps={workflowSteps} />
         </div>
 
@@ -434,8 +578,8 @@ export default function IncidentDetailPage() {
                 รายละเอียดข้อมูลปัญหา
               </h3>
               <div className="field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px' }}>
-                {field('ระบบที่ได้รับผลกระทบ', 'affected_system', incident.affected_system)}
-                {field('ประเภท Incident', 'category', incident.category)}
+                {field('ระบบที่ได้รับผลกระทบ', 'affected_system', form.affected_system)}
+                {field('ประเภท Incident', 'category', form.category)}
               </div>
               <div className="field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px' }}>
                 <div style={{ marginBottom: '20px' }}>
@@ -447,7 +591,7 @@ export default function IncidentDetailPage() {
                   <div className="field-value">{incident.assigned_to || <span style={{ fontStyle: 'italic', color: '#cbd5e1' }}>— ยังไม่มีข้อมูล —</span>}</div>
                 </div>
               </div>
-              {field('อาการที่พบ / รายละเอียด', 'description', incident.description)}
+              {field('อาการที่พบ / รายละเอียด', 'description', form.description)}
             </div>
 
             {/* Resolution Info */}
@@ -456,9 +600,9 @@ export default function IncidentDetailPage() {
                 <span style={{ width: '4px', height: '16px', background: '#10b981', borderRadius: '2px' }} />
                 การแก้ไขปัญหา (Resolution)
               </h3>
-              {field('Root Cause Analysis', 'root_cause', incident.root_cause)}
-              {field('วิธีการแก้ไข / Resolution', 'resolution', incident.resolution)}
-              {field('การป้องกัน / Corrective Action', 'corrective_action', incident.corrective_action)}
+              {field('Root Cause Analysis', 'root_cause', form.root_cause)}
+              {field('วิธีการแก้ไข / Resolution', 'resolution', form.resolution)}
+              {field('การป้องกัน / Corrective Action', 'corrective_action', form.corrective_action)}
             </div>
           </div>
 
@@ -536,32 +680,96 @@ export default function IncidentDetailPage() {
   )
 }
 
-function ResolveDialog({ onCancel, onConfirm, loading }) {
-  const [data, setData] = useState({ root_cause: '', resolution: '', corrective_action: '' })
+function ResolveDialog({ onCancel, onConfirm, loading, initialData = {}, severity = 'Medium', reporterName }) {
+  const [data, setData] = useState({ 
+    root_cause: initialData.root_cause || '', 
+    resolution: initialData.resolution || '', 
+    corrective_action: initialData.corrective_action || '' 
+  })
+  const [pin, setPin] = useState('')
+  const [verifyingPin, setVerifyingPin] = useState(false)
+  
+  const handleConfirm = async () => {
+    if (severity === 'High' && !data.corrective_action?.trim()) {
+      alert('⚠️ สำหรับเคสความรุนแรงสูง (High) จำเป็นต้องระบุ "การป้องกัน (Corrective Action)" ด้วยครับ')
+      return
+    }
+
+    setVerifyingPin(true)
+    
+    const signatures = {
+      it: { sig: null, name: 'IT Officer (System Log)' },
+      reporter: { sig: null, name: 'Reporter (Face-to-face)' }
+    }
+
+    onConfirm({ ...data, signatures, reporter_pin: pin || null })
+    setVerifyingPin(false)
+  }
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
-      <div style={{ background: '#fff', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '500px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-        <h3 style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b', marginBottom: '8px' }}>🚀 แก้ไขปัญหาเรียบร้อย</h3>
-        <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px' }}>กรุณาระบุรายละเอียดการแก้ไขเพื่อส่งขออนุมัติปิดเคส</p>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+      <div style={{ background: '#fff', borderRadius: '32px', padding: '40px', width: '100%', maxWidth: '700px', maxHeight: '95vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #f1f5f9' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+          <div>
+            <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', margin: 0 }}>🚀 ส่งงานแก้ไขปัญหา</h3>
+            <p style={{ fontSize: '14px', color: '#64748b', margin: '4px 0 0 0' }}>ระบุรายละเอียดเพื่อบันทึกประวัติการแก้ไข</p>
+          </div>
+          <button onClick={onCancel} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', width: '40px', height: '40px', borderRadius: '12px', cursor: 'pointer', color: '#94a3b8', fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
+        </div>
         
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Root Cause Analysis</label>
-            <textarea value={data.root_cause} onChange={e => setData({...data, root_cause: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', fontFamily: 'inherit' }} rows={2} />
+            <label style={{ fontSize: '10px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Root Cause Analysis (สาเหตุ)</label>
+            <textarea value={data.root_cause} onChange={e => setData({...data, root_cause: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: '2px solid #f1f5f9', background: '#f8fafc', fontSize: '14px', fontFamily: 'inherit', outline: 'none' }} rows={2} placeholder="อธิบายสาเหตุที่แท้จริง..." />
           </div>
+ 
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>วิธีการแก้ไข (Resolution)</label>
-            <textarea value={data.resolution} onChange={e => setData({...data, resolution: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', fontFamily: 'inherit' }} rows={2} />
+            <label style={{ fontSize: '10px', fontWeight: 900, color: '#3b82f6', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>วิธีการแก้ไข (Resolution) *</label>
+            <textarea value={data.resolution} onChange={e => setData({...data, resolution: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: '2px solid #3b82f6', fontSize: '14px', fontFamily: 'inherit', background: '#fff', outline: 'none' }} rows={3} placeholder="อธิบายขั้นตอนการแก้ไข..." />
           </div>
+ 
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>การป้องกัน (Corrective Action)</label>
-            <textarea value={data.corrective_action} onChange={e => setData({...data, corrective_action: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', fontFamily: 'inherit' }} rows={2} />
+            <label style={{ fontSize: '10px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>การป้องกัน (Corrective Action) {severity === 'High' ? '*' : ''}</label>
+            <textarea value={data.corrective_action} onChange={e => setData({...data, corrective_action: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: '2px solid #f1f5f9', background: '#f8fafc', fontSize: '14px', fontFamily: 'inherit', outline: 'none' }} rows={2} placeholder="แนวทางป้องกัน..." />
+            {severity === 'High' && <div style={{ fontSize: '10px', color: '#dc2626', marginTop: '4px', fontWeight: 700 }}>* จำเป็นสำหรับเคส High</div>}
+          </div>
+ 
+          <div style={{ padding: '24px', background: '#f8fafc', borderRadius: '24px', border: '2px dashed #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ fontSize: '20px' }}>🤝</div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a' }}>ยืนยันโดยผู้แจ้ง (Face-to-face)</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>ให้ผู้แจ้งใส่รหัส PIN เพื่อปิดงานทันที</div>
+              </div>
+            </div>
+            
+            <div style={{ maxWidth: '240px', margin: '0 auto' }}>
+              <input 
+                type="password" 
+                maxLength={6} 
+                value={pin} 
+                onChange={e => setPin(e.target.value.replace(/\D/g, ''))} 
+                placeholder="••••••" 
+                style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '2px solid #e2e8f0', textAlign: 'center', fontSize: '24px', letterSpacing: '8px', fontWeight: 900, background: '#fff', outline: 'none' }} 
+              />
+            </div>
           </div>
         </div>
-
+ 
         <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
-          <button onClick={onCancel} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#f1f5f9', color: '#64748b', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
-          <button onClick={() => onConfirm(data)} disabled={loading || !data.resolution} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: loading || !data.resolution ? 0.5 : 1, fontFamily: 'inherit' }}>ยืนยันส่งงาน</button>
+          <button onClick={onCancel} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', background: '#f1f5f9', color: '#64748b', fontWeight: 900, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
+          <button 
+            onClick={handleConfirm} 
+            disabled={loading || !data.resolution || verifyingPin} 
+            style={{ 
+              flex: 2, padding: '16px', borderRadius: '16px', border: 'none', 
+              background: 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)', color: '#fff', fontWeight: 900, fontSize: '15px', cursor: 'pointer', 
+              opacity: loading || !data.resolution || verifyingPin ? 0.5 : 1, 
+              fontFamily: 'inherit', boxShadow: '0 10px 15px -3px rgba(37,99,235,0.2)'
+            }}
+          >
+            {loading || verifyingPin ? 'กำลังบันทึก...' : '💾 บันทึกและส่งงาน'}
+          </button>
         </div>
       </div>
     </div>
@@ -581,6 +789,74 @@ function ReopenDialog({ onCancel, onConfirm, loading }) {
         <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
           <button onClick={onCancel} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#f1f5f9', color: '#64748b', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
           <button onClick={() => onConfirm(reason)} disabled={loading || !reason.trim()} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#d97706', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: loading || !reason.trim() ? 0.5 : 1, fontFamily: 'inherit' }}>ยืนยัน Reopen</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AcknowledgeDialog({ onCancel, onConfirm, loading, currentSeverity, currentAssigneeId }) {
+  const [severity, setSeverity] = useState(currentSeverity || 'Medium')
+  const [assigneeId, setAssigneeId] = useState(currentAssigneeId || '')
+  const [staffs, setStaffs] = useState([])
+
+  useEffect(() => {
+    const fetchStaffs = async () => {
+      const { data } = await supabase.from('user_profiles').select('id, full_name').in('role', ['admin', 'it_staff'])
+      setStaffs(data || [])
+    }
+    fetchStaffs()
+  }, [])
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
+      <div style={{ background: '#fff', borderRadius: '32px', padding: '32px', width: '100%', maxWidth: '450px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+        <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#1e293b', marginBottom: '8px' }}>⚡ รับเรื่อง (Acknowledge)</h3>
+        <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px' }}>กรุณายืนยันระดับความรุนแรงและผู้รับผิดชอบเพื่อเริ่มนับ SLA</p>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div>
+            <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>ระดับความรุนแรง (Severity)</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              {['Low', 'Medium', 'High'].map(s => (
+                <button 
+                  key={s}
+                  onClick={() => setSeverity(s)}
+                  style={{ 
+                    padding: '12px', borderRadius: '12px', border: `2px solid ${severity === s ? SEVERITY_COLORS[s].color : '#e2e8f0'}`,
+                    background: severity === s ? SEVERITY_COLORS[s].bg : '#fff',
+                    color: severity === s ? SEVERITY_COLORS[s].color : '#64748b',
+                    fontWeight: 800, cursor: 'pointer', fontSize: '13px'
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>ผู้รับผิดชอบ (Assign To)</label>
+            <select 
+              value={assigneeId} 
+              onChange={e => setAssigneeId(e.target.value)}
+              style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', fontFamily: 'inherit' }}
+            >
+              <option value="">เลือกเจ้าหน้าที่...</option>
+              {staffs.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: '14px', borderRadius: '16px', border: 'none', background: '#f1f5f9', color: '#64748b', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
+          <button 
+            onClick={() => onConfirm({ severity, assignee_id: assigneeId })} 
+            disabled={loading || !assigneeId} 
+            style={{ flex: 1, padding: '14px', borderRadius: '16px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: loading || !assigneeId ? 0.5 : 1, fontFamily: 'inherit' }}
+          >
+            {loading ? 'กำลังบันทึก...' : 'เริ่มรับเรื่อง'}
+          </button>
         </div>
       </div>
     </div>

@@ -52,8 +52,8 @@ QA team รับผิดชอบการตรวจสอบคุณภา
 
 | Item | Detail |
 |------|--------|
-| Project Name | - |
-| Test Environment | DEV / SIT / UAT / PROD |
-| Automation Scope | - |
-| Performance Criteria | - |
-| Go-Live Criteria | - |
+| Project Name | DOWA IT System (ระบบจัดการงานไอที Dowa) |
+| Test Environment | SIT / UAT / PROD (Supabase Environments) |
+| Automation Scope | - Workflow Step Verification (document_approvals)<br>- SLA Business Minutes Accuracy (slaUtils.js)<br>- Security: Server-side PIN Validation Bypass Check |
+| Performance Criteria | - Dashboard Table Load < 2s<br>- Image Size < 150kb (Checklist Evidence)<br>- Responsive Check (iOS/Android/Desktop) |
+| Go-Live Criteria | - Zero P1/P2 Bugs<br>- Audit Logs stamp (Verified by PIN) accurately<br>- Data Sync (Incident -> Checklist) verified 100% |

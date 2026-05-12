@@ -1,60 +1,81 @@
-# 🛠️ แผนการ Refactor: แก้ไขการคำนวณ SLA (Working Hours Correction)
+# 🛠️ Hand-off Plan: SLA Standards & Configuration Overhaul (v2 - Strict Mode)
 
-เอกสารฉบับนี้ระบุแนวทางการแก้ไขสูตรการคำนวณ SLA เพื่อให้ตรงตามนโยบาย "นับเฉพาะเวลาทำการ" และ "3 วันทำการ" อย่างถูกต้อง
-
----
-
-## 🔍 ปัญหาที่พบ (Current Issues)
-1. **SLA Limit ผิดพลาด**: ระบบตั้งค่า SLA ระดับ Low ไว้ที่ `4,320 นาที` (72 ชั่วโมง) 
-2. **ความไม่สอดคล้อง**: 
-    - นโยบายระบุว่า "3 วันทำการ"
-    - เวลาทำงานคือ 9 ชั่วโมง/วัน (08:30 - 17:30)
-    - ดังนั้น 3 วันทำการ ควรเท่ากับ **1,620 นาที** (9 ชม. x 60 นาที x 3 วัน)
-    - การตั้งไว้ที่ 4,320 นาที ทำให้พนักงานมีเวลาทำงานจริงถึง **8 วันทำการ** ซึ่งไม่ถูกต้องตาม KPI
+This document serves as a detailed instruction for the next Agent to implement the SLA changes. This version includes **Strict Mode** for real-time accuracy.
 
 ---
 
-## 📂 รายการแก้ไข (Action Items)
-
-### 1. [MODIFY] `lib/slaUtils.js`
-แก้ไขค่า Constant ใน `SLA_LIMITS` ให้ตรงตามเวลาทำงานจริง:
-- [x] เปลี่ยน `Low: 3 * 24 * 60` เป็น `Low: 3 * 9 * 60` (หรือคำนวณจาก Working Hours ในอนาคต)
-- [x] ตรวจสอบฟังก์ชัน `calculateNetBusinessMinutes` ให้มั่นใจว่าการหักลบ Exclusion Minutes ทำงานได้ถูกต้อง
-
-### 2. [MODIFY] `app/dashboard/incidents/[id]/page.js`
-แก้ไขค่าคงที่ฝั่ง Frontend ให้ตรงกับ Backend:
-- [x] แก้ไข `SLA_MINUTES.Low.resolve` จาก `4320` เป็น **`1620`**
-- [x] ตรวจสอบการแสดงผลใน `SLAWidget` ให้สะท้อนตัวเลขที่ถูกต้อง
-
-### 3. [MODIFY] `app/actions/reports.js`
-- [x] ตรวจสอบการดึงค่า `sla_limits` จาก `system_settings` หากมีการกำหนดไว้ในฐานข้อมูล ให้ใช้ค่านั้นเป็นหลัก
+## 🎯 Objectives
+1.  **Correct SLA Calculations**: Update thresholds (High: 60/240, Medium: 120/480, Low: 360/1620).
+2.  **Strict Mode Logic**: Count late Open/In-Progress tickets as **FAIL** in real-time.
+3.  **Dynamic Setup UI**: Enhance the SLA Guide Modal to allow Hour/Minute setup.
+4.  **Display Refinement**: Show durations in Thai format (e.g., "0 ชั่วโมง 40 นาที").
 
 ---
 
-## 🧪 การตรวจสอบ (Verification Plan)
-1. **Manual Test Case**:
-    - สร้างเคสระดับ Low เวลา 17:00 วันจันทร์
-    - ปิดเคสเวลา 10:00 วันพฤหัสบดี
-    - **เวลาที่ใช้**: (30 นาที วันจันทร์) + (9 ชม. อังคาร) + (9 ชม. พุธ) + (1.5 ชม. พฤหัส) = **20 ชม. (1,200 นาที)**
-    - **ผลลัพธ์ที่ถูกต้อง**: ต้อง "ผ่าน SLA" (In SLA) เพราะยังไม่เกิน 1,620 นาที
-2. **Report Audit**:
-    - ตรวจสอบหน้า SLA Report ว่าตัวเลข % Compliance ลดลงมาอยู่ในระดับที่ถูกต้อง (สะท้อนความเป็นจริง)
+## 📏 New SLA Standards (Mandatory)
+
+| Severity | Response Target | Resolution Target |
+| :--- | :--- | :--- |
+| **High** | 60 min | 240 min |
+| **Medium** | 120 min | 480 min |
+| **Low** | 360 min (6h) | 1,620 min (3 working days) |
 
 ---
 
-## ⚠️ พบจุดตกหล่นจากการ Audit (Post-Implementation Audit)
+## 🛠️ Implementation Instructions (For Agent)
 
-จากการตรวจสอบเมื่อวันที่ 08-May-2026 พบว่าหน้า Dashboard หลักยังทำงานไม่สอดคล้องกับมาตรฐานใหม่:
+### 1. Utility Refactoring (`lib/slaUtils.js`)
+- Update `SLA_LIMITS` and `calculateSLARates`.
+- **Logic Change**: Ensure the rates count all items where `isResponseOK !== null`.
 
-### [DONE] `app/dashboard/page.js`
-- [x] **Mismatch Constants**: บรรทัดที่ 11 ยังใช้ค่า `1440` (ควรเป็น `1620`)
-- [x] **Incorrect Logic**: บรรทัดที่ 60 ฟังก์ชัน `calcElapsedMin` ยังนับเวลาแบบ 24 ชั่วโมง (Simple subtraction) ทำให้การแสดงสถานะ `🔴 Overdue` ในหน้าแรกผิดพลาด
-- [x] **Solution**: ต้องเปลี่ยนมาเรียกใช้ `calculateNetBusinessMinutes` จาก `@/lib/slaUtils` เพื่อให้การคำนวณตรงกันทั้งระบบ
+### 2. Backend Logic Update (`app/actions/reports.js` & `dashboard.js`)
+- **Strict Response Logic**:
+  ```javascript
+  const currentMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, []);
+  if (inc.status === 'Open') {
+    inc.isResponseOK = currentMin > respLimit ? false : null;
+  } else {
+    inc.isResponseOK = responseMin <= respLimit;
+  }
+  ```
+- **Strict Resolution Logic**:
+  ```javascript
+  const currentResMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, incExclusions);
+  if (inc.status !== 'Closed') {
+    inc.isResolveOK = currentResMin > resLimit ? false : null;
+  } else {
+    inc.isResolveOK = resolveMin <= resLimit;
+  }
+  ```
+
+### 3. Dashboard UI Enhancement (`app/dashboard/reports/sla/page.js`)
+- **Modal Update**: 
+    - Convert minutes to Hour/Minute inputs.
+    - Total Minutes = `(H * 60) + M`.
+    - Format all duration displays using `formatDurationThai`.
+- **Status Badges**: Ensure "FAIL" badges appear for late Open/In-Progress tickets.
+
+### 4. Documentation Update
+- **File**: `docs/standards/SLA_MANAGEMENT.md`
+- **Action**: Verify it matches the latest "Strict Mode" formulas.
 
 ---
-*บันทึกเพิ่มเติมโดย: Project Checker*
-*วันที่: 08-May-2026 11:41*
 
 ---
-*จัดทำแผนโดย: Project Checker*
-*วันที่: 08-May-2026*
+
+## 📊 Current Implementation Status (Audit: 2026-05-09)
+
+- [x] **Thresholds Update**: `SLA_LIMITS` updated in `lib/slaUtils.js`.
+- [x] **UI Unit Conversion**: SLA Guide Modal handles H/M to Minute conversion.
+- [x] **Thai Formatting**: All displays use `formatDurationThai`.
+- [ ] **Strict Mode Calculation**: `app/actions/reports.js` still returns `null` for Open/In-Progress cases instead of checking against `new Date()`.
+
+> [!IMPORTANT]
+> **Technical Gap**: In `app/actions/reports.js`, the logic for `isResponseOK` and `isResolveOK` must be updated to use `calculateNetBusinessMinutes(inc.created_at, new Date(), ...)` for non-closed tickets to enable real-time "FAIL" badges.
+
+---
+
+## ✅ Verification Checklist
+- [ ] **Strict Mode**: Open tickets that were created more than X hours ago (per severity) show a "FAIL" badge on the dashboard.
+- [ ] **Real-time Accuracy**: The Response Rate (%) at the top decreases *immediately* when a new ticket is opened and left unacknowledged beyond the limit.
+- [x] **Setup UI**: Verified that Setup UI correctly handles conversion between (H:M) and total minutes.

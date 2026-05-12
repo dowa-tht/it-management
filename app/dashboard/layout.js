@@ -72,7 +72,8 @@ export default function DashboardLayout({ children }) {
       const featureKey = pathname.split('/')[2] || 'dashboard'
       const access = checkPermission(perms, featureKey)
       
-      const isPublicPath = pathname === '/dashboard' || pathname.startsWith('/dashboard/profile')
+      const isPersonalPath = pathname.startsWith('/dashboard/profile') || pathname.startsWith('/dashboard/my-pending') || pathname.startsWith('/dashboard/approvals')
+      const isPublicPath = pathname === '/dashboard' || isPersonalPath
       
       if (access === 'NONE' && normalized !== 'admin' && !isPublicPath) {
         router.push('/dashboard?error=access_denied')
@@ -91,12 +92,15 @@ export default function DashboardLayout({ children }) {
   }, [pathname, router])
 
   useEffect(() => {
-    setSidebarOpen(false) 
-    if (pathname.includes('/settings/')) {
-      setExpandedSection('settings')
-    } else if (pathname.startsWith('/dashboard/incidents') || pathname === '/dashboard' || pathname.includes('/backup') || pathname.includes('/checklist')) {
-      setExpandedSection('operations')
-    }
+    const frame = window.requestAnimationFrame(() => {
+      setSidebarOpen(false)
+      if (pathname.includes('/settings/')) {
+        setExpandedSection('settings')
+      } else if (pathname.startsWith('/dashboard/incidents') || pathname === '/dashboard' || pathname.includes('/backup') || pathname.includes('/checklist')) {
+        setExpandedSection('operations')
+      }
+    })
+    return () => window.cancelAnimationFrame(frame)
   }, [pathname])
 
   const handleLogout = async () => {
@@ -137,7 +141,7 @@ export default function DashboardLayout({ children }) {
 
   if (initializing) return <div style={{ minHeight: '100vh', background: '#0f1923', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Checking Security...</div>
 
-  const SidebarContent = () => (
+  const sidebarContent = (
     <>
       <Link href="/dashboard" style={{ display: 'block', padding: '20px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', textDecoration: 'none' }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>DOWA IT</div>
@@ -151,7 +155,8 @@ export default function DashboardLayout({ children }) {
         <div style={{ maxHeight: expandedSection === 'operations' ? '500px' : '0', overflow: 'hidden', transition: 'max-height 0.4s' }}>
           {navItems.filter(i => i.section === 'operations').map(item => {
             const itemFeature = item.href.split('/')[2] || 'dashboard'
-            const itemAccess = checkPermission(permissions, itemFeature)
+            const isPersonalNavItem = item.href === '/dashboard/my-pending' || item.href === '/dashboard/approvals'
+            const itemAccess = isPersonalNavItem ? 'RO' : checkPermission(permissions, itemFeature)
             if (itemAccess === 'NONE') return null
 
             return (
@@ -285,7 +290,7 @@ export default function DashboardLayout({ children }) {
 
       {/* Sidebar with CSS classes */}
       <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <SidebarContent />
+        {sidebarContent}
       </div>
 
       {/* Main Content Area */}

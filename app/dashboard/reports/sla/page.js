@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { getSLAReportData, saveSLASettings } from '@/app/actions/reports'
 import { formatDate, formatDateNumeric } from '@/lib/dateFormat'
+import { formatDurationThai } from '@/lib/slaUtils'
 
 const DATE_FILTERS = [
   { label: 'วันนี้', value: 'today' },
@@ -238,32 +239,74 @@ export default function SLAReportPage() {
                     { key: 'High', label: '🔴 High', color: '#dc2626' },
                     { key: 'Medium', label: '🟡 Medium', color: '#d97706' },
                     { key: 'Low', label: '🟢 Low', color: '#059669' }
-                  ].map(item => (
-                    <tr key={item.key} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '10px 0' }}><span style={{ color: item.color, fontWeight: 600 }}>{item.label}</span></td>
-                      <td style={{ padding: '10px 0' }}>
-                        {isEditing ? (
-                          <input type="number" value={settings.sla_limits.Response?.[item.key] || 0} 
-                            onChange={e => {
-                              const newResp = { ...(settings.sla_limits.Response || {}), [item.key]: parseInt(e.target.value) }
-                              setEditedSettings({...settings, sla_limits: {...settings.sla_limits, Response: newResp}})
-                            }}
-                            style={{ width: 60, padding: '4px', border: '1px solid #d1d5db', borderRadius: 4 }} />
-                        ) : (
-                          `${settings.sla_limits.Response?.[item.key] || 0}m`
-                        )}
-                      </td>
-                      <td style={{ padding: '10px 0' }}>
-                        {isEditing ? (
-                          <input type="number" value={settings.sla_limits[item.key]} 
-                            onChange={e => setEditedSettings({...settings, sla_limits: {...settings.sla_limits, [item.key]: parseInt(e.target.value)}})}
-                            style={{ width: 60, padding: '4px', border: '1px solid #d1d5db', borderRadius: 4 }} />
-                        ) : (
-                          `${settings.sla_limits[item.key]?.toLocaleString()}m`
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  ].map(item => {
+                    const respTotal = settings.sla_limits.Response?.[item.key] || 0;
+                    const resTotal = settings.sla_limits[item.key] || 0;
+                    
+                    return (
+                      <tr key={item.key} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <td style={{ padding: '10px 0' }}><span style={{ color: item.color, fontWeight: 600 }}>{item.label}</span></td>
+                        <td style={{ padding: '10px 0' }}>
+                          {isEditing ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <input type="number" value={Math.floor(respTotal / 60)} 
+                                  onChange={e => {
+                                    const h = parseInt(e.target.value) || 0;
+                                    const m = respTotal % 60;
+                                    const newResp = { ...(settings.sla_limits.Response || {}), [item.key]: (h * 60) + m };
+                                    setEditedSettings({...settings, sla_limits: {...settings.sla_limits, Response: newResp}});
+                                  }}
+                                  style={{ width: 45, padding: '4px', border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'center' }} />
+                                <span style={{ fontSize: 10, color: '#6b7280' }}>ชม.</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <input type="number" value={respTotal % 60} 
+                                  onChange={e => {
+                                    const h = Math.floor(respTotal / 60);
+                                    const m = parseInt(e.target.value) || 0;
+                                    const newResp = { ...(settings.sla_limits.Response || {}), [item.key]: (h * 60) + m };
+                                    setEditedSettings({...settings, sla_limits: {...settings.sla_limits, Response: newResp}});
+                                  }}
+                                  style={{ width: 45, padding: '4px', border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'center' }} />
+                                <span style={{ fontSize: 10, color: '#6b7280' }}>น.</span>
+                              </div>
+                            </div>
+                          ) : (
+                            formatDurationThai(respTotal)
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 0' }}>
+                          {isEditing ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <input type="number" value={Math.floor(resTotal / 60)} 
+                                  onChange={e => {
+                                    const h = parseInt(e.target.value) || 0;
+                                    const m = resTotal % 60;
+                                    setEditedSettings({...settings, sla_limits: {...settings.sla_limits, [item.key]: (h * 60) + m}});
+                                  }}
+                                  style={{ width: 45, padding: '4px', border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'center' }} />
+                                <span style={{ fontSize: 10, color: '#6b7280' }}>ชม.</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <input type="number" value={resTotal % 60} 
+                                  onChange={e => {
+                                    const h = Math.floor(resTotal / 60);
+                                    const m = parseInt(e.target.value) || 0;
+                                    setEditedSettings({...settings, sla_limits: {...settings.sla_limits, [item.key]: (h * 60) + m}});
+                                  }}
+                                  style={{ width: 45, padding: '4px', border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'center' }} />
+                                <span style={{ fontSize: 10, color: '#6b7280' }}>น.</span>
+                              </div>
+                            </div>
+                          ) : (
+                            formatDurationThai(resTotal)
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </section>
@@ -312,7 +355,7 @@ export default function SLAReportPage() {
       <style>{`
         .table-scroll { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }
         .sla-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
-        .sla-table th { padding: 12px 20px; text-align: left; color: #6b7280; font-weight: 500; fontSize: 11px; border-bottom: 1px solid #e5e7eb; text-transform: uppercase; background: #f9fafb; }
+        .sla-table th { padding: 12px 20px; text-align: left; color: #6b7280; font-weight: 500; fontSize: 11px; border-bottom: 1px solid #e5e7eb; text-transform: uppercase; background: #f9fafb; white-space: nowrap; }
         .sla-table td { padding: 14px 20px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
         .action-cell { width: 80px; min-width: 80px; text-align: right; white-space: nowrap; }
         @media (max-width: 640px) {
@@ -495,11 +538,13 @@ export default function SLAReportPage() {
                       <td style={{ color: '#6b7280', fontSize: 11, whiteSpace: 'nowrap' }}>
                         {formatDateNumeric(inc.created_at)}
                       </td>
-                      <td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
                         {inc.responseMin !== null ? (
                           <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                              <span style={{ fontSize: 14, fontWeight: 700, color: inc.isResponseOK ? '#059669' : '#dc2626' }}>{inc.responseMin}m</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: inc.isResponseOK ? '#059669' : '#dc2626' }}>
+                                {formatDurationThai(inc.responseMin)}
+                              </span>
                               <span style={{ 
                                 background: inc.isResponseOK ? '#d1fae5' : '#fee2e2', 
                                 color: inc.isResponseOK ? '#065f46' : '#991b1b',
@@ -508,15 +553,17 @@ export default function SLAReportPage() {
                                 {inc.isResponseOK ? 'PASS' : 'FAIL'}
                               </span>
                             </div>
-                            <div style={{ fontSize: 9, color: '#9ca3af' }}>Target: {inc.responseLimit}m</div>
+                            <div style={{ fontSize: 9, color: '#9ca3af', fontWeight: 500, marginTop: 2 }}>Target: {formatDurationThai(inc.responseLimit)}</div>
                           </div>
                         ) : <span style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: 11 }}>ยังไม่รับเรื่อง</span>}
                       </td>
-                      <td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
                         {inc.resolveMin !== null ? (
                           <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                              <span style={{ fontSize: 14, fontWeight: 700, color: inc.isResolveOK ? '#059669' : '#dc2626' }}>{inc.resolveMin}m</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: inc.isResolveOK ? '#059669' : '#dc2626' }}>
+                                {formatDurationThai(inc.resolveMin)}
+                              </span>
                               <span style={{ 
                                 background: inc.isResolveOK ? '#d1fae5' : '#fee2e2', 
                                 color: inc.isResolveOK ? '#065f46' : '#991b1b',
@@ -525,7 +572,7 @@ export default function SLAReportPage() {
                                 {inc.isResolveOK ? 'PASS' : 'FAIL'}
                               </span>
                             </div>
-                            <div style={{ fontSize: 9, color: '#9ca3af' }}>Target: {inc.resolveLimit}m</div>
+                            <div style={{ fontSize: 9, color: '#9ca3af', fontWeight: 500, marginTop: 2 }}>Target: {formatDurationThai(inc.resolveLimit)}</div>
                           </div>
                         ) : (
                           <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>

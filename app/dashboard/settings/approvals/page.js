@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ActionButton } from '@/app/dashboard/checklist/components/ActionButton'
+import { updateApprovalConfig } from '@/app/actions/workflow'
 
 export default function ApprovalFlowsPage() {
   const [configs, setConfigs] = useState([])
@@ -35,18 +36,11 @@ export default function ApprovalFlowsPage() {
     // Fix: If approverId is empty string, send null to avoid UUID syntax error
     const finalApproverId = approverId === '' ? null : approverId
 
-    const { error } = await supabase
-      .from('approval_configs')
-      .upsert({ 
-        freq_type: freqType, 
-        primary_approver_id: finalApproverId,
-        target_type: freqType === 'Incident' ? 'incident' : 'checklist',
-        category: freqType === 'Incident' ? 'high_priority' : 'general',
-        allowed_roles: ['admin', 'it_staff', 'approver']
-      }, { onConflict: 'freq_type, category' })
+    // Use Server Action to bypass RLS and record logs
+    const result = await updateApprovalConfig(freqType, finalApproverId)
 
-    if (error) {
-      setMsg({ text: `บันทึกไม่สำเร็จ: ${error.message}`, type: 'error' })
+    if (result.error) {
+      setMsg({ text: `บันทึกไม่สำเร็จ: ${result.error}`, type: 'error' })
     } else {
       setMsg({ text: 'บันทึกการตั้งค่าสำเร็จ!', type: 'success' })
       fetchData()

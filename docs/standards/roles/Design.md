@@ -42,8 +42,8 @@ Design team รับผิดชอบการออกแบบประส�
 
 | Item | Detail |
 |------|--------|
-| Project Name | - |
-| Platform | Web / Mobile / Both |
-| Brand Guideline | - |
-| Design System | - |
-| Accessibility Requirement | - |
+| Project Name | DOWA IT System (ระบบจัดการงานไอที Dowa) |
+| Platform | Web (Responsive: Desktop, Tablet, Mobile) |
+| Brand Guideline | Professional & Trustworthy (Blue: #2563eb, Slate: #0f172a, White: #ffffff) |
+| Design System | **Dowa Premium System**: Card-based, Radius: 20px, Shadow: Soft, Typography: Inter/Sans-serif |
+| Accessibility Requirement | High Contrast Text, Visual Cues (Icon+Color), Responsive Touch Targets |

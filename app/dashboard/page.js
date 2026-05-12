@@ -5,6 +5,7 @@ import { formatDate } from '@/lib/dateFormat'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { getDashboardData } from '@/app/actions/dashboard'
 import { calculateNetBusinessMinutes } from '@/lib/slaUtils'
+import DashboardHeader from '@/components/DashboardHeader'
  
  const SLA_MINUTES = {
    High: { response: 60, resolve: 240 },
@@ -340,6 +341,7 @@ export default function DashboardPage() {
           }
           * { box-sizing: border-box; }
         `}</style>
+        <DashboardHeader pendingApprovalsCount={data.pendingApprovalsCount} myPendingFollowupsCount={data.myPendingFollowupsCount} />
         <EmployeeDashboard data={data} />
       </div>
     )
@@ -348,12 +350,12 @@ export default function DashboardPage() {
   const { stats = {}, incidentByDay = [], severityData = [], recentIncidents = [], recentBackups = [] } = data || {}
 
   const statCards = [
+    { label: 'Checklist NG', value: stats.ngChecklistsCount, color: '#ef4444', link: '/dashboard/checklist?filter=ng' },
     { label: 'Incident 30 วัน', value: stats.totalIncidents, color: '#1d4ed8', link: '/dashboard/incidents?date=30days' },
     { label: 'High Severity', value: stats.highSeverity, color: '#dc2626', link: '/dashboard/incidents?severity=High&date=30days' },
-    { label: 'Checklist NG', value: stats.ngChecklistsCount, color: '#ef4444', link: '/dashboard/checklist?filter=ng' },
-    { label: 'รออนุมัติ', value: stats.pending, color: '#701a75', link: '/dashboard/incidents?status=Pending+Approval&date=30days' },
+    { label: 'รอรับเรื่อง (Open)', value: stats.openIncidents, color: '#2563eb', link: '/dashboard/incidents?status=Open&date=30days' },
     { label: 'กำลังแก้ไข', value: stats.inProgress, color: '#d97706', link: '/dashboard/incidents?status=InProgress&date=30days' },
-    { label: 'Backup Rate', value: `${stats.backupSuccessRate}%`, color: '#059669', link: '/dashboard/backup' },
+    { label: 'รออนุมัติ', value: stats.pending, color: '#701a75', link: '/dashboard/incidents?status=Pending+Approval&date=30days' },
   ]
 
   const ca = data.checklistActions
@@ -383,51 +385,7 @@ export default function DashboardPage() {
         * { box-sizing: border-box; }
       `}</style>
 
-      <div className="header-flex" style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1 className="dashboard-title" style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0 }}>Dashboard</h1>
-          <div style={{ fontSize: 13, color: '#64748b', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-             📅 {formatDate(new Date().toISOString())}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <Link href="/dashboard/approvals" style={{ textDecoration: 'none' }}>
-            <div style={{ 
-              background: data.pendingApprovalsCount > 0 ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : '#f3f4f6', 
-              borderRadius: 10, padding: '8px 16px', color: data.pendingApprovalsCount > 0 ? '#fff' : '#9ca3af', 
-              display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', transition: 'transform 0.15s', 
-              border: data.pendingApprovalsCount > 0 ? 'none' : '1px solid #e5e7eb',
-              boxShadow: data.pendingApprovalsCount > 0 ? '0 4px 10px rgba(79, 70, 229, 0.2)' : 'none', minWidth: 140
-            }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-              <div style={{ fontSize: 20 }}>🔔</div>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase' }}>Approvals</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                  <span style={{ fontSize: 18, fontWeight: 800 }}>{data.pendingApprovalsCount}</span>
-                </div>
-              </div>
-            </div>
-          </Link>
-          <Link href="/dashboard/my-pending" style={{ textDecoration: 'none' }}>
-            <div style={{ 
-              background: data.myPendingFollowupsCount > 0 ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : '#f3f4f6', 
-              borderRadius: 10, padding: '8px 16px', color: data.myPendingFollowupsCount > 0 ? '#fff' : '#9ca3af', 
-              display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', transition: 'transform 0.15s', 
-              border: data.myPendingFollowupsCount > 0 ? 'none' : '1px solid #e5e7eb',
-              boxShadow: data.myPendingFollowupsCount > 0 ? '0 4px 10px rgba(217, 119, 6, 0.2)' : 'none'
-            }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-              <div style={{ fontSize: 20 }}>📤</div>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase' }}>My Sent Pending</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                  <span style={{ fontSize: 18, fontWeight: 800 }}>{data.myPendingFollowupsCount}</span>
-                </div>
-              </div>
-            </div>
-          </Link>
-        </div>
-      </div>
+      <DashboardHeader pendingApprovalsCount={data.pendingApprovalsCount} myPendingFollowupsCount={data.myPendingFollowupsCount} />
 
       <div className="main-dashboard-grid" style={{ display: 'grid', gap: 16, marginBottom: 24 }}>
         <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
