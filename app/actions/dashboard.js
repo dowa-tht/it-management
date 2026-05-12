@@ -209,9 +209,15 @@ export async function getDashboardData(timezoneOffset = -420) {
 
     // Aggregate Data to reduce payload size
     const totalIncidents = incidents.length
-    const highSeverity = incidents.filter(i => i.severity === 'High').length
-    const inProgress = incidents.filter(i => i.status === 'In Progress').length
-    const pending = incidents.filter(i => i.status === 'Pending Approval').length
+  const highSeverity = incidents.filter(i => i.severity === 'High').length
+  // Count unique incidents in progress; ensure no duplicate counting from joins
+  const inProgress = incidents.reduce((set, inc) => {
+    if (inc.status === 'In Progress') set.add(inc.id)
+    return set
+  }, new Set()).size
+  const pending = incidents.filter(i => i.status === 'Pending Approval').length
+  // New metric: count of Open incidents
+  const open = incidents.filter(i => i.status === 'Open').length
     const openIncidents = incidents.filter(i => i.status === 'Open').length
     
     const backupSuccessRate = backups.length
