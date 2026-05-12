@@ -216,9 +216,7 @@ export async function getDashboardData(timezoneOffset = -420) {
     return set
   }, new Set()).size
   const pending = incidents.filter(i => i.status === 'Pending Approval').length
-  // New metric: count of Open incidents
-  const open = incidents.filter(i => i.status === 'Open').length
-    const openIncidents = incidents.filter(i => i.status === 'Open').length
+  const openIncidents = incidents.filter(i => i.status === 'Open').length
     
     const backupSuccessRate = backups.length
       ? Math.round((backups.filter(b => b.status === 'Success').length / backups.length) * 100)
