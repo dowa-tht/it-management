@@ -55,7 +55,7 @@ export async function getDashboardData(timezoneOffset = -420) {
     const ytdStartIso = `${todayStr.substring(0, 4)}-01-01T00:00:00`
 
     const results = await Promise.all([
-      supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system, reported_by').gte('created_at', startIso).order('created_at', { ascending: false }),
+      supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system, reported_by, reported_by_id, assigned_to').gte('created_at', startIso).order('created_at', { ascending: false }),
       supabaseAdmin.from('backup_logs').select('id, log_date, system_name, status, notes').gte('log_date', startIso.split('T')[0]).order('log_date', { ascending: false }),
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, item_key, status)').gte('period_date', streakStartStr),
       supabaseAdmin.from('holidays').select('holiday_date').gte('holiday_date', streakStartStr),
@@ -73,7 +73,7 @@ export async function getDashboardData(timezoneOffset = -420) {
       userProfile ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING', 'Pending Approval']).eq('created_by_id', userProfile.id) : Promise.resolve({ data: [] }),
       userProfile ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval')
           .eq('reported_by_id', userProfile.id) : Promise.resolve({ data: [] }),
-      supabaseAdmin.from('incidents').select('id, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system, reported_by').gte('created_at', ytdStartIso)
+      supabaseAdmin.from('incidents').select('id, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system, reported_by, reported_by_id, assigned_to').gte('created_at', ytdStartIso)
     ])
 
     const [
@@ -86,12 +86,25 @@ export async function getDashboardData(timezoneOffset = -420) {
     let incidents = incRes.data || []
     
     // 🛡️ แยกข้อมูล: เก็บงานของตนเองไว้แสดงผลแยกต่างหาก (สำหรับ Member หรือผู้ที่ต้องการดูงานตนเอง)
+    const isMyIncident = (incident) => {
+      if (!userProfile || !incident) return false
+      const profileId = userProfile.id
+      const profileName = (userProfile.full_name || '').trim().toLowerCase()
+      const profileEmail = (userProfile.email || '').trim().toLowerCase()
+      const reportedBy = (incident.reported_by || '').trim().toLowerCase()
+      const assignedTo = (incident.assigned_to || '').trim().toLowerCase()
+
+      return (
+        incident.reported_by_id === profileId ||
+        (profileName && reportedBy.includes(profileName)) ||
+        (profileEmail && reportedBy.includes(profileEmail)) ||
+        (profileName && assignedTo.includes(profileName))
+      )
+    }
+
     let myIncidents = []
     if (userProfile) {
-      myIncidents = incidents.filter(i => 
-        i.reported_by === userProfile.full_name || 
-        i.reported_by === userProfile.email
-      )
+      myIncidents = incidents.filter(isMyIncident)
     }
     const backups = bakRes.data || []
     const allChecklists = chkRes.error ? [] : (chkRes.data || [])
@@ -366,15 +379,16 @@ export async function getDashboardData(timezoneOffset = -420) {
       
       // --- Employee Specific Data (For Redesigned Dashboard) ---
       employeeStats: (userProfile?.role === 'employee') ? {
-        total: ytdIncidents.filter(i => i.reported_by === userProfile.email || i.reported_by === userProfile.full_name).length,
-        inProgress: incidents.filter(i => (i.reported_by === userProfile.email || i.reported_by === userProfile.full_name) && (i.status === 'Open' || i.status === 'In Progress')).length,
-        pendingConfirm: incidents.filter(i => (i.reported_by === userProfile.email || i.reported_by === userProfile.full_name) && i.status === 'Pending Approval').length,
-        closed: ytdIncidents.filter(i => (i.reported_by === userProfile.email || i.reported_by === userProfile.full_name) && i.status === 'Closed').length,
+        total: ytdIncidents.filter(isMyIncident).length,
+        open: incidents.filter(i => isMyIncident(i) && i.status === 'Open').length,
+        inProgress: incidents.filter(i => isMyIncident(i) && i.status === 'In Progress').length,
+        pendingConfirm: incidents.filter(i => isMyIncident(i) && i.status === 'Pending Approval').length,
+        closed: ytdIncidents.filter(i => isMyIncident(i) && i.status === 'Closed').length,
         
         // Trend Data (Last 6 Months from YTD)
         trend: (() => {
           const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-          const myYtd = ytdIncidents.filter(i => i.reported_by === userProfile.email || i.reported_by === userProfile.full_name);
+          const myYtd = ytdIncidents.filter(isMyIncident);
           const map = {};
           
           // Initialize last 6 months
@@ -395,7 +409,7 @@ export async function getDashboardData(timezoneOffset = -420) {
         
         // Category Breakdown (Top Systems)
         categories: (() => {
-          const myYtd = ytdIncidents.filter(i => i.reported_by === userProfile.email || i.reported_by === userProfile.full_name);
+          const myYtd = ytdIncidents.filter(isMyIncident);
           const map = {};
           myYtd.forEach(i => {
             const s = i.affected_system || 'อื่นๆ (Other)';

@@ -138,16 +138,23 @@ function EmployeeDashboard({ data }) {
          gap: 16, 
          marginBottom: 24 
        }}>
-         <EmployeeStatCard 
-            label="รายการทั้งหมด" 
-            value={employeeStats.total} 
-            icon="📋" 
-            gradient="linear-gradient(135deg, #1e293b 0%, #334155 100%)"
-            link="/dashboard/incidents?filter=my" 
-          />
-         <EmployeeStatCard 
-            label="กำลังดำเนินการ" 
-            value={employeeStats.inProgress} 
+          <EmployeeStatCard 
+             label="รายการทั้งหมด" 
+             value={employeeStats.total} 
+             icon="📋" 
+             gradient="linear-gradient(135deg, #1e293b 0%, #334155 100%)"
+             link="/dashboard/incidents?filter=my" 
+           />
+          <EmployeeStatCard 
+             label="รอดำเนินการ" 
+             value={employeeStats.open} 
+             icon="🔔" 
+             gradient="linear-gradient(135deg, #ea580c 0%, #f97316 100%)"
+             link="/dashboard/incidents?filter=my&status=Open" 
+           />
+          <EmployeeStatCard 
+             label="กำลังดำเนินการ" 
+             value={employeeStats.inProgress} 
             icon="⚙️" 
             gradient="linear-gradient(135deg, #d97706 0%, #f59e0b 100%)"
             link="/dashboard/incidents?filter=my&status=InProgress" 

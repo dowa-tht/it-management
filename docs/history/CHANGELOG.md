@@ -1,5 +1,13 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Change Logs)
 
+## [2026-05-12 16:03] - Member Dashboard Incident Status Cards Fix
+- **Dashboard Accuracy**: แก้ตัวเลขกล่อง `กำลังดำเนินการ` ของ Dashboard role member ให้แสดงเฉพาะ Incident สถานะ `In Progress` ของ user ตาม logic เดียวกับหน้า List ไม่รวม `Open` แล้ว
+- **Open Card**: เพิ่มกล่อง `รอดำเนินการ` สำหรับ Incident สถานะ `Open` ของ user และกำหนด link ไป `/dashboard/incidents?filter=my&status=Open` เพื่อให้กดเข้าไปดูเอกสาร Open ได้โดยตรง
+- **Data Integrity**: ปรับ Dashboard Server Action ให้ดึง `reported_by_id` และใช้ helper เดียวกันกับเงื่อนไข My Incidents เพื่อให้การนับอ้างอิง UUID ก่อน แล้ว fallback ด้วยชื่อ/อีเมล/assigned_to ตามมาตรฐาน Incident Filtering
+- **Verification**: อ่านไฟล์จริงหลังแก้ไขแล้ว และ `npm run build` ผ่านสำเร็จ
+
+---
+
 ## [2026-05-12 15:23] - Incident Create Reporter Lock
 - **Access Control**: ปรับหน้าสร้าง Incident ให้ผู้ใช้ที่ไม่ใช่ `admin` หรือ `it_staff` ไม่สามารถเปลี่ยนช่อง `Reported By` ได้ โดยระบบล็อกเป็นบัญชีผู้ใช้งานปัจจุบัน
 - **UI Safety**: เพิ่ม `disabled` support ให้ `UserAutocomplete` เพื่อปิดการค้นหา/เลือก/เพิ่มผู้แจ้งเมื่อไม่มีสิทธิ์ และแสดงข้อความอธิบายใต้ช่องผู้แจ้ง
