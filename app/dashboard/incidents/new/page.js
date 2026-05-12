@@ -16,6 +16,7 @@ function NewIncidentForm() {
   const [loadingMaster, setLoadingMaster] = useState(true)
   const [caseNo, setCaseNo] = useState('')
   const [manualNos, setManualNos] = useState(false)
+  const [currentUser, setCurrentUser] = useState(null)
 
   const [categories, setCategories] = useState([])
   const [systems, setSystems] = useState([])
@@ -69,11 +70,12 @@ function NewIncidentForm() {
     if (user) {
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('id, full_name, email')
+        .select('id, full_name, email, role')
         .eq('id', user.id)
         .single()
       
       if (profile) {
+        setCurrentUser(profile)
         setForm(prev => ({
           ...prev,
           reported_by: profile.full_name || user.email,
@@ -172,6 +174,7 @@ function NewIncidentForm() {
   )
 
   const req = <span style={{ color: '#ef4444' }}> *</span>
+  const canChangeReporter = currentUser?.role === 'admin' || currentUser?.role === 'it_staff'
   const errMsg = (key) => errors[key] && (
     <div style={{ fontSize: 11, color: '#ef4444', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
       <span>⚠️</span> {errors[key]}
@@ -318,7 +321,13 @@ function NewIncidentForm() {
             <UserAutocomplete 
               value={{ id: form.reported_by_id, full_name: form.reported_by }}
               onChange={(u) => setForm({ ...form, reported_by: u?.full_name || '', reported_by_id: u?.id || null })}
+              disabled={!canChangeReporter}
             />
+            {!canChangeReporter && (
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>
+                ระบบล็อกชื่อผู้แจ้งเป็นบัญชีของคุณ เฉพาะ Administrator หรือ IT Staff เท่านั้นที่เปลี่ยนผู้แจ้งแทนได้
+              </div>
+            )}
             {errMsg('reported_by')}
           </div>
         </div>

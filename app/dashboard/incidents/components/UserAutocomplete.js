@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { searchUsers, quickAddUser } from '@/app/actions/users'
 
-export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ์เพื่อค้นหาชื่อผู้แจ้ง...' }) {
+export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ์เพื่อค้นหาชื่อผู้แจ้ง...', disabled = false }) {
   const [query, setQuery] = useState(typeof value === 'string' ? value : (value?.full_name || ''))
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
@@ -35,6 +35,7 @@ export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ�
       return
     }
     const timer = setTimeout(async () => {
+      if (disabled) return
       setLoading(true)
       const res = await searchUsers(query)
       if (res.data) setResults(res.data)
@@ -44,6 +45,7 @@ export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ�
   }, [query])
 
   const handleSelect = (user) => {
+    if (disabled) return
     onChange(user)
     setQuery(user.full_name)
     setIsOpen(false)
@@ -69,15 +71,20 @@ export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ�
         type="text"
         value={query}
         onChange={(e) => { 
+          if (disabled) return
           setQuery(e.target.value); 
           setIsOpen(true);
           if (e.target.value === '') {
             onChange(null); // Clear selection if input is cleared
           }
         }}
-        onFocus={() => setIsOpen(true)}
+        onFocus={() => !disabled && setIsOpen(true)}
         placeholder={placeholder}
-        style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, outline: 'none' }}
+        disabled={disabled}
+        style={{
+          width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, outline: 'none',
+          background: disabled ? '#f8fafc' : '#fff', color: disabled ? '#64748b' : '#111827', cursor: disabled ? 'not-allowed' : 'text'
+        }}
       />
       
       {isOpen && (query.length >= 2 || results.length > 0) && (

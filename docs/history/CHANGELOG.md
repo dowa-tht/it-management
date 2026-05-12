@@ -1,5 +1,12 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Change Logs)
 
+## [2026-05-12 15:23] - Incident Create Reporter Lock
+- **Access Control**: ปรับหน้าสร้าง Incident ให้ผู้ใช้ที่ไม่ใช่ `admin` หรือ `it_staff` ไม่สามารถเปลี่ยนช่อง `Reported By` ได้ โดยระบบล็อกเป็นบัญชีผู้ใช้งานปัจจุบัน
+- **UI Safety**: เพิ่ม `disabled` support ให้ `UserAutocomplete` เพื่อปิดการค้นหา/เลือก/เพิ่มผู้แจ้งเมื่อไม่มีสิทธิ์ และแสดงข้อความอธิบายใต้ช่องผู้แจ้ง
+- **Verification**: อ่านไฟล์จริงหลังแก้ไขแล้ว และ `npm run build` ผ่านสำเร็จ
+
+---
+
 ## [2026-05-12 15:02] - Incident Reject Reason Visibility
 - **Evidence Check**: ตรวจสอบเอกสาร `DTT-INC-2605-013` พบว่าเอกสารอยู่สถานะ `In Progress` / `workflow_status = draft` หลัง Reject ถูกต้อง และเหตุผล Reject ถูกบันทึกเป็น `ทดสอบการ Reject` ทั้งใน `system_audit_logs.details` และ `document_approvals.comment`
 - **UI Improvement**: เพิ่มกล่องแจ้งเตือนในส่วน Workflow Progress ของหน้า Incident เมื่อพบประวัติ Reject เพื่อแสดงว่าเอกสารถูกตีกลับแล้ว พร้อมเหตุผล ผู้ดำเนินการ และเวลาที่ Reject
