@@ -18,10 +18,55 @@ export default function PermissionsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState({ text: '', type: '' })
+  const [showGuide, setShowGuide] = useState(false)
+  const [guideContent, setGuideContent] = useState('')
+  const [editingGuide, setEditingGuide] = useState(false)
+  const [currentUser, setCurrentUser] = useState(null)
 
   useEffect(() => {
     fetchPermissions()
+    fetchGuide()
+    checkUser()
   }, [])
+
+  const checkUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', user.id).single()
+      setCurrentUser(profile)
+    }
+  }
+
+  const fetchGuide = async () => {
+    const { data } = await supabase.from('system_settings').select('value').eq('key', 'permissions_guide_content').single()
+    if (data) setGuideContent(data.value)
+    else {
+      setGuideContent(`### 🛡️ คู่มือการจัดการสิทธิ์ (Permission Management)
+ระบบใช้การควบคุมสิทธิ์แบบ Role-Based Access Control (RBAC) เพื่อกำหนดการเข้าถึงฟีเจอร์ต่างๆ
+
+---
+#### 1. ระดับของสิทธิ์ (Access Levels)
+- **RW (Read & Write)**: สามารถดูและแก้ไขข้อมูลได้ทั้งหมด
+- **RO (Read Only)**: สามารถดูข้อมูลได้เท่านั้น ไม่สามารถแก้ไขได้
+- **NONE (No Access)**: ไม่เห็นเมนูและไม่สามารถเข้าถึงหน้าจอได้
+
+---
+#### 2. การบันทึกข้อมูล
+- เมื่อมีการเปลี่ยนค่าในตาราง ระบบจะยังไม่บันทึกทันทีจนกว่าจะกดปุ่ม **Save Changes**
+- คุณสามารถกด **Reset** เพื่อล้างการแก้ไขที่ยังไม่ได้บันทึกได้ทุกเมื่อ`)
+    }
+  }
+
+  const handleSaveGuide = async () => {
+    setSaving(true)
+    const { error } = await supabase.from('system_settings').upsert({ key: 'permissions_guide_content', value: guideContent, updated_at: new Date().toISOString() })
+    if (error) setMsg({ text: `Error: ${error.message}`, type: 'error' })
+    else {
+      setMsg({ text: 'บันทึกคู่มือสำเร็จ', type: 'success' })
+      setEditingGuide(false)
+    }
+    setSaving(false)
+  }
 
   const fetchPermissions = async () => {
     const { data, error } = await supabase.from('permission_sets').select('*')
@@ -104,16 +149,19 @@ export default function PermissionsPage() {
             <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, boxShadow: '0 10px 15px -3px rgba(99, 102, 241, 0.3)' }}>
               🛡️
             </div>
-            <h1 className="title-text" style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.5px' }}>Permission Management</h1>
+            <h1 className="title-text" style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '0', display: 'flex', alignItems: 'center', gap: 12 }}>
+              Permission Management
+              <button onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#eff6ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
+            </h1>
           </div>
           <p style={{ color: '#64748b', fontSize: 15, margin: 0 }}>บริหารจัดการสิทธิ์แบบ Dynamic (RO/RW) สำหรับโครงสร้างระบบ DOWA IT</p>
         </div>
 
         <div className="header-actions" style={{ 
           display: 'flex', gap: 12, 
-          padding: '12px 20px', background: '#fff', borderRadius: 20, 
-          boxShadow: hasChanges ? '0 20px 25px -5px rgba(0,0,0,0.1)' : 'none',
-          border: '1px solid', borderColor: hasChanges ? '#e2e8f0' : 'transparent',
+          padding: '6px', background: '#fff', borderRadius: 20, 
+          boxShadow: hasChanges ? '0 20px 25px -5px rgba(0,0,0,0.1)' : '0 4px 6px -1px rgba(0,0,0,0.05)',
+          border: '1px solid', borderColor: '#e2e8f0',
           transition: 'all 0.3s'
         }}>
           {hasChanges && (
@@ -257,6 +305,48 @@ export default function PermissionsPage() {
           </div>
         </div>
       </div>
+
+      {showGuide && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div style={{ background: '#fff', borderRadius: 28, width: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '28px 36px', background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <span style={{ fontSize: 28 }}>🛡️</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Permission Guide</h3>
+                  <p style={{ margin: 0, fontSize: 13, opacity: 0.85 }}>คู่มือการจัดการสิทธิ์และโครงสร้างความปลอดภัย</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                {currentUser?.role === 'admin' && <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{editingGuide ? '👁 View' : '✏️ Edit'}</button>}
+                <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 32, cursor: 'pointer' }}>&times;</button>
+              </div>
+            </div>
+            <div style={{ padding: 40, overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+              {editingGuide ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <textarea value={guideContent} onChange={e => setGuideContent(e.target.value)} style={{ width: '100%', minHeight: 450, padding: 24, borderRadius: 20, border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: 14 }} />
+                  <button onClick={handleSaveGuide} style={{ padding: '14px 36px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, alignSelf: 'flex-end' }}>บันทึกคู่มือ</button>
+                </div>
+              ) : (
+                <div style={{ maxWidth: 700, margin: '0 auto' }}>
+                  {guideContent.split('---').map((section, sIdx) => (
+                    <div key={sIdx} style={{ background: section.includes('####') ? '#fff' : 'transparent', borderRadius: 20, padding: section.includes('####') ? 28 : 0, marginBottom: section.includes('####') ? 24 : 36, borderLeft: section.includes('####') ? `6px solid #6366f1` : 'none', boxShadow: section.includes('####') ? '0 4px 12px rgba(0,0,0,0.05)' : 'none' }}>
+                      <div style={{ fontSize: 15, color: '#334155', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                        {section.trim().split('\n').map((line, lIdx) => {
+                          if (line.startsWith('####')) return <h4 key={lIdx} style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 800, color: '#1e293b' }}>{line.replace(/#/g, '').trim()}</h4>
+                          if (line.startsWith('###')) return <h3 key={lIdx} style={{ margin: '0 0 24px 0', fontSize: 24, fontWeight: 900, color: '#0f172a' }}>{line.replace(/#/g, '').trim()}</h3>
+                          return <p key={lIdx} style={{ margin: '0 0 10px 0' }}>{line.includes('**') ? line.split('**').map((p, i) => i % 2 === 1 ? <strong key={i} style={{ color: '#1e3a8a' }}>{p}</strong> : p) : line}</p>
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

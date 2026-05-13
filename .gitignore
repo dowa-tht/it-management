@@ -42,3 +42,9 @@ next-env.d.ts
 
 # Private files (Do not upload to GitHub)
 schema-private.csv
+
+# Agent and Scratch files
+/scratch/
+/.roo/
+/.playwright-mcp/
+/scripts/agent-health-check.js

@@ -206,7 +206,7 @@ export default function LogsPage() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div style={{ background: '#fff', borderRadius: 28, width: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
             <div style={{ padding: '28px 36px', background: 'linear-gradient(135deg, #4f46e5, #818cf8)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{display:'flex', alignItems:'center', gap:16}}><span style={{fontSize:28}}>🔍</span><div><h3 style={{margin:0, fontSize:22, fontWeight:800}}>System Logs Guide</h3><p style={{margin:0, fontSize:13, opacity:0.85}}>คู่มือการตรวจสอบประวัติระบบ</p></div></div>
+              <div style={{display:'flex', alignItems:'center', gap:16}}><span style={{fontSize:28}}>📖</span><div><h3 style={{margin:0, fontSize:22, fontWeight:800}}>System Logs Guide</h3><p style={{margin:0, fontSize:13, opacity:0.85}}>คู่มือการตรวจสอบประวัติระบบ</p></div></div>
               <div style={{ display: 'flex', gap: 12 }}>
                 <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{editingGuide ? '👁 View' : '✏️ Edit'}</button>
                 <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 32, cursor: 'pointer' }}>&times;</button>
@@ -238,26 +238,31 @@ export default function LogsPage() {
         </div>
       )}
 
-      <div className="header-flex" style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <div className="header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20, marginBottom: 32 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
-            System Logs & Audit
-            <button className="no-print" onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#e0e7ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
-          </h1>
-          <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>ตรวจสอบบันทึกการใช้งานระบบและการเปลี่ยนแปลงข้อมูล (Audit Trails)</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #4f46e5 0%, #818cf8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, boxShadow: '0 10px 15px -3px rgba(79, 70, 229, 0.3)' }}>
+              🔍
+            </div>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '0', display: 'flex', alignItems: 'center', gap: 12 }}>
+              System Logs & Audit
+              <button className="no-print" onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#eef2ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
+            </h1>
+          </div>
+          <p style={{ color: '#64748b', fontSize: 15, margin: 0 }}>ตรวจสอบบันทึกการใช้งานระบบและการเปลี่ยนแปลงข้อมูล (Audit Trails)</p>
         </div>
-        <div className="header-actions no-print" style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => window.print()} style={{ padding: '10px 20px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="action-dock no-print" style={{ display: 'flex', gap: 6, padding: '6px', background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <button onClick={() => window.print()} style={{ padding: '10px 20px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 14, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
             🖨️ Print Report
           </button>
-          <button style={{ padding: '10px 20px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.2)' }}>
+          <button style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #4f46e5 0%, #818cf8 100%)', color: '#fff', border: 'none', borderRadius: 14, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.2)' }}>
             📥 Export CSV
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="tabs-scrollable no-print" style={{ display: 'flex', gap: 4, marginBottom: 24, background: '#fff', padding: 4, borderRadius: 16, border: '1px solid #e2e8f0', width: 'fit-content' }}>
+      <div className="tabs-scrollable no-print" style={{ display: 'flex', gap: 4, marginBottom: 24, background: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(20px)', padding: 4, borderRadius: 18, border: '1px solid rgba(226, 232, 240, 0.8)', width: 'fit-content' }}>
         {[
           { id: 'audit', label: 'Audit Logs', icon: '🔍' },
           { id: 'approval', label: 'Approval Logs', icon: '✅' },
@@ -290,8 +295,8 @@ export default function LogsPage() {
 
       {/* Content Table */}
       <div className="table-wrapper custom-scrollbar" style={{ 
-        background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', 
-        overflow: 'auto', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)',
+        background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(20px)', borderRadius: 24, border: '1px solid rgba(226, 232, 240, 0.8)', 
+        overflow: 'auto', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.05)',
         flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column'
       }}>
         {loading && logs.length === 0 ? (

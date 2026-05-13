@@ -30,6 +30,32 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ---
 
+# Project Agent Rules
+
+## Stack
+- Next.js 15 App Router (ห้ามใช้ Pages Router เด็ดขาด)
+- Tailwind CSS v4
+- Supabase (ใช้ SSR client เสมอ ห้ามใช้ browser client ใน Server Component)
+- TypeScript strict mode
+
+## การเขียนโค้ด
+- Component ทุกตัวต้องระบุ `"use client"` หรือ `"use server"` ให้ชัดเจน
+- ห้าม fetch ข้อมูลใน Client Component โดยตรง ให้ผ่าน Server Action หรือ Route Handler
+- ใช้ `cn()` จาก clsx/tailwind-merge ทุกครั้งที่ต่อ className
+
+## Supabase / Database
+- ตรวจ RLS policy ก่อน query ทุกครั้ง
+- ใช้ generated types จาก `supabase gen types` เสมอ ห้าม any
+- อย่าเปิด service_role key ใน client-side
+
+## การทำงานของ Agent
+- ก่อนแก้ไฟล์ ให้อ่านไฟล์นั้นก่อนเสมอ
+- ถ้าไม่แน่ใจ spec ให้ถามก่อน อย่า assume
+- แก้ทีละ task ให้เสร็จก่อน อย่ากระโดดข้าม
+- ใช้ Context7 ทุกครั้งที่ต้องการ docs ของ library
+
+---
+
 # 🕵️ Project Audit / Project Checker Role (บทบาทผู้ตรวจสอบโครงการ)
 
 เมื่อ USER สั่งให้ AI ทำหน้าที่เป็น **Project Checker** หรือ **Auditor** ให้ปฏิบัติตามมาตรฐานดังนี้:

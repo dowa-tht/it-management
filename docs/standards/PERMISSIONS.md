@@ -45,3 +45,15 @@ if (access === 'RO') {
 ## 5. มาตรฐานความปลอดภัย (Security)
 - **Admin Override:** บัญชี `administrator` จะมีสิทธิ์เข้าถึงหน้า Settings เสมอเพื่อป้องกันกรณีระบบ Lockout ตัวเอง
 - **Schema Cache:** หากมีการเพิ่ม Feature ใหม่ ต้องทำการอัปเดตข้อมูลลงในตาราง `permission_sets` เพื่อให้ระบบรับทราบ
+
+## 6. Incident Accept / Dispatch Permission Matrix
+
+เพื่อป้องกันปัญหา Audit และแยกหน้าที่ผู้ดูแลระบบออกจากผู้ปฏิบัติงาน IT ให้ใช้สิทธิ์เฉพาะสำหรับ Incident Accept/Dispatch ดังนี้:
+
+| Action | Allowed Actor Role | Target / Assignee Rule | หมายเหตุ |
+|---|---|---|---|
+| Incident Accept / Acknowledge | `it_staff` | Actor ต้องเป็น Assignee เอง | ใช้เมื่อ IT Staff รับงานเป็นของตนเอง |
+| Incident Dispatch | `admin` | Target ต้องเป็น active `it_staff` | Admin เป็นผู้มอบหมายงาน ไม่ใช่ผู้รับผิดชอบงาน |
+| Incident Assignee | `it_staff` | `is_active = true` | `admin` ห้ามเป็น Assignee ผ่าน Accept/Dispatch flow |
+
+> `can_be_assignee` ไม่ใช่ Source of Truth สำหรับ Incident Assignment ในมาตรฐานนี้ สถานะ Assignee ใน Account Management ให้แสดงแบบ read-only จาก `role === 'it_staff'`

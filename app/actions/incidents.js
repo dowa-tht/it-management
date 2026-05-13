@@ -104,36 +104,89 @@ export async function createIncident(formData) {
 /**
  * ✅ [Phase 2] Server Action: รับเรื่อง (Acknowledge)
  */
-export async function acknowledgeIncident(id, severity, assigneeId) {
+export async function acknowledgeIncident(id, severity, assigneeId = null) {
   try {
     const session = await getCurrentUserSession()
     if (!session) return { success: false, error: 'Unauthorized' }
 
+    const allowedSeverities = ['Low', 'Medium', 'High']
+    if (!allowedSeverities.includes(severity)) {
+      return { success: false, error: 'ระดับความรุนแรงไม่ถูกต้อง' }
+    }
+
     const supabaseAdmin = getAdminClient()
     const userEmail = session.user.email || 'system@internal'
-    
-    // Fetch profile of the assignee
-    const { data: profile } = await supabaseAdmin.from('user_profiles').select('full_name').eq('id', assigneeId).single()
 
-    const { error } = await supabaseAdmin
+    const { data: actorProfile, error: actorError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, email, full_name, role, is_active')
+      .eq('id', session.user.id)
+      .single()
+
+    if (actorError || !actorProfile) return { success: false, error: 'ไม่พบสิทธิ์ผู้ใช้งานหรือผู้ใช้ถูกระงับ' }
+    if (actorProfile.is_active !== true) return { success: false, error: 'ไม่พบสิทธิ์ผู้ใช้งานหรือผู้ใช้ถูกระงับ' }
+
+    const { data: incident } = await supabaseAdmin
+      .from('incidents')
+      .select('id, status')
+      .eq('id', id)
+      .single()
+
+    if (!incident) return { success: false, error: 'ไม่พบเอกสาร Incident' }
+    if (incident.status !== 'Open') return { success: false, error: 'เอกสารนี้ไม่อยู่ในสถานะ Open จึงรับเรื่องไม่ได้' }
+
+    let finalAssignee = null
+    let actionName = 'รับเรื่อง (Acknowledge)'
+    let logDetails = ''
+
+    if (actorProfile.role === 'it_staff') {
+      finalAssignee = actorProfile
+      actionName = 'รับเรื่อง (Acknowledge)'
+      logDetails = `IT Staff: ${actorProfile.full_name || actorProfile.email || userEmail} รับเรื่องและเป็นผู้รับผิดชอบงาน | ระดับ: ${severity}`
+    } else if (actorProfile.role === 'admin') {
+      if (!assigneeId) return { success: false, error: 'กรุณาเลือก IT Staff ผู้รับผิดชอบงาน' }
+
+      const { data: selectedAssignee } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, email, full_name, role, is_active')
+        .eq('id', assigneeId)
+        .single()
+
+      if (!selectedAssignee) return { success: false, error: 'ไม่พบผู้รับผิดชอบงานที่เลือก' }
+      if (selectedAssignee.is_active !== true) return { success: false, error: 'IT Staff ที่เลือกถูกระงับการใช้งาน' }
+      if (selectedAssignee.role !== 'it_staff') return { success: false, error: 'ผู้รับผิดชอบงานต้องเป็น role IT Staff เท่านั้น' }
+
+      finalAssignee = selectedAssignee
+      actionName = 'มอบหมายงาน (Dispatch)'
+      logDetails = `Administrator: ${actorProfile.full_name || actorProfile.email || userEmail} มอบหมายงานให้ IT Staff: ${finalAssignee.full_name || finalAssignee.email} | ระดับ: ${severity}`
+    } else {
+      return { success: false, error: 'คุณไม่มีสิทธิ์รับเรื่องหรือมอบหมายงาน Incident' }
+    }
+
+    const { data: updatedRows, error } = await supabaseAdmin
       .from('incidents')
       .update({
         status: 'In Progress',
         severity: severity,
-        assigned_to_id: assigneeId,
-        assigned_to: profile?.full_name || userEmail,
+        assigned_to_id: finalAssignee.id,
+        assigned_to: finalAssignee.full_name || finalAssignee.email,
         acknowledged_at: new Date().toISOString(),
         assigned_at: new Date().toISOString()
       })
       .eq('id', id)
+      .eq('status', 'Open')
+      .select('id')
 
     if (error) throw error
+    if (!updatedRows || updatedRows.length === 0) {
+      return { success: false, error: 'ไม่สามารถรับเรื่องได้ อาจมีผู้ใช้อื่นดำเนินการไปแล้ว' }
+    }
 
     await recordLog(
       id, 
       'incident', 
-      'รับเรื่อง (Acknowledge)', 
-      `เจ้าหน้าที่: ${profile?.full_name || userEmail} รับเรื่อง | ระดับ: ${severity}`, 
+      actionName, 
+      logDetails, 
       userEmail
     )
 

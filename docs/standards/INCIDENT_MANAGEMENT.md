@@ -51,4 +51,15 @@
 *   **Consistency**: การแสดงผลวันเวลาต้องใช้ฟังก์ชัน `formatDate` หรือ `formatDateTime` มาตรฐานเท่านั้น
 
 ---
+
+## 6. Incident Accept / Dispatch Role Standard
+เพื่อให้สอดคล้องกับหลัก Audit และ Segregation of Duties ระบบต้องแยกบทบาทผู้รับงานจริงกับผู้มอบหมายงานดังนี้:
+
+*   **IT Staff Accept**: เฉพาะ `it_staff` เท่านั้นที่สามารถกดรับเรื่อง (Accept/Acknowledge) แล้วเป็นผู้รับผิดชอบงาน (`assigned_to_id`) ของตนเองได้ทันที
+*   **Administrator Dispatch**: `admin` สามารถมอบหมายงาน (Dispatch) ได้เท่านั้น โดยต้องเลือกผู้รับผิดชอบที่เป็น `it_staff` และ `is_active = true` ก่อนบันทึก
+*   **Assignee Restriction**: ห้าม `admin` ถูกบันทึกเป็น `incidents.assigned_to_id` ผ่าน Accept/Dispatch flow ผู้รับผิดชอบงานจริงต้องเป็น `it_staff` เท่านั้น
+*   **Audit Log Separation**: ต้องแยก Log ระหว่าง `รับเรื่อง (Acknowledge)` สำหรับ IT Staff และ `มอบหมายงาน (Dispatch)` สำหรับ Administrator ให้ชัดเจน
+*   **Role-derived Assignee**: สถานะ Assignee สำหรับ Incident อ้างอิงจาก `role === 'it_staff'` ไม่ใช้ `can_be_assignee` เป็น Source of Truth
+
+---
 *จัดทำมาตรฐานโดย AI Agent (Antigravity)*

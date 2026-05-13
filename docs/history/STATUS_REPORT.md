@@ -28,6 +28,13 @@
 
 ## 📝 Recent System Updates (Highlights)
 
+- **12-May-2026**:
+  - ✅ **Workflow Hardening**: เพิ่มระบบ `syncDynamicWorkflowApprovers` เพื่อความแม่นยำในการระบุตัวตนผู้อนุมัติแบบ Remote
+  - ✅ **Creator Bypass Fix**: แก้ไข Bug "PIN Incorrect" โดยอนุญาตให้เจ้าของเอกสารอนุมัติ Reporter Step ได้โดยตรง
+  - ✅ **Dashboard Optimization**: ปรับปรุงการแสดงผลกล่องสถานะ Incident สำหรับบทบาท Member/Employee
+  - ✅ **Audit Trail**: บันทึกเหตุผลการ Reject และหลักฐานการ Verify PIN ลงใน System Audit Logs ครบถ้วน
+  - ✅ **Security**: ล็อกช่องผู้แจ้ง (Reporter) สำหรับผู้ใช้ทั่วไปเพื่อป้องกันการสวมรอยตอนสร้างเคส
+
 - **08-May-2026**: 
   - ✅ **UI/UX Modernization**: โอเวอร์ฮอลหน้า Dashboard และ Detail Pages เป็นระบบ Card-based (Premium Enterprise Standard)
   - ✅ **Incident Save Fix**: แก้ไข Bug 400 Bad Request (Field Collision) ในหน้า Incident Detail

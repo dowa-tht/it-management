@@ -12,16 +12,51 @@ export default function WorkflowSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
 
+  const [showGuide, setShowGuide] = useState(false)
+  const [guideContent, setGuideContent] = useState('')
+  const [editingGuide, setEditingGuide] = useState(false)
+
   const roles = ['admin', 'it_staff', 'approver', 'employee', 'auditor']
 
   useEffect(() => {
     fetchInitialData()
+    fetchGuide()
     supabase.auth.getSession().then(({ data }) => {
       if (data.session?.user) {
         supabase.from('user_profiles').select('*').eq('id', data.session.user.id).single().then(({ data: p }) => setCurrentUser(p))
       }
     })
   }, [])
+
+  const fetchGuide = async () => {
+    const { data } = await supabase.from('system_settings').select('value').eq('key', 'workflow_guide_content').single()
+    if (data) setGuideContent(data.value)
+    else {
+      setGuideContent(`### ⚙️ คู่มือการตั้งค่าลำดับการอนุมัติ (Workflow Guide)
+ระบบใช้การอนุมัติแบบลำดับขั้น (Sequential Approval) โดยคุณสามารถกำหนดกี่ขั้นตอนก็ได้
+
+---
+#### **1. ลำดับขั้นตอน (Step Order)**
+- ลำดับที่ 1 จะได้รับแจ้งเตือนและต้องลงนามก่อนเสมอ
+- ลำดับถัดไปจะได้รับแจ้งเตือนเมื่อขั้นตอนก่อนหน้าลงนาม "อนุมัติ" แล้วเท่านั้น
+
+---
+#### **2. สิทธิ์และผู้อนุมัติเฉพาะเจาะจง**
+- **Role Only:** หากเลือกเฉพาะ Role ใครก็ตามที่มีสิทธิ์นั้นจะเห็นเอกสารและเซ็นได้ (ใครเซ็นก่อนถือว่าผ่านขั้นนั้น)
+- **Specific Person:** หากเลือกตัวบุคคล ระบบจะเจาะจงให้คนนั้นเท่านั้นที่เป็นคนเซ็น (แม้จะมี Role เดียวกันคนอื่นก็เซ็นไม่ได้)
+
+---
+#### **3. การแก้ไข**
+- การแก้ไขลำดับจะมีผลกับ **เอกสารที่สร้างขึ้นใหม่** หลังจากกดบันทึกเท่านั้น เอกสารเดิมที่ค้างอยู่ใน Workflow จะยังคงลำดับเดิม`)
+    }
+  }
+
+  const handleSaveGuide = async () => {
+    setSaving(true)
+    await supabase.from('system_settings').upsert({ key: 'workflow_guide_content', value: guideContent, updated_at: new Date().toISOString() })
+    setEditingGuide(false)
+    setSaving(false)
+  }
 
   const fetchInitialData = async () => {
     setLoading(true)
@@ -127,14 +162,76 @@ export default function WorkflowSettingsPage() {
         }
         * { box-sizing: border-box; }
       `}</style>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: 0 }}>⚙️ Workflow Settings</h1>
-        <p style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>กำหนดลำดับการอนุมัติสำหรับเอกสารประเภทต่างๆ ในระบบ</p>
+      {showGuide && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div style={{ background: '#fff', borderRadius: 28, width: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '28px 36px', background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{display:'flex', alignItems:'center', gap:16}}><span style={{fontSize:28}}>📖</span><div><h3 style={{margin:0, fontSize:22, fontWeight:800}}>Workflow Settings Guide</h3><p style={{margin:0, fontSize:13, opacity:0.85}}>คู่มือการตั้งค่าลำดับการอนุมัติ</p></div></div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                {currentUser?.role === 'admin' && <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{editingGuide ? '👁 View' : '✏️ Edit'}</button>}
+                <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 32, cursor: 'pointer' }}>&times;</button>
+              </div>
+            </div>
+            <div style={{ padding: 40, overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+              {editingGuide ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <textarea value={guideContent} onChange={e => setGuideContent(e.target.value)} style={{ width: '100%', minHeight: 450, padding: 24, borderRadius: 20, border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: 14 }} />
+                  <button onClick={handleSaveGuide} style={{ padding: '14px 36px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, alignSelf: 'flex-end' }}>บันทึกคู่มือ</button>
+                </div>
+              ) : (
+                <div style={{ maxWidth: 700, margin: '0 auto' }}>
+                  {guideContent.split('---').map((section, sIdx) => (
+                    <div key={sIdx} style={{ background: section.includes('####') ? '#fff' : 'transparent', borderRadius: 20, padding: section.includes('####') ? 28 : 0, marginBottom: section.includes('####') ? 24 : 36, borderLeft: section.includes('####') ? `6px solid #7c3aed` : 'none', boxShadow: section.includes('####') ? '0 4px 12px rgba(0,0,0,0.05)' : 'none' }}>
+                      <div style={{ fontSize: 15, color: '#334155', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                        {section.trim().split('\n').map((line, lIdx) => {
+                          if (line.startsWith('####')) return <h4 key={lIdx} style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 800, color: '#1e293b' }}>{line.replace(/#/g, '').trim()}</h4>
+                          if (line.startsWith('###')) return <h3 key={lIdx} style={{ margin: '0 0 24px 0', fontSize: 24, fontWeight: 900, color: '#0f172a' }}>{line.replace(/#/g, '').trim()}</h3>
+                          return <p key={lIdx} style={{ margin: '0 0 10px 0' }}>{line.includes('**') ? line.split('**').map((p,i)=>i%2===1?<strong key={i} style={{color:'#1e3a8a'}}>{p}</strong>:p) : line}</p>
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20, marginBottom: 32 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.3)' }}>
+              ⚙️
+            </div>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '0', display: 'flex', alignItems: 'center', gap: 12 }}>
+              Workflow Settings
+              <button className="no-print" onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#f5f3ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
+            </h1>
+          </div>
+          <p style={{ color: '#64748b', fontSize: 15, margin: 0 }}>กำหนดลำดับการอนุมัติสำหรับเอกสารประเภทต่างๆ ในระบบ</p>
+        </div>
+        <div className="action-dock no-print" style={{ display: 'flex', gap: 6, padding: '6px', background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <button 
+            onClick={addStep}
+            disabled={!selectedConfig}
+            style={{ padding: '10px 20px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 14, fontSize: 13, fontWeight: 600, cursor: selectedConfig ? 'pointer' : 'not-allowed', opacity: selectedConfig ? 1 : 0.5 }}
+          >
+            ➕ เพิ่มขั้นตอน (Step)
+          </button>
+          <button 
+            onClick={handleSave}
+            disabled={saving || !selectedConfig}
+            style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)', color: '#fff', border: 'none', borderRadius: 14, fontSize: 13, fontWeight: 800, cursor: selectedConfig ? 'pointer' : 'not-allowed', boxShadow: '0 4px 12px rgba(124, 58, 237, 0.2)' }}
+          >
+            {saving ? 'กำลังบันทึก...' : '💾 บันทึก Workflow'}
+          </button>
+        </div>
       </div>
 
       <div className="workflow-layout" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 24 }}>
         {/* Left Sidebar: Config List */}
-        <div className="workflow-sidebar" style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: 12, height: 'fit-content', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <div className="workflow-sidebar" style={{ background: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(20px)', borderRadius: 24, border: '1px solid rgba(226, 232, 240, 0.8)', padding: 12, height: 'fit-content', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', padding: '8px 12px', marginBottom: 8 }}>ประเภทเอกสาร</div>
           <div className="workflow-sidebar-list" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {configs.map(c => (
@@ -162,32 +259,17 @@ export default function WorkflowSettingsPage() {
         </div>
 
         {/* Right Content: Steps Editor */}
-        <div className="workflow-content" style={{ background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: 32, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <div className="workflow-content" style={{ background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(20px)', borderRadius: 24, border: '1px solid rgba(226, 232, 240, 0.8)', padding: 32, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.05)' }}>
           {selectedConfig ? (
             <>
               <div className="workflow-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#1d4ed8', marginBottom: 4 }}>
-                    กำลังแก้ไข: {selectedConfig.doc_type.toUpperCase()}
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#7c3aed', marginBottom: 4, letterSpacing: '0.05em' }}>
+                    EDITING WORKFLOW: {selectedConfig.doc_type.toUpperCase()}
                   </div>
-                  <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>
-                    เงื่อนไข: {selectedConfig.trigger_value}
+                  <h2 style={{ fontSize: 24, fontWeight: 800, color: '#111827', margin: 0 }}>
+                    {selectedConfig.trigger_value}
                   </h2>
-                </div>
-                <div className="workflow-header-actions" style={{ display: 'flex', gap: 12 }}>
-                  <button 
-                    onClick={addStep}
-                    style={{ padding: '10px 16px', border: '1px solid #d1d5db', borderRadius: 10, background: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    + เพิ่มขั้นตอน (Step)
-                  </button>
-                  <button 
-                    onClick={handleSave}
-                    disabled={saving}
-                    style={{ padding: '10px 24px', border: 'none', borderRadius: 10, background: '#1d4ed8', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(29, 78, 216, 0.3)' }}
-                  >
-                    {saving ? 'กำลังบันทึก...' : '💾 บันทึกการตั้งค่า'}
-                  </button>
                 </div>
               </div>
 

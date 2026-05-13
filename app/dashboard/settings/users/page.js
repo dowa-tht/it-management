@@ -205,6 +205,8 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
     { label: 'รหัสผ่านตรงกัน', met: pwdForm.newPass && pwdForm.newPass === pwdForm.confirm }
   ]
 
+  const derivedAssignee = formData.role === 'it_staff'
+
   const tabStyle = (tab) => ({
     padding: '14px 20px', fontSize: 14, cursor: 'pointer', border: 'none',
     borderBottom: activeTab === tab ? '3px solid #1d4ed8' : '3px solid transparent',
@@ -258,28 +260,31 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 12 }}>การมอบหมายงาน (Work Assignment)</label>
                 <div 
-                  onClick={() => setFormData({ ...formData, can_be_assignee: !formData.can_be_assignee })}
+                  title="กำหนดจาก Role อัตโนมัติ: IT Staff = Assignee"
                   style={{ 
-                    display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', 
-                    background: formData.can_be_assignee ? '#f0fdf4' : '#f8fafc', 
-                    borderRadius: 12, border: `1px solid ${formData.can_be_assignee ? '#bcf0da' : '#e2e8f0'}`,
+                    display: 'flex', alignItems: 'center', gap: 12, cursor: 'default', padding: '12px 16px', 
+                    background: derivedAssignee ? '#f0fdf4' : '#f8fafc', 
+                    borderRadius: 12, border: `1px solid ${derivedAssignee ? '#bcf0da' : '#e2e8f0'}`,
                     width: 'fit-content', transition: 'all 0.2s'
                   }}
                 >
                   <div style={{ 
                     width: 40, height: 22, borderRadius: 20, 
-                    background: formData.can_be_assignee ? '#16a34a' : '#cbd5e1', 
+                    background: derivedAssignee ? '#16a34a' : '#cbd5e1', 
                     position: 'relative', transition: 'all 0.3s' 
                   }}>
                     <div style={{ 
-                      position: 'absolute', left: formData.can_be_assignee ? 20 : 2, top: 2, 
+                      position: 'absolute', left: derivedAssignee ? 20 : 2, top: 2, 
                       width: 18, height: 18, borderRadius: '50%', background: '#fff', 
                       transition: 'all 0.3s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' 
                     }} />
                   </div>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: formData.can_be_assignee ? '#166534' : '#64748b' }}>
-                    สามารถรับมอบหมายงานได้ (Assignee)
+                  <span style={{ fontSize: 14, fontWeight: 600, color: derivedAssignee ? '#166534' : '#64748b' }}>
+                    {derivedAssignee ? 'Assignee: Yes (IT Staff)' : 'Assignee: No'}
                   </span>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>
+                  กำหนดจาก Role อัตโนมัติ: เลือก role IT Team เพื่อให้ผู้ใช้นี้เป็นผู้รับมอบหมายงาน Incident
                 </div>
               </div>
               <button onClick={handleUpdateGeneral} disabled={loading} style={{ padding: '14px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, boxShadow: '0 4px 12px rgba(29, 78, 216, 0.2)' }}>บันทึกข้อมูลทั่วไป</button>
@@ -503,9 +508,9 @@ export default function UsersPage() {
 
 ---
 #### **3. ระบบผู้รับมอบหมายงาน (Assignee)**
-ในตารางรายชื่อ คุณสามารถเปิด-ปิดสถานะ **"Assignee"** (ไอคอน 👤) ให้กับผู้ใช้รายบุคคลได้
-- **ON (สีฟ้า):** ผู้ใช้รายนี้จะปรากฏในรายชื่อให้เลือกเมื่อมีการมอบหมายงาน (Assign) ใน Incident หรือ Checklist
-- **OFF (สีเทา):** ผู้ใช้รายนี้จะไม่ถูกนำไปคำนวณในคิวงาน (ใช้สำหรับผู้อนุมัติหรือผู้ใช้ทั่วไปที่ไม่ได้ปฏิบัติหน้าที่ช่าง IT)
+สถานะ **Assignee** ถูกกำหนดจาก Role อัตโนมัติและเป็นข้อมูลแบบอ่านอย่างเดียว
+- **IT Team (it_staff):** เป็น Assignee ได้ และจะปรากฏในรายชื่อให้ Administrator มอบหมายงาน Incident
+- **Role อื่น:** ไม่เป็น Assignee สำหรับ Incident เพื่อให้ Audit แยกหน้าที่ผู้ดูแลระบบกับผู้ปฏิบัติงาน IT ได้ชัดเจน
 
 ---
 #### **4. ระบบความปลอดภัย Signature PIN**
@@ -550,7 +555,7 @@ export default function UsersPage() {
   const handleCreateResult = (result) => {
     if (result.success) {
       setMsg({ text: newUser.password ? `สร้าง User "${newUser.full_name}" สำเร็จ` : `ส่งคำเชิญให้คุณ "${newUser.full_name}" เรียบร้อยแล้ว`, type: 'success' })
-      setNewUser({ email: '', password: '', full_name: '', role: 'auditor', can_be_assignee: false, sendEmailInvite: true })
+      setNewUser({ email: '', password: '', full_name: '', role: 'auditor', sendEmailInvite: true })
       setShowNew(false); fetchUsers()
     } else {
       setMsg({ text: `เกิดข้อผิดพลาด: ${result.error}`, type: 'error' })
@@ -610,21 +615,28 @@ export default function UsersPage() {
         setConfirmDialog(null); fetchUsers()
       }} onCancel={() => setConfirmDialog(null)} />}
 
-      <div className="header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+      <div className="header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20, marginBottom: 32 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
-            Account Management
-            <button onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#f1f5f9', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
-          </h1>
-          <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>จัดการบัญชีผู้ใช้และกำหนดสิทธิ์เข้าถึงระบบในระดับองค์กร</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, boxShadow: '0 10px 15px -3px rgba(29, 78, 216, 0.3)' }}>
+              👥
+            </div>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '0', display: 'flex', alignItems: 'center', gap: 12 }}>
+              Account Management
+              <button onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#eff6ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
+            </h1>
+          </div>
+          <p style={{ color: '#64748b', fontSize: 15, margin: 0 }}>จัดการบัญชีผู้ใช้และกำหนดสิทธิ์เข้าถึงระบบในระดับองค์กร</p>
         </div>
-        <button className="header-button" onClick={() => setShowNew(true)} style={{ background: '#1d4ed8', color: '#fff', padding: '12px 24px', borderRadius: 14, border: 'none', cursor: 'pointer', fontWeight: 700, boxShadow: '0 4px 12px rgba(29, 78, 216, 0.2)' }}>+ สร้าง User ใหม่</button>
+        <div className="action-dock" style={{ display: 'flex', gap: 6, padding: '6px', background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <button className="header-button" onClick={() => setShowNew(true)} style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)', color: '#fff', padding: '10px 24px', borderRadius: 14, border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: 13, boxShadow: '0 4px 12px rgba(29, 78, 216, 0.2)' }}>+ Create User</button>
+        </div>
       </div>
 
       {msg.text && <div style={{ padding: '14px 20px', borderRadius: 14, fontSize: 14, marginBottom: 24, background: msg.type === 'success' ? '#f0fdf4' : '#fef2f2', color: msg.type === 'success' ? '#166534' : '#991b1b', border: `1px solid ${msg.type === 'success' ? '#bcf0da' : '#fecaca'}` }}>{msg.text}</div>}
 
       {showNew && (
-        <div style={{ background: '#fff', borderRadius: 24, border: '1px solid #3b82f6', padding: 'var(--page-padding, 32px)', marginBottom: 32, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+        <div style={{ background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(20px)', borderRadius: 24, border: '2px solid #3b82f6', padding: 'var(--page-padding, 32px)', marginBottom: 32, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
           <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', marginBottom: 24 }}>➕ สร้างบัญชีผู้ใช้ใหม่</h3>
           <form className="new-user-form" onSubmit={handleCreateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
             <div><label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>ชื่อ-นามสกุล</label><input value={newUser.full_name} onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} required style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} /></div>
@@ -640,27 +652,30 @@ export default function UsersPage() {
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>การมอบหมายงาน (Work Assignment)</label>
                 <div 
-                  onClick={() => setNewUser({ ...newUser, can_be_assignee: !newUser.can_be_assignee })}
+                  title="กำหนดจาก Role อัตโนมัติ: IT Staff = Assignee"
                   style={{ 
-                    display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 14px', 
-                    background: newUser.can_be_assignee ? '#f0fdf4' : '#f8fafc', 
-                    borderRadius: 12, border: `1px solid ${newUser.can_be_assignee ? '#bcf0da' : '#e2e8f0'}`,
+                    display: 'flex', alignItems: 'center', gap: 10, cursor: 'default', padding: '10px 14px', 
+                    background: newUser.role === 'it_staff' ? '#f0fdf4' : '#f8fafc', 
+                    borderRadius: 12, border: `1px solid ${newUser.role === 'it_staff' ? '#bcf0da' : '#e2e8f0'}`,
                     width: 'fit-content' 
                   }}
                 >
                   <div style={{ 
                     width: 34, height: 18, borderRadius: 20, 
-                    background: newUser.can_be_assignee ? '#16a34a' : '#cbd5e1', 
+                    background: newUser.role === 'it_staff' ? '#16a34a' : '#cbd5e1', 
                     position: 'relative' 
                   }}>
                     <div style={{ 
-                      position: 'absolute', left: newUser.can_be_assignee ? 18 : 2, top: 2, 
+                      position: 'absolute', left: newUser.role === 'it_staff' ? 18 : 2, top: 2, 
                       width: 14, height: 14, borderRadius: '50%', background: '#fff' 
                     }} />
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: newUser.can_be_assignee ? '#166534' : '#64748b' }}>
-                    เป็นผู้รับมอบหมายงานได้ (Assignee)
+                  <span style={{ fontSize: 13, fontWeight: 600, color: newUser.role === 'it_staff' ? '#166534' : '#64748b' }}>
+                    {newUser.role === 'it_staff' ? 'Assignee: Yes (IT Staff)' : 'Assignee: No'}
                   </span>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>
+                  Assignee status is derived from Role. Select role IT Team to make this user assignable in Incident workflow.
                 </div>
               </div>
 
@@ -680,7 +695,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      <div className="table-wrapper" style={{ background: '#fff', borderRadius: 24, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+      <div className="table-wrapper" style={{ background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(20px)', borderRadius: 24, border: '1px solid rgba(226, 232, 240, 0.8)', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.05)' }}>
         <table className="users-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ background: '#f8fafc', borderBottom: '2px solid #f1f5f9' }}>
@@ -692,6 +707,7 @@ export default function UsersPage() {
               const badge = ROLE_BADGE[normalizeRole(u.role)] || ROLE_BADGE.auditor
               const isSelf = u.id === currentUser?.id
               const isExpired = u.expires_at && new Date(u.expires_at) < new Date()
+              const isDerivedAssignee = u.role === 'it_staff'
               return (
                 <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9', background: isExpired ? '#fff1f2' : 'none' }}>
                   <td style={{ padding: '16px 20px', fontWeight: 700, color: isExpired ? '#be123b' : '#0f172a' }}>
@@ -713,31 +729,22 @@ export default function UsersPage() {
                   </td>
                   <td style={{ padding: '16px 20px' }}>
                     <button 
-                      onClick={async () => {
-                        const newStatus = !u.can_be_assignee
-                        // Optimistic UI update
-                        setUsers(users.map(user => user.id === u.id ? { ...user, can_be_assignee: newStatus } : user))
-                        const res = await updateAdminUser({ id: u.id, can_be_assignee: newStatus })
-                        if (!res.success) {
-                          setMsg({ text: `ผิดพลาด: ${res.error}`, type: 'error' })
-                          fetchUsers() // Revert on failure
-                        }
-                      }}
-                      title="สลับสถานะผู้รับงาน"
+                      title="กำหนดจาก Role อัตโนมัติ: IT Staff = Assignee"
                       style={{ 
                         width: 44, height: 24, borderRadius: 12, border: 'none', 
-                        background: u.can_be_assignee ? '#3b82f6' : '#e2e8f0', 
-                        position: 'relative', cursor: 'pointer' 
+                        background: isDerivedAssignee ? '#3b82f6' : '#e2e8f0', 
+                        position: 'relative', cursor: 'default' 
                       }}
                     >
                       <div style={{ 
                         width: 18, height: 18, borderRadius: '50%', background: '#fff', 
-                        position: 'absolute', top: 3, left: u.can_be_assignee ? 23 : 3, 
+                        position: 'absolute', top: 3, left: isDerivedAssignee ? 23 : 3, 
                         transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 
                       }}>
-                        {u.can_be_assignee ? '👤' : ''}
+                        {isDerivedAssignee ? '👤' : ''}
                       </div>
                     </button>
+                    <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>Role-derived</div>
                   </td>
                   <td style={{ padding: '16px 20px' }}>
                     <div style={{ display: 'flex', gap: 8 }}>

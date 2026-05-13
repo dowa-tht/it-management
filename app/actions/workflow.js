@@ -58,7 +58,8 @@ export async function recordLog(docId, type, action, details, userEmail) {
 
 async function resolveDynamicWorkflowApproverId(step, doc) {
   if (step.role_required === 'reporter') {
-    return doc?.reported_by_id || null
+    // 🕵️ Support both incidents (reported_by_id) and checklists (created_by_id)
+    return doc?.reported_by_id || doc?.created_by_id || null
   }
   return step.approver_id || null
 }
@@ -71,7 +72,7 @@ export async function syncDynamicWorkflowApprovers(docId, docType) {
 
     const { data: doc, error: docErr } = await supabaseAdmin
       .from(reg.table)
-      .select('reported_by_id')
+      .select('*')
       .eq('id', docId)
       .single()
 
@@ -925,11 +926,11 @@ export async function generateWorkflowSteps(docId, targetType, configKey, trigge
     // 3. [NEW] Dynamic Role Resolution (e.g., 'reporter')
     // If any step requires the reporter, fetch the source document and inject their ID
     if (stepsToInsert.some(s => s.role_required === 'reporter')) {
-      const reg = WORKFLOW_DOC_REGISTRY[targetType]
+      const reg = WORKFLOW_DOC_REGISTRY[targetType?.toLowerCase()]
       if (reg) {
         const { data: doc } = await supabaseAdmin
           .from(reg.table)
-          .select(`${reg.no_field}, reported_by_id, created_by`)
+          .select('*')
           .eq('id', docId)
           .single()
         

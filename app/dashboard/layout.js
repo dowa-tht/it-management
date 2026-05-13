@@ -95,7 +95,13 @@ export default function DashboardLayout({ children }) {
     const frame = window.requestAnimationFrame(() => {
       setSidebarOpen(false)
       if (pathname.includes('/settings/')) {
-        setExpandedSection('settings')
+        // Expand the correct settings sub-group based on path
+        if (pathname.includes('/master-data') || pathname.includes('/incident-master-data') || pathname.includes('/checklist-master-data')) setExpandedSection('master_data')
+        else if (pathname.includes('/users')) setExpandedSection('users_access')
+        else if (pathname.includes('/logs')) setExpandedSection('audit_logs')
+        else if (pathname.includes('/workflow') || pathname.includes('/approvals') || pathname.includes('/substitutes')) setExpandedSection('workflow_approval')
+        else if (pathname.includes('/working-hours') || pathname.includes('/no-series') || pathname.includes('/holidays')) setExpandedSection('system_setup')
+        else setExpandedSection('settings') // fallback
       } else if (pathname.startsWith('/dashboard/incidents') || pathname === '/dashboard' || pathname.includes('/backup') || pathname.includes('/checklist')) {
         setExpandedSection('operations')
       }
@@ -119,24 +125,88 @@ export default function DashboardLayout({ children }) {
     router.push('/')
   }
 
+  const settingsGroups = [
+    {
+      key: 'system_setup',
+      label: 'System Setup',
+      icon: '⚙',
+      items: [
+        { href: '/dashboard/settings/no-series', label: 'No. Series', feature: 'settings' },
+        { href: '/dashboard/settings/working-hours', label: 'Working Hours', feature: 'settings' },
+        { href: '/dashboard/settings/holidays', label: 'Holidays', feature: 'settings' },
+      ],
+    },
+    {
+      key: 'master_data',
+      label: 'Master Data',
+      icon: '📋',
+      items: [
+        { href: '/dashboard/settings/incident-master-data', label: 'Incident Master Data', feature: 'settings' },
+        { href: '/dashboard/settings/checklist-master-data', label: 'Checklist Master Data', feature: 'settings' },
+      ],
+    },
+    {
+      key: 'workflow_approval',
+      label: 'Workflow & Approval',
+      icon: '🔄',
+      items: [
+        { href: '/dashboard/settings/workflow', label: 'Workflow Rules', feature: 'settings' },
+        { href: '/dashboard/settings/approvals', label: 'Approval Flows', feature: 'settings' },
+        { href: '/dashboard/settings/substitutes', label: 'Substitute Approvers', feature: 'settings' },
+      ],
+    },
+    {
+      key: 'users_access',
+      label: 'Users & Access',
+      icon: '👤',
+      items: [
+        { href: '/dashboard/settings/users', label: 'Users', feature: 'settings' },
+        { href: '/dashboard/settings/permissions', label: 'Permissions', feature: 'settings' },
+      ],
+    },
+    {
+      key: 'audit_logs',
+      label: 'Audit & Logs',
+      icon: '📝',
+      items: [
+        { href: '/dashboard/settings/logs', label: 'System Logs', feature: 'settings' },
+      ],
+    },
+  ]
+
   const navItems = [
     { href: '/dashboard',                          label: 'Dashboard',       icon: '▦', section: 'operations', roles: ['admin','it_staff','approver','employee','auditor'] },
     { href: '/dashboard/incidents',                label: 'Incident',        icon: '⚠', section: 'operations', roles: ['admin','it_staff','approver','employee','auditor'] },
     { href: '/dashboard/reports/sla',             label: 'SLA Report',      icon: '📊', section: 'operations', roles: ['admin','it_staff','approver','auditor'] },
     { href: '/dashboard/backup',                   label: 'Backup Log',      icon: '☁', section: 'operations', roles: ['admin','it_staff','approver','auditor'] },
     { href: '/dashboard/checklist',                label: 'IT Checklist',    icon: '✅', section: 'operations', roles: ['admin','it_staff','approver','auditor'] },
-    { href: '/dashboard/settings/no-series',       label: 'No. Series',      icon: '⚙', section: 'settings',   roles: ['admin','auditor'] },
-    { href: '/dashboard/settings/master-data',     label: 'Master Data',     icon: '📋', section: 'settings',   roles: ['admin','auditor'] },
-    { href: '/dashboard/settings/users',           label: 'Users',           icon: '👤', section: 'settings',   roles: ['admin','auditor'] },
-    { href: '/dashboard/settings/logs',            label: 'System Logs',     icon: '📝', section: 'settings',   roles: ['admin','auditor'] },
-    { href: '/dashboard/settings/permissions',     label: 'Permissions',     icon: '🛡️', section: 'settings',   roles: ['admin'] },
   ]
 
   const currentFeature = pathname.split('/')[2] || 'dashboard'
   const currentAccess = checkPermission(permissions, currentFeature)
   const isReadOnly = currentAccess === 'RO'
 
-  const isActive = (href) => (href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href))
+  const isActive = (href) => {
+    if (href === '/dashboard') return pathname === '/dashboard'
+    
+    // สำหรับลิงก์ที่มี query params (เช่น Master Data)
+    if (href.includes('?')) {
+      const [path, query] = href.split('?')
+      if (pathname !== path) return false
+      
+      // ตรวจสอบว่า query param ตรงกันไหม (อย่างน้อย 1 ตัวที่สำคัญ)
+      if (typeof window !== 'undefined') {
+        const currentParams = new URLSearchParams(window.location.search)
+        const targetParams = new URLSearchParams(query)
+        for (const [key, value] of targetParams.entries()) {
+          if (currentParams.get(key) === value) return true
+        }
+      }
+      return false
+    }
+
+    return pathname.startsWith(href)
+  }
   const toggleSection = (section) => setExpandedSection(prev => prev === section ? null : section)
 
   if (initializing) return <div style={{ minHeight: '100vh', background: '#0f1923', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Checking Security...</div>
@@ -168,24 +238,44 @@ export default function DashboardLayout({ children }) {
         </div>
         {(role === 'admin') && (
           <>
-            <div onClick={() => toggleSection('settings')} className="nav-section-title">
+            <div className="nav-section-title" style={{ cursor: 'default' }}>
               <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>SETTINGS</span>
-              <span style={{ transition: 'transform 0.3s', transform: expandedSection === 'settings' ? 'rotate(0deg)' : 'rotate(-90deg)', color: 'rgba(255,255,255,0.4)' }}>▼</span>
             </div>
-            <div style={{ maxHeight: expandedSection === 'settings' ? '500px' : '0', overflow: 'hidden', transition: 'max-height 0.4s' }}>
-              {navItems.filter(i => i.section === 'settings').map(item => {
-                const itemFeature = item.href.split('/')[2] || 'dashboard'
-                // สำหรับหน้า Settings เราจะเช็คสิทธิ์รวมของ 'settings' หรือเช็ครายหน้า
-                const itemAccess = checkPermission(permissions, itemFeature)
-                if (itemAccess === 'NONE' && role !== 'admin') return null // Admin เข้าได้เสมอเพื่อป้องกันการ Lockout
-
-                return (
-                  <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href) ? 'active' : ''}`}>
-                    <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span> {item.label}
-                  </Link>
-                )
-              })}
-            </div>
+            {settingsGroups.map(group => (
+              <div key={group.key} style={{ marginBottom: 8 }}>
+                <div 
+                  onClick={() => toggleSection(group.key)} 
+                  className={`nav-item ${group.items.some(i => isActive(i.href)) ? 'active' : ''}`}
+                  style={{ cursor: 'pointer', borderLeft: 'none', background: 'transparent' }}
+                >
+                  <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{group.icon}</span>
+                  <span style={{ flex: 1 }}>{group.label}</span>
+                  <span style={{ 
+                    fontSize: 10, 
+                    transition: 'transform 0.3s', 
+                    transform: expandedSection === group.key ? 'rotate(0deg)' : 'rotate(-90deg)',
+                    opacity: 0.5 
+                  }}>▼</span>
+                </div>
+                <div style={{ 
+                  maxHeight: expandedSection === group.key ? '500px' : '0', 
+                  overflow: 'hidden', 
+                  transition: 'max-height 0.4s',
+                  background: 'rgba(0,0,0,0.2)'
+                }}>
+                  {group.items.map(item => (
+                    <Link 
+                      key={item.href} 
+                      href={item.href} 
+                      className={`nav-item ${isActive(item.href) ? 'active' : ''}`}
+                      style={{ paddingLeft: 42, fontSize: 12 }}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
           </>
         )}
       </nav>

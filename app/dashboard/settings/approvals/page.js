@@ -10,12 +10,55 @@ export default function ApprovalFlowsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState({ text: '', type: '' })
+  const [showGuide, setShowGuide] = useState(false)
+  const [guideContent, setGuideContent] = useState('')
+  const [editingGuide, setEditingGuide] = useState(false)
+  const [currentUser, setCurrentUser] = useState(null)
 
   const FREQ_TYPES = ['Daily', 'Weekly', 'Monthly', 'Yearly']
 
   useEffect(() => {
     fetchData()
+    fetchGuide()
+    checkUser()
   }, [])
+
+  const checkUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single()
+      setCurrentUser(profile)
+    }
+  }
+
+  const fetchGuide = async () => {
+    const { data } = await supabase.from('system_settings').select('value').eq('key', 'approvals_guide_content').single()
+    if (data) setGuideContent(data.value)
+    else {
+      setGuideContent(`### 🛡️ คู่มือการตั้งค่าผู้อนุมัติ (Approval Flows Guide)
+ระบบใช้โครงสร้างการอนุมัติแบบ **Tiered Approval** เพื่อให้การทำงานมีความยืดหยุ่นและรวดเร็ว
+
+---
+#### **1. ประเภทการอนุมัติ**
+- **Checklist Approver:** ผู้อนุมัติที่ถูกกำหนดแยกตามความถี่ (Daily, Weekly, Monthly, Yearly)
+- **Incident Approver:** ผู้อนุมัติสำหรับเคส Incident ที่มีความสำคัญสูง
+
+---
+#### **2. ระบบ Approval Pool (การเซ็นแทน)**
+ระบบมีกลไกช่วยเหลือในกรณีผู้อนุมัติหลักไม่อยู่:
+1. **Primary Approver:** บุคคลที่ถูกเลือกในหน้านี้จะเป็นผู้รับแจ้งเตือนคนแรก
+2. **Substitutes:** หากผู้อนุมัติหลักตั้งค่าคนแทนไว้ คนแทนสามารถเซ็นได้ทันที
+3. **Pool Permissions:** ผู้ใช้ที่มี Role เป็น **Admin, it_staff หรือ Approver** สามารถลงนามแทนได้หากจำเป็น โดยระบบจะบันทึกใน Audit Log ว่าเป็นการ "Signed on behalf of"`)
+    }
+  }
+
+  const handleSaveGuide = async () => {
+    setSaving(true)
+    await supabase.from('system_settings').upsert({ key: 'approvals_guide_content', value: guideContent, updated_at: new Date().toISOString() })
+    setMsg({ text: 'บันทึกคู่มือสำเร็จ', type: 'success' })
+    setEditingGuide(false)
+    setSaving(false)
+  }
 
   const fetchData = async () => {
     setLoading(true)
@@ -61,10 +104,61 @@ export default function ApprovalFlowsPage() {
         }
         * { box-sizing: border-box; }
       `}</style>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>Approval Flows</h1>
-        <div style={{ fontSize: 13, color: '#6b7280' }}>กำหนดผู้อนุมัติหลักแยกตามประเภทความถี่ของงาน</div>
+      <div className="header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20, marginBottom: 32 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #2563eb 0%, #60a5fa 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.3)' }}>
+              🛡️
+            </div>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '0', display: 'flex', alignItems: 'center', gap: 12 }}>
+              Approval Flows
+              <button className="no-print" onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#eff6ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
+            </h1>
+          </div>
+          <p style={{ color: '#64748b', fontSize: 15, margin: 0 }}>กำหนดผู้อนุมัติหลักแยกตามประเภทความถี่ของงาน</p>
+        </div>
+        <div className="action-dock no-print" style={{ display: 'flex', gap: 6, padding: '6px', background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <button onClick={() => fetchData()} style={{ padding: '10px 20px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 14, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+            🔄 Refresh Data
+          </button>
+        </div>
       </div>
+
+      {showGuide && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div style={{ background: '#fff', borderRadius: 28, width: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '28px 36px', background: 'linear-gradient(135deg, #2563eb, #60a5fa)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{display:'flex', alignItems:'center', gap:16}}><span style={{fontSize:28}}>📖</span><div><h3 style={{margin:0, fontSize:22, fontWeight:800}}>Approval Flows Guide</h3><p style={{margin:0, fontSize:13, opacity:0.85}}>คู่มือการจัดการสายการอนุมัติ</p></div></div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                {currentUser?.role === 'admin' && <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{editingGuide ? '👁 View' : '✏️ Edit'}</button>}
+                <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 32, cursor: 'pointer' }}>&times;</button>
+              </div>
+            </div>
+            <div style={{ padding: 40, overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+              {editingGuide ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <textarea value={guideContent} onChange={e => setGuideContent(e.target.value)} style={{ width: '100%', minHeight: 450, padding: 24, borderRadius: 20, border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: 14 }} />
+                  <button onClick={handleSaveGuide} style={{ padding: '14px 36px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, alignSelf: 'flex-end' }}>บันทึกคู่มือ</button>
+                </div>
+              ) : (
+                <div style={{ maxWidth: 700, margin: '0 auto' }}>
+                  {guideContent.split('---').map((section, sIdx) => (
+                    <div key={sIdx} style={{ background: section.includes('####') ? '#fff' : 'transparent', borderRadius: 20, padding: section.includes('####') ? 28 : 0, marginBottom: section.includes('####') ? 24 : 36, borderLeft: section.includes('####') ? `6px solid #2563eb` : 'none', boxShadow: section.includes('####') ? '0 4px 12px rgba(0,0,0,0.05)' : 'none' }}>
+                      <div style={{ fontSize: 15, color: '#334155', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                        {section.trim().split('\n').map((line, lIdx) => {
+                          if (line.startsWith('####')) return <h4 key={lIdx} style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 800, color: '#1e293b' }}>{line.replace(/#/g, '').trim()}</h4>
+                          if (line.startsWith('###')) return <h3 key={lIdx} style={{ margin: '0 0 24px 0', fontSize: 24, fontWeight: 900, color: '#0f172a' }}>{line.replace(/#/g, '').trim()}</h3>
+                          return <p key={lIdx} style={{ margin: '0 0 10px 0' }}>{line.includes('**') ? line.split('**').map((p,i)=>i%2===1?<strong key={i} style={{color:'#1e3a8a'}}>{p}</strong>:p) : line}</p>
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {msg.text && (
         <div style={{ padding: '12px 16px', borderRadius: 8, fontSize: 13, marginBottom: 20, background: msg.type === 'success' ? '#ecfdf5' : '#fef2f2', color: msg.type === 'success' ? '#065f46' : '#991b1b', border: `1px solid ${msg.type === 'success' ? '#a7f3d0' : '#fecaca'}` }}>
@@ -72,7 +166,7 @@ export default function ApprovalFlowsPage() {
         </div>
       )}
 
-      <div className="table-wrapper" style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+      <div className="table-wrapper" style={{ background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(20px)', borderRadius: 24, border: '1px solid rgba(226, 232, 240, 0.8)', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.05)' }}>
         <table className="approvals-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>

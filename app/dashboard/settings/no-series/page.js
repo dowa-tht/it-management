@@ -356,27 +356,32 @@ export default function NoSeriesPage() {
         </div>
       )}
 
-      <div className="header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+      <div className="header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20, marginBottom: 32 }}>
         <div>
-          <h1 className="title-text" style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
-            No. Series Management <span style={{ fontSize: 12, background: '#1d4ed8', color: '#fff', padding: '2px 10px', borderRadius: 20 }}>Enterprise</span>
-            <button onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#eff6ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
-          </h1>
-          <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
-            ตั้งค่าเลขที่เอกสารแบบ Header & Lines อ้างอิง Working Date: <strong style={{ color: '#1d4ed8' }}>{getFormattedDate().split('-').reverse().join(' / ')}</strong>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, boxShadow: '0 10px 15px -3px rgba(29, 78, 216, 0.3)' }}>
+              🔢
+            </div>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '0', display: 'flex', alignItems: 'center', gap: 12 }}>
+              No. Series Management
+              <button onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#eff6ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
+            </h1>
           </div>
+          <p style={{ color: '#64748b', fontSize: 15, margin: 0 }}>
+            ตั้งค่าเลขที่เอกสารแบบ Header & Lines อ้างอิง Working Date: <strong style={{ color: '#1d4ed8' }}>{getFormattedDate().split('-').reverse().join(' / ')}</strong>
+          </p>
         </div>
-        <div className="header-buttons" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="action-dock" style={{ display: 'flex', gap: 6, padding: '6px', background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
           <button onClick={handleDownloadTemplate} style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', padding: '10px 16px', borderRadius: 12, cursor: 'pointer', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
             📄 Template
           </button>
           
           <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} />
           <button onClick={() => fileInputRef.current?.click()} disabled={importing} style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', padding: '10px 16px', borderRadius: 12, cursor: importing ? 'wait' : 'pointer', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-            {importing ? '⏳ Importing...' : '📥 Import CSV'}
+            {importing ? '⏳ Importing...' : '📥 Import'}
           </button>
           
-          <button onClick={() => setShowNew(true)} style={{ background: '#1d4ed8', color: '#fff', padding: '10px 24px', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
+          <button onClick={() => setShowNew(true)} style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)', color: '#fff', padding: '10px 24px', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: 13, boxShadow: '0 4px 12px rgba(29, 78, 216, 0.2)' }}>
             + New Series
           </button>
         </div>
@@ -385,7 +390,7 @@ export default function NoSeriesPage() {
       {msg.text && <div style={{ padding: '14px 20px', borderRadius: 14, fontSize: 14, marginBottom: 24, background: msg.type === 'success' ? '#f0fdf4' : '#fef2f2', color: msg.type === 'success' ? '#166534' : '#991b1b', border: '1px solid #e2e8f0' }}>{msg.text}</div>}
 
       {showNew && (
-        <div style={{ background: '#fff', borderRadius: 24, padding: 32, marginBottom: 32, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0' }}>
+        <div style={{ background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(20px)', borderRadius: 24, padding: 32, marginBottom: 32, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', border: '2px solid #3b82f6' }}>
           <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 24 }}>➕ สร้าง Series Header ใหม่</h3>
           <div className="new-series-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
             <input value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="Series Code (e.g. SO)" style={{ padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} />
@@ -403,7 +408,7 @@ export default function NoSeriesPage() {
           const nextNo = getPreview(s)
 
           return (
-            <div key={s.id} style={{ background: '#fff', borderRadius: 24, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div key={s.id} style={{ background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(20px)', borderRadius: 24, border: '1px solid rgba(226, 232, 240, 0.8)', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', marginBottom: 20 }}>
               <div className="series-card-header" onClick={() => setExpandedId(isExpanded ? null : s.id)} style={{ padding: '24px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: isExpanded ? '#f8fafc' : '#fff' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
                   <div style={{ width: 50, height: 50, background: '#eff6ff', color: '#1d4ed8', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800 }}>{s.code}</div>

@@ -12,6 +12,8 @@ export function WorkflowActionBar({
   canRemoteApprove,
   canReject, 
   canReopen,
+  canAcknowledge = false,
+  acknowledgeLabel = '⚡ รับเรื่อง (Accept)',
   onSave, 
   onSubmit, 
   onApprove,
@@ -100,13 +102,13 @@ export function WorkflowActionBar({
                 {/* Draft Actions */}
                 {isDraft && (
                   <>
-                    {status === 'Open' && (
+                    {status === 'Open' && canAcknowledge && (
                       <button
                         onClick={onAcknowledge}
                         disabled={loading}
                         style={{ padding: '8px 24px', borderRadius: '10px', background: 'linear-gradient(to right, #6366f1, #4f46e5)', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.2)', fontFamily: 'inherit', fontSize: '13px', marginRight: '8px' }}
                       >
-                        ⚡ รับเรื่อง (Accept)
+                        {acknowledgeLabel}
                       </button>
                     )}
                     {canEdit && (

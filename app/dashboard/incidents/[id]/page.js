@@ -393,6 +393,8 @@ export default function IncidentDetailPage() {
   const canEditDetails = !isLocked && (hasFullAccess || incident.reported_by_id === currentUser?.id)
   const canSubmitForApproval = incident.status === 'In Progress' && hasFullAccess
   const canRemoteApprove = hasFullAccess && incident.status === 'Pending Approval' && !canApprove
+  const canAcknowledgeIncident = incident.status === 'Open' && ['admin', 'it_staff'].includes(currentUser?.role)
+  const acknowledgeActionLabel = currentUser?.role === 'admin' ? '📌 มอบหมายงาน (Dispatch)' : '⚡ รับเรื่อง (Accept)'
 
   const field = (label, name, value, options = null) => (
     <div style={{ marginBottom: '20px' }}>
@@ -431,7 +433,7 @@ export default function IncidentDetailPage() {
           onConfirm={handleAcknowledge} 
           loading={saving} 
           currentSeverity={incident.severity}
-          currentAssigneeId={currentUser?.id}
+          currentUser={currentUser}
         />
       )}
 
@@ -473,6 +475,8 @@ export default function IncidentDetailPage() {
         canRemoteApprove={canRemoteApprove}
         canReject={canApprove}
         canReopen={hasFullAccess && (incident.status === 'Closed' || incident.status === 'Pending Approval')}
+        canAcknowledge={canAcknowledgeIncident}
+        acknowledgeLabel={acknowledgeActionLabel}
         onSave={handleSave}
         onAcknowledge={() => setShowAcknowledgeDialog(true)}
         onSubmit={() => setShowResolveDialog(true)}
@@ -795,24 +799,40 @@ function ReopenDialog({ onCancel, onConfirm, loading }) {
   )
 }
 
-function AcknowledgeDialog({ onCancel, onConfirm, loading, currentSeverity, currentAssigneeId }) {
+function AcknowledgeDialog({ onCancel, onConfirm, loading, currentSeverity, currentUser }) {
   const [severity, setSeverity] = useState(currentSeverity || 'Medium')
-  const [assigneeId, setAssigneeId] = useState(currentAssigneeId || '')
+  const [assigneeId, setAssigneeId] = useState(currentUser?.role === 'it_staff' ? currentUser?.id : '')
   const [staffs, setStaffs] = useState([])
+
+  const isAdminDispatch = currentUser?.role === 'admin'
+  const isItStaffAccept = currentUser?.role === 'it_staff'
 
   useEffect(() => {
     const fetchStaffs = async () => {
-      const { data } = await supabase.from('user_profiles').select('id, full_name').in('role', ['admin', 'it_staff'])
+      if (!isAdminDispatch) return
+      const { data } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email, role, is_active')
+        .eq('role', 'it_staff')
+        .eq('is_active', true)
+        .order('full_name', { ascending: true })
       setStaffs(data || [])
     }
     fetchStaffs()
-  }, [])
+  }, [isAdminDispatch])
+
+  const title = isAdminDispatch ? '📌 มอบหมายงาน (Dispatch)' : '⚡ รับเรื่อง (Accept)'
+  const description = isAdminDispatch
+    ? 'เลือก IT Staff ที่จะเป็นผู้รับผิดชอบงาน ระบบจะบันทึกว่าคุณเป็นผู้มอบหมายงาน ไม่ใช่ผู้รับผิดชอบงาน'
+    : 'คุณจะรับเคสนี้เป็นผู้รับผิดชอบงาน'
+  const hasNoStaff = isAdminDispatch && staffs.length === 0
+  const canConfirm = isItStaffAccept || (isAdminDispatch && assigneeId)
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
       <div style={{ background: '#fff', borderRadius: '32px', padding: '32px', width: '100%', maxWidth: '450px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-        <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#1e293b', marginBottom: '8px' }}>⚡ รับเรื่อง (Acknowledge)</h3>
-        <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px' }}>กรุณายืนยันระดับความรุนแรงและผู้รับผิดชอบเพื่อเริ่มนับ SLA</p>
+        <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#1e293b', marginBottom: '8px' }}>{title}</h3>
+        <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px', lineHeight: 1.6 }}>{description}</p>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
@@ -835,27 +855,44 @@ function AcknowledgeDialog({ onCancel, onConfirm, loading, currentSeverity, curr
             </div>
           </div>
 
-          <div>
-            <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>ผู้รับผิดชอบ (Assign To)</label>
-            <select 
-              value={assigneeId} 
-              onChange={e => setAssigneeId(e.target.value)}
-              style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', fontFamily: 'inherit' }}
-            >
-              <option value="">เลือกเจ้าหน้าที่...</option>
-              {staffs.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
-            </select>
-          </div>
+          {isItStaffAccept && (
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>ผู้รับผิดชอบงาน / IT Staff Assignee</label>
+              <div style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #bfdbfe', background: '#eff6ff', fontSize: '14px', fontWeight: 800, color: '#1d4ed8' }}>
+                {currentUser?.full_name || currentUser?.email || 'Current IT Staff'}
+              </div>
+            </div>
+          )}
+
+          {isAdminDispatch && (
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>ผู้รับผิดชอบงาน / IT Staff Assignee</label>
+              {hasNoStaff && (
+                <div style={{ marginBottom: '10px', padding: '10px 12px', borderRadius: '12px', background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', fontSize: '12px', fontWeight: 700 }}>
+                  ยังไม่มี IT Staff ที่เปิดใช้งานสำหรับรับมอบหมายงาน กรุณาตรวจสอบ Account Management
+                </div>
+              )}
+              <select 
+                value={assigneeId} 
+                onChange={e => setAssigneeId(e.target.value)}
+                disabled={hasNoStaff}
+                style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', fontFamily: 'inherit', background: hasNoStaff ? '#f8fafc' : '#fff' }}
+              >
+                <option value="">เลือก IT Staff...</option>
+                {staffs.map(s => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
+              </select>
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
           <button onClick={onCancel} style={{ flex: 1, padding: '14px', borderRadius: '16px', border: 'none', background: '#f1f5f9', color: '#64748b', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
           <button 
-            onClick={() => onConfirm({ severity, assignee_id: assigneeId })} 
-            disabled={loading || !assigneeId} 
-            style={{ flex: 1, padding: '14px', borderRadius: '16px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: loading || !assigneeId ? 0.5 : 1, fontFamily: 'inherit' }}
+            onClick={() => onConfirm({ severity, assignee_id: isItStaffAccept ? currentUser?.id : assigneeId })} 
+            disabled={loading || !canConfirm} 
+            style={{ flex: 1, padding: '14px', borderRadius: '16px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: loading || !canConfirm ? 0.5 : 1, fontFamily: 'inherit' }}
           >
-            {loading ? 'กำลังบันทึก...' : 'เริ่มรับเรื่อง'}
+            {loading ? 'กำลังบันทึก...' : (isAdminDispatch ? 'ยืนยันมอบหมายงาน' : 'ยืนยันรับเรื่อง')}
           </button>
         </div>
       </div>

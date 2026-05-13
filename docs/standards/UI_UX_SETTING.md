@@ -82,5 +82,26 @@
 
 ---
 
+---
+
+## 5. Standalone Route Architecture
+
+เพื่อให้ระบบมีความยืดหยุ่นและรองรับการขยายตัวในอนาคต (Scalability) การจัดการเมนู Settings ต้องไม่ผูกติดกับ Query Parameters เพียงหน้าเดียว:
+
+### 5.1 Route Separation
+*   **Standalone Pages:** ฟีเจอร์หลัก (เช่น Holidays, Master Data, Workflow) ต้องมี Route ของตัวเอง (เช่น `/dashboard/settings/holidays`)
+*   **Decoupled Logic:** แยก Logic ของแต่ละหน้าออกจากกันเพื่อลดความซับซ้อนของไฟล์ `page.js` และป้องกันการเกิด Re-render ที่ไม่จำเป็น
+*   **Direct Access:** ผู้ใช้สามารถเข้าถึงหน้าตั้งค่าได้โดยตรงผ่าน URL โดยไม่ต้องผ่านหน้าเลือกหมวดหมู่ก่อน
+
+### 5.2 Shared Master Data Logic
+*   สำหรับการตั้งค่าที่เป็น Master Data ทั่วไป (🏷️ Label + 🔘 Active Status) ให้ใช้ Component กลาง (`MasterDataScope.js`)
+*   **Scoped Props:** การเรียกใช้ Component กลางต้องระบุ `forcedGroup` และ `title` ให้ชัดเจนเพื่อให้ UI แสดงผลเฉพาะหมวดหมู่ที่ต้องการ
+
+### 5.3 Sidebar Navigation Sync
+*   **Active State:** การนำทางใน Sidebar ต้องใช้ `pathname` ในการระบุสถานะ Active
+*   **Auto-Expand:** เมื่อเข้าสู่ Route ในหมวด Settings ระบบต้องทำการขยาย (Expand) กลุ่มเมนูที่เกี่ยวข้องโดยอัตโนมัติเพื่อให้ผู้ใช้ทราบตำแหน่งปัจจุบัน
+
+---
+
 ## 🚀 Implementation Rule
 > **"หากมีการเพิ่มเมนูในส่วน Setting ใหม่ในอนาคต ต้องใช้โครงสร้างและชุดสีตามเอกสารฉบับนี้ 100% เพื่อรักษาความ Premium และความเป็นมืออาชีพของระบบ"**
