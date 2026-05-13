@@ -195,8 +195,9 @@ export async function recordSystemError(category, message, metadata = {}) {
   try {
     const supabaseAdmin = getAdminClient()
     await supabaseAdmin.from('system_logs').insert({
-      category,
-      message,
+      category: 'error',
+      action: category, // Using category as the action title (e.g., 'Workflow', 'Auth')
+      details: message,
       metadata,
       created_at: new Date().toISOString()
     })
@@ -214,6 +215,29 @@ export async function recordAuditLog({ docId, docType, action, details, userEmai
     const supabaseAdmin = getAdminClient()
     const type = docType.toLowerCase()
     
+    // 0. Resolve doc_no if missing
+    if (!metadata?.doc_no && docId && docType) {
+      const reg = WORKFLOW_DOC_REGISTRY[type]
+      if (reg) {
+        const { data: doc } = await supabaseAdmin
+          .from(reg.table)
+          .select(reg.no_field)
+          .eq('id', docId)
+          .single()
+        
+        if (doc) {
+          if (!metadata) metadata = {}
+          if (type === 'checklist') {
+            // For checklist, generate readable ID if no_field is just ID
+            const { data: c } = await supabaseAdmin.from('checklist_docs').select('freq_type, period_date').eq('id', docId).single()
+            if (c) metadata.doc_no = `CHK-${c.period_date}-${c.freq_type?.charAt(0) || '?'}`
+          } else {
+            metadata.doc_no = doc[reg.no_field]
+          }
+        }
+      }
+    }
+
     // 1. Record to system_audit_logs (Centralized)
     const { error } = await supabaseAdmin.from('system_audit_logs').insert({
       doc_id: docId,
@@ -654,7 +678,17 @@ export async function getSystemLogs(type = 'audit', { page = 0, limit = 20 } = {
         .order('created_at', { ascending: false })
         .range(from, to)
       if (error) throw error
-      return { data: data || [], count }
+      
+      const mapped = data?.map(l => ({
+        ...l,
+        message: l.details || 'Unknown Error',
+        metadata: {
+          ...l.metadata,
+          source: l.action // Using action column as source for UI display
+        }
+      })) || []
+
+      return { data: mapped, count }
     }
 
     return { data: [], count: 0 }

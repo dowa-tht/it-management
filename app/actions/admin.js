@@ -4,6 +4,7 @@ import { revalidatePath, unstable_noStore as noStore } from 'next/cache'
 import { randomBytes, randomUUID } from 'crypto'
 import { normalizeRole, hashEmail } from '@/lib/auth'
 import { getCurrentUserSession } from './user'
+import { recordSystemError } from './workflow'
 
 /**
  * 📝 บันทึกประวัติการดำเนินการของ Admin (Audit Log)
@@ -166,6 +167,7 @@ export async function createAdminUser({ email, password, full_name, role, can_be
     return { success: true }
   } catch (err) {
     console.error('createAdminUser error:', err)
+    await recordSystemError('Admin', `Create user failed for ${email}: ${err.message}`, { email, error: err })
     return { success: false, error: err.message }
   }
 }

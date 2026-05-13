@@ -1,5 +1,33 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Change Logs)
 
+## [2026-05-13 18:24] - Agent Workflow Control Add-on
+- **AGENTS.md Update**: เพิ่มชุดคำสั่ง `AI Multi-Model Workflow Control Add-on` จากไฟล์แนบ `AGENT-add_on.md` เข้าสู่ `AGENTS.md`
+- **Smart/Fast AI Workflow**: เพิ่มนิยามบทบาท Smart AI และ Fast AI พร้อมรูปแบบ report, checkpoint, handoff และ escalation
+- **Task Workflow Standard**: เพิ่ม workflow มาตรฐานสำหรับ `SCAN_SUMMARY.md`, `TASK-001.md` และ execution report เพื่อใช้เมื่อต้องส่งงานให้ agent ตัวเล็กแก้ระบบ
+- **Project Compatibility**: ปรับข้อความให้ทำงานร่วมกับกฎเดิมของโปรเจกต์ โดยยังยึด `docs/INDEX.md`, `USER_TASKS.md`, evidence-based verification และ documentation structure ตามเดิม
+
+---
+
+## [2026-05-13 18:05] - Settings Guide, Logs and Master Data UI Fix (Phase 1 & 2 Completed)
+- **Guide System**: ติดตั้งระบบแก้ไขคู่มือ (Edit Guide) ใน `MasterDataScope.js` และหน้า Logs พร้อมระบบ Admin-only guard
+- **Default Content**: เพิ่มเนื้อหาคู่มือเริ่มต้น (Default Guide Content) ครบถ้วนทั้ง 6 ประเภทของ Master Data (Incident Category, Affected System, etc.)
+- **Doc No. Resolution**: แก้ไขระบบ Audit/Approval Logs ให้ดึง Doc No. อัตโนมัติจากฐานข้อมูล (Incident/Checklist) หากไม่มีใน Metadata
+- **Login History**: แยกคอลัมน์ Email และ Name ออกจากกันเพื่อความชัดเจน และแก้ไขคอลัมน์ Email ให้แสดง `user_email` จริง
+- **System Errors**: ปรับปรุงหน้าจอแสดงผล Error จาก `system_logs` และติดตั้งระบบบันทึก Error อัตโนมัติในจุดสำคัญ (Workflow, Admin, Auth, API)
+- **Compact UI**: บังคับใช้ Compact Style (Padding/Radius เล็กลง) เฉพาะ Incident Master Data เพื่อความกระชับในการใช้งาน
+- **Build Verification**: รัน `npm run build` ผ่านสำเร็จ ยืนยันความเสถียรของโครงสร้างใหม่
+
+---
+
+## [2026-05-13 17:36] - Documentation Plan: Settings Guide, Logs and Master Data Fix
+- **Implementation Plan**: เพิ่ม `docs/history/IMPLEMENTATION_PLAN_SETTINGS_GUIDE_LOGS_MASTERDATA_FIX.md` เพื่อเป็นแผนส่งต่อให้ agent แก้ระบบตาม feedback ล่าสุด
+- **Guide Scope**: ระบุแผนแก้ Guide edit ใน `MasterDataScope.js`, เพิ่ม default guide content และ normalize admin-only edit
+- **Logs Scope**: ระบุแผนแก้ Doc No. ใน Audit/Approval Logs, แก้ Login History ให้คอลัมน์ Email แสดง email จริง และนิยาม System Errors จาก `system_logs`
+- **UI Scope**: ระบุแผนลดขนาด search/add form ของ Incident Master Data โดยไม่กระทบ Checklist Master Data
+- **Documentation Index**: อัปเดต `docs/INDEX.md` ให้เชื่อมไปยังแผนใหม่ในหมวด Implementation History
+
+---
+
 ## [2026-05-13 17:35] - Settings UI/UX Standardization & Permissions Hotfix (COMPLETED)
 - **UI Standardization**: ปรับปรุงหน้า Settings ทั้งหมด (**Permissions, Approvals, Substitutes, Workflow, Logs**) ให้เป็นมาตรฐานเดียวกันตาม `UI_UX_SETTINGS_DESIGN_SYSTEM.md`
 - **Glassmorphism UI**: บังคับใช้ `backdrop-filter: blur(20px)` และ clean layout สำหรับ containers ในหน้าตั้งค่าทุกหน้า

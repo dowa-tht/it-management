@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
+import { recordSystemError } from '@/app/actions/workflow'
 
 // POST /api/approval/verify
 // รับ token + action (approved/rejected) + comment แล้วบันทึกผล
@@ -61,6 +62,7 @@ export async function POST(request) {
       documentTitle: tokenRecord.document_title,
     })
   } catch (err) {
+    await recordSystemError('API', `Approval Verify POST failed: ${err.message}`, { error: err })
     return Response.json({ error: err.message }, { status: 500 })
   }
 }
@@ -83,6 +85,7 @@ export async function GET(request) {
     const isExpired = new Date(data.expires_at) < new Date()
     return Response.json({ ...data, isExpired })
   } catch (err) {
+    await recordSystemError('API', `Approval Verify GET failed: ${err.message}`, { error: err })
     return Response.json({ error: err.message }, { status: 500 })
   }
 }

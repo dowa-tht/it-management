@@ -32,6 +32,199 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Project Agent Rules
 
+## AI Multi-Model Workflow Control Add-on
+
+ใช้กฎชุดนี้เมื่อ USER ต้องการให้ตรวจสอบ/แก้ไขระบบหรือฟังก์ชันแบบแยกบทบาทระหว่าง AI วางแผนกับ AI ลงมือแก้ เช่น เมื่อ USER เรียกคำสั่ง `SmartAi`, `FastAi`, ระบุ `Task file`, สั่งให้ส่งงานต่อให้ agent ตัวเล็ก, หรืออ้างอิง workflow แบบ `SCAN_SUMMARY.md` / `TASK-001.md`
+
+### Role Definition
+
+#### Smart AI
+**หน้าที่:** คิด วิเคราะห์ วางแผน สร้าง Task files Debug งานยาก และตัดสินใจเชิงสถาปัตยกรรม  
+**ห้าม:** แก้โค้ดโดยตรงโดยไม่มี Task file ใน workflow นี้ หรือทำงาน execution ที่ Fast AI ทำได้
+
+#### Fast AI
+**หน้าที่:** Scan codebase, Execute Task files, Self-validate, Report ผล  
+**ห้าม:** วิเคราะห์หรือวางแผนนอก scope ที่กำหนดใน Task file หรือตัดสินใจเปลี่ยน logic สำคัญเอง
+
+### กฎข้อที่ 1: รายงานตัวก่อนเริ่ม workflow
+
+เมื่อ USER เรียก workflow นี้ AI ต้องรายงานตัวก่อนทำงานในรูปแบบ:
+
+```text
+รายงานตัว
+Model    : [ชื่อ Model จริง เช่น Gemini 2.0 Flash / GPT-5]
+Role     : [Smart AI / Fast AI]
+Task     : [ชื่อ Task ที่จะทำ เช่น TASK-001 / SCAN_SUMMARY]
+Step     : [Step ที่เท่าไหร่ของ Workflow เช่น Step 1/7]
+Input    : [ไฟล์หรือข้อมูลที่รับมา เช่น SCAN_SUMMARY.md]
+Output   : [ไฟล์หรือผลที่จะส่งออก เช่น TASK-001.md]
+
+รอ Human Confirm ก่อนเริ่ม
+```
+
+AI ต้องหยุดรอจนกว่า Human จะพิมพ์ `ยืนยัน`, `confirm`, หรือ `ok` ก่อนเริ่ม step นั้น หาก Human แจ้งว่า Model/Role ผิด ให้หยุดทำงานและแจ้งให้ Human เปลี่ยน Model/Role ก่อน
+
+### กฎข้อที่ 2: Confirm ก่อนขึ้น Step ถัดไป
+
+เมื่อจบแต่ละ Step ใน workflow นี้ AI ต้องรายงานผลและถามยืนยันในรูปแบบ:
+
+```text
+Step [N] เสร็จสิ้น
+─────────────────────────────
+Output ที่ส่งมอบ : [ชื่อไฟล์หรือผลลัพธ์]
+Status           : Pass / Fail / Escalate
+
+─────────────────────────────
+Step ถัดไป
+Step     : [Step N+1]
+Task     : [ชื่องานที่จะทำ]
+Model    : [Smart AI / Fast AI]
+Input    : [ไฟล์ที่ต้องใช้]
+
+พิมพ์ "ต่อ" เพื่อเริ่ม Step ถัดไป หรือแจ้งถ้าต้องการปรับเปลี่ยน
+```
+
+AI ต้องหยุดรอทุกครั้ง ห้าม proceed Step ถัดไปเองโดยไม่ได้รับอนุญาต
+
+### กฎข้อที่ 3: Handoff Checklist ก่อนสลับ Model
+
+เมื่อจะสลับจาก Smart AI ไป Fast AI หรือ Fast AI ไป Smart AI ต้องทำ Handoff ก่อนหยุด:
+
+```text
+HANDOFF REPORT
+─────────────────────────────
+จาก     : [Smart AI / Fast AI]
+ไปยัง   : [Smart AI / Fast AI]
+Step    : [Step ที่เพิ่งเสร็จ] → [Step ที่จะเริ่ม]
+
+Output ที่ส่งมอบ:
+  - [ชื่อไฟล์ที่สร้าง/แก้]
+  - [ชื่อไฟล์ที่สร้าง/แก้]
+
+Context ที่ Model ถัดไปต้องรู้:
+  - [สิ่งสำคัญที่พบระหว่างทำงาน]
+  - [ข้อควรระวังหรือ constraint พิเศษ]
+
+ไฟล์ที่ Model ถัดไปต้องอ่าน:
+  - [ชื่อไฟล์ + path]
+
+─────────────────────────────
+Human ระบุ Step และไฟล์ให้ Model ถัดไปได้เลย
+```
+
+### กฎข้อที่ 4: Escalate ทันทีเมื่อเจอ blocker
+
+Fast AI ต้องหยุดและ Escalate ทุกครั้งเมื่อเจอเงื่อนไขต่อไปนี้:
+
+- ไม่รู้ว่าต้องแก้ไฟล์ไหน
+- Checklist ผ่านไม่ได้หลัง retry 2 ครั้ง
+- พบ side effect นอก scope
+- Task file มีข้อมูลขัดแย้งกัน
+- ต้องแก้ schema, env หรือ config
+- ต้องเปลี่ยน critical workflow/permission/security logic ที่ Task file ไม่ได้ระบุไว้ชัดเจน
+
+Format:
+
+```text
+ESCALATE — [TASK-ID]
+─────────────────────────────
+Reason      : [สาเหตุ]
+Attempted   : [ลองทำอะไรไปแล้ว]
+Blocker     : [ติดอะไรอยู่]
+Suggestion  : [ความเห็นของ Fast AI ถ้ามี]
+─────────────────────────────
+รอ Human ตัดสินใจ
+```
+
+### Workflow มาตรฐาน
+
+```text
+Step 1  Fast AI     Scan & Summarize codebase
+                    Output → SCAN_SUMMARY.md
+                    Human Checkpoint
+
+Step 2  Smart AI    รับ SCAN_SUMMARY.md + Requirements
+                    Output → TASK-001.md, TASK-002.md ...
+                    Human Checkpoint
+
+Step 3  Fast AI     Execute TASK ทีละ file + Self-validate
+                    Output → Execution Report ใน TASK file
+                    Human Checkpoint
+
+Step 4  Fast AI     รายงานผล pass/fail ทุก Task
+                    Human Checkpoint
+
+Step 5  Smart AI    ถ้า fail เกิน 2 ครั้ง ให้ Debug เฉพาะ Task นั้น
+                    Output → TASK-XXX-fix.md
+                    Human Checkpoint
+
+Step 6  Human       Review โค้ด + Test + Merge to main
+```
+
+### วิธีเรียกใช้งาน
+
+เรียก Fast AI:
+
+```text
+FastAi
+Step   : [Step ที่เท่าไหร่]
+Input  : [ไฟล์ที่ต้องอ่าน เช่น TASK-001.md]
+Task   : [อธิบายสั้นๆ ว่าทำอะไร]
+```
+
+เรียก Smart AI:
+
+```text
+SmartAi
+Step   : [Step ที่เท่าไหร่]
+Input  : [ไฟล์ที่ต้องอ่าน เช่น SCAN_SUMMARY.md]
+Task   : [อธิบายสั้นๆ ว่าทำอะไร]
+```
+
+### คำสั่ง Human ที่ต้องรู้จัก
+
+| Human พิมพ์ | AI ต้องทำ |
+|------------|----------|
+| `ยืนยัน` / `confirm` / `ok` | เริ่มทำงานได้ |
+| `ต่อ` | เริ่ม Step ถัดไปได้ |
+| `หยุด` / `stop` | หยุดทันที รอคำสั่งใหม่ |
+| `ยกเลิก` / `cancel` | ยกเลิก Task ปัจจุบัน อัปเดต status เป็น Cancelled |
+| `รายงาน` | สรุปสถานะทุก Task ในรูปแบบ Session Summary |
+| `retry` | ลองทำ Task ปัจจุบันใหม่อีกครั้ง และนับ retry count |
+
+### โครงสร้างไฟล์มาตรฐานสำหรับ Workflow นี้
+
+หากต้องสร้างไฟล์ task สำหรับ workflow นี้ ให้ใช้โครงสร้าง:
+
+```text
+ai-tasks/
+  SCAN_SUMMARY.md
+  tasks/
+    TASK-001.md
+    TASK-002.md
+    TASK-XXX.md
+```
+
+หมายเหตุ: กฎ `DOCUMENTATION STRUCTURE` ของโปรเจกต์ยังมีผลเสมอ หากไฟล์เป็นมาตรฐาน แผนงาน หรือคู่มือถาวร ต้องเก็บใน `docs/standards/`, `docs/history/`, หรือ `docs/manuals/` ตามประเภท และอัปเดต `docs/INDEX.md`
+
+### Session Summary Format
+
+เมื่อ Human พิมพ์ `รายงาน` ใน workflow นี้ AI ต้องสรุปในรูปแบบ:
+
+```text
+SESSION SUMMARY
+─────────────────────────────────────────
+| Task      | Model     | Status        |
+|-----------|-----------|---------------|
+| TASK-001  | Fast AI   | Pass          |
+| TASK-002  | Fast AI   | Cancelled     |
+| TASK-003  | Fast AI   | Escalate      |
+─────────────────────────────────────────
+Files Changed : [รายชื่อไฟล์ที่ถูกแก้]
+Pending       : [Task ที่ยังค้างอยู่]
+Next Step     : [Step ถัดไปที่ควรทำ]
+```
+
 ## Stack
 - Next.js 15 App Router (ห้ามใช้ Pages Router เด็ดขาด)
 - Tailwind CSS v4

@@ -20,6 +20,7 @@ export default function LogsPage() {
   const [showGuide, setShowGuide] = useState(false)
   const [guideContent, setGuideContent] = useState('')
   const [editingGuide, setEditingGuide] = useState(false)
+  const [currentUser, setCurrentUser] = useState(null)
 
   const loadLogs = async (type, pageToLoad = 0, isLoadMore = false) => {
     if (isLoadMore) setLoadingMore(true)
@@ -50,6 +51,14 @@ export default function LogsPage() {
   }
 
   useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', user.id).single()
+        setCurrentUser(profile)
+      }
+    }
+    fetchUser()
     setPage(0)
     setHasMore(true)
     loadLogs(activeTab, 0, false)
@@ -208,7 +217,11 @@ export default function LogsPage() {
             <div style={{ padding: '28px 36px', background: 'linear-gradient(135deg, #4f46e5, #818cf8)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{display:'flex', alignItems:'center', gap:16}}><span style={{fontSize:28}}>📖</span><div><h3 style={{margin:0, fontSize:22, fontWeight:800}}>System Logs Guide</h3><p style={{margin:0, fontSize:13, opacity:0.85}}>คู่มือการตรวจสอบประวัติระบบ</p></div></div>
               <div style={{ display: 'flex', gap: 12 }}>
-                <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{editingGuide ? '👁 View' : '✏️ Edit'}</button>
+                {currentUser?.role === 'admin' && (
+                  <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                    {editingGuide ? '👁 View' : '✏️ Edit'}
+                  </button>
+                )}
                 <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 32, cursor: 'pointer' }}>&times;</button>
               </div>
             </div>
@@ -332,8 +345,15 @@ export default function LogsPage() {
                   ) : activeTab === 'login' ? (
                     <>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Email</th>
+                      <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Name</th>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Action</th>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Device/Agent</th>
+                    </>
+                  ) : activeTab === 'system' ? (
+                    <>
+                      <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Error Message</th>
+                      <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Context (Source/Action)</th>
+                      <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Metadata</th>
                     </>
                   ) : (
                     <>
@@ -387,7 +407,8 @@ export default function LogsPage() {
                       </>
                     ) : activeTab === 'login' ? (
                       <>
-                        <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{log.full_name || log.user_email}</td>
+                        <td style={{ padding: '16px 20px', fontSize: 13, color: '#111827' }}>{log.user_email || '—'}</td>
+                        <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{log.full_name && log.full_name !== log.user_email ? log.full_name : '—'}</td>
                         <td style={{ padding: '16px 20px' }}>
                           <span style={{ padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: log.action === 'login' ? '#dcfce7' : '#f1f5f9', color: log.action === 'login' ? '#166534' : '#475569' }}>
                             {log.action.toUpperCase()}
@@ -395,6 +416,22 @@ export default function LogsPage() {
                         </td>
                         <td style={{ padding: '16px 20px', fontSize: 12, color: '#6b7280', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {log.user_agent}
+                        </td>
+                      </>
+                    ) : activeTab === 'system' ? (
+                      <>
+                        <td style={{ padding: '16px 20px', fontSize: 13, color: '#dc2626', fontWeight: 500 }}>{log.message}</td>
+                        <td style={{ padding: '16px 20px', fontSize: 12, color: '#64748b' }}>
+                          <div><strong>Source:</strong> {log.metadata?.source || '—'}</div>
+                          <div><strong>Action:</strong> {log.metadata?.action || '—'}</div>
+                        </td>
+                        <td style={{ padding: '16px 20px' }}>
+                          <button 
+                            onClick={() => setSelectedLog(log)}
+                            style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            View Metadata
+                          </button>
                         </td>
                       </>
                     ) : (

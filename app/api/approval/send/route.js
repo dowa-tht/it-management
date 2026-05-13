@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import { normalizeRole } from '@/lib/auth'
+import { recordSystemError } from '@/app/actions/workflow'
 
 async function requireAdmin() {
   const cookieStore = await cookies()
@@ -100,6 +101,7 @@ export async function POST(request) {
 
     return Response.json({ success: true, approvalUrl })
   } catch (err) {
+    await recordSystemError('API', `Approval Send failed: ${err.message}`, { error: err })
     return Response.json({ error: err.message }, { status: 500 })
   }
 }

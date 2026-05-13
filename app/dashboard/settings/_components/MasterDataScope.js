@@ -34,6 +34,81 @@ const TEMPLATE_NAMES = {
 
 const FREQUENCIES = ['Daily', 'Weekly', 'Monthly', 'Yearly']
 
+const DEFAULT_MASTER_GUIDES = {
+  incident_category: `### 🏷️ Incident Category Guide
+หมวดหมู่ของเหตุการณ์ขัดข้อง ใช้สำหรับจัดกลุ่มปัญหาเพื่อให้สามารถออกรายงานสรุปและวิเคราะห์สาเหตุเชิงลึกได้
+
+---
+#### ➕ วิธีเพิ่มข้อมูล
+1. พิมพ์ชื่อหมวดหมู่ในช่อง "เพิ่ม Incident Category ใหม่..."
+2. กดปุ่ม "+ เพิ่มข้อมูล"
+3. ข้อมูลจะถูกจัดเก็บและพร้อมใช้งานในหน้าการรายงาน Incident ทันที
+
+---
+#### ✏️ การแก้ไขและลบ
+- **การแก้ไข**: คลิกที่ชื่อรายการเพื่อแก้ไขข้อความ และกด Enter หรือคลิกนอกช่องเพื่อบันทึก
+- **การปิดใช้งาน**: คลิกที่ปุ่มสถานะ (Active/Inactive) เพื่อซ่อนหมวดหมู่จากหน้าจอผู้ใช้โดยไม่ต้องลบข้อมูล
+- **การลบ**: ใช้ปุ่มถังขยะ 🗑️ เพื่อลบข้อมูล (แนะนำให้ใช้การปิดใช้งานแทนหากข้อมูลถูกนำไปใช้งานแล้ว)
+
+---
+#### ⚠️ ข้อควรระวัง
+หากหมวดหมู่ถูกนำไปผูกกับ Incident เดิมแล้ว การเปลี่ยนชื่ออาจส่งผลต่อความถูกต้องของรายงานในอดีต`,
+  affected_system: `### 🖥️ Affected System Guide
+รายการระบบหรืออุปกรณ์ที่ได้รับผลกระทบ เพื่อระบุว่าปัญหาเกิดขึ้นที่จุดใดใน Infrastructure
+
+---
+#### ➕ วิธีเพิ่มข้อมูล
+ระบุชื่อระบบ (เช่น SAP, Network, Email Server) และกดปุ่ม "+ เพิ่มข้อมูล"
+
+---
+#### ⚙️ การจัดการ
+- ใช้ **Inactive** สำหรับระบบที่ยกเลิกการใช้งานแล้ว
+- ระบบที่ตั้งค่าที่นี่จะไปแสดงผลในขั้นตอนการรายงานเหตุการณ์ (Step 1)`,
+  sla_exclusion_reason: `### ⏸️ SLA Exclusion Reason Guide
+เหตุผลที่ใช้ในการหยุดนับเวลา SLA (Pause SLA) ในกรณีที่ความล่าช้าไม่ได้เกิดจากทีม IT
+
+---
+#### 💡 ตัวอย่างการใช้งาน
+- **Waiting for Spare Parts**: รอนำเข้าอะไหล่จากต่างประเทศ
+- **Waiting for Third Party**: รอการแก้ไขจากผู้ให้บริการภายนอก (Vendor)
+- **User Unreachable**: ไม่สามารถติดต่อผู้แจ้งเหตุได้
+
+---
+#### ⚠️ ผลกระทบ
+เหตุผลเหล่านี้จะปรากฏในหน้าแก้ไข Incident เมื่อมีการเลือกสถานะที่ต้องการหยุดนับเวลา`,
+  checklist_category: `### 📁 Checklist Category Guide
+การจัดกลุ่มแผนการตรวจเช็ค (Checklist) ตามลักษณะงานหรือหน่วยงาน
+
+---
+#### ➕ การใช้งาน
+- ใช้จัดกลุ่มในหน้า Dashboard และการค้นหา
+- หมวดหมู่เหล่านี้จะถูกนำไปเลือกใช้ในหน้า "Checklist Master"`,
+  checklist_template: `### 📋 Checklist Master Guide
+กำหนดรายการตรวจเช็ค (Inspection Items) และรูปแบบการเก็บข้อมูล
+
+---
+#### ➕ วิธีเพิ่มรายการ
+1. เลือก **หมวดหมู่** และ **ความถี่** (Daily/Weekly/...)
+2. พิมพ์ชื่อรายการตรวจเช็ค
+3. กดปุ่ม "+ เพิ่มรายการ"
+
+---
+#### ⚙️ การตั้งค่า UI Template
+แต่ละรายการสามารถเลือกรูปแบบการตอบกลับได้ (คลิกปุ่ม ⚙️ ที่รายการเพื่อตั้งค่า):
+- **Standard**: ผ่าน/ไม่ผ่าน
+- **Photo Evidence**: ต้องแนบรูปถ่าย
+- **Measurement**: กรอกตัวเลขและตรวจสอบช่วงค่าที่ยอมรับได้
+- **Procedure Table**: การตรวจเช็คแบบตารางขั้นตอน`,
+  procedure_plan: `### 📜 Procedure Plans Guide
+ชุดขั้นตอนการแก้ไขปัญหา (SOP) ที่จะแสดงให้ผู้ปฏิบัติงานเห็นเมื่อพบปัญหาใน Checklist
+
+---
+#### ➕ การใช้งาน
+1. สร้างแผนใหม่ด้วยชื่อที่เข้าใจง่าย
+2. คลิก **Edit (✏️)** เพื่อเข้าไปเพิ่มขั้นตอนการทำงานทีละ Step
+3. นำแผนนี้ไปผูกกับ Checklist Item ในหน้า Checklist Master`
+}
+
 export function MasterDataStandalonePage({ forcedGroup, initialType, title, subtitle }) {
   return (
     <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Loading Master Data...</div>}>
@@ -67,6 +142,8 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
   const [editingGuide, setEditingGuide] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [freqFilter, setFreqFilter] = useState('All')
+
+  const isCompactMasterData = paramGroup === 'incident'
 
   const visibleGroups = MASTER_GROUPS.filter(g => {
     if (!paramGroup) return true
@@ -105,8 +182,8 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
   const fetchGuide = async () => {
     const guideKey = `${activeType}_guide_content`
     const { data } = await supabase.from('system_settings').select('value').eq('key', guideKey).single()
-    if (data) setGuideContent(data.value)
-    else setGuideContent(`### 📖 ${currentType?.label} Guide\n(เนื้อหาคู่มือยังไม่ได้ตั้งค่า)`)
+    if (data?.value) setGuideContent(data.value)
+    else setGuideContent(DEFAULT_MASTER_GUIDES[activeType] || `### 📖 ${currentType?.label} Guide\n(เนื้อหาคู่มือยังไม่ได้ตั้งค่า)`)
   }
 
   useEffect(() => {
@@ -188,18 +265,10 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
   }
 
   const filteredItems = items.filter(it => {
-    const search = searchTerm.toLowerCase()
-    if (activeType === 'checklist_template') {
-      const matchesFreq = freqFilter === 'All' || it.freq_type === freqFilter
-      const matchesSearch = (it.item_label || '').toLowerCase().includes(search) || 
-                            (it.category || '').toLowerCase().includes(search) || 
-                            (it.instruction || '').toLowerCase().includes(search)
-      return matchesFreq && matchesSearch
-    } else if (activeType === 'procedure_plan') {
-      return (it.plan_name || '').toLowerCase().includes(search)
-    } else {
-      return (it.value || '').toLowerCase().includes(search)
-    }
+    const searchVal = it.value?.toLowerCase() || ''
+    const matchesSearch = searchVal.includes(searchTerm.toLowerCase())
+    if (freqFilter === 'All') return matchesSearch
+    return matchesSearch && it.freq_type === freqFilter
   })
 
   return (
@@ -278,7 +347,15 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                 placeholder={`ค้นหาใน ${currentType?.label}...`} 
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                style={{ width: '100%', padding: '14px 14px 14px 44px', border: '1px solid #e2e8f0', borderRadius: 18, fontSize: 14, background: '#fff', outline: 'none' }}
+                style={{ 
+                  width: '100%', 
+                  padding: isCompactMasterData ? '10px 12px 10px 38px' : '14px 14px 14px 44px', 
+                  border: '1px solid #e2e8f0', 
+                  borderRadius: isCompactMasterData ? 12 : 18, 
+                  fontSize: 14, 
+                  background: '#fff', 
+                  outline: 'none' 
+                }}
               />
             </div>
             {activeType === 'checklist_template' && (
@@ -290,7 +367,14 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
           </div>
 
           {/* Add Form */}
-          <div style={{ background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(20px)', borderRadius: 24, border: '1px solid #e2e8f0', padding: 24, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <div style={{ 
+            background: 'rgba(255, 255, 255, 0.7)', 
+            backdropFilter: 'blur(20px)', 
+            borderRadius: isCompactMasterData ? 16 : 24, 
+            border: '1px solid #e2e8f0', 
+            padding: isCompactMasterData ? '16px' : 24, 
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' 
+          }}>
             {activeType === 'checklist_template' ? (
               <div className="form-section" style={{ display: 'flex', gap: 12 }}>
                 <select value={newTemplate.category} onChange={e => setNewTemplate({ ...newTemplate, category: e.target.value })} style={{ width: 160, padding: '12px', border: '1px solid #e2e8f0', borderRadius: 14 }}>
@@ -301,7 +385,7 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                   {FREQUENCIES.map(f => <option key={f} value={f}>{f}</option>)}
                 </select>
                 <input placeholder="ชื่อรายการ..." value={newTemplate.item_label} onChange={e => setNewTemplate({ ...newTemplate, item_label: e.target.value })} style={{ flex: 1, padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 14 }} />
-                <button onClick={handleAddTemplate} disabled={adding} style={{ padding: '12px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, fontWeight: 600 }}>{adding ? '...' : '+ เพิ่มรายการ'}</button>
+                <button onClick={handleAddTemplate} disabled={adding} style={{ padding: isCompactMasterData ? '10px 16px' : '12px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, fontWeight: 600 }}>{adding ? '...' : '+ เพิ่มรายการ'}</button>
               </div>
             ) : activeType === 'procedure_plan' ? (
               <div style={{ display: 'flex', gap: 12 }}>
@@ -310,12 +394,12 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                   if (!newValue.trim()) return; setAdding(true)
                   await supabase.from('checklist_procedure_plans').insert([{ plan_name: newValue.trim(), steps: [] }])
                   setNewValue(''); fetchItems(); setAdding(false)
-                }} disabled={adding} style={{ padding: '12px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, fontWeight: 600 }}>{adding ? '...' : '+ สร้างแผนใหม่'}</button>
+                }} disabled={adding} style={{ padding: isCompactMasterData ? '10px 16px' : '12px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, fontWeight: 600 }}>{adding ? '...' : '+ สร้างแผนใหม่'}</button>
               </div>
             ) : (
               <div style={{ display: 'flex', gap: 12 }}>
-                <input placeholder={`เพิ่ม ${currentType?.label} ใหม่...`} value={newValue} onChange={e => setNewValue(e.target.value)} style={{ flex: 1, padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 14 }} />
-                <button onClick={handleAddStandard} disabled={adding} style={{ padding: '12px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, fontWeight: 600 }}>{adding ? '...' : '+ เพิ่มข้อมูล'}</button>
+                <input placeholder={`เพิ่ม ${currentType?.label} ใหม่...`} value={newValue} onChange={e => setNewValue(e.target.value)} style={{ flex: 1, padding: isCompactMasterData ? '10px 12px' : '12px 16px', border: '1px solid #e2e8f0', borderRadius: 14 }} />
+                <button onClick={handleAddStandard} disabled={adding} style={{ padding: isCompactMasterData ? '10px 16px' : '12px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, fontWeight: 600 }}>{adding ? '...' : '+ เพิ่มข้อมูล'}</button>
               </div>
             )}
           </div>
@@ -327,9 +411,9 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                 {activeType === 'checklist_template' ? (
                   <tr><th style={{ width: 40 }}></th><th style={{ padding: '16px 20px', textAlign: 'left' }}>หมวดหมู่ / ความถี่</th><th style={{ padding: '16px 20px', textAlign: 'left' }}>รายการตรวจเช็ค</th><th style={{ padding: '16px 20px', textAlign: 'center' }}>Template</th><th style={{ padding: '16px 20px', textAlign: 'center' }}>สถานะ</th><th style={{ width: 120, padding: '16px 20px', textAlign: 'right' }}>จัดการ</th></tr>
                 ) : activeType === 'procedure_plan' ? (
-                  <tr><th style={{ padding: '16px 20px', textAlign: 'left' }}>ชื่อแผนการตรวจสอบ</th><th style={{ padding: '16px 20px', textAlign: 'left' }}>จำนวนขั้นตอน</th><th style={{ width: 120, padding: '16px 20px', textAlign: 'right' }}>จัดการ</th></tr>
+                  <tr><th style={{ padding: isCompactMasterData ? '12px 16px' : '16px 20px', textAlign: 'left' }}>ชื่อแผนการตรวจสอบ</th><th style={{ padding: isCompactMasterData ? '12px 16px' : '16px 20px', textAlign: 'left' }}>จำนวนขั้นตอน</th><th style={{ width: 120, padding: isCompactMasterData ? '12px 16px' : '16px 20px', textAlign: 'right' }}>จัดการ</th></tr>
                 ) : (
-                  <tr><th style={{ width: 60, padding: '16px 20px' }}>ลำดับ</th><th style={{ padding: '16px 20px', textAlign: 'left' }}>รายการ</th><th style={{ width: 120, padding: '16px 20px', textAlign: 'center' }}>สถานะ</th><th style={{ width: 120, padding: '16px 20px', textAlign: 'right' }}>จัดการ</th></tr>
+                  <tr><th style={{ width: 60, padding: isCompactMasterData ? '12px 16px' : '16px 20px' }}>ลำดับ</th><th style={{ padding: isCompactMasterData ? '12px 16px' : '16px 20px', textAlign: 'left' }}>รายการ</th><th style={{ width: 120, padding: isCompactMasterData ? '12px 16px' : '16px 20px', textAlign: 'center' }}>สถานะ</th><th style={{ width: 120, padding: isCompactMasterData ? '12px 16px' : '16px 20px', textAlign: 'right' }}>จัดการ</th></tr>
                 )}
               </thead>
               <tbody>
@@ -380,19 +464,19 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                       </>
                     ) : (
                       <>
-                        <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                        <td style={{ padding: '14px 20px' }}>
+                        <td style={{ textAlign: 'center', padding: isCompactMasterData ? '10px 12px' : '14px 20px' }}>{idx + 1}</td>
+                        <td style={{ padding: isCompactMasterData ? '10px 16px' : '14px 20px' }}>
                           {editingId === it.id ? (
                             <input value={editValue} onChange={e => setEditValue(e.target.value)} onBlur={async () => {
                               await supabase.from('master_data').update({ value: editValue }).eq('id', it.id)
                               setEditingId(null); fetchItems()
-                            }} autoFocus style={{ width: '100%', padding: '6px' }} />
-                          ) : <span onClick={() => { setEditingId(it.id); setEditValue(it.value) }}>{it.value}</span>}
+                            }} autoFocus style={{ width: '100%', padding: '6px', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                          ) : <span onClick={() => { setEditingId(it.id); setEditValue(it.value) }} style={{ cursor: 'pointer', fontWeight: 500 }}>{it.value}</span>}
                         </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span onClick={() => handleToggle(it.id, it.is_active)} style={{ cursor: 'pointer', padding: '4px 10px', borderRadius: 20, fontSize: 11, background: it.is_active ? '#dcfce7' : '#f1f5f9', color: it.is_active ? '#166534' : '#64748b' }}>{it.is_active ? 'Active' : 'Inactive'}</span>
+                        <td style={{ textAlign: 'center', padding: isCompactMasterData ? '10px 12px' : '14px 20px' }}>
+                          <span onClick={() => handleToggle(it.id, it.is_active)} style={{ cursor: 'pointer', padding: '4px 10px', borderRadius: 20, fontSize: 11, background: it.is_active ? '#dcfce7' : '#f1f5f9', color: it.is_active ? '#166534' : '#64748b', fontWeight: 600 }}>{it.is_active ? 'Active' : 'Inactive'}</span>
                         </td>
-                        <td style={{ textAlign: 'right', padding: '14px 20px' }}>
+                        <td style={{ textAlign: 'right', padding: isCompactMasterData ? '10px 16px' : '14px 20px' }}>
                           <ActionButton color="red" icon="🗑" onClick={() => handleDelete(it.id, it.value)} />
                         </td>
                       </>
@@ -407,13 +491,47 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
 
       {showGuide && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 24, width: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: 24, background: '#1e3a8a', color: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, display: 'flex', justifyContent: 'space-between' }}>
-              <h3 style={{ margin: 0 }}>{currentType?.label} Guide</h3>
-              <button onClick={() => setShowGuide(false)} style={{ color: '#fff', background: 'none', border: 'none', fontSize: 24, cursor: 'pointer' }}>&times;</button>
+          <div style={{ background: '#fff', borderRadius: 28, width: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '28px 36px', background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <span style={{ fontSize: 28 }}>📖</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{currentType?.label} Guide</h3>
+                  <p style={{ margin: 0, fontSize: 13, opacity: 0.85 }}>คู่มือการใช้งานระบบและการจัดการข้อมูล</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                {isAdmin && (
+                  <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                    {editingGuide ? '👁 View' : '✏️ Edit'}
+                  </button>
+                )}
+                <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ color: '#fff', background: 'none', border: 'none', fontSize: 32, cursor: 'pointer' }}>&times;</button>
+              </div>
             </div>
-            <div style={{ padding: 32, overflowY: 'auto' }}>
-              <div style={{ whiteSpace: 'pre-wrap' }}>{guideContent}</div>
+            <div style={{ padding: 40, overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+              {editingGuide ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <textarea value={guideContent} onChange={e => setGuideContent(e.target.value)} style={{ width: '100%', minHeight: 450, padding: 24, borderRadius: 20, border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: 14, outline: 'none' }} />
+                  <button onClick={handleSaveGuide} disabled={saving} style={{ padding: '14px 36px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, alignSelf: 'flex-end', opacity: saving ? 0.7 : 1 }}>
+                    {saving ? 'กำลังบันทึก...' : 'บันทึกคู่มือ'}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ maxWidth: 700, margin: '0 auto' }}>
+                  {guideContent.split('---').map((section, sIdx) => (
+                    <div key={sIdx} style={{ background: section.includes('####') ? '#fff' : 'transparent', borderRadius: 20, padding: section.includes('####') ? 28 : 0, marginBottom: section.includes('####') ? 24 : 36, borderLeft: section.includes('####') ? `6px solid #1e3a8a` : 'none', boxShadow: section.includes('####') ? '0 4px 12px rgba(0,0,0,0.05)' : 'none' }}>
+                      <div style={{ fontSize: 15, color: '#334155', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                        {section.trim().split('\n').map((line, lIdx) => {
+                          if (line.startsWith('####')) return <h4 key={lIdx} style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 800, color: '#1e293b' }}>{line.replace(/#/g, '').trim()}</h4>
+                          if (line.startsWith('###')) return <h3 key={lIdx} style={{ margin: '0 0 24px 0', fontSize: 24, fontWeight: 900, color: '#0f172a' }}>{line.replace(/#/g, '').trim()}</h3>
+                          return <p key={lIdx} style={{ margin: '0 0 10px 0' }}>{line.includes('**') ? line.split('**').map((p,i)=>i%2===1?<strong key={i} style={{color:'#1e3a8a'}}>{p}</strong>:p) : line}</p>
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

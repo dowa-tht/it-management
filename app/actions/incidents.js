@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { getCurrentUserSession } from './user'
 import { getNextNo, updateLastNo } from '@/lib/noSeries'
-import { generateWorkflowSteps, recordLog } from './workflow'
+import { generateWorkflowSteps, recordLog, recordSystemError } from './workflow'
 import { WORKFLOW_DOC_REGISTRY } from '@/lib/workflowRegistry'
 
 const getAdminClient = () => {
@@ -97,6 +97,7 @@ export async function createIncident(formData) {
     return { success: true, docId: docId, caseNo: caseNo }
   } catch (err) {
     console.error('createIncident Error:', err)
+    await recordSystemError('Incident', `Create Incident failed: ${err.message}`, { error: err, formData: !!formData })
     return { success: false, error: err.message }
   }
 }
@@ -193,6 +194,7 @@ export async function acknowledgeIncident(id, severity, assigneeId = null) {
     return { success: true }
   } catch (err) {
     console.error('acknowledgeIncident Error:', err)
+    await recordSystemError('Incident', `Acknowledge Incident failed for ID ${id}: ${err.message}`, { error: err, id })
     return { success: false, error: err.message }
   }
 }

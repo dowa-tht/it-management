@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
+import { recordSystemError } from './workflow'
 
 /**
  * 🔑 ระบบ Login ตัวเดียวสำหรับทุกคน (Unified Login)
@@ -32,6 +33,7 @@ export async function unifiedLogin(email, password) {
   })
 
   if (authError) {
+    await recordSystemError('Auth', `Login failed for ${email}: ${authError.message}`, { email, error: authError })
     return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }
   }
 
