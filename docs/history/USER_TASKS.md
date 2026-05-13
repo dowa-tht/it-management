@@ -1,6 +1,6 @@
 # 📋 รายการงาน (Task Tracker)
 
-**อัปเดตล่าสุด:** 13 พฤษภาคม 2569 (13:37 น.)
+**อัปเดตล่าสุด:** 14 พฤษภาคม 2569 (06:20 น.)
 
 ---
 
@@ -46,7 +46,17 @@
 ### 6. อัปเดต Project Agent Rules
 - **สถานะ:** ✅ เสร็จสมบูรณ์
 - **วันที่:** 13 พฤษภาคม 2569
-- **รายละเอียด:** เพิ่มหมวดหมู่ `Project Agent Rules` ใน `AGENTS.md` กำหนดมาตรฐาน Tech Stack และหลักการทำงาน
+### 7. Settings Audit Remediation (TASK-001 ถึง TASK-003)
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 14 พฤษภาคม 2569
+- **รายละเอียด:**
+  - `TASK-001` เสริม Guide และ Content ให้ครบทุกหน้าใน Settings ผ่าน `MasterDataScope.js` และ `Holidays` page
+  - `TASK-002` ปรับแต่ง CSS Table Wrapper สำหรับ Master Data และ Checklist เพื่อรองรับ Mobile horizontal scroll
+  - `TASK-003` ตรวจสอบ RLS Policy ยืนยันความปลอดภัยของตาราง `holidays` และ `checklist_procedure_plans`
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `app/dashboard/settings/_components/MasterDataScope.js`
+  - `app/dashboard/settings/holidays/page.js`
+  - `docs/history/SCAN_SUMMARY_SETTINGS_AUDIT.md`
 
 ---
 

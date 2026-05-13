@@ -406,7 +406,7 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
 
           {/* Table */}
           <div className="table-wrapper" style={{ background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(20px)', borderRadius: 24, border: '1px solid rgba(226, 232, 240, 0.8)', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.05)', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <table className={activeType === 'checklist_template' ? 'checklist-table' : 'master-table'} style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
               <thead style={{ background: '#f8fafc', borderBottom: '2px solid #f1f5f9' }}>
                 {activeType === 'checklist_template' ? (
                   <tr><th style={{ width: 40 }}></th><th style={{ padding: '16px 20px', textAlign: 'left' }}>หมวดหมู่ / ความถี่</th><th style={{ padding: '16px 20px', textAlign: 'left' }}>รายการตรวจเช็ค</th><th style={{ padding: '16px 20px', textAlign: 'center' }}>Template</th><th style={{ padding: '16px 20px', textAlign: 'center' }}>สถานะ</th><th style={{ width: 120, padding: '16px 20px', textAlign: 'right' }}>จัดการ</th></tr>
@@ -490,42 +490,42 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
       </div>
 
       {showGuide && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 28, width: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-            <div style={{ padding: '28px 36px', background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div style={{ background: '#fff', borderRadius: 28, width: 800, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', animation: 'fadeIn 0.3s ease-out' }}>
+            <div style={{ padding: '28px 36px', background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTopLeftRadius: 28, borderTopRightRadius: 28 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <span style={{ fontSize: 28 }}>📖</span>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>📖</div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{currentType?.label} Guide</h3>
+                  <h3 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>{currentType?.label} Guide</h3>
                   <p style={{ margin: 0, fontSize: 13, opacity: 0.85 }}>คู่มือการใช้งานระบบและการจัดการข้อมูล</p>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
                 {isAdmin && (
-                  <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                  <button onClick={() => setEditingGuide(!editingGuide)} style={{ padding: '8px 18px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s' }}>
                     {editingGuide ? '👁 View' : '✏️ Edit'}
                   </button>
                 )}
-                <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ color: '#fff', background: 'none', border: 'none', fontSize: 32, cursor: 'pointer' }}>&times;</button>
+                <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ color: '#fff', background: 'none', border: 'none', fontSize: 32, cursor: 'pointer', lineHeight: 1 }}>&times;</button>
               </div>
             </div>
             <div style={{ padding: 40, overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
               {editingGuide ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <textarea value={guideContent} onChange={e => setGuideContent(e.target.value)} style={{ width: '100%', minHeight: 450, padding: 24, borderRadius: 20, border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: 14, outline: 'none' }} />
-                  <button onClick={handleSaveGuide} disabled={saving} style={{ padding: '14px 36px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, alignSelf: 'flex-end', opacity: saving ? 0.7 : 1 }}>
-                    {saving ? 'กำลังบันทึก...' : 'บันทึกคู่มือ'}
+                  <textarea value={guideContent} onChange={e => setGuideContent(e.target.value)} style={{ width: '100%', minHeight: 450, padding: 24, borderRadius: 20, border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: 14, outline: 'none', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }} />
+                  <button onClick={handleSaveGuide} disabled={saving} style={{ padding: '14px 36px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, alignSelf: 'flex-end', opacity: saving ? 0.7 : 1, boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)' }}>
+                    {saving ? 'กำลังบันทึก...' : '💾 บันทึกคู่มือ'}
                   </button>
                 </div>
               ) : (
                 <div style={{ maxWidth: 700, margin: '0 auto' }}>
                   {guideContent.split('---').map((section, sIdx) => (
-                    <div key={sIdx} style={{ background: section.includes('####') ? '#fff' : 'transparent', borderRadius: 20, padding: section.includes('####') ? 28 : 0, marginBottom: section.includes('####') ? 24 : 36, borderLeft: section.includes('####') ? `6px solid #1e3a8a` : 'none', boxShadow: section.includes('####') ? '0 4px 12px rgba(0,0,0,0.05)' : 'none' }}>
+                    <div key={sIdx} style={{ background: section.includes('####') ? '#fff' : 'transparent', borderRadius: 24, padding: section.includes('####') ? 32 : 0, marginBottom: section.includes('####') ? 24 : 36, borderLeft: section.includes('####') ? `6px solid #2563eb` : 'none', boxShadow: section.includes('####') ? '0 10px 15px -3px rgba(0,0,0,0.05)' : 'none' }}>
                       <div style={{ fontSize: 15, color: '#334155', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
                         {section.trim().split('\n').map((line, lIdx) => {
-                          if (line.startsWith('####')) return <h4 key={lIdx} style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 800, color: '#1e293b' }}>{line.replace(/#/g, '').trim()}</h4>
-                          if (line.startsWith('###')) return <h3 key={lIdx} style={{ margin: '0 0 24px 0', fontSize: 24, fontWeight: 900, color: '#0f172a' }}>{line.replace(/#/g, '').trim()}</h3>
-                          return <p key={lIdx} style={{ margin: '0 0 10px 0' }}>{line.includes('**') ? line.split('**').map((p,i)=>i%2===1?<strong key={i} style={{color:'#1e3a8a'}}>{p}</strong>:p) : line}</p>
+                          if (line.startsWith('####')) return <h4 key={lIdx} style={{ margin: '0 0 20px 0', fontSize: 19, fontWeight: 800, color: '#1e293b', borderBottom: '1px solid #f1f5f9', paddingBottom: 12 }}>{line.replace(/#/g, '').trim()}</h4>
+                          if (line.startsWith('###')) return <h3 key={lIdx} style={{ margin: '0 0 28px 0', fontSize: 24, fontWeight: 900, color: '#0f172a' }}>{line.replace(/#/g, '').trim()}</h3>
+                          return <p key={lIdx} style={{ margin: '0 0 12px 0' }}>{line.includes('**') ? line.split('**').map((p,i)=>i%2===1?<strong key={i} style={{color:'#1e3a8a'}}>{p}</strong>:p) : line}</p>
                         })}
                       </div>
                     </div>
