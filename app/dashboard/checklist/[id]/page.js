@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
@@ -142,20 +142,7 @@ export default function ChecklistDetailPage() {
   const [approvalLoading, setApprovalLoading] = useState(false)
   const [workflowSteps, setWorkflowSteps] = useState([])
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) {
-        supabase.from('user_profiles').select('*').eq('id', data.session.user.id).single().then(({ data: profile }) => {
-          setCurrentUser(profile)
-        })
-      }
-    })
-    fetchData()
-  }, [id])
-
-  const isAuditor = currentUser?.role === 'auditor'
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true)
     const [{ data: docData }, { data: itemsData }, { data: logsData }, { data: templateData }] = await Promise.all([
       supabase.from('checklist_docs').select('*').eq('id', id).single(),
@@ -183,7 +170,21 @@ export default function ChecklistDetailPage() {
     const { data: wfSteps } = await getDocumentWorkflowStatus(id)
     if (wfSteps) setWorkflowSteps(wfSteps)
     setLoading(false)
-  }
+  }, [id])
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data.session?.user) {
+        const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', data.session.user.id).single()
+        setCurrentUser(profile)
+      }
+      await fetchData()
+    }
+    load()
+  }, [fetchData])
+
+  const isAuditor = currentUser?.role === 'auditor'
 
   const handleSubmitApproval = async () => {
     if (!confirm('ยืนยันการส่งใบงานนี้เพื่อขออนุมัติ? เมื่อส่งแล้วจะไม่สามารถแก้ไขข้อมูลได้')) return
@@ -501,46 +502,394 @@ function TemplateRenderer({ item, template, onUpdate, isClosed, isAuditor }) {
   }
 }
 
+function formatLocationBadge(meta) {
+  if (!meta) return { label: 'ไม่มีพิกัด', tone: { bg: '#f8fafc', color: '#64748b', border: '#e2e8f0' } }
+  if (meta.status === 'captured') return { label: '📍 มีพิกัด', tone: { bg: '#ecfdf5', color: '#15803d', border: '#bbf7d0' } }
+  if (meta.status === 'denied') return { label: 'ปฏิเสธพิกัด', tone: { bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' } }
+  if (meta.status === 'unsupported') return { label: 'ไม่รองรับ GPS', tone: { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca' } }
+  if (meta.status === 'timeout') return { label: 'GPS หมดเวลา', tone: { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca' } }
+  if (meta.status === 'error') return { label: 'GPS ผิดพลาด', tone: { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca' } }
+  return { label: 'ไม่มีพิกัด', tone: { bg: '#f8fafc', color: '#64748b', border: '#e2e8f0' } }
+}
+
+function requestCurrentLocation() {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      resolve({ status: 'unsupported', lat: null, lng: null, captured_at: new Date().toISOString(), message: 'Browser does not support geolocation' })
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          status: 'captured',
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy ?? null,
+          captured_at: new Date().toISOString(),
+          message: ''
+        })
+      },
+      (error) => {
+        const statusMap = {
+          1: 'denied',
+          2: 'error',
+          3: 'timeout'
+        }
+        resolve({
+          status: statusMap[error.code] || 'error',
+          lat: null,
+          lng: null,
+          captured_at: new Date().toISOString(),
+          message: error.message || 'Unable to capture location'
+        })
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 0
+      }
+    )
+  })
+}
+
 function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
-  const points = config.photo_points || ["ภาพยืนยัน"]; const [uploading, setUploading] = useState({}); const [previewUrl, setPreviewUrl] = useState(null)
+  const points = config.photo_points || ["ภาพยืนยัน"]
+  const [uploading, setUploading] = useState({})
+  const [previewUrl, setPreviewUrl] = useState(null)
+  const [attachLocation, setAttachLocation] = useState(false)
+  const [locationBanner, setLocationBanner] = useState({ text: '', tone: '' })
+  const showLocationToggle = config.enable_location_toggle !== false
+
+  // Logic for completion
+  const capturedCount = Object.keys(data.photos || {}).length
+  const totalPoints = points.length
+  const minRequired = config.min_photos || 0
+  const isComplete = capturedCount >= Math.max(totalPoints, minRequired)
+  const gpsCount = Object.values(data.photo_meta || {}).filter(m => m.status === 'captured').length
+
   const handleUpload = async (pointIdx, e) => {
-    const file = e.target.files[0]; if (!file) return; setUploading(p => ({ ...p, [pointIdx]: true }))
-    const reader = new FileReader(); reader.onload = (event) => {
-      const img = new Image(); img.onload = async () => {
-        const canvas = document.createElement('canvas'); const scale = 1000 / img.width
-        canvas.width = 1000; canvas.height = img.height * scale; const ctx = canvas.getContext('2d')
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height); ctx.font = "bold 24px Arial"; ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fillRect(10, canvas.height-45, 450, 35); ctx.fillStyle="#fff"; ctx.fillText(`DOWA IT SYSTEM | ${new Date().toLocaleString()}`, 20, canvas.height-18)
-        const base64 = canvas.toDataURL('image/jpeg', 0.5).split(',')[1]
+    const file = e.target.files[0]
+    if (!file) return
+
+    setUploading(p => ({ ...p, [pointIdx]: true }))
+    setLocationBanner({ text: '', tone: '' })
+
+    const locationMeta = attachLocation
+      ? await requestCurrentLocation()
+      : { status: 'skipped', lat: null, lng: null, captured_at: new Date().toISOString(), message: '' }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const img = new Image()
+      img.onload = async () => {
+        const canvas = document.createElement('canvas')
+        const scale = 1000 / img.width
+        canvas.width = 1000
+        canvas.height = img.height * scale
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        
+        // Premium Watermark
+        ctx.fillStyle = "rgba(0,0,0,0.5)"
+        ctx.fillRect(0, canvas.height - 60, canvas.width, 60)
+        ctx.font = "bold 20px Arial"
+        ctx.fillStyle = "#ffffff"
+        ctx.fillText(`DOWA IT SYSTEM | ${new Date().toLocaleString()}`, 20, canvas.height - 35)
+        if (locationMeta.status === 'captured') {
+          ctx.font = "16px Arial"
+          ctx.fillText(`GPS: ${locationMeta.lat.toFixed(6)}, ${locationMeta.lng.toFixed(6)}`, 20, canvas.height - 12)
+        }
+        
+        const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1]
+
         try {
-          const res = await fetch('/api/upload/onedrive', { method: 'POST', body: JSON.stringify({ fileName: `checklist_${item.id}_${pointIdx}.jpg`, base64Data: base64, folderPath: 'Apps/Dowa-IT-System/Evidence' }) })
-          const resJ = await res.json(); if (resJ.success) onUpdate({ ...data, photos: { ...(data.photos||{}), [pointIdx]: resJ.filePath } })
-        } finally { setUploading(p => ({ ...p, [pointIdx]: false })) }
-      }; img.src = event.target.result
-    }; reader.readAsDataURL(file)
+          const res = await fetch('/api/upload/onedrive', {
+            method: 'POST',
+            body: JSON.stringify({
+              fileName: `checklist_${item.id}_${pointIdx}.jpg`,
+              base64Data: base64,
+              folderPath: 'Apps/Dowa-IT-System/Evidence'
+            })
+          })
+          const resJ = await res.json()
+          if (resJ.success) {
+            const point = points[pointIdx]
+            const pointId = typeof point === 'object' ? (point.point_id || point.point_code) : `P${(pointIdx + 1).toString().padStart(2, '0')}`
+            const pointLabel = typeof point === 'object' ? point.label : point
+
+            onUpdate({
+              ...data,
+              // Legacy structure
+              photos: { ...(data.photos || {}), [pointIdx]: resJ.filePath },
+              photo_meta: {
+                ...(data.photo_meta || {}),
+                [pointIdx]: {
+                  file_id: resJ.filePath,
+                  status: locationMeta.status,
+                  lat: locationMeta.lat,
+                  lng: locationMeta.lng,
+                  accuracy: locationMeta.accuracy ?? null,
+                  captured_at: locationMeta.captured_at,
+                  point_label: pointLabel,
+                  message: locationMeta.message || ''
+                }
+              },
+              // New stable structure
+              photos_by_point: { ...(data.photos_by_point || {}), [pointId]: resJ.filePath },
+              photo_meta_by_point: {
+                ...(data.photo_meta_by_point || {}),
+                [pointId]: {
+                  file_id: resJ.filePath,
+                  point_id: pointId,
+                  point_code: typeof point === 'object' ? point.point_code : pointId,
+                  point_label: pointLabel,
+                  status: locationMeta.status,
+                  lat: locationMeta.lat,
+                  lng: locationMeta.lng,
+                  accuracy: locationMeta.accuracy ?? null,
+                  captured_at: locationMeta.captured_at,
+                  message: locationMeta.message || ''
+                }
+              }
+            })
+
+            if (locationMeta.status === 'captured') {
+              setLocationBanner({ text: 'แนบพิกัดสำเร็จพร้อมรูปภาพ', tone: 'success' })
+            } else if (locationMeta.status === 'skipped') {
+              setLocationBanner({ text: 'บันทึกรูปภาพโดยไม่แนบพิกัด', tone: 'neutral' })
+            } else {
+              setLocationBanner({ text: 'บันทึกรูปภาพสำเร็จ แต่ไม่ได้พิกัดตำแหน่ง', tone: 'warning' })
+            }
+          }
+        } finally {
+          setUploading(p => ({ ...p, [pointIdx]: false }))
+        }
+      }
+      img.src = event.target.result
+    }
+    reader.readAsDataURL(file)
   }
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      {points.map((p, idx) => (
-        <div key={idx} className="relative aspect-square bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 overflow-hidden flex items-center justify-center">
-          {uploading[idx] ? <div className="text-[10px] font-black text-blue-500 animate-pulse">UPLOADING...</div> : data.photos?.[idx] ? (
-            <img src={`/api/upload/onedrive?id=${data.photos[idx]}`} className="w-full h-full object-cover cursor-zoom-in" onClick={() => setPreviewUrl(`/api/upload/onedrive?id=${data.photos[idx]}`)} alt={p} />
-          ) : <label className="cursor-pointer text-center p-4"><span className="text-2xl mb-2 block">📷</span><span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{p}</span><input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleUpload(idx, e)} disabled={disabled} /></label>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* 6.1 Section Summary Header */}
+      <div style={{ 
+        background: '#fff', 
+        borderRadius: '16px', 
+        border: '1px solid #e2e8f0', 
+        padding: '20px',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+        gap: '16px',
+        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>จำนวนจุดทั้งหมด</div>
+          <div style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b' }}>{totalPoints} <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>จุด</span></div>
         </div>
-      ))}
-      {previewUrl && <div className="fixed inset-0 bg-black/90 z-[3000] flex items-center justify-center p-10" onClick={() => setPreviewUrl(null)}><img src={previewUrl} className="max-w-full max-h-full object-contain" alt="preview" /></div>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>ถ่ายแล้ว</div>
+          <div style={{ fontSize: '20px', fontWeight: 900, color: capturedCount > 0 ? '#10b981' : '#f43f5e' }}>{capturedCount} <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>รูป</span></div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>พิกัด GPS</div>
+          <div style={{ fontSize: '20px', fontWeight: 900, color: gpsCount > 0 ? '#3b82f6' : '#94a3b8' }}>{gpsCount} <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>จุด</span></div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center' }}>
+           <div style={{ 
+             padding: '6px 12px', 
+             borderRadius: '999px', 
+             fontSize: '10px', 
+             fontWeight: 900, 
+             textAlign: 'center',
+             background: isComplete ? '#d1fae5' : '#fff1f2',
+             color: isComplete ? '#065f46' : '#be123c',
+             border: `1px solid ${isComplete ? '#6ee7b7' : '#fecaca'}`
+           }}>
+             {isComplete ? '✓ ครบถ้วน' : `ขาดอีก ${Math.max(0, Math.max(totalPoints, minRequired) - capturedCount)} รูป`}
+           </div>
+        </div>
+      </div>
+
+      {showLocationToggle && (
+        <div style={{ 
+          background: attachLocation ? '#f0fdf4' : '#fff', 
+          borderRadius: '16px', 
+          border: '1px solid', 
+          borderColor: attachLocation ? '#bbf7d0' : '#e2e8f0',
+          padding: '16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: '#334155' }}>แนบพิกัดตำแหน่ง (Optional GPS)</div>
+            <div style={{ fontSize: '11px', color: '#64748b' }}>เปิดเพื่อบันทึกพิกัด GPS ลงในหลักฐานภาพ</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => !disabled && setAttachLocation(prev => !prev)}
+            disabled={disabled}
+            style={{
+              width: 50,
+              height: 26,
+              borderRadius: 999,
+              border: 'none',
+              background: attachLocation ? '#10b981' : '#cbd5e1',
+              position: 'relative',
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <span style={{
+              position: 'absolute',
+              top: 3,
+              left: attachLocation ? 27 : 3,
+              width: 20,
+              height: 20,
+              borderRadius: 999,
+              background: '#fff',
+              transition: 'all 0.2s',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            }} />
+          </button>
+        </div>
+      )}
+
+      {/* 6.2 Per-Point Card Layout */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
+        gap: '16px' 
+      }}>
+        {points.map((p, idx) => {
+          const pointLabel = typeof p === 'string' ? p : p.label
+          const pointCode = typeof p === 'string' ? `P${(idx + 1).toString().padStart(2, '0')}` : (p.point_code || `P${(idx + 1).toString().padStart(2, '0')}`)
+          const pointDesc = typeof p === 'string' ? null : p.description
+          const photoPath = data.photos?.[idx]
+          const meta = data.photo_meta?.[idx]
+          const badge = formatLocationBadge(meta)
+          const isUploading = uploading[idx]
+
+          return (
+            <div key={idx} style={{ 
+              background: '#fff', 
+              borderRadius: '16px', 
+              border: '1px solid #e2e8f0', 
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              position: 'relative'
+            }}>
+              {/* Point Header */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 900, background: '#3b82f6', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>{pointCode}</span>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>{pointLabel}</span>
+                </div>
+                {!photoPath && !isUploading && <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8' }}>ยังไม่ถ่าย</span>}
+                {photoPath && <span style={{ fontSize: '10px', fontWeight: 800, color: '#10b981' }}>✓ ถ่ายแล้ว</span>}
+              </div>
+
+              {/* Point Body / Content */}
+              <div style={{ position: 'relative', aspectRatio: '16/9', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {isUploading ? (
+                  <div style={{ textAlign: 'center' }}>
+                    <div className="animate-spin" style={{ width: '24px', height: '24px', border: '3px solid #e2e8f0', borderTopColor: '#3b82f6', borderRadius: '50%', margin: '0 auto 8px' }} />
+                    <div style={{ fontSize: '10px', fontWeight: 800, color: '#3b82f6', letterSpacing: '1px' }}>UPLOADING...</div>
+                  </div>
+                ) : photoPath ? (
+                  <>
+                    <img 
+                      src={`/api/upload/onedrive?id=${photoPath}`} 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} 
+                      onClick={() => setPreviewUrl(`/api/upload/onedrive?id=${photoPath}`)}
+                      alt={pointLabel} 
+                    />
+                    <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
+                       <span style={{ 
+                         padding: '4px 8px', borderRadius: '999px', fontSize: '9px', fontWeight: 900, 
+                         background: badge.tone.bg, color: badge.tone.color, border: `1px solid ${badge.tone.border}`,
+                         boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                       }}>{badge.label}</span>
+                    </div>
+                  </>
+                ) : (
+                  <label style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    padding: '24px',
+                    textAlign: 'center'
+                  }}>
+                    <span style={{ fontSize: '32px', marginBottom: '8px' }}>📸</span>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>คลิกเพื่อถ่ายภาพ</span>
+                    {pointDesc && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', fontWeight: 500 }}>{pointDesc}</div>}
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleUpload(idx, e)} disabled={disabled} />
+                  </label>
+                )}
+              </div>
+
+              {/* Point Footer / Meta */}
+              {photoPath && (
+                <div style={{ padding: '12px 16px', background: '#fff', borderTop: '1px solid #f1f5f9' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700 }}>บันทึกเมื่อ</div>
+                      <div style={{ fontSize: '11px', color: '#334155', fontWeight: 700 }}>{meta?.captured_at ? new Date(meta.captured_at).toLocaleString() : '—'}</div>
+                    </div>
+                    {!disabled && (
+                      <label style={{ cursor: 'pointer', padding: '6px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '10px', fontWeight: 800, color: '#64748b' }}>
+                        ถ่ายใหม่
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleUpload(idx, e)} disabled={disabled} />
+                      </label>
+                    )}
+                  </div>
+                  {meta?.status === 'captured' && (
+                    <div style={{ marginTop: '8px', padding: '6px 10px', background: '#eff6ff', borderRadius: '8px', fontSize: '10px', color: '#1d4ed8', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '12px' }}>📍</span>
+                      {meta.lat.toFixed(6)}, {meta.lng.toFixed(6)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      
+      {previewUrl && (
+        <div 
+          className="fixed inset-0 bg-black/90 z-[3000] flex items-center justify-center p-6" 
+          onClick={() => setPreviewUrl(null)}
+        >
+          <img src={previewUrl} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '12px' }} alt="preview" />
+          <button style={{ position: 'absolute', top: '24px', right: '24px', background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: '40px', height: '40px', borderRadius: '50%', fontSize: '24px', cursor: 'pointer' }}>&times;</button>
+        </div>
+      )}
     </div>
   )
 }
 
 function ProcedureTemplate({ config, data, onUpdate, disabled }) {
-  const [steps, setSteps] = useState([]); useEffect(() => { if (config.plan_id) supabase.from('checklist_procedure_plans').select('steps').eq('id', config.plan_id).single().then(({data}) => setSteps(data?.steps?.rows || [])) }, [config.plan_id])
+  const [steps, setSteps] = useState([]); useEffect(() => { if (config.plan_id) supabase.from('checklist_procedure_plans').select('steps').eq('id', config.plan_id).single().then(({data}) => setSteps(Array.isArray(data?.steps?.rows) ? data.steps.rows : Array.isArray(data?.steps) ? data.steps : [])) }, [config.plan_id])
   const toggle = (i) => { if (disabled) return; const s = { ...(data.steps||{}) }; if (s[i]) delete s[i]; else s[i] = new Date().toISOString(); onUpdate({ ...data, steps: s }) }
   return (
     <div className="space-y-2">
       {steps.map((s, i) => (
         <label key={i} className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${data.steps?.[i] ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-slate-100'}`}>
           <input type="checkbox" checked={!!data.steps?.[i]} onChange={() => toggle(i)} disabled={disabled} className="w-5 h-5 rounded-lg text-emerald-500" />
-          <span className={`text-sm font-bold ${data.steps?.[i] ? 'text-emerald-700' : 'text-slate-600'}`}>{typeof s === 'string' ? s : Object.values(s)[0]}</span>
+          <span className={`text-sm font-bold ${data.steps?.[i] ? 'text-emerald-700' : 'text-slate-600'}`}>
+            {typeof s === 'string' ? s : s.title || s.instruction || `Step ${i + 1}`}
+          </span>
         </label>
       ))}
     </div>

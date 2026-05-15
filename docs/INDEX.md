@@ -23,10 +23,13 @@ This is the central documentation hub. You MUST read this file first before star
 - [PERMISSIONS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/PERMISSIONS.md) : มาตรฐานระบบสิทธิ์การใช้งาน
 - [UI_UX_SETTING.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_SETTING.md) : มาตรฐานการออกแบบหน้าจอ Master Data
 - [UI_UX_SETTINGS_DESIGN_SYSTEM.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_SETTINGS_DESIGN_SYSTEM.md) : มาตรฐาน Design System ของเมนู Settings ทั้งหมด อ้างอิงหน้า Permissions และกำหนด responsive สำหรับ tablet/smartphone
+- [UI_LAYOUT_SPACING_REMEDIATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_LAYOUT_SPACING_REMEDIATION.md) : มาตรฐานการตรวจและแก้ปัญหา layout ชิดขอบ, card/object ติดกัน, spacing หาย และ Tailwind utility ไม่เสถียร
 - [UI_UX_RESPONSIVE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_RESPONSIVE.md) : มาตรฐานหน้าจอ Multi-Device
 - [ENVIRONMENT_AND_SERVER_ACTIONS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/ENVIRONMENT_AND_SERVER_ACTIONS.md) : มาตรฐานการจัดการ Environment Variables และ Server Actions
 - [SLA_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SLA_MANAGEMENT.md) : มาตรฐานการคำนวณและบริหารจัดการ SLA (KPI)
 - [INCIDENT_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INCIDENT_MANAGEMENT.md) : มาตรฐานการจัดการเหตุการณ์และขั้นตอนการทำงาน
+- [TARGET_REGISTRY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/TARGET_REGISTRY.md) : มาตรฐาน Target Registry, โครงสร้างตาราง asset/target, และการผูก template กับ target/group
+- [QR_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/QR_ASSET_HISTORY.md) : มาตรฐาน API และ flow สำหรับ QR lookup และ Asset History
 - [INCIDENT_LIFECYCLE_OVERHAUL_SPEC.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INCIDENT_LIFECYCLE_OVERHAUL_SPEC.md) : รายละเอียดทางเทคนิคสำหรับการปรับปรุงวงจรชีวิต Incident
 - [DOCUMENT_MAPPING_STANDARD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DOCUMENT_MAPPING_STANDARD.md) : มาตรฐานการจับคู่ข้อมูลและสถานะ Workflow ของระบบ
 - [SYSTEM_ARCHITECTURE_MAP.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SYSTEM_ARCHITECTURE_MAP.md) : [AGGREGATION TOOL] แผนผังโครงสร้างสถาปัตยกรรมและ Logic Flow (สำหรับ Agent)
@@ -55,6 +58,9 @@ This is the central documentation hub. You MUST read this file first before star
 - [IMPLEMENTATION_PLAN_INCIDENT_ACCEPT_DISPATCH_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_INCIDENT_ACCEPT_DISPATCH_AUDIT.md) : [PLAN] แผนปรับ Incident Accept/Dispatch ให้แยก IT Staff รับงานเอง และ Administrator มอบหมายงานตามหลัก Audit
 - [IMPLEMENTATION_PLAN_SETTINGS_MENU_RESTRUCTURE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_SETTINGS_MENU_RESTRUCTURE.md) : [PLAN] แผนปรับโครงสร้างเมนู Settings ให้แยก System Setup, Master Data, Workflow & Approval, Users & Access และ Audit & Logs
 - [IMPLEMENTATION_PLAN_SETTINGS_ROUTE_SEPARATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_SETTINGS_ROUTE_SEPARATION.md) : [PLAN] แผนแยก route Settings ออกจาก Master Data wrapper ให้เป็นหน้าอิสระ เช่น Holidays, Incident Master Data และ Checklist Master Data
+- [IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md) : [PLAN] แผนพัฒนา Checklist Template Master, Procedure Plan Editor และ Asset History/QR สำหรับงานตรวจรายอุปกรณ์
+- [IMPLEMENTATION_PLAN_CHECKLIST_POINT_HISTORY_AND_PHOTO_UI.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_CHECKLIST_POINT_HISTORY_AND_PHOTO_UI.md) : [PLAN] แผนละเอียดสำหรับปรับ UX ของ Photo Evidence และออกแบบสถาปัตยกรรม point-level history / QR รายจุดให้ Fast AI ลงมือทำได้ตรง spec
+- [IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md) : [PLAN] แผนลงรายละเอียดการพัฒนา Target Registry, QR Navigation และ Asset History หลัง Template Builder/Procedure Editor พร้อมแล้ว
 - [IMPLEMENTATION_PLAN_SETTINGS_GUIDE_LOGS_MASTERDATA_FIX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_SETTINGS_GUIDE_LOGS_MASTERDATA_FIX.md) : [PLAN] แผนแก้ Guide edit/content, Logs Doc No./Email/System Errors และลดขนาด Incident Master Data form
 - [SCAN_SUMMARY_SETTINGS_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/SCAN_SUMMARY_SETTINGS_AUDIT.md) : [AUDIT] รายงานผลการตรวจสอบสถาปัตยกรรมและ UI/UX ของโมดูล Settings (Standalone Route & Responsive)
 - [AUDIT_SYSTEM_GAP_ANALYSIS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_SYSTEM_GAP_ANALYSIS.md) : [AUDIT] รายงานการตรวจสอบความสอดคล้องระหว่างโค้ดและมาตรฐาน (Gap Analysis)
@@ -70,6 +76,7 @@ This is the central documentation hub. You MUST read this file first before star
 **Directory:** `docs/manuals/`
 - [WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/WORKFLOW_GUIDE.md) : คู่มือขั้นตอนการทำงานของ Workflow (Incident & Checklist)
 - [USER_MANAGEMENT_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/USER_MANAGEMENT_GUIDE.md) : คู่มือการจัดการผู้ใช้, PIN และ Onboarding Flow
+- [TARGET_REGISTRY_UAT_SEED_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) : แผนเตรียมข้อมูล UAT สำหรับ Target Registry / QR Asset History โดยยังไม่ insert ข้อมูลจริง
 
 ---
 

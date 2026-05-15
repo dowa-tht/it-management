@@ -126,7 +126,9 @@ export async function getDashboardData(timezoneOffset = -420) {
     templates.forEach(t => { if (templateCountMap[t.freq_type] !== undefined) templateCountMap[t.freq_type]++ })
 
     // We go backwards to find 7 valid working days
-    while (streak.length < 7 && cursorDate >= streakStart) {
+    let safety = 0;
+    while (streak.length < 7 && cursorDate >= streakStart && safety < 100) {
+      safety++;
       const dStr = cursorDate.toISOString().split('T')[0]
       const dayOfWeek = cursorDate.getUTCDay() 
       

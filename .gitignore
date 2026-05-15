@@ -48,3 +48,4 @@ schema-private.csv
 /.roo/
 /.playwright-mcp/
 /scripts/agent-health-check.js
+*.log

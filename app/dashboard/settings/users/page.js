@@ -109,11 +109,6 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
 
   const isSelf = user.id === currentUser?.id
 
-  useEffect(() => {
-    if (activeTab === 'login_logs') fetchLoginLogs()
-    if (activeTab === 'sso') fetchIdentities()
-  }, [activeTab])
-
   const fetchIdentities = async () => {
     setLoading(true)
     const res = await getUserIdentities(user.id)
@@ -127,6 +122,24 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
     setLoginLogs(data || [])
     setLoading(false)
   }
+
+  useEffect(() => {
+    const loadTabData = async () => {
+      if (activeTab === 'login_logs') {
+        setLoading(true)
+        const { data } = await supabase.from('login_logs').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20)
+        setLoginLogs(data || [])
+        setLoading(false)
+      }
+      if (activeTab === 'sso') {
+        setLoading(true)
+        const res = await getUserIdentities(user.id)
+        if (res.success) setIdentities(res.identities)
+        setLoading(false)
+      }
+    }
+    loadTabData()
+  }, [activeTab, user.id])
 
   const handleUpdateGeneral = async () => {
     setLoading(true)
@@ -217,7 +230,7 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: 12 }}>
       <div className="dialog-container" style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 700, maxHeight: '95vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
-        <div style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+        <div className="dialog-header" style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div style={{ width: 48, height: 48, borderRadius: 14, background: '#1d4ed8', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800 }}>{user.full_name?.charAt(0) || user.email?.charAt(0).toUpperCase()}</div>
             <div>
@@ -235,7 +248,7 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
           <button style={tabStyle('login_logs')} onClick={() => setActiveTab('login_logs')}>🕒 ประวัติ Login</button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto' }} className="dialog-padding">
+        <div className="dialog-scroll-body dialog-padding">
           <div style={{ padding: 32 }} className="dialog-padding">
           {msg.text && <div style={{ padding: '14px 20px', borderRadius: 14, fontSize: 14, marginBottom: 24, background: msg.type === 'success' ? '#f0fdf4' : '#fef2f2', color: msg.type === 'success' ? '#166534' : '#991b1b', border: `1px solid ${msg.type === 'success' ? '#bcf0da' : '#fecaca'}` }}>{msg.type === 'success' ? '✅' : '❌'} {msg.text}</div>}
 
@@ -303,7 +316,7 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
                   <input type={showPwd ? "text" : "password"} value={pwdForm.confirm} onChange={e => setPwdForm({ ...pwdForm, confirm: e.target.value })} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 14 }} />
                 </div>
               </div>
-              <div style={{ background: '#f8fafc', padding: 20, borderRadius: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="dialog-check-grid" style={{ background: '#f8fafc', padding: 20, borderRadius: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {pwdChecks.map((c, i) => (
                   <div key={i} style={{ fontSize: 12, color: c.met ? '#059669' : '#94a3b8', display: 'flex', alignItems: 'center', gap: 8, fontWeight: c.met ? 600 : 400 }}>{c.met ? '✅' : '⚪'} {c.label}</div>
                 ))}
@@ -315,7 +328,7 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
               <h4 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', margin: '0 0 16px' }}>🔑 Signature PIN Management</h4>
               
               {user.pin_locked_until && new Date(user.pin_locked_until) > new Date() && (
-                <div style={{ padding: 16, background: '#fef2f2', borderRadius: 12, border: '1px solid #fca5a5', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="security-alert" style={{ padding: 16, background: '#fef2f2', borderRadius: 12, border: '1px solid #fca5a5', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ fontSize: 13, color: '#991b1b' }}>
                     <strong>บัญชีถูกล็อคชั่วคราว</strong> (เนื่องจากใส่ PIN ผิดเกินกำหนด)<br/>
                     จนถึง: {new Date(user.pin_locked_until).toLocaleString('th-TH')}
@@ -453,18 +466,60 @@ export default function UsersPage() {
   const [guideContent, setGuideContent] = useState('')
   const [editingGuide, setEditingGuide] = useState(false)
 
-  useEffect(() => { init() }, [])
+  useEffect(() => {
+    const load = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single()
+        setCurrentUser(profile || session.user)
+      }
+      const res = await getAdminUsers()
+      if (res.success) {
+        setUsers(res.data)
+      } else {
+        setMsg({ text: `ไม่สามารถโหลดข้อมูลผู้ใช้: ${res.error}`, type: 'error' })
+      }
+      const { data } = await supabase.from('system_settings').select('value').eq('key', 'users_guide_content').single()
+      if (data) setGuideContent(data.value)
+      else {
+        setGuideContent(`### 👥 คู่มือการจัดการผู้ใช้ (Account Management)
+ระบบนี้ใช้สำหรับจัดการบัญชีผู้ใช้ สิทธิ์การเข้าถึง (Roles), สถานะการใช้งาน, Signature PIN และการเชื่อมต่อ SSO ของพนักงานแต่ละคน
 
-  const init = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session) {
-      const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single()
-      setCurrentUser(profile || session.user)
+---
+#### **1. การสร้างบัญชีผู้ใช้**
+- **แบบมี Password:** Admin กำหนดรหัสผ่านเริ่มต้นให้ผู้ใช้ได้โดยตรง
+- **แบบไม่มี Password:** ระบบจะส่ง Email Invite ให้ผู้ใช้ไปทำ Self-Register เองในภายหลัง
+
+---
+#### **2. การกำหนดสิทธิ์ (Role-Based Access Control)**
+- **Administrator:** จัดการผู้ใช้, สิทธิ์, Workflow และตั้งค่าระบบทั้งหมด
+- **Approver:** อนุมัติเอกสารตามลำดับขั้น, เข้าดูรายงานได้
+- **Employee:** แจ้งเหตุ / ใช้งานทั่วไป, ไม่มีสิทธิ์เข้าหน้าตั้งค่า
+- **Auditor:** อ่านข้อมูลและ Log ได้อย่างเดียว
+- **IT Team (it_staff):** เป็น Assignee ได้ และจะปรากฏในรายชื่อให้ Administrator มอบหมายงาน Incident
+
+---
+#### **3. การมอบหมายงาน (Assignee Logic)**
+- **Role = IT Team (` + "`it_staff`" + `):** ระบบจะถือว่าเป็น Assignee โดยอัตโนมัติ
+- **Role อื่น:** ไม่เป็น Assignee สำหรับ Incident เพื่อให้ Audit แยกหน้าที่ผู้ดูแลระบบกับผู้ปฏิบัติงาน IT ได้ชัดเจน
+
+---
+#### **4. ระบบความปลอดภัย Signature PIN**
+เพื่อใช้แทนการเซ็นชื่อจริง ระบบจึงใช้ **6-digit PIN** ในการยืนยันตัวตนขั้นสุดท้ายก่อนอนุมัติงาน
+- **Self-Service:** ผู้ใช้สามารถตั้ง PIN เองได้ที่หน้า My Profile
+- **Admin Reset:** หากผู้ใช้ลืม PIN หรือใส่ผิดจนบัญชีล็อค Admin สามารถกด **⚙️ ตั้งค่า** และเลือกแท็บ **ความปลอดภัย** เพื่อปลดล็อคหรือตั้ง PIN ใหม่ให้ได้ทันที
+
+---
+#### **5. การเชื่อมต่อ SSO (Microsoft Linking)**
+เพื่อให้พนักงานสามารถใช้ SSO ได้อย่างสมบูรณ์:
+1. ผู้ใช้ต้องเข้าไปที่หน้า **My Profile**
+2. เลือกแท็บ **เชื่อมต่อ SSO** และกดปุ่ม **Link Microsoft Account**
+3. เมื่อเชื่อมต่อสำเร็จ Admin จะเห็นสถานะ ✅ ในหน้า SSO ของผู้ใช้รายนั้นๆ`)
+      }
+      setLoading(false)
     }
-    await fetchUsers()
-    await fetchGuide()
-    setLoading(false)
-  }
+    load()
+  }, [])
 
   const fetchUsers = async () => {
     const res = await getAdminUsers()
@@ -574,22 +629,32 @@ export default function UsersPage() {
     <div className="users-page-container" style={{ padding: 'var(--page-padding, 24px)', background: '#f8fafc', minHeight: '100vh', paddingBottom: 60 }}>
       <style>{`
         :root { --page-padding: 24px; }
+        .users-page-shell { max-width: 1240px; margin: 0 auto; }
+        .users-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; margin-bottom: 32px; }
+        .new-user-meta { grid-column: span 2; display: flex; gap: 24px; align-items: flex-start; }
+        .new-user-meta > * { flex: 1; min-width: 0; }
+        .role-derived-card { width: 100%; max-width: 320px; }
+        .dialog-scroll-body { flex: 1; overflow-y: auto; }
         @media (max-width: 768px) {
           :root { --page-padding: 12px; }
-          .header-flex { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .users-header { flex-direction: column !important; align-items: stretch !important; gap: 16px !important; }
           .header-button { width: 100% !important; }
           .new-user-form { grid-template-columns: 1fr !important; gap: 16px !important; }
+          .new-user-meta { grid-column: span 1 !important; flex-direction: column !important; gap: 16px !important; }
+          .role-derived-card { max-width: none !important; }
           .form-actions { flex-direction: column !important; }
           .form-actions button { width: 100% !important; }
           .table-wrapper { overflow-x: auto !important; margin: 0 -12px !important; }
           .users-table { min-width: 850px !important; }
-          .users-table { min-width: 850px !important; }
-          .dialog-content { padding: 20px !important; }
+          .dialog-header { padding: 20px !important; align-items: flex-start !important; }
           .dialog-tabs { overflow-x: auto !important; scrollbar-width: none !important; -ms-overflow-style: none !important; }
           .dialog-tabs::-webkit-scrollbar { display: none !important; }
           .dialog-tabs button { font-size: 11px !important; padding: 12px 16px !important; min-width: 120px !important; white-space: nowrap !important; }
           .dialog-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
           .dialog-padding { padding: 20px !important; }
+          .dialog-check-grid { grid-template-columns: 1fr !important; }
+          .security-alert { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; }
+          .table-actions { justify-content: flex-end !important; }
         }
         * { box-sizing: border-box; }
       `}</style>
@@ -615,7 +680,8 @@ export default function UsersPage() {
         setConfirmDialog(null); fetchUsers()
       }} onCancel={() => setConfirmDialog(null)} />}
 
-      <div className="header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20, marginBottom: 32 }}>
+      <div className="users-page-shell">
+      <div className="users-header">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
             <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, boxShadow: '0 10px 15px -3px rgba(29, 78, 216, 0.3)' }}>
@@ -648,11 +714,12 @@ export default function UsersPage() {
               <input type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} placeholder="ปล่อยว่างเพื่อทำ Self-Register" />
             </div>
             <div><label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>สิทธิ์การใช้งาน</label><select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}><option value="admin">Administrator</option><option value="it_staff">IT Team</option><option value="approver">Approver</option><option value="employee">Employee</option><option value="auditor">Auditor</option></select></div>
-            <div style={{ gridColumn: 'span 2', display: 'flex', gap: 24 }}>
+            <div className="new-user-meta">
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>การมอบหมายงาน (Work Assignment)</label>
                 <div 
                   title="กำหนดจาก Role อัตโนมัติ: IT Staff = Assignee"
+                  className="role-derived-card"
                   style={{ 
                     display: 'flex', alignItems: 'center', gap: 10, cursor: 'default', padding: '10px 14px', 
                     background: newUser.role === 'it_staff' ? '#f0fdf4' : '#f8fafc', 
@@ -747,7 +814,7 @@ export default function UsersPage() {
                     <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>Role-derived</div>
                   </td>
                   <td style={{ padding: '16px 20px' }}>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div className="table-actions" style={{ display: 'flex', gap: 8 }}>
                       <ActionButton title="ตั้งค่าและตรวจสอบ" onClick={() => setSetupUser(u)} icon="⚙️" color="gray" />
                       {!isSelf && <ActionButton title="ลบข้อมูลถาวร" onClick={() => handleDeleteUser(u.id, u.full_name, u.email)} icon="🗑️" color="red" />}
                     </div>
@@ -799,6 +866,7 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

@@ -5,10 +5,12 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatDate } from '@/lib/dateFormat'
 import { getNextNo } from '@/lib/noSeries'
-import { CHECKLIST_TEMPLATES } from '@/lib/checklistItems'
+// Removed static CHECKLIST_TEMPLATES import; will fetch templates from DB only
+// const CHECKLIST_TEMPLATES = {} // placeholder to avoid reference errors
 import { recordLog } from '@/app/actions/workflow'
 import ViewToggle from '@/components/ViewToggle'
 import WorkflowMiniProgress from '@/components/workflow/WorkflowMiniProgress'
+import { resolveChecklistQr } from '@/app/actions/target'
 
 const DATE_FILTERS = [
   { label: 'วันนี้', value: 'today' },
@@ -106,6 +108,7 @@ function ChecklistCard({ doc, steps = [] }) {
 
 function ChecklistListForm() {
   const [docs, setDocs] = useState([])
+  const [templates, setTemplates] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [page, setPage] = useState(0)
@@ -138,6 +141,24 @@ function ChecklistListForm() {
         })
       }
     })
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    supabase
+      .from('checklist_templates')
+      .select('id, freq_type, item_key, item_label, category, ui_template_type, template_config, instruction, is_active, sort_order')
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data, error }) => {
+        if (!isMounted || error) return
+        setTemplates(data || [])
+      })
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   const isAuditor = currentUser?.role === 'auditor' || currentUser?.role === 'visitor'
@@ -284,6 +305,22 @@ function ChecklistListForm() {
     setLoadingMore(false)
   }
 
+  const handleQrResolve = async (qrValue) => {
+    setLoading(true)
+    try {
+      const res = await resolveChecklistQr(qrValue)
+      if (res.success) {
+        router.push(res.redirectUrl)
+      } else {
+        alert(res.error || 'ไม่พบข้อมูลจาก QR นี้')
+        setLoading(false)
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการตรวจสอบ QR')
+      setLoading(false)
+    }
+  }
+
   const handleCreate = async (freqType) => {
     setShowCreate(true)
   }
@@ -298,6 +335,24 @@ function ChecklistListForm() {
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <ViewToggle mode={viewMode} onChange={setViewMode} />
+          
+          <button 
+            onClick={() => {
+              const qr = prompt('สแกน QR Code หรือระบุรหัส (Target QR หรือ TargetQR#PointID)')
+              if (qr) handleQrResolve(qr)
+            }}
+            style={{
+              background: '#f8fafc', color: '#1e40af', padding: '10px 16px',
+              borderRadius: 12, fontSize: 13, border: '1px solid #bfdbfe', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700,
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
+            onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}
+          >
+            📸 Scan / Search QR
+          </button>
+
           {!isAuditor && (
             <button 
               onClick={() => setShowCreate(true)}
@@ -390,7 +445,10 @@ function ChecklistListForm() {
           <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 6 }}>ประเภท</label>
           <select value={filters.freq_type} onChange={e => setFilters({...filters, freq_type: e.target.value})} style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}>
             <option value="">ทั้งหมด</option>
-            {Object.keys(CHECKLIST_TEMPLATES).map(f => <option key={f} value={f}>{f}</option>)}
+            {/* Frequency filter options derived from fetched templates */}
+            {Array.from(new Set((templates||[]).map(t=>t.freq_type))).sort().map(f=>(
+              <option key={f} value={f}>{f}</option>
+            ))}
           </select>
         </div>
 
@@ -541,9 +599,28 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
   const [freq, setFreq] = useState('Daily')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [items, setItems] = useState([])
-  const [selectedKeys, setSelectedKeys] = useState([])
+  const [templates, setTemplates] = useState([])
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState([])
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+
+    supabase
+      .from('checklist_templates')
+      .select('id, freq_type, item_key, item_label, category, ui_template_type, template_config, instruction, is_active, sort_order')
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data, error }) => {
+        if (!isMounted || error) return
+        setTemplates(data || [])
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const getPeriodRange = (dateStr, freqType) => {
     const d = new Date(dateStr)
@@ -605,17 +682,18 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
     const usedKeys = new Set(usedItems?.map(i => i.item_key) || [])
     const available = (templates || []).map(t => ({
       ...t,
+      selection_key: t.id || `${t.item_key || 'template'}-${t.freq_type || 'freq'}-${t.item_label || 'label'}`,
       isUsed: usedKeys.has(t.item_key)
     }))
 
     setItems(available)
-    setSelectedKeys(available.filter(t => !t.isUsed).map(t => t.item_key))
+    setSelectedTemplateIds(available.filter(t => !t.isUsed).map(t => t.selection_key))
     setLoading(false)
     setStep(2)
   }
 
   const handleFinalCreate = async () => {
-    if (selectedKeys.length === 0) return
+    if (selectedTemplateIds.length === 0) return
     setCreating(true)
 
     const noRes = await getNextNo('CHK')
@@ -636,9 +714,18 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
     if (error) { alert(error.message); setCreating(false); return }
     if (noRes) { const { updateLastNo } = await import('@/lib/noSeries'); await updateLastNo('CHK', docNo) }
 
-    const selectedTemplates = items.filter(t => selectedKeys.includes(t.item_key))
+    const selectedTemplates = items.filter(t => selectedTemplateIds.includes(t.selection_key))
     const inserts = selectedTemplates.map(t => {
-      const staticTemplate = CHECKLIST_TEMPLATES[freq]?.find(st => st.key === t.item_key)
+      const config = { ...(t.template_config || {}) }
+      
+      // Normalize photo_points for T1 (Photo Evidence)
+      if (t.ui_template_type === 1 && config.photo_points) {
+        config.photo_points = config.photo_points.map((p, idx) => {
+          if (typeof p === 'string') return { label: p, point_code: `P${(idx + 1).toString().padStart(2, '0')}` }
+          return p
+        })
+      }
+
       return {
         doc_id: newDoc.id,
         item_key: t.item_key,
@@ -647,16 +734,16 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
         template_data: {
           _snapshot: {
             ui_template_type: t.ui_template_type || 0,
-            config: t.template_config || {},
-            instruction: t.instruction || staticTemplate?.instruction || '',
-            category: t.category || staticTemplate?.category || 'General'
+            config: config,
+            instruction: t.instruction || '',
+            category: t.category || 'General'
           }
         }
       }
     })
 
     await supabase.from('checklist_items').insert(inserts)
-    await recordLog(newDoc.id, 'checklist', `สร้างเอกสาร (${freq})`, `เลือก ${selectedKeys.length} รายการ`, userEmail)
+    await recordLog(newDoc.id, 'checklist', `สร้างเอกสาร (${freq})`, `เลือก ${selectedTemplateIds.length} รายการ`, userEmail)
     
     onCreated(newDoc.id)
   }
@@ -675,7 +762,7 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 8 }}>ความถี่ในการตรวจสอบ</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {Object.keys(CHECKLIST_TEMPLATES).map(f => (
+                  {Array.from(new Set((templates||[]).map(t=>t.freq_type))).sort().map(f => (
                     <button key={f} onClick={() => setFreq(f)} style={{ padding: '12px', borderRadius: 12, border: freq === f ? '2px solid #2563eb' : '1px solid #e2e8f0', background: freq === f ? '#eff6ff' : '#fff', color: freq === f ? '#2563eb' : '#475569', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>{f}</button>
                   ))}
                 </div>
@@ -721,8 +808,8 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: 14, color: '#475569' }}>พบรายการทั้งหมด <strong>{items.length}</strong> รายการสำหรับ {freq}</div>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => setSelectedKeys(items.filter(i => !i.isUsed).map(i => i.item_key))} style={{ border: 'none', background: 'none', color: '#2563eb', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>เลือกทั้งหมด</button>
-                  <button onClick={() => setSelectedKeys([])} style={{ border: 'none', background: 'none', color: '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>ล้างการเลือก</button>
+                  <button onClick={() => setSelectedTemplateIds(items.filter(i => !i.isUsed).map(i => i.selection_key))} style={{ border: 'none', background: 'none', color: '#2563eb', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>เลือกทั้งหมด</button>
+                  <button onClick={() => setSelectedTemplateIds([])} style={{ border: 'none', background: 'none', color: '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>ล้างการเลือก</button>
                 </div>
               </div>
               
@@ -738,15 +825,15 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
                   </thead>
                   <tbody>
                     {items.map(item => (
-                      <tr key={item.item_key} style={{ borderBottom: '1px solid #f1f5f9', opacity: item.isUsed ? 0.6 : 1, background: item.isUsed ? '#f8fafc' : '#fff' }}>
+                      <tr key={item.selection_key} style={{ borderBottom: '1px solid #f1f5f9', opacity: item.isUsed ? 0.6 : 1, background: item.isUsed ? '#f8fafc' : '#fff' }}>
                         <td style={{ padding: 12, textAlign: 'center' }}>
                           <input 
                             type="checkbox" 
                             disabled={item.isUsed}
-                            checked={selectedKeys.includes(item.item_key)} 
+                            checked={selectedTemplateIds.includes(item.selection_key)} 
                             onChange={e => {
-                              if (e.target.checked) setSelectedKeys([...selectedKeys, item.item_key])
-                              else setSelectedKeys(selectedKeys.filter(k => k !== item.item_key))
+                              if (e.target.checked) setSelectedTemplateIds([...selectedTemplateIds, item.selection_key])
+                              else setSelectedTemplateIds(selectedTemplateIds.filter(k => k !== item.selection_key))
                             }}
                             style={{ width: 18, height: 18, cursor: item.isUsed ? 'not-allowed' : 'pointer' }}
                           />
@@ -768,7 +855,7 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
 
               <div style={{ display: 'flex', gap: 12 }}>
                 <button onClick={() => setStep(1)} style={{ flex: 1, padding: '12px', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>ย้อนกลับ</button>
-                <button onClick={handleFinalCreate} disabled={creating || selectedKeys.length === 0} style={{ flex: 2, padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 12, cursor: 'pointer', fontWeight: 700, opacity: selectedKeys.length === 0 ? 0.5 : 1 }}>{creating ? 'กำลังสร้างเอกสาร...' : `สร้างเอกสาร (${selectedKeys.length} รายการ)`}</button>
+                <button onClick={handleFinalCreate} disabled={creating || selectedTemplateIds.length === 0} style={{ flex: 2, padding: '12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 12, cursor: 'pointer', fontWeight: 700, opacity: selectedTemplateIds.length === 0 ? 0.5 : 1 }}>{creating ? 'กำลังสร้างเอกสาร...' : `สร้างเอกสาร (${selectedTemplateIds.length} รายการ)`}</button>
               </div>
             </div>
           )}

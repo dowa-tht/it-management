@@ -44,6 +44,45 @@
 - **Initial Submission**: ไม่บันทึกรูปภาพ (Image) แต่บันทึก Full Name + Timestamp ลงใน `metadata` ของ `system_audit_logs`
 - **Approval Signatures**: บันทึกลงใน `document_approvals.signature_data` (Data URL)
 
+### 3.3 Checklist Photo Evidence Mapping
+- หลักฐานภาพของ Checklist ถูกบันทึกใน `checklist_items.template_data`
+- `template_data.photos` ใช้เก็บ OneDrive file id แยกตาม `point index`
+- `template_data.photo_meta` ใช้เก็บ metadata ของภาพ เช่น:
+  - `file_id`
+  - `point_label`
+  - `captured_at`
+  - `status` ของ geolocation (`captured`, `skipped`, `denied`, `unsupported`, `timeout`, `error`)
+  - `lat`
+  - `lng`
+  - `accuracy`
+  - `message`
+- หาก geolocation เป็น optional และผู้ใช้ไม่อนุญาต ระบบยังต้องบันทึกรูปภาพได้ตามปกติ โดยเก็บ `lat` และ `lng` เป็น `null`
+
+### 3.4 Checklist Template Config Mapping
+- `checklist_templates.template_config` เป็น source of truth สำหรับการตั้งค่าเชิงลึกของ Template Builder
+- การบันทึก `template_config` ต้อง validate ที่ server ทุกครั้งก่อน `insert` หรือ `update`
+- โครงสร้างขั้นต่ำของแต่ละ `ui_template_type`:
+  - `T0 Standard`: `allow_na`, `note_required_on_ng`, `auto_open_incident`, `severity`
+  - `T1 Photo Evidence`: `photo_points`, `min_photos`, `allow_retake`, `enable_location_toggle`, `watermark`
+  - `T2 Procedure Table`: `plan_id`, `enforce_sequence`, `require_all_steps`
+  - `T3 Measurement`: `unit`, `min`, `max`, `decimal_places`, `fail_mode`
+  - `T4 Link Verification`: `url`, `note_required`, `screenshot_required`
+- `T5 Sign-off`: `signers`, `require_order`, `pin_required`
+- เอกสาร Checklist ที่ถูกสร้างแล้วต้องอ้างอิง snapshot เดิมใน `checklist_items.template_data._snapshot.config` ต่อไป ห้าม render ย้อนหลังจาก master config ล่าสุดอย่างเดียว
+
+### 3.5 Procedure Plan Step Mapping
+- `checklist_procedure_plans.steps` ใช้เก็บ metadata ของ SOP ในรูปแบบ object ที่มี key `rows`
+- `steps.rows[]` แต่ละรายการต้องมี field ขั้นต่ำ:
+  - `step_no`
+  - `title`
+  - `instruction`
+  - `step_type`
+  - `required`
+  - `evidence_rule.photo_required`
+  - `evidence_rule.note_required`
+- `T2 Procedure Table` ต้องอ้างอิง `template_config.plan_id` ไปยัง `checklist_procedure_plans.id`
+- หน้า checklist detail ต้อง render ชื่อขั้นตอนจาก `title` เป็นหลัก และ fallback ไป `instruction` เฉพาะเมื่อไม่มี `title`
+
 ---
 
 ## 4. Workflow Engine Logic (RPC Mapping)

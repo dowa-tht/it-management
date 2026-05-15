@@ -34,7 +34,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## AI Multi-Model Workflow Control Add-on
 
-ใช้กฎชุดนี้เมื่อ USER ต้องการให้ตรวจสอบ/แก้ไขระบบหรือฟังก์ชันแบบแยกบทบาทระหว่าง AI วางแผนกับ AI ลงมือแก้ เช่น เมื่อ USER เรียกคำสั่ง `SmartAi`, `FastAi`, ระบุ `Task file`, สั่งให้ส่งงานต่อให้ agent ตัวเล็ก, หรืออ้างอิง workflow แบบ `SCAN_SUMMARY.md` / `TASK-001.md`
+ใช้กฎชุดนี้เมื่อ USER ต้องการให้ตรวจสอบ/แก้ไขระบบหรือฟังก์ชันแบบแยกบทบาทระหว่าง AI วางแผนกับ AI ลงมือแก้ เช่น เมื่อ USER เรียกคำสั่ง `SmartAi`, `FastAi`, ระบุ `Task file`, สั่งให้ส่งงานต่อให้ agent ตัวเล็ก, หรืออ้างอิง workflow แบบ `SCAN_SUMMARY.md` / `Checklist_Template_Builder_001.md`
 
 ### Role Definition
 
@@ -54,10 +54,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 รายงานตัว
 Model    : [ชื่อ Model จริง เช่น Gemini 2.0 Flash / GPT-5]
 Role     : [Smart AI / Fast AI]
-Task     : [ชื่อ Task ที่จะทำ เช่น TASK-001 / SCAN_SUMMARY]
+Task     : [ชื่อ Task ที่จะทำ เช่น Checklist_Template_Builder_001 / SCAN_SUMMARY]
 Step     : [Step ที่เท่าไหร่ของ Workflow เช่น Step 1/7]
 Input    : [ไฟล์หรือข้อมูลที่รับมา เช่น SCAN_SUMMARY.md]
-Output   : [ไฟล์หรือผลที่จะส่งออก เช่น TASK-001.md]
+Output   : [ไฟล์หรือผลที่จะส่งออก เช่น Checklist_Template_Builder_001.md]
 
 รอ Human Confirm ก่อนเริ่ม
 ```
@@ -144,7 +144,7 @@ Step 1  Fast AI     Scan & Summarize codebase
                     Human Checkpoint
 
 Step 2  Smart AI    รับ SCAN_SUMMARY.md + Requirements
-                    Output → TASK-001.md, TASK-002.md ...
+                    Output → Checklist_Template_Builder_001.md, QR_Scan_Navigation_002.md ...
                     Human Checkpoint
 
 Step 3  Fast AI     Execute TASK ทีละ file + Self-validate
@@ -168,7 +168,7 @@ Step 6  Human       Review โค้ด + Test + Merge to main
 ```text
 FastAi
 Step   : [Step ที่เท่าไหร่]
-Input  : [ไฟล์ที่ต้องอ่าน เช่น TASK-001.md]
+Input  : [ไฟล์ที่ต้องอ่าน เช่น Checklist_Template_Builder_001.md]
 Task   : [อธิบายสั้นๆ ว่าทำอะไร]
 ```
 
@@ -200,9 +200,9 @@ Task   : [อธิบายสั้นๆ ว่าทำอะไร]
 ai-tasks/
   SCAN_SUMMARY.md
   tasks/
-    TASK-001.md
-    TASK-002.md
-    TASK-XXX.md
+    Checklist_Template_Builder_001.md
+    QR_Scan_Navigation_002.md
+    [WORK_NAME]_XXX.md
 ```
 
 หมายเหตุ: กฎ `DOCUMENTATION STRUCTURE` ของโปรเจกต์ยังมีผลเสมอ หากไฟล์เป็นมาตรฐาน แผนงาน หรือคู่มือถาวร ต้องเก็บใน `docs/standards/`, `docs/history/`, หรือ `docs/manuals/` ตามประเภท และอัปเดต `docs/INDEX.md`
@@ -216,9 +216,9 @@ SESSION SUMMARY
 ─────────────────────────────────────────
 | Task      | Model     | Status        |
 |-----------|-----------|---------------|
-| TASK-001  | Fast AI   | Pass          |
-| TASK-002  | Fast AI   | Cancelled     |
-| TASK-003  | Fast AI   | Escalate      |
+| Checklist_Template_Builder_001  | Fast AI   | Pass          |
+| QR_Scan_Navigation_002          | Fast AI   | Cancelled     |
+| Photo_Evidence_Geolocation_003  | Fast AI   | Escalate      |
 ─────────────────────────────────────────
 Files Changed : [รายชื่อไฟล์ที่ถูกแก้]
 Pending       : [Task ที่ยังค้างอยู่]
@@ -242,9 +242,11 @@ Next Step     : [Step ถัดไปที่ควรทำ]
 - อย่าเปิด service_role key ใน client-side
 
 ## การทำงานของ Agent
+- **[DEV SERVER SAFETY]** เมื่อ USER สั่งให้รัน `localhost` หรือ `npm run dev` ต้องทำการรันคำสั่ง `taskkill /F /IM node.exe` เพื่อล้างโปรเซสเก่าที่ค้างอยู่ก่อนทุกครั้ง เพื่อป้องกันปัญหา Port Lock หรือเครื่องค้าง
 - ก่อนแก้ไฟล์ ให้อ่านไฟล์นั้นก่อนเสมอ
 - ถ้าไม่แน่ใจ spec ให้ถามก่อน อย่า assume
 - แก้ทีละ task ให้เสร็จก่อน อย่ากระโดดข้าม
+- **[PRE-DELIVERY TEST]** ก่อนส่งงานทุกครั้ง (หรือก่อนตอบ "เสร็จแล้ว") ต้องรันคำสั่ง `npm test` และต้องผ่าน 100% หากมีข้อผิดพลาดต้องแก้ไขให้ผ่านก่อนส่งงาน
 - ใช้ Context7 ทุกครั้งที่ต้องการ docs ของ library
 
 ---
