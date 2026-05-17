@@ -3,6 +3,7 @@
 <!-- บันทึกใหม่จะถูกเพิ่มที่นี่ -->
 
 ## 17 พฤษภาคม 2569 (17-May-2026)
+- **18:55 +07:00 | DOCS:** จัดทำและสร้างคู่มือการประสานงาน AI ร่วมกัน [MULTI_AGENT_WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/MULTI_AGENT_WORKFLOW_GUIDE.md) เพื่อกำหนดบทบาทและแนวทางการเลือกใช้เครื่องมือระหว่าง Antigravity (Local Smart AI) และ Google Jules (Cloud Fast AI) พร้อมเชื่อมเข้าสู่หน้าสารบัญเอกสารระบบ `docs/INDEX.md` อย่างเป็นระบบ
 - **16:50 +07:00 | CHORE:** สร้างไฟล์แผนงานสำหรับบอท Jules (`ai-tasks/tasks/Public_Checklist_Point_History_004.md`) เพื่อกำหนดกรอบการตรวจสอบและพัฒนาฟังก์ชันการทำงานของ Checklist ตั้งแต่การ Setup ถึงหน้าประวัติ Timeline และภาพถ่ายรายจุดแบบไม่ผ่าน Login พร้อมเชื่อมเข้าสารบัญเอกสารหลัก `docs/INDEX.md` ครบถ้วนตามมาตรฐาน
 - **13:33 +07:00 | DOCS:** ดำเนินการอัปเดตไฟล์ [AGENTS.md](file:///c:/Users/Lenovo/dowa-it-system/AGENTS.md) เพื่อกำหนดแนวทางปฏิบัติการทำงานแบบคู่ขนานและการผสานโค้ดขัดแย้งระหว่างผู้พัฒนากับระบบปัญญาประดิษฐ์ภายนอก (Cloud AI Sync & Conflict Resolution Policy) เป็นมาตรฐานกลางของทีมพัฒนา
 - **13:25 +07:00 | CHORE:** ปรับปรุงและอัปเกรดโครงสร้าง `repomix.config.json` ให้ครอบคลุมระบบสูงสุด โดยผนวกโฟลเดอร์การทดสอบระบบ `tests/**/*.js` และไฟล์ข้อกำหนดสำคัญ (.julesrules, .cursorrules, README.md) เข้าไปในระบบกวาดข้อมูล จากนั้นทำการรันบิลด์ไฟล์ข้อมูลระบบใหม่เป็น `repomix-output.md` และส่งมอบขึ้น GitHub เรียบร้อย เพื่อส่งเสริมบริบทที่ถูกต้อง 100% ให้แก่ AI ตัวอื่นๆ และ Google AI Studio

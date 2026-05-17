@@ -83,6 +83,7 @@ This is the central documentation hub. You MUST read this file first before star
 - [WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/WORKFLOW_GUIDE.md) : คู่มือขั้นตอนการทำงานของ Workflow (Incident & Checklist)
 - [USER_MANAGEMENT_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/USER_MANAGEMENT_GUIDE.md) : คู่มือการจัดการผู้ใช้, PIN และ Onboarding Flow
 - [TARGET_REGISTRY_UAT_SEED_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) : แผนเตรียมข้อมูล UAT สำหรับ Target Registry / QR Asset History โดยยังไม่ insert ข้อมูลจริง
+- [MULTI_AGENT_WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/MULTI_AGENT_WORKFLOW_GUIDE.md) : คู่มือการประสานงานทำงานร่วมกันและใช้เครื่องมือระหว่าง Antigravity และ Google Jules
 
 ---
 
