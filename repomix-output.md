@@ -29,7 +29,7 @@ The content is organized as follows:
 ## Notes
 - Some files may have been excluded based on .gitignore rules and Repomix's configuration
 - Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
-- Only files matching these patterns are included: app/**/*.js, components/**/*.js, lib/**/*.js, supabase/migrations/**/*.sql, docs/**/*.md, ai-tasks/**/*.md, AGENTS.md, CLAUDE.md, schema.sql, supabase_types.ts, package.json, next.config.mjs, jsconfig.json
+- Only files matching these patterns are included: app/**/*.js, components/**/*.js, lib/**/*.js, supabase/migrations/**/*.sql, tests/**/*.js, docs/**/*.md, ai-tasks/**/*.md, AGENTS.md, CLAUDE.md, .julesrules, .cursorrules, README.md, schema.sql, supabase_types.ts, package.json, next.config.mjs, jsconfig.json
 - Files matching these patterns are excluded: node_modules/**, .next/**, .git/**, *.log, repomix-output*, backups/**, scratch/**, .env*, *.lock, public/**, devserver*.log, *.bak, *.csv
 - Files matching patterns in .gitignore are excluded
 - Files matching default ignore patterns are excluded
@@ -38,6 +38,8 @@ The content is organized as follows:
 
 # Directory Structure
 ```
+.cursorrules
+.julesrules
 AGENTS.md
 ai-tasks/tasks/Checklist_Template_Builder_001.md
 ai-tasks/tasks/Photo_Evidence_Geolocation_003.md
@@ -175,6 +177,7 @@ docs/history/IMPLEMENTATION_PLAN_SETTINGS_MENU_RESTRUCTURE.md
 docs/history/IMPLEMENTATION_PLAN_SETTINGS_ROUTE_SEPARATION.md
 docs/history/IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md
 docs/history/INCIDENT_APPROVAL_MIGRATION.md
+docs/history/PROJECT_SCAN_SUMMARY.md
 docs/history/project_summary.md
 docs/history/REF_DASHBOARD_HEADER.md
 docs/history/REF_DASHBOARD_WORKFLOW_FIX.md
@@ -242,6 +245,7 @@ lib/workflow.js
 lib/workflowRegistry.js
 next.config.mjs
 package.json
+README.md
 schema.sql
 supabase_types.ts
 supabase/migrations/20260506_add_member_role.sql
@@ -253,6 +257,10 @@ supabase/migrations/20260508_workflow_refinement_phase_2.sql
 supabase/migrations/20260510_add_assigned_to_id_to_incidents.sql
 supabase/migrations/20260512_fix_document_approvals_verified_by_pin.sql
 supabase/migrations/add_rls_policies.sql
+tests/qr-lookup-route.test.js
+tests/register-aliases.js
+tests/run-tests.js
+tests/target-registry.test.js
 ```
 
 # Files
@@ -1479,187 +1487,6 @@ supabase/migrations/add_rls_policies.sql
 177: }
 ````
 
-## File: docs/history/archive/CHANGELOG_2026_05_14.md
-````markdown
- 1: # 🕒 ประวัติการเปลี่ยนแปลง (Change Logs) - Archive 2026-05-14
- 2: 
- 3: ### 14-May-2026
- 4: - **17:34 +07:00 | UI:** ปรับ `Live Preview` และ `Standards Snapshot` ใน `/dashboard/settings/checklist-template-builder` ให้ใช้ visual pattern เดียวกับ `Template behavior` โดยใช้โครง outer card + config box + inner row/card ที่มี padding/gap ชัดเจน แทนดีไซน์ preview/snapshot แยกชุดที่ดูเละและไม่เข้าระบบ
- 5: - **20:44 +07:00 | UI:** ปรับ polish ของ `Live Preview` และ `Standards Snapshot` ใน `/dashboard/settings/checklist-template-builder` ให้ลดอาการกล่องซ้อนและน้ำหนักภาพหนักเกินไป โดยตัดกรอบ hero ชั้นในของ preview และเปลี่ยน snapshot items เป็นแถบข้อมูลที่เบากว่าเดิม
- 6: - **20:42 +07:00 | UI:** ปรับ padding ของ `Standards Snapshot` ใน `/dashboard/settings/checklist-template-builder` อีกครั้งโดยเพิ่ม inner frame ครอบทั้ง heading และ grid เพื่อแก้อาการ section title/contents กินขอบของ card หลัก
- 7: - **20:39 +07:00 | UI:** ตัด inner shell ของ `Standards Snapshot` ใน `/dashboard/settings/checklist-template-builder` ออก เพื่อแก้อาการกล่องซ้อน 2 ชั้น และคง spacing ด้วยกรอบหลักเพียงชั้นเดียว
- 8: - **20:36 +07:00 | UI:** แยก flow ของ `Checklist Master Data` กับ `Checklist Template Builder` ให้ชัดเจน โดยเปลี่ยนปุ่ม header เป็น `สร้าง Template ใหม่`, ถอด quick-create inline form ของ `Checklist Master`, และให้ปุ่ม `✏️` รายการพาไป `mode=edit&templateId=...` แทน inline edit ที่แก้ได้ไม่ครบ
- 9: - **20:36 +07:00 | UI:** ปรับ `/dashboard/settings/checklist-template-builder` ให้รองรับ `mode=create` และ `mode=edit` แบบ focused workflow โดยซ่อน library ในโหมดเจาะจง, ปรับ heading/subtitle ตามบริบท, และบังคับ create/edit page ไม่ให้สื่อเป็นโหมดสร้างอย่างเดียวเมื่อเข้ามาแก้รายการ
-10: - **20:29 +07:00 | UI:** ปรับ `Execution Preview` ของ `/dashboard/settings/procedure-plan-editor` เพิ่ม preview shell, ขยาย padding/gap ของ step cards และเพิ่ม spacing ของ title/meta/instruction เพื่อแก้อาการรายการ preview ชิดขอบและแน่นเกินไป
-11: - **20:26 +07:00 | UI:** ปรับ `Standards Snapshot` ของ `/dashboard/settings/checklist-template-builder` เพิ่ม outer snapshot shell, ขยาย gap ระหว่างการ์ด และเพิ่ม padding/line-height ของแต่ละ snapshot item เพื่อแก้อาการ card ชิดกันและ text แน่นเกินไป
-12: - **20:24 +07:00 | UI:** ปรับ `TemplatePreview` ของ `/dashboard/settings/checklist-template-builder` เพิ่ม explicit inner container spacing สำหรับ `Live Preview` โดยขยาย hero padding, แยก copy/panel layer, เพิ่ม gap ของ metadata block และเพิ่ม padding ของ preview lines เพื่อแก้อาการ label/text ดูชิดขอบในก้อน `ตรวจสอบ M365 Service Health`
-13: - **20:10 +07:00 | UI:** ปรับ layout ของ `/dashboard/settings/checklist-template-builder` และ `/dashboard/settings/procedure-plan-editor` ให้เลิกบีบ 3 คอลัมน์บนพื้นที่แคบ พร้อมแก้ปุ่ม `กลับหน้า Master Data` ให้ย้อนเข้าแท็บ `Checklist Master` และ `Procedure Plans` ได้ถูกต้อง
-14: - **20:10 +07:00 | DOC:** เพิ่มเอกสาร [IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md) และอัปเดต `docs/INDEX.md`, `docs/history/USER_TASKS.md`
-15: - **16:21 +07:00 | UI:** เก็บ spacing pass ครบทุก section ของ `Checklist Template Builder` และ `Procedure Plan Editor` โดยขยาย inner padding/line-height ของ sidebar items, preview cards, และ standards snapshot เพื่อแก้อาการ text ชิด border และ card ดูติดกัน
-16: - **16:22 +07:00 | UI:** ปรับ `Procedure Plan Editor` ตาม pattern `Workflow Builder` ให้เปลี่ยนจากฟอร์มยาวทั้งหน้าเป็น `step list + detail editor` แบบ 2-pane ภายใน เพื่อลดการไถลึกและทำให้ actions อยู่ใกล้ step ที่กำลังแก้
-17: - **16:09 +07:00 | UI:** ปรับ body layout ของ `/dashboard/settings/checklist-template-builder` และ `/dashboard/settings/procedure-plan-editor` ต่อจาก header โดยขยาย form card, label spacing, input/textarea height, step card spacing, preview typography และ action buttons ให้สอดคล้องกับ Settings Design System มากขึ้น
-18: - **15:54 +07:00 | UI:** แก้ layout ของ `/dashboard/settings/checklist-template-builder` และ `/dashboard/settings/procedure-plan-editor` ใหม่อีกครั้งโดยตัดโหมด 3 คอลัมน์ออก, ล็อกหน้าให้เป็น 2-pane (Library + Editor), ย้าย preview ไปอยู่ใต้ editor ฝั่งขวา และคงลิงก์ `กลับหน้า Master Data` ให้ย้อนเข้าแท็บ `Checklist Master` / `Procedure Plans` ตามเดิม
-19: - **19:42 +07:00 | FEAT:** เพิ่ม route ใหม่ `/dashboard/settings/procedure-plan-editor` พร้อม editor สำหรับ `checklist_procedure_plans`, รองรับ add/remove/reorder step, `step_type`, `required`, `evidence_rule` และ server-side save flow ผ่าน `app/actions/procedure-plan.js`
-20: - **19:42 +07:00 | FEAT:** ปรับ `ProcedureTemplate` ใน `app/dashboard/checklist/[id]/page.js` ให้รองรับ step object จาก `checklist_procedure_plans.steps.rows[]` และ render `title`/`instruction` ได้ตรงกับ schema ใหม่
-21: - **19:42 +07:00 | DOC:** อัปเดต `docs/standards/DOCUMENT_MAPPING_STANDARD.md` และ `docs/history/USER_TASKS.md` ให้สะท้อน Procedure Plan Editor ที่ implement แล้ว
-22: - **19:05 +07:00 | FEAT:** เพิ่ม route ใหม่ `/dashboard/settings/checklist-template-builder` พร้อม UI แบบ standalone สำหรับแก้ `checklist_templates`, Template Library search, live preview, และ server-side save flow ผ่าน `app/actions/checklist-template.js`
-23: - **19:05 +07:00 | DOC:** อัปเดต `docs/standards/DOCUMENT_MAPPING_STANDARD.md`, `docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md`, และ `docs/history/USER_TASKS.md` ให้สะท้อน Checklist Template Builder ที่ implement แล้ว
-24: - **13:31 +07:00 | DOC:** เปลี่ยนชื่อไฟล์งานใน `ai-tasks/tasks/` จากรูปแบบ `TASK-001.md` เป็นรูปแบบ `ชื่องาน + ลำดับ` ได้แก่ `Checklist_Template_Builder_001.md`, `QR_Scan_Navigation_002.md`, `Photo_Evidence_Geolocation_003.md` และอัปเดต reference ที่เกี่ยวข้องใน `AGENTS.md` และเอกสารแผน
-25: - **13:11 +07:00 | FEAT:** ดำเนินการ `TASK-003` สำหรับ Optional Geolocation ของ `Photo Evidence` โดยปรับ `app/dashboard/checklist/[id]/page.js` ให้มี switch `Attach Location`, ขอสิทธิ์ browser geolocation ตอนอัปโหลด และเก็บ metadata พิกัดไว้ใน `checklist_items.template_data.photo_meta` ตามสถาปัตยกรรมจริงของระบบ
-26: - **13:11 +07:00 | PLAN:** จัดทำเอกสาร [IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md) สำหรับยกระดับ `Checklist Template Master` ให้เป็น Template Builder, เพิ่ม `Procedure Plan Editor` และออกแบบ `Asset History / QR` สำหรับงานตรวจรายอุปกรณ์ เช่น `CCTV Terminal Box`
-27: - **11:15 +07:00 | UI:** ปรับ responsive/vertical layout ของ `Incident Master Data`, `Checklist Categories` และ `Account Management` โดยแก้ `app/dashboard/settings/_components/MasterDataScope.js` และ `app/dashboard/settings/users/page.js` ให้ stack แนวตั้งสวยขึ้นบนจอ portrait/mobile พร้อมเก็บ hook lint ให้ผ่านมาตรฐานโปรเจกต์
-28: - **11:08 +07:00 | UI:** ปรับปรุงหน้า `Working Hours & SLA` ใน `app/dashboard/settings/working-hours/page.js` ให้เป็น premium settings layout พร้อม summary cards, working-day selector แบบ card, SLA target panels, policy snapshot และ guide modal ที่อ่านง่ายขึ้น โดยไม่เปลี่ยน logic การบันทึก `working_hours`
-29: - **10:59 +07:00 | UI:** ยกระดับดีไซน์หน้า `Holidays Calendar` ใน `app/dashboard/settings/holidays/page.js` ด้วย summary cards, calendar surface แบบ premium, year cards, annual insights และ action dock ใหม่ โดยคง workflow Add/Edit/Delete/Import เดิมไว้
-30: - **10:41 +07:00 | CHORE:** เพิ่มกฎ `[DEV SERVER SAFETY]` ใน [AGENTS.md](file:///c:/Users/Lenovo/dowa-it-system/AGENTS.md) เพื่อบังคับให้ Agent รัน `taskkill /F /IM node.exe` ก่อนเริ่ม `localhost` เพื่อป้องกันปัญหา Port Lock และเครื่องค้าง
-31: - **08:19 +07:00 | CHORE:** ปรับโครงสร้างหน้า `Holidays` เพิ่ม lint guard เฉพาะจุด mount-fetch (`useEffect`) เพื่อให้สอดคล้องกับกฎ hook lint ใหม่ในสภาพโค้ดปัจจุบัน
-32: - **08:08 +07:00 | FEAT:** ปรับหน้า `Holidays` จากตารางเป็นปฏิทินรายปี/รายเดือน พร้อม Month Calendar, Year Summary และดึง `working_hours.work_days` มาแสดงสถานะ Work/Off ในแต่ละวัน
-33: - **06:09 +07:00 | PLAN:** สร้าง Remediation Task Files สำหรับ Settings Audit จำนวน 3 งาน (`TASK-001` Guide Coverage, `TASK-002` Audit Logs Mobile Table, `TASK-003` RLS Verification) และอัปเดต `USER_TASKS.md` เป็น Pending
-34: - **06:22 +07:00 | EXECUTE:** ปรับปรุง `MasterDataScope.js` เพื่อเพิ่มการรองรับ Guide Button และ Premium Table Wrapper (Horizontal Scroll) สำหรับโมดูล Settings ที่ใช้ MasterDataStandalonePage
-35: - **UI:** แก้ไข `holidays/page.js` เพื่อปรับ z-index ของ Guide Modal เป็น 3000 ให้สอดคล้องกับมาตรฐานระบบ
-36: - **SECURITY:** ตรวจสอบความถูกต้องของ RLS Policies สำหรับ `holidays` และ `checklist_procedure_plans` พบว่ามีนโยบายควบคุมการเข้าถึงที่ถูกต้องแล้ว
-37: - **SUMMARY:** ปิดงาน Settings Audit Remediation (`TASK-001`, `TASK-002`, `TASK-003`) สำเร็จ พร้อมอัปเดต [SCAN_SUMMARY_SETTINGS_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/SCAN_SUMMARY_SETTINGS_AUDIT.md) และ [USER_TASKS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/USER_TASKS.md)
-38: - **AUDIT:** เสร็จสิ้นการตรวจสอบโมดูล Settings ทั้ง 13 ส่วนย่อย [SCAN_SUMMARY_SETTINGS_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/SCAN_SUMMARY_SETTINGS_AUDIT.md)
-39: - **DOC:** อัปเดต [INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) เพื่อเชื่อมโยงรายงานผลการตรวจสอบ
-40: - **STATUS:** ยืนยันโครงสร้าง Standalone Route Architecture สมบูรณ์ 100%
-````
-
-## File: docs/history/archive/CHANGELOG_2026_05_15.md
-````markdown
- 1: # 🕒 ประวัติการเปลี่ยนแปลง (Change Logs) - Archive 2026-05-15
- 2: 
- 3: ### 15-May-2026
- 4: - **22:45 +07:00 | FEAT:** เสร็จสิ้นการพัฒนา **Checklist Point History & QR Integration**; เพิ่มระบบ Point-Level Traceability (Snapshot-First) ใน [`app/actions/target.js`](app/actions/target.js), สร้างหน้าประวัติรายจุดแบบ Timeline ใน [`app/dashboard/checklist/targets/[targetId]/points/[pointId]`](app/dashboard/checklist/targets/[targetId]/points/[pointId]), และเพิ่มระบบ QR Resolution ที่รองรับทั้ง Asset Level และ Point Level Deep-linking ทันที
- 5: - **22:40 +07:00 | UI/UX:** เพิ่มปุ่ม "Scan / Search QR" ในหน้าหลัก Checklist เพื่ออำนวยความสะดวกให้เจ้าหน้าที่หน้างาน เข้าถึงข้อมูลประวัติการตรวจได้รวดเร็วผ่านรหัส QR โดยตรง
- 6: - **21:24 +07:00 | DOC:** เพิ่มเอกสารแผนละเอียด [`IMPLEMENTATION_PLAN_CHECKLIST_POINT_HISTORY_AND_PHOTO_UI.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_POINT_HISTORY_AND_PHOTO_UI.md) สำหรับให้ Fast AI ปรับปรุง UI ของ `Photo Evidence` ในหน้า checklist detail และออกแบบ point-level history / QR รายจุดแบบ snapshot-safe พร้อมอัปเดตลิงก์ใน [`docs/INDEX.md`](docs/INDEX.md)
- 7: - **16:37 +07:00 | BUG:** แก้ปัญหาเลือก template ที่หมวดหมู่/ความถี่ซ้ำกันแล้ว React ชน `key` ใน [`CreateChecklistModal()`](app/dashboard/checklist/page.js:562) โดยเลิกใช้ [`item_key`](app/dashboard/checklist/page.js:687) เป็นตัวเลือก UI เพียงอย่างเดียว และเพิ่ม [`selection_key`](app/dashboard/checklist/page.js:650) จาก `template.id` เพื่อให้แต่ละแถวในตารางและ state การเลือกมี identity ที่ไม่ซ้ำ
- 8: - **16:03 +07:00 | BUG:** แก้ `ReferenceError: templates is not defined` ใน [`CreateChecklistModal()`](app/dashboard/checklist/page.js:562) เพิ่มเติม โดยเพิ่ม state [`templates`](app/dashboard/checklist/page.js:567) และ loader [`useEffect()`](app/dashboard/checklist/page.js:572) ภายใน modal เอง เพราะตัว modal ใช้ `templates` สำหรับปุ่มเลือกความถี่ที่บรรทัด [`page.js:701`](app/dashboard/checklist/page.js:701)
- 9: - **15:46 +07:00 | BUG:** แก้ runtime error `templates is not defined` ใน [`ChecklistListForm()`](app/dashboard/checklist/page.js:108) โดยเพิ่ม state [`templates`](app/dashboard/checklist/page.js:110) และโหลด `checklist_templates` จาก Supabase ใน [`useEffect()`](app/dashboard/checklist/page.js:145) เพื่อให้ filter ความถี่และ modal สร้างเอกสารใช้ source จริงได้โดยไม่อ้างตัวแปรที่ไม่มีอยู่
-10: - **14:41 +07:00 | UI/UX:** เพิ่ม save feedback dialog ใน [`ChecklistTemplateBuilderClient.js`](app/dashboard/settings/checklist-template-builder/ChecklistTemplateBuilderClient.js:52) ให้เด้ง modal หลังกด Save ทั้งกรณี success และ error พร้อมปุ่ม `รับทราบ`, ปิดด้วยปุ่ม `×`, และรองรับปุ่ม `Esc` เพื่อให้ผู้ใช้รับรู้ผลการบันทึกชัดเจนกว่าการใช้ banner อย่างเดียว
-11: - **14:26 +07:00 | BUG:** แก้ validation ของ `Checklist Template Builder` ให้รับค่าตัวเลขจาก form input string ได้ถูกต้อง โดยเปลี่ยน [`photoConfigSchema.min_photos`](lib/checklistTemplateValidation.js:23) และ [`measurementConfigSchema.decimal_places`](lib/checklistTemplateValidation.js:47) เป็น [`z.coerce.number()`](lib/checklistTemplateValidation.js:23) หลังตรวจจาก log จริงว่า [`saveChecklistTemplate()`](app/actions/checklist-template.js:117) ล้มด้วย `Invalid input: expected number, received string`
-12: - **13:56 +07:00 | UI/UX:** ปรับลดระยะห่างลงเหลือ `24px` (Icon row) และ `12px` (Title) เพื่อความกระชับ และย้าย Session Dock ให้ไปชิดมุมขวาบน (`top-5 right-5`) ของ Hero Section ในทั้ง Template Builder และ Procedure Editor
-13: - **13:53 +07:00 | UI/UX:** เพิ่มระยะห่างเป็น `60px` และใช้ inline style เพื่อบังคับ (Force) ระยะห่างระหว่าง Header กับ Icon Section ในทั้ง Template Builder และ Procedure Editor ให้ชัดเจนตามภาพหลักฐาน
-14: - **13:46 +07:00 | UI/UX:** ปรับเพิ่มระยะห่างระหว่าง Header Section (ปุ่มย้อนกลับ/Session Dock) และ Eyebrow Section (Template Editor) ใน [`ChecklistTemplateBuilderClient.js`](app/dashboard/settings/checklist-template-builder/ChecklistTemplateBuilderClient.js:476) และ [`ProcedurePlanEditorClient.js`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js:282) เพื่อความสวยงามและ visual balance ตามภาพหลักฐาน
-15: - **13:44 +07:00 | BUG/UI:** แก้ไขปัญหาการแสดงผล error message เป็น `[object Object]` ใน [`TemplateForm.js`](app/dashboard/settings/checklist-template-builder/components/TemplateForm.js:262) โดยการ refactor [`validateChecklistTemplate()`](lib/checklistTemplateValidation.js:293) ให้ทำการ flatten Zod errors เป็นแบบ single-level map และแก้ typo การวางตำแหน่ง FieldHint ของฟิลด์ `min/max` ในส่วน Measurement
-16: 
-17: - **10:33 +07:00 | UI:** ปรับ follow-up ของ [`ProcedurePlanEditorClient`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js:271) จากภาพจริง โดยเพิ่มระยะห่างระหว่างปุ่มย้อนกลับกับหัวเรื่อง, ขยาย gap ของ `step list + detail editor`, ปรับ desktop split ของ `Step Editor`, และถอด `Standards Snapshot` ออกจากหน้าหลักเพื่อลด layout noise
-18: - **08:48 +07:00 | UI/DOC:** ปรับ [`ProcedurePlanEditorClient`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js:32) และ [`ChecklistTemplateBuilderClient`](app/dashboard/settings/checklist-template-builder/ChecklistTemplateBuilderClient.js:26) ให้ลดขนาด header/session area, ทำปุ่ม `กลับหน้า Master Data` ให้เด่นขึ้น, ย้าย `Execution Preview` และ `Live Preview` ไปเป็น modal trigger พร้อมรองรับปุ่ม `Esc`, และอัปเดตสถานะใน [`IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md)
-19: - **07:56 +07:00 | DOC/SQL:** เพิ่ม rollback script [`scripts/rollback_seed_target_registry_uat.sql`](scripts/rollback_seed_target_registry_uat.sql) และ pre-execution verification checklist ใน [`docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md`](docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) พร้อมอัปเดตสถานะใน [`docs/history/USER_TASKS.md`](docs/history/USER_TASKS.md)
-20: - **07:51 +07:00 | DOC/SQL:** สร้าง [`scripts/seed_target_registry_uat.sql`](scripts/seed_target_registry_uat.sql) สำหรับ UAT seed แบบไม่ execute จริง พร้อมอัปเดต [`docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md`](docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) และ [`docs/history/USER_TASKS.md`](docs/history/USER_TASKS.md)
-21: - **07:47 +07:00 | DOC:** เพิ่ม [`docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md`](docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) เป็นแผนเตรียมข้อมูล UAT แบบไม่ insert จริง พร้อมอัปเดต [`docs/INDEX.md`](docs/INDEX.md) และ [`docs/history/USER_TASKS.md`](docs/history/USER_TASKS.md)
-22: - **07:44 +07:00 | FEAT/DOC/TEST:** refactor [`app/dashboard/checklist/targets/[id]/page.js`](app/dashboard/checklist/targets/[id]/page.js) ให้ใช้ server-side data flow ผ่าน [`getTargetAssetHistory()`](app/actions/target.js:55), harden [`GET()`](app/api/qr/lookup/route.js:12) ให้มี 400/404/500 branches ชัดเจน, เพิ่ม test coverage ใน [`tests/target-registry.test.js`](tests/target-registry.test.js) และ [`tests/qr-lookup-route.test.js`](tests/qr-lookup-route.test.js), และอัปเดตเอกสาร phase ถัดไปใน [`docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_NEXT_STEPS.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_NEXT_STEPS.md), [`docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md), [`docs/history/USER_TASKS.md`](docs/history/USER_TASKS.md)
-23: - **06:36 +07:00 | DOC/TEST:** อัปเดต [`docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_TODO.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_TODO.md), [`docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_NEXT_STEPS.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_NEXT_STEPS.md), [`docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md), และ [`docs/history/USER_TASKS.md`](docs/history/USER_TASKS.md) ให้สะท้อนว่าการ apply migration สำเร็จแล้ว, automated tests ถูกเพิ่มและผ่านผ่าน [`npm test`](package.json:10), และกำหนดแผนถัดไปสำหรับ harden หน้า [`app/dashboard/checklist/targets/[id]/page.js`](app/dashboard/checklist/targets/[id]/page.js)
-24: - **06:03 +07:00 | DOC:** เพิ่มมาตรฐาน [`TARGET_REGISTRY.md`](docs/standards/TARGET_REGISTRY.md) และ [`QR_ASSET_HISTORY.md`](docs/standards/QR_ASSET_HISTORY.md) พร้อมอัปเดตลิงก์ใน [`docs/INDEX.md`](docs/INDEX.md)
-25: - **05:44 +07:00 | FEAT:** Apply Target Registry migration externally without error, add QR lookup route [`GET()`](app/api/qr/lookup/route.js:10), add target-aware template resolver [`getTemplatesForTarget()`](app/actions/checklist-template.js:15), and reduce checklist creation dependency on static template registry in [`app/dashboard/checklist/page.js`](app/dashboard/checklist/page.js)
-26: - **05:28 +07:00 | FEAT:** เพิ่ม Target Registry foundation route `/dashboard/settings/target-registry` พร้อม server actions `app/actions/target.js` สำหรับอ่าน/บันทึก `checklist_targets` และ `checklist_target_groups`; ตรวจ Supabase แล้วพบว่ายังไม่มีตาราง Target Registry จริง จึงปรับ TODO กลับเป็นต้อง apply migration ก่อนใช้งานจริง
-27: - **05:07 +07:00 | DOC:** ตรวจสอบและอัปเดต `docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md` ให้สะท้อนสถานะล่าสุดเป็น `PARTIALLY IMPLEMENTED` โดยแยกส่วนที่เสร็จแล้ว (`Checklist Template Builder`, `Procedure Plan Editor`, optional photo geolocation และ layout hardening) ออกจากงานที่ยังรอดำเนินการ (`Target Registry + QR Asset History` และ static template dependency reduction)
-28: - **04:52 +07:00 | DOC:** สร้างมาตรฐาน `UI_LAYOUT_SPACING_REMEDIATION.md` สำหรับตรวจและแก้ปัญหา layout ชิดขอบ, card/object ติดกัน, spacing หาย, card ซ้อน และ Tailwind utility ไม่เสถียร พร้อมอัปเดตลิงก์ใน `docs/INDEX.md`
-29: - **04:47 +07:00 | UI:** แก้ระยะห่างระหว่าง section `General` และ `Type` ใน `Checklist Template Builder` โดยเปลี่ยน wrapper ของ `TemplateForm` จาก Tailwind `space-y-6` เป็น `.template-form-stack` ที่ใช้ CSS explicit `display: grid; gap: 28px` เพื่อให้ card spacing คงที่เหมือน section อื่น
-30: - **04:45 +07:00 | UI:** แก้ `Standards Snapshot` ใน `/dashboard/settings/checklist-template-builder` เพิ่ม `.template-builder-snapshot-card` ที่กำหนด padding/border/shadow ด้วย CSS explicit แทน Tailwind `p-7` เพื่อแก้อาการ heading และ content กินขอบ card หลังตรวจจาก screenshot จริง
-31: - **09:30 +07:00 | PLAN:** Created TASK-001 and TASK-002 markdowns for Checklist Template Builder UI/UX and QR‑scan navigation behavior.
-32: - **22:14 +07:00 | DOC:** Created migration script `scripts/migration_target_registry.sql` for Target Registry tables and schema extensions.
-````
-
-## File: docs/history/project_summary.md
-````markdown
- 1: # 🏛️ DOWA IT System - Project Summary
- 2: 
- 3: เอกสารฉบับนี้เป็นรายงานสรุปโครงสร้างสถาปัตยกรรมและรายละเอียดโฟลเดอร์ระบบ **DOWA IT System** จากการตรวจสอบโค้ดจริง มาตรฐาน และความสัมพันธ์ระหว่างระบบ โดยจัดทำเป็นคู่มือภาพรวมเพื่อความเข้าใจในการพัฒนาต่อยอด UAT และการตรวจสอบประวัติระบบ (Audit Trail)
- 4: 
- 5: ---
- 6: 
- 7: ## 🚀 1. ข้อมูลและสแต็กเทคโนโลยี (Technology Stack)
- 8: 
- 9: ระบบ **DOWA IT System** เป็นเว็บแอปพลิเคชันเกรดพรีเมียมระดับองค์กร (Enterprise Application) ที่ถูกออกแบบมาเพื่อจัดการกระบวนการทำงานด้านไอทีขององค์กร DOWA THT แบบมีธรรมาภิบาลและความปลอดภัยระดับสูงสุด
-10: 
-11: *   **Core Framework:** [Next.js 15 (App Router)](file:///c:/Users/Lenovo/dowa-it-system/app)
-12: *   **Design & UI System:** Tailwind CSS v4 ร่วมกับ CSS Explicit เกรดพรีเมียม (ดีไซน์ Glassmorphism รองรับ Multi-Device อย่างสมบูรณ์แบบตามมาตรฐาน [UI_UX_RESPONSIVE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_RESPONSIVE.md))
-13: *   **Database Management:** Supabase (PostgreSQL)
-14: *   **Authentication & Security:** Supabase Auth + Microsoft 365 SSO + Local Password + Double-Lock **6-digit PIN System** (เก็บความลับแบบ Bcrypt Hash ภายใต้ตาราง `user_profiles`)
-15: *   **Transactional Engine:** Server Actions (Next.js) แยกการประมวลผล Logic ออกจาก Client-side อย่างเป็นรูปธรรมเพื่อความปลอดภัยของสิทธิ์
-16: *   **Automated Verification:** ระบบทดสอบอัตโนมัติ [tests/](file:///c:/Users/Lenovo/dowa-it-system/tests) สำหรับการยืนยันผลระบบ (npm test)
-17: 
-18: ---
-19: 
-20: ## 🧠 2. สถาปัตยกรรมโมดูลหลัก (Core Modules & Engines)
-21: 
-22: ระบบถูกออกแบบโดยยึดความเสถียรและมาตรฐานของตารางข้อมูลเป็นหลัก โดยประกอบด้วย Engine สำคัญ 5 ส่วน:
-23: 
-24: ```mermaid
-25: graph TD
-26:     A["Identity & Security (RBAC/PIN)"] --> B["Unified Workflow Engine"]
-27:     C["IT Checklist Engine (Target Master)"] --> B
-28:     D["Incident Management"] --> B
-29:     B --> E["document_approvals (Transactional Store)"]
-30:     E --> F["Global Dashboard & SLA Reports"]
-31: ```
-32: 
-33: ### 1) Identity & Security (ระบบสิทธิ์และความปลอดภัยแบบรวมศูนย์)
-34: *   **Source of Truth:** ตาราง `user_profiles` ร่วมกับตาราง `user_whitelist`
-35: *   **ระดับของสิทธิ์ (RBAC):** มี 5 บทบาทหลัก ได้แก่ `admin`, `it_staff`, `approver`, `employee`, และ `auditor`
-36: *   **ความปลอดภัย:**
-37:     *   การทำกิจกรรมสำคัญ (เช่น อนุมัติเบิก/อนุมัติปิดเคส) ต้องผ่านการกรอก PIN 6 หลักที่ผ่านการเข้ารหัส Bcrypt
-38:     *   มีระบบ Lockout เมื่อกด PIN ผิดเกิน 5 ครั้งจะถูกระงับสิทธิ์ชั่วคราว 30 นาที
-39:     *   ระบบการลงนามแทน (Remote Approval) หาก Admin/IT ได้รับการยืนยัน PIN จากผู้อนุมัติจริง
-40: 
-41: ### 2) Unified Workflow Engine (ระบบการทำงานแบบอนุมัติร่วม)
-42: *   **จุดประสงค์:** จัดการลำดับขั้นและสิทธิ์การลงนามเซ็นเอกสารของทุกตารางในระบบ
-43: *   **ฐานข้อมูล:** ตาราง `document_approvals` (เก็บขั้นตอนการเซ็นและประวัติการลงนาม)
-44: *   **Logic การประมวลผล:** [workflow.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) ตรวจสิทธิ์และสร้าง Sequence การอนุมัติอัตโนมัติตามประเภทเอกสาร
-45: 
-46: ### 3) Incident Management Module (ระบบจัดการเหตุการณ์และปัญหาไอที)
-47: *   **จุดประสงค์:** ตรวจสอบกระบวนการตั้งแต่การรับแจ้งเหตุขัดข้อง จนกระทั่งแก้ไขและปิดงาน
-48: *   **Logic การประมวลผล:** [incidents.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/incidents.js) ควบคุมการยอมรับงานด้วยสิทธิ์ `it_staff` และการมอบหมายงานด้วยสิทธิ์ `admin` ตามหลักการตรวจสอบความถูกต้องด้านความปลอดภัย (Audit-Safe Workflow)
-49: *   **SLA Engine:** คำนวณระยะเวลาแก้ไขปัญหาแบบวินาทีต่อวินาที โดยอ้างอิงและหักออกด้วยปฏิทินวันหยุดประจำปี ([holidays](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/settings/holidays/page.js)) และเวลาปิดทำการขององค์กรจริง ผ่าน [slaUtils.js](file:///c:/Users/Lenovo/dowa-it-system/lib/slaUtils.js)
-50: 
-51: ### 4) IT Checklist Engine & Target Registry (ระบบเช็คลิสต์และบันทึกรายอุปกรณ์)
-52: *   **จุดประสงค์:** ควบคุมการทำความสะอาด ตรวจเช็ค และบำรุงรักษาอุปกรณ์ทางไอทีในระดับรายอุปกรณ์
-53: *   **ความสามารถหลัก:**
-54:     *   **Stable Point-Identity:** การเก็บข้อมูลประวัติตรวจรายข้อด้วย ID (Snapshot-First) แทนการอ้างอิงตำแหน่ง Array ช่วยรักษาประวัติย้อนหลังได้ยาวนาน
-55:     *   **QR Deep-Linking:** สแกน QR Code แล้วสามารถนำทางพาเจ้าหน้าที่เข้าไปทำแบบทดสอบหรือตรวจสอบประวัติเครื่องในหน้าจอประวัติอุปกรณ์ได้ทันที
-56:     *   **Dual-Write Architecture:** การจัดเก็บภาพหลักฐานคู่ขนานรองรับทั้งโครงสร้างข้อมูลใหม่และเก่าสำหรับช่วงการนำร่อง UAT
-57:     *   **Photo Geolocation:** สนับสนุนการเปิดใช้ตำแหน่งพิกัด GPS อัตโนมัติร่วมกับภาพถ่ายหลักฐานเพื่อการตรวจสอบความสัตย์จริงในการลงพื้นที่
-58: 
-59: ### 5) Global Dashboard & Reporting (หน้าจอรายงานผลสัมฤทธิ์)
-60: *   คำนวณและแสดงปริมาณงานรวมที่ผู้ใช้ค้างอนุมัติผ่าน Badge ด้านบนระบบ
-61: *   แสดงผล SLA ประจำเคสและค่า KPI ของศูนย์ไอทีแบบเรียลไทม์
-62: 
-63: ---
-64: 
-65: ## 📂 3. รายละเอียดและข้อมูลของ Root Folder ทั้งหมด
-66: 
-67: จากการตรวจสอบโครงสร้างที่จัดเก็บไฟล์ของโปรเจกต์ มีความหมายและการจัดเก็บข้อมูลดังต่อไปนี้:
-68: 
-69: | ชื่อโฟลเดอร์หลัก (Root Folder) | หน้าที่และประเภทข้อมูลที่จัดเก็บ |
-70: | :--- | :--- |
-71: | **[app/](file:///c:/Users/Lenovo/dowa-it-system/app)** | **Next.js App Router Core:** รวบรวมสถาปัตยกรรมการเปลี่ยนหน้าและกระบวนการประมวลผลเบื้องหลังทั้งหมด<br>• `actions/` – โค้ด Server Actions สำหรับ Logic การทำงานกับฐานข้อมูล เช่น workflow, incident, target<br>• `dashboard/` – ส่วนระบบหลังบ้านของผู้ใช้ที่ล็อกอิน (incidents, checklist, settings)<br>• `api/` – จุดสิ้นสุด API สำหรับ QR code lookup และการสื่อสารข้อมูลภายนอก<br>• `auth/`, `onboarding/`, `reset-pin/` – ระบบการระบุตัวตนและตั้งค่าความปลอดภัยบัญชี |
-72: | **[components/](file:///c:/Users/Lenovo/dowa-it-system/components)** | **UI Shared Components:** เก็บองค์ประกอบหน้าจอที่ใช้ซ้ำเพื่อรักษาเอกภาพของดีไซน์พรีเมียม<br>• `workflow/` – กล่องป๊อปอัปอนุมัติ UnifiedApprovalModal, แถบความคืบหน้า WorkflowProgressBar<br>• `DashboardHeader.js` – แถบหัวระบบสำหรับแสดงจำนวนงานและโปรไฟล์ผู้ใช้ |
-73: | **[lib/](file:///c:/Users/Lenovo/dowa-it-system/lib)** | **Core Logic & Libraries:** เก็บโมดูลประมวลผลที่เกี่ยวข้องกับตรรกะทางธุรกิจที่ปราศจากโค้ด UI<br>• `slaUtils.js` – ระบบประเมินวันทำงานและคำนวณเวลา SLA ตามปฏิทินจริง<br>• `noSeries.js` – ระบบสร้างเลขที่เอกสารความปลอดภัยสูง<br>• `checklistTemplateValidation.js` – ระบบยืนยันข้อมูลความเข้ากันได้ของโครงสร้างเทมเพลต<br>• `supabaseServer.js` – การเชื่อมโยงฝั่งเซิร์ฟเวอร์แบบจำกัดสิทธิ์ความปลอดภัยสูงสุด |
-74: | **[docs/](file:///c:/Users/Lenovo/dowa-it-system/docs)** | **Project Documentation Index:** คลังความรู้มาตรฐานและประวัติการพัฒนาโครงการ<br>• `standards/` – เอกสารความต้องการเชิงพัฒนาของ Agent และโครงสร้างระบบ (ZERO_HACK, UI_UX_SETTINGS)<br>• `history/` – บันทึกสรุปงานค้าง แผนการพัฒนา และบันทึกประวัติการเปลี่ยนแปลงรายวัน (CHANGELOG)<br>• `manuals/` – คู่มือช่วยเหลือผู้ใช้และแผนนำข้อมูล UAT เข้าสู่ระบบ |
-75: | **[supabase/](file:///c:/Users/Lenovo/dowa-it-system/supabase)** | **Supabase Configuration:** ไฟล์การอัปเดตและเก็บประวัติทางโครงสร้างตารางและนโยบายความปลอดภัยฐานข้อมูล<br>• `migrations/` – ลำดับสคริปต์ SQL ที่ใช้เปิดโครงตารางและระบบนโยบายล็อกระดับแถว (RLS Policies) |
-76: | **[scripts/](file:///c:/Users/Lenovo/dowa-it-system/scripts)** | **Database Scripts:** สำหรับการ Migration ข้อมูล และสคริปต์ช่วยเหลือนักพัฒนาในการตั้งค่าสิทธิ์หรือจำลองข้อมูลทดสอบ (เช่น การนำร่อง seed ข้อมูล UAT) |
-77: | **[scratch/](file:///c:/Users/Lenovo/dowa-it-system/scratch)** | **Development Workspace:** โฟลเดอร์รวมไฟล์ตรวจสอบตัวแปร เช็คค่าฐานข้อมูล และรันแก้ไขข้อผิดพลาดเร่งด่วนโดยนักพัฒนา ซึ่งจะไม่ส่งผลกระทบต่อคุณภาพของซอร์สโค้ดหลัก |
-78: | **[tests/](file:///c:/Users/Lenovo/dowa-it-system/tests)** | **Automated Testing Suites:** สำหรับเก็บบททดสอบการทำงานของ REST API, Target Registry, และ Logic การคำนวณเวลา เพื่อเป็นเกณฑ์ป้องกันการพังของระบบตามกฎ Pre-delivery Test |
-79: | **[ai-tasks/](file:///c:/Users/Lenovo/dowa-it-system/ai-tasks)** | **AI Collaboration Workflow:** จุดแลกเปลี่ยนสเปกงานระหว่าง Smart AI และ Fast AI |
-80: | **[public/](file:///c:/Users/Lenovo/dowa-it-system/public)** | **Static Assets:** ภาพประกอบ ไอคอน และโลโก้องค์กร DOWA |
-81: 
-82: ---
-83: 
-84: ## 🔄 4. รายงานงานค้างและขั้นตอนการพัฒนาถัดไป (UAT Reminder)
-85: 
-86: จากการสแกนความต้องการทางระบบล่าสุด มีสถานะงานที่จำเป็นต้องนำเสนอแด่ USER ดังนี้ครับ:
-87: 
-88: > [!IMPORTANT]
-89: > **การดำเนินการถัดไปเพื่อนำระบบเข้าสู่ UAT:**
-90: > 1.  **Review คู่มือการ Seed ข้อมูล UAT:** USER ควรศึกษาลำดับแผนงานในเอกสาร [TARGET_REGISTRY_UAT_SEED_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md)
-91: > 2.  **การยืนยันการนำเข้าข้อมูลจำลอง:** รันคำสั่ง SQL ใน [seed_target_registry_uat.sql](file:///c:/Users/Lenovo/dowa-it-system/scripts/seed_target_registry_uat.sql) เพื่อสถาปนาข้อมูลอุปกรณ์ CCTV Terminal Box ตัวอย่างในการทดสอบสแกน QR และเช็คประวัติจริง
-92: > 3.  **ความปลอดภัย:** หากเกิดความเสียหาย สามารถทำการดึงสคริปต์ [rollback_seed_target_registry_uat.sql](file:///c:/Users/Lenovo/dowa-it-system/scripts/rollback_seed_target_registry_uat.sql) มาลบตารางข้อมูลที่เกินมาได้อย่างรวดเร็ว
-93: 
-94: ---
-95: 
-96: จัดทำโดย **Antigravity (AI Coding Partner)**
-97: *วันที่ 17 พฤษภาคม 2569 (11:20 น.)*
-````
-
 ## File: jsconfig.json
 ````json
 1: {
@@ -2085,9 +1912,127 @@ supabase/migrations/add_rls_policies.sql
 6: export default nextConfig;
 ````
 
+## File: README.md
+````markdown
+ 1: <<<<<<< HEAD
+ 2: This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+ 3: 
+ 4: ## Getting Started
+ 5: 
+ 6: First, run the development server:
+ 7: 
+ 8: ```bash
+ 9: npm run dev
+10: # or
+11: yarn dev
+12: # or
+13: pnpm dev
+14: # or
+15: bun dev
+16: ```
+17: 
+18: Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+19: 
+20: You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+21: 
+22: This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+23: 
+24: ## Learn More
+25: 
+26: To learn more about Next.js, take a look at the following resources:
+27: 
+28: - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+29: - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+30: 
+31: You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+32: 
+33: ## Deploy on Vercel
+34: 
+35: The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+36: 
+37: Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+38: =======
+39: # dowa-it-system
+40: >>>>>>> 26a41bb7e27f080ebed3b42d5eabccb15741257e
+````
+
 ## File: schema.sql
 ````sql
 1: 
+````
+
+## File: .cursorrules
+````
+ 1: # AI Coding Assistant Rules (.cursorrules)
+ 2: 
+ 3: This file instructs AI coding assistants (including Google Jules, Cursor, Windsurf, and Copilot) on how to behave in this repository.
+ 4: 
+ 5: ## 📖 Mandatory Agent Instructions
+ 6: You must strictly align with the unified system rules defined in the following files:
+ 7: 1. **Unified Architecture & Rules**: Read [AGENTS.md](file:///c:/Users/Lenovo/dowa-it-system/AGENTS.md)
+ 8: 2. **Specific Jules Guidelines**: Read [.julesrules](file:///c:/Users/Lenovo/dowa-it-system/.julesrules)
+ 9: 3. **Project Map & Directory Register**: Read [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md)
+10: 4. **Current System Architecture**: Read [docs/standards/SYSTEM_ARCHITECTURE_MAP.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SYSTEM_ARCHITECTURE_MAP.md)
+11: 
+12: ## 🛡️ Critical Reminders
+13: - Strictly check and comply with Supabase RLS and Security boundaries.
+14: - Never write Server Action logic outside of `app/actions/`.
+15: - Ensure dual-write/single-write transactional integrity when editing incidents or approvals.
+16: - Run `npm test` before concluding your task.
+17: - Update [docs/history/CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md) with Thai description and a precise timestamp.
+````
+
+## File: .julesrules
+````
+ 1: # 🤖 Google Jules Developer Rules (.julesrules)
+ 2: 
+ 3: Welcome, Jules! You are working as an autonomous coding agent on the **DOWA IT System** project. 
+ 4: To ensure architectural integrity, safety, and compatibility, you **MUST** strictly follow the guidelines below.
+ 5: 
+ 6: ---
+ 7: 
+ 8: ## 🏛️ 1. Core Stack & Architecture Rules
+ 9: - **Framework**: Next.js 15 App Router (Strictly **NO** Pages Router).
+10: - **Styling**: Tailwind CSS v4. Use [lib/cn.js](file:///c:/Users/Lenovo/dowa-it-system/lib/cn.js) (`clsx` + `tailwind-merge`) for all class merging.
+11: - **Database & Auth**: Supabase. Use SSR client (`supabaseServer.js`) for Server Components and Server Actions. **NEVER** use browser client inside Server Components.
+12: - **TypeScript**: Strict Mode. Avoid using `any` unless absolutely necessary. Use generated types from `supabase_types.ts`.
+13: 
+14: ---
+15: 
+16: ## 📂 2. File & Directory Conventions
+17: You must keep the codebase clean and maintain strict boundary controls:
+18: - **Server Actions**: Store business logic in `app/actions/` using `verbNoun` naming (e.g., `createIncident`, `resolveIncident`).
+19: - **Pages & UI**: Define routes in `app/dashboard/[module]/[sub-path]/page.js`.
+20: - **Shared Components**: PascalCase in `components/` (e.g., `UnifiedApprovalModal.js`).
+21: - **Database Migrations**: Add all schema changes in `supabase/migrations/`. **NEVER** run direct SQL in production without migrations.
+22: - **Documentation**: All Markdown files must reside in:
+23:   - `docs/standards/` (Development regulations and technical standards)
+24:   - `docs/history/` (Changelog and audit logs)
+25:   - `docs/manuals/` (Guides and manual logs)
+26:   - **Rule**: Any new markdown files **MUST** be registered in [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) immediately! No `.md` files at the root level except `AGENTS.md`.
+27: 
+28: ---
+29: 
+30: ## 🛡️ 3. Security & Critical Boundaries (MANDATORY)
+31: Zero-Trust architecture is strictly enforced:
+32: - **No Client service_role**: Never expose or use the `service_role` key on the client-side or in insecure Server Components.
+33: - **No RLS Bypass**: Do not write queries that bypass Supabase Row Level Security (RLS) policies.
+34: - **PIN Verification**: The 6-digit Bcrypt PIN system is highly critical. Never modify or bypass it.
+35: - **Unified Approvals**: Every approval operation must run through `app/actions/workflow.js`. Do not write isolated approval logic.
+36: - **Role-Based Access (RBAC)**: Respect role permissions (`administrator`, `supervisor`, `approval`, `guest`). Use `normalizeRole()` to handle roles safely.
+37: 
+38: ---
+39: 
+40: ## ⚙️ 4. Development Workflow & Verification
+41: Before submitting a PR or declaring a task complete:
+42: 1. **Evidence-Based Verification**: When asked to verify logic, inspect the actual file contents (using code viewers/greppers) and cite `filename:line` references. Never answer from training memory.
+43: 2. **Pre-delivery Test**: You **MUST** run `npm test` locally to ensure 100% test completion. If any test fails, you must resolve it before presenting the solution.
+44: 3. **Dev Server Safety**: When running `npm run dev`, verify port 3000 using `netstat -ano | findstr :3000` and kill only that specific PID rather than killing `node.exe` globally.
+45: 4. **Update Changelog**: Register your changes in [docs/history/CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md) at the end of the day or task. Include a detailed Thai language summary and exact timestamp (e.g., `13:00 +07:00 | MODULE: Description`).
+46: 
+47: ---
+48: 
+49: *Thank you for collaborating! Let's build a premium, reliable IT checklist & incident management system.*
 ````
 
 ## File: ai-tasks/tasks/Checklist_Template_Builder_001.md
@@ -9790,6 +9735,86 @@ supabase/migrations/add_rls_policies.sql
 136: - **Standards Sync**: อัปเดต `INCIDENT_MANAGEMENT.md` และ `PERMISSIONS.md` ให้สะท้อนมาตรฐาน Accept/Dispatch ใหม่
 ````
 
+## File: docs/history/archive/CHANGELOG_2026_05_14.md
+````markdown
+ 1: # 🕒 ประวัติการเปลี่ยนแปลง (Change Logs) - Archive 2026-05-14
+ 2: 
+ 3: ### 14-May-2026
+ 4: - **17:34 +07:00 | UI:** ปรับ `Live Preview` และ `Standards Snapshot` ใน `/dashboard/settings/checklist-template-builder` ให้ใช้ visual pattern เดียวกับ `Template behavior` โดยใช้โครง outer card + config box + inner row/card ที่มี padding/gap ชัดเจน แทนดีไซน์ preview/snapshot แยกชุดที่ดูเละและไม่เข้าระบบ
+ 5: - **20:44 +07:00 | UI:** ปรับ polish ของ `Live Preview` และ `Standards Snapshot` ใน `/dashboard/settings/checklist-template-builder` ให้ลดอาการกล่องซ้อนและน้ำหนักภาพหนักเกินไป โดยตัดกรอบ hero ชั้นในของ preview และเปลี่ยน snapshot items เป็นแถบข้อมูลที่เบากว่าเดิม
+ 6: - **20:42 +07:00 | UI:** ปรับ padding ของ `Standards Snapshot` ใน `/dashboard/settings/checklist-template-builder` อีกครั้งโดยเพิ่ม inner frame ครอบทั้ง heading และ grid เพื่อแก้อาการ section title/contents กินขอบของ card หลัก
+ 7: - **20:39 +07:00 | UI:** ตัด inner shell ของ `Standards Snapshot` ใน `/dashboard/settings/checklist-template-builder` ออก เพื่อแก้อาการกล่องซ้อน 2 ชั้น และคง spacing ด้วยกรอบหลักเพียงชั้นเดียว
+ 8: - **20:36 +07:00 | UI:** แยก flow ของ `Checklist Master Data` กับ `Checklist Template Builder` ให้ชัดเจน โดยเปลี่ยนปุ่ม header เป็น `สร้าง Template ใหม่`, ถอด quick-create inline form ของ `Checklist Master`, และให้ปุ่ม `✏️` รายการพาไป `mode=edit&templateId=...` แทน inline edit ที่แก้ได้ไม่ครบ
+ 9: - **20:36 +07:00 | UI:** ปรับ `/dashboard/settings/checklist-template-builder` ให้รองรับ `mode=create` และ `mode=edit` แบบ focused workflow โดยซ่อน library ในโหมดเจาะจง, ปรับ heading/subtitle ตามบริบท, และบังคับ create/edit page ไม่ให้สื่อเป็นโหมดสร้างอย่างเดียวเมื่อเข้ามาแก้รายการ
+10: - **20:29 +07:00 | UI:** ปรับ `Execution Preview` ของ `/dashboard/settings/procedure-plan-editor` เพิ่ม preview shell, ขยาย padding/gap ของ step cards และเพิ่ม spacing ของ title/meta/instruction เพื่อแก้อาการรายการ preview ชิดขอบและแน่นเกินไป
+11: - **20:26 +07:00 | UI:** ปรับ `Standards Snapshot` ของ `/dashboard/settings/checklist-template-builder` เพิ่ม outer snapshot shell, ขยาย gap ระหว่างการ์ด และเพิ่ม padding/line-height ของแต่ละ snapshot item เพื่อแก้อาการ card ชิดกันและ text แน่นเกินไป
+12: - **20:24 +07:00 | UI:** ปรับ `TemplatePreview` ของ `/dashboard/settings/checklist-template-builder` เพิ่ม explicit inner container spacing สำหรับ `Live Preview` โดยขยาย hero padding, แยก copy/panel layer, เพิ่ม gap ของ metadata block และเพิ่ม padding ของ preview lines เพื่อแก้อาการ label/text ดูชิดขอบในก้อน `ตรวจสอบ M365 Service Health`
+13: - **20:10 +07:00 | UI:** ปรับ layout ของ `/dashboard/settings/checklist-template-builder` และ `/dashboard/settings/procedure-plan-editor` ให้เลิกบีบ 3 คอลัมน์บนพื้นที่แคบ พร้อมแก้ปุ่ม `กลับหน้า Master Data` ให้ย้อนเข้าแท็บ `Checklist Master` และ `Procedure Plans` ได้ถูกต้อง
+14: - **20:10 +07:00 | DOC:** เพิ่มเอกสาร [IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md) และอัปเดต `docs/INDEX.md`, `docs/history/USER_TASKS.md`
+15: - **16:21 +07:00 | UI:** เก็บ spacing pass ครบทุก section ของ `Checklist Template Builder` และ `Procedure Plan Editor` โดยขยาย inner padding/line-height ของ sidebar items, preview cards, และ standards snapshot เพื่อแก้อาการ text ชิด border และ card ดูติดกัน
+16: - **16:22 +07:00 | UI:** ปรับ `Procedure Plan Editor` ตาม pattern `Workflow Builder` ให้เปลี่ยนจากฟอร์มยาวทั้งหน้าเป็น `step list + detail editor` แบบ 2-pane ภายใน เพื่อลดการไถลึกและทำให้ actions อยู่ใกล้ step ที่กำลังแก้
+17: - **16:09 +07:00 | UI:** ปรับ body layout ของ `/dashboard/settings/checklist-template-builder` และ `/dashboard/settings/procedure-plan-editor` ต่อจาก header โดยขยาย form card, label spacing, input/textarea height, step card spacing, preview typography และ action buttons ให้สอดคล้องกับ Settings Design System มากขึ้น
+18: - **15:54 +07:00 | UI:** แก้ layout ของ `/dashboard/settings/checklist-template-builder` และ `/dashboard/settings/procedure-plan-editor` ใหม่อีกครั้งโดยตัดโหมด 3 คอลัมน์ออก, ล็อกหน้าให้เป็น 2-pane (Library + Editor), ย้าย preview ไปอยู่ใต้ editor ฝั่งขวา และคงลิงก์ `กลับหน้า Master Data` ให้ย้อนเข้าแท็บ `Checklist Master` / `Procedure Plans` ตามเดิม
+19: - **19:42 +07:00 | FEAT:** เพิ่ม route ใหม่ `/dashboard/settings/procedure-plan-editor` พร้อม editor สำหรับ `checklist_procedure_plans`, รองรับ add/remove/reorder step, `step_type`, `required`, `evidence_rule` และ server-side save flow ผ่าน `app/actions/procedure-plan.js`
+20: - **19:42 +07:00 | FEAT:** ปรับ `ProcedureTemplate` ใน `app/dashboard/checklist/[id]/page.js` ให้รองรับ step object จาก `checklist_procedure_plans.steps.rows[]` และ render `title`/`instruction` ได้ตรงกับ schema ใหม่
+21: - **19:42 +07:00 | DOC:** อัปเดต `docs/standards/DOCUMENT_MAPPING_STANDARD.md` และ `docs/history/USER_TASKS.md` ให้สะท้อน Procedure Plan Editor ที่ implement แล้ว
+22: - **19:05 +07:00 | FEAT:** เพิ่ม route ใหม่ `/dashboard/settings/checklist-template-builder` พร้อม UI แบบ standalone สำหรับแก้ `checklist_templates`, Template Library search, live preview, และ server-side save flow ผ่าน `app/actions/checklist-template.js`
+23: - **19:05 +07:00 | DOC:** อัปเดต `docs/standards/DOCUMENT_MAPPING_STANDARD.md`, `docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md`, และ `docs/history/USER_TASKS.md` ให้สะท้อน Checklist Template Builder ที่ implement แล้ว
+24: - **13:31 +07:00 | DOC:** เปลี่ยนชื่อไฟล์งานใน `ai-tasks/tasks/` จากรูปแบบ `TASK-001.md` เป็นรูปแบบ `ชื่องาน + ลำดับ` ได้แก่ `Checklist_Template_Builder_001.md`, `QR_Scan_Navigation_002.md`, `Photo_Evidence_Geolocation_003.md` และอัปเดต reference ที่เกี่ยวข้องใน `AGENTS.md` และเอกสารแผน
+25: - **13:11 +07:00 | FEAT:** ดำเนินการ `TASK-003` สำหรับ Optional Geolocation ของ `Photo Evidence` โดยปรับ `app/dashboard/checklist/[id]/page.js` ให้มี switch `Attach Location`, ขอสิทธิ์ browser geolocation ตอนอัปโหลด และเก็บ metadata พิกัดไว้ใน `checklist_items.template_data.photo_meta` ตามสถาปัตยกรรมจริงของระบบ
+26: - **13:11 +07:00 | PLAN:** จัดทำเอกสาร [IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md) สำหรับยกระดับ `Checklist Template Master` ให้เป็น Template Builder, เพิ่ม `Procedure Plan Editor` และออกแบบ `Asset History / QR` สำหรับงานตรวจรายอุปกรณ์ เช่น `CCTV Terminal Box`
+27: - **11:15 +07:00 | UI:** ปรับ responsive/vertical layout ของ `Incident Master Data`, `Checklist Categories` และ `Account Management` โดยแก้ `app/dashboard/settings/_components/MasterDataScope.js` และ `app/dashboard/settings/users/page.js` ให้ stack แนวตั้งสวยขึ้นบนจอ portrait/mobile พร้อมเก็บ hook lint ให้ผ่านมาตรฐานโปรเจกต์
+28: - **11:08 +07:00 | UI:** ปรับปรุงหน้า `Working Hours & SLA` ใน `app/dashboard/settings/working-hours/page.js` ให้เป็น premium settings layout พร้อม summary cards, working-day selector แบบ card, SLA target panels, policy snapshot และ guide modal ที่อ่านง่ายขึ้น โดยไม่เปลี่ยน logic การบันทึก `working_hours`
+29: - **10:59 +07:00 | UI:** ยกระดับดีไซน์หน้า `Holidays Calendar` ใน `app/dashboard/settings/holidays/page.js` ด้วย summary cards, calendar surface แบบ premium, year cards, annual insights และ action dock ใหม่ โดยคง workflow Add/Edit/Delete/Import เดิมไว้
+30: - **10:41 +07:00 | CHORE:** เพิ่มกฎ `[DEV SERVER SAFETY]` ใน [AGENTS.md](file:///c:/Users/Lenovo/dowa-it-system/AGENTS.md) เพื่อบังคับให้ Agent รัน `taskkill /F /IM node.exe` ก่อนเริ่ม `localhost` เพื่อป้องกันปัญหา Port Lock และเครื่องค้าง
+31: - **08:19 +07:00 | CHORE:** ปรับโครงสร้างหน้า `Holidays` เพิ่ม lint guard เฉพาะจุด mount-fetch (`useEffect`) เพื่อให้สอดคล้องกับกฎ hook lint ใหม่ในสภาพโค้ดปัจจุบัน
+32: - **08:08 +07:00 | FEAT:** ปรับหน้า `Holidays` จากตารางเป็นปฏิทินรายปี/รายเดือน พร้อม Month Calendar, Year Summary และดึง `working_hours.work_days` มาแสดงสถานะ Work/Off ในแต่ละวัน
+33: - **06:09 +07:00 | PLAN:** สร้าง Remediation Task Files สำหรับ Settings Audit จำนวน 3 งาน (`TASK-001` Guide Coverage, `TASK-002` Audit Logs Mobile Table, `TASK-003` RLS Verification) และอัปเดต `USER_TASKS.md` เป็น Pending
+34: - **06:22 +07:00 | EXECUTE:** ปรับปรุง `MasterDataScope.js` เพื่อเพิ่มการรองรับ Guide Button และ Premium Table Wrapper (Horizontal Scroll) สำหรับโมดูล Settings ที่ใช้ MasterDataStandalonePage
+35: - **UI:** แก้ไข `holidays/page.js` เพื่อปรับ z-index ของ Guide Modal เป็น 3000 ให้สอดคล้องกับมาตรฐานระบบ
+36: - **SECURITY:** ตรวจสอบความถูกต้องของ RLS Policies สำหรับ `holidays` และ `checklist_procedure_plans` พบว่ามีนโยบายควบคุมการเข้าถึงที่ถูกต้องแล้ว
+37: - **SUMMARY:** ปิดงาน Settings Audit Remediation (`TASK-001`, `TASK-002`, `TASK-003`) สำเร็จ พร้อมอัปเดต [SCAN_SUMMARY_SETTINGS_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/SCAN_SUMMARY_SETTINGS_AUDIT.md) และ [USER_TASKS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/USER_TASKS.md)
+38: - **AUDIT:** เสร็จสิ้นการตรวจสอบโมดูล Settings ทั้ง 13 ส่วนย่อย [SCAN_SUMMARY_SETTINGS_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/SCAN_SUMMARY_SETTINGS_AUDIT.md)
+39: - **DOC:** อัปเดต [INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) เพื่อเชื่อมโยงรายงานผลการตรวจสอบ
+40: - **STATUS:** ยืนยันโครงสร้าง Standalone Route Architecture สมบูรณ์ 100%
+````
+
+## File: docs/history/archive/CHANGELOG_2026_05_15.md
+````markdown
+ 1: # 🕒 ประวัติการเปลี่ยนแปลง (Change Logs) - Archive 2026-05-15
+ 2: 
+ 3: ### 15-May-2026
+ 4: - **22:45 +07:00 | FEAT:** เสร็จสิ้นการพัฒนา **Checklist Point History & QR Integration**; เพิ่มระบบ Point-Level Traceability (Snapshot-First) ใน [`app/actions/target.js`](app/actions/target.js), สร้างหน้าประวัติรายจุดแบบ Timeline ใน [`app/dashboard/checklist/targets/[targetId]/points/[pointId]`](app/dashboard/checklist/targets/[targetId]/points/[pointId]), และเพิ่มระบบ QR Resolution ที่รองรับทั้ง Asset Level และ Point Level Deep-linking ทันที
+ 5: - **22:40 +07:00 | UI/UX:** เพิ่มปุ่ม "Scan / Search QR" ในหน้าหลัก Checklist เพื่ออำนวยความสะดวกให้เจ้าหน้าที่หน้างาน เข้าถึงข้อมูลประวัติการตรวจได้รวดเร็วผ่านรหัส QR โดยตรง
+ 6: - **21:24 +07:00 | DOC:** เพิ่มเอกสารแผนละเอียด [`IMPLEMENTATION_PLAN_CHECKLIST_POINT_HISTORY_AND_PHOTO_UI.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_POINT_HISTORY_AND_PHOTO_UI.md) สำหรับให้ Fast AI ปรับปรุง UI ของ `Photo Evidence` ในหน้า checklist detail และออกแบบ point-level history / QR รายจุดแบบ snapshot-safe พร้อมอัปเดตลิงก์ใน [`docs/INDEX.md`](docs/INDEX.md)
+ 7: - **16:37 +07:00 | BUG:** แก้ปัญหาเลือก template ที่หมวดหมู่/ความถี่ซ้ำกันแล้ว React ชน `key` ใน [`CreateChecklistModal()`](app/dashboard/checklist/page.js:562) โดยเลิกใช้ [`item_key`](app/dashboard/checklist/page.js:687) เป็นตัวเลือก UI เพียงอย่างเดียว และเพิ่ม [`selection_key`](app/dashboard/checklist/page.js:650) จาก `template.id` เพื่อให้แต่ละแถวในตารางและ state การเลือกมี identity ที่ไม่ซ้ำ
+ 8: - **16:03 +07:00 | BUG:** แก้ `ReferenceError: templates is not defined` ใน [`CreateChecklistModal()`](app/dashboard/checklist/page.js:562) เพิ่มเติม โดยเพิ่ม state [`templates`](app/dashboard/checklist/page.js:567) และ loader [`useEffect()`](app/dashboard/checklist/page.js:572) ภายใน modal เอง เพราะตัว modal ใช้ `templates` สำหรับปุ่มเลือกความถี่ที่บรรทัด [`page.js:701`](app/dashboard/checklist/page.js:701)
+ 9: - **15:46 +07:00 | BUG:** แก้ runtime error `templates is not defined` ใน [`ChecklistListForm()`](app/dashboard/checklist/page.js:108) โดยเพิ่ม state [`templates`](app/dashboard/checklist/page.js:110) และโหลด `checklist_templates` จาก Supabase ใน [`useEffect()`](app/dashboard/checklist/page.js:145) เพื่อให้ filter ความถี่และ modal สร้างเอกสารใช้ source จริงได้โดยไม่อ้างตัวแปรที่ไม่มีอยู่
+10: - **14:41 +07:00 | UI/UX:** เพิ่ม save feedback dialog ใน [`ChecklistTemplateBuilderClient.js`](app/dashboard/settings/checklist-template-builder/ChecklistTemplateBuilderClient.js:52) ให้เด้ง modal หลังกด Save ทั้งกรณี success และ error พร้อมปุ่ม `รับทราบ`, ปิดด้วยปุ่ม `×`, และรองรับปุ่ม `Esc` เพื่อให้ผู้ใช้รับรู้ผลการบันทึกชัดเจนกว่าการใช้ banner อย่างเดียว
+11: - **14:26 +07:00 | BUG:** แก้ validation ของ `Checklist Template Builder` ให้รับค่าตัวเลขจาก form input string ได้ถูกต้อง โดยเปลี่ยน [`photoConfigSchema.min_photos`](lib/checklistTemplateValidation.js:23) และ [`measurementConfigSchema.decimal_places`](lib/checklistTemplateValidation.js:47) เป็น [`z.coerce.number()`](lib/checklistTemplateValidation.js:23) หลังตรวจจาก log จริงว่า [`saveChecklistTemplate()`](app/actions/checklist-template.js:117) ล้มด้วย `Invalid input: expected number, received string`
+12: - **13:56 +07:00 | UI/UX:** ปรับลดระยะห่างลงเหลือ `24px` (Icon row) และ `12px` (Title) เพื่อความกระชับ และย้าย Session Dock ให้ไปชิดมุมขวาบน (`top-5 right-5`) ของ Hero Section ในทั้ง Template Builder และ Procedure Editor
+13: - **13:53 +07:00 | UI/UX:** เพิ่มระยะห่างเป็น `60px` และใช้ inline style เพื่อบังคับ (Force) ระยะห่างระหว่าง Header กับ Icon Section ในทั้ง Template Builder และ Procedure Editor ให้ชัดเจนตามภาพหลักฐาน
+14: - **13:46 +07:00 | UI/UX:** ปรับเพิ่มระยะห่างระหว่าง Header Section (ปุ่มย้อนกลับ/Session Dock) และ Eyebrow Section (Template Editor) ใน [`ChecklistTemplateBuilderClient.js`](app/dashboard/settings/checklist-template-builder/ChecklistTemplateBuilderClient.js:476) และ [`ProcedurePlanEditorClient.js`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js:282) เพื่อความสวยงามและ visual balance ตามภาพหลักฐาน
+15: - **13:44 +07:00 | BUG/UI:** แก้ไขปัญหาการแสดงผล error message เป็น `[object Object]` ใน [`TemplateForm.js`](app/dashboard/settings/checklist-template-builder/components/TemplateForm.js:262) โดยการ refactor [`validateChecklistTemplate()`](lib/checklistTemplateValidation.js:293) ให้ทำการ flatten Zod errors เป็นแบบ single-level map และแก้ typo การวางตำแหน่ง FieldHint ของฟิลด์ `min/max` ในส่วน Measurement
+16: 
+17: - **10:33 +07:00 | UI:** ปรับ follow-up ของ [`ProcedurePlanEditorClient`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js:271) จากภาพจริง โดยเพิ่มระยะห่างระหว่างปุ่มย้อนกลับกับหัวเรื่อง, ขยาย gap ของ `step list + detail editor`, ปรับ desktop split ของ `Step Editor`, และถอด `Standards Snapshot` ออกจากหน้าหลักเพื่อลด layout noise
+18: - **08:48 +07:00 | UI/DOC:** ปรับ [`ProcedurePlanEditorClient`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js:32) และ [`ChecklistTemplateBuilderClient`](app/dashboard/settings/checklist-template-builder/ChecklistTemplateBuilderClient.js:26) ให้ลดขนาด header/session area, ทำปุ่ม `กลับหน้า Master Data` ให้เด่นขึ้น, ย้าย `Execution Preview` และ `Live Preview` ไปเป็น modal trigger พร้อมรองรับปุ่ม `Esc`, และอัปเดตสถานะใน [`IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md)
+19: - **07:56 +07:00 | DOC/SQL:** เพิ่ม rollback script [`scripts/rollback_seed_target_registry_uat.sql`](scripts/rollback_seed_target_registry_uat.sql) และ pre-execution verification checklist ใน [`docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md`](docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) พร้อมอัปเดตสถานะใน [`docs/history/USER_TASKS.md`](docs/history/USER_TASKS.md)
+20: - **07:51 +07:00 | DOC/SQL:** สร้าง [`scripts/seed_target_registry_uat.sql`](scripts/seed_target_registry_uat.sql) สำหรับ UAT seed แบบไม่ execute จริง พร้อมอัปเดต [`docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md`](docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) และ [`docs/history/USER_TASKS.md`](docs/history/USER_TASKS.md)
+21: - **07:47 +07:00 | DOC:** เพิ่ม [`docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md`](docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) เป็นแผนเตรียมข้อมูล UAT แบบไม่ insert จริง พร้อมอัปเดต [`docs/INDEX.md`](docs/INDEX.md) และ [`docs/history/USER_TASKS.md`](docs/history/USER_TASKS.md)
+22: - **07:44 +07:00 | FEAT/DOC/TEST:** refactor [`app/dashboard/checklist/targets/[id]/page.js`](app/dashboard/checklist/targets/[id]/page.js) ให้ใช้ server-side data flow ผ่าน [`getTargetAssetHistory()`](app/actions/target.js:55), harden [`GET()`](app/api/qr/lookup/route.js:12) ให้มี 400/404/500 branches ชัดเจน, เพิ่ม test coverage ใน [`tests/target-registry.test.js`](tests/target-registry.test.js) และ [`tests/qr-lookup-route.test.js`](tests/qr-lookup-route.test.js), และอัปเดตเอกสาร phase ถัดไปใน [`docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_NEXT_STEPS.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_NEXT_STEPS.md), [`docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md), [`docs/history/USER_TASKS.md`](docs/history/USER_TASKS.md)
+23: - **06:36 +07:00 | DOC/TEST:** อัปเดต [`docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_TODO.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_TODO.md), [`docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_NEXT_STEPS.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_NEXT_STEPS.md), [`docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md), และ [`docs/history/USER_TASKS.md`](docs/history/USER_TASKS.md) ให้สะท้อนว่าการ apply migration สำเร็จแล้ว, automated tests ถูกเพิ่มและผ่านผ่าน [`npm test`](package.json:10), และกำหนดแผนถัดไปสำหรับ harden หน้า [`app/dashboard/checklist/targets/[id]/page.js`](app/dashboard/checklist/targets/[id]/page.js)
+24: - **06:03 +07:00 | DOC:** เพิ่มมาตรฐาน [`TARGET_REGISTRY.md`](docs/standards/TARGET_REGISTRY.md) และ [`QR_ASSET_HISTORY.md`](docs/standards/QR_ASSET_HISTORY.md) พร้อมอัปเดตลิงก์ใน [`docs/INDEX.md`](docs/INDEX.md)
+25: - **05:44 +07:00 | FEAT:** Apply Target Registry migration externally without error, add QR lookup route [`GET()`](app/api/qr/lookup/route.js:10), add target-aware template resolver [`getTemplatesForTarget()`](app/actions/checklist-template.js:15), and reduce checklist creation dependency on static template registry in [`app/dashboard/checklist/page.js`](app/dashboard/checklist/page.js)
+26: - **05:28 +07:00 | FEAT:** เพิ่ม Target Registry foundation route `/dashboard/settings/target-registry` พร้อม server actions `app/actions/target.js` สำหรับอ่าน/บันทึก `checklist_targets` และ `checklist_target_groups`; ตรวจ Supabase แล้วพบว่ายังไม่มีตาราง Target Registry จริง จึงปรับ TODO กลับเป็นต้อง apply migration ก่อนใช้งานจริง
+27: - **05:07 +07:00 | DOC:** ตรวจสอบและอัปเดต `docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md` ให้สะท้อนสถานะล่าสุดเป็น `PARTIALLY IMPLEMENTED` โดยแยกส่วนที่เสร็จแล้ว (`Checklist Template Builder`, `Procedure Plan Editor`, optional photo geolocation และ layout hardening) ออกจากงานที่ยังรอดำเนินการ (`Target Registry + QR Asset History` และ static template dependency reduction)
+28: - **04:52 +07:00 | DOC:** สร้างมาตรฐาน `UI_LAYOUT_SPACING_REMEDIATION.md` สำหรับตรวจและแก้ปัญหา layout ชิดขอบ, card/object ติดกัน, spacing หาย, card ซ้อน และ Tailwind utility ไม่เสถียร พร้อมอัปเดตลิงก์ใน `docs/INDEX.md`
+29: - **04:47 +07:00 | UI:** แก้ระยะห่างระหว่าง section `General` และ `Type` ใน `Checklist Template Builder` โดยเปลี่ยน wrapper ของ `TemplateForm` จาก Tailwind `space-y-6` เป็น `.template-form-stack` ที่ใช้ CSS explicit `display: grid; gap: 28px` เพื่อให้ card spacing คงที่เหมือน section อื่น
+30: - **04:45 +07:00 | UI:** แก้ `Standards Snapshot` ใน `/dashboard/settings/checklist-template-builder` เพิ่ม `.template-builder-snapshot-card` ที่กำหนด padding/border/shadow ด้วย CSS explicit แทน Tailwind `p-7` เพื่อแก้อาการ heading และ content กินขอบ card หลังตรวจจาก screenshot จริง
+31: - **09:30 +07:00 | PLAN:** Created TASK-001 and TASK-002 markdowns for Checklist Template Builder UI/UX and QR‑scan navigation behavior.
+32: - **22:14 +07:00 | DOC:** Created migration script `scripts/migration_target_registry.sql` for Target Registry tables and schema extensions.
+````
+
 ## File: docs/history/archive/CHANGELOG_2026_APRIL.md
 ````markdown
  1: # Changelog Archive - April 2026
@@ -13937,6 +13962,259 @@ supabase/migrations/add_rls_policies.sql
 75: *บันทึกข้อมูลโดย AI Agent (Antigravity) เมื่อวันที่ 08-May-2026*
 ````
 
+## File: docs/history/PROJECT_SCAN_SUMMARY.md
+````markdown
+  1: # 🔍 DOWA IT System - Project Scan Summary
+  2: 
+  3: **Date:** May 2026 (Based on latest codebase analysis)
+  4: **System:** DOWA IT System (Next.js 15 + Supabase Enterprise Application)
+  5: 
+  6: ---
+  7: 
+  8: ## 1. Project Overview
+  9: 
+ 10: **Tech Stack ที่พบในระบบ:**
+ 11: *   **Core Framework:** Next.js 15 (App Router) + React 19
+ 12: *   **Styling:** Tailwind CSS v4 (ใช้ `clsx` และ `tailwind-merge` ผ่าน `lib/cn.js`)
+ 13: *   **Database & Auth:** Supabase (PostgreSQL, Supabase Auth, SSR Client)
+ 14: *   **Security:** Bcrypt (สำหรับ Hash PIN 6 หลัก), Zod (สำหรับ Data Validation)
+ 15: *   **Integrations:** Resend (ส่งอีเมล), Microsoft Graph API (อัปโหลดรูปภาพหลักฐานเข้า OneDrive)
+ 16: *   **UI Libraries:** Recharts (กราฟ Dashboard), `react-signature-canvas` (ลายเซ็นดิจิทัล)
+ 17: 
+ 18: **โครงสร้าง Folder หลัก:**
+ 19: *   `app/actions/`: ศูนย์รวม Business Logic ทั้งหมด (Server Actions) ทำงานฝั่ง Server เพื่อความปลอดภัย (Zero-Trust)
+ 20: *   `app/api/`: Route Handlers สำหรับ API ภายนอก เช่น Webhook, QR Lookup, และ Auth Callbacks
+ 21: *   `app/dashboard/`: หน้าจอ UI หลักของระบบที่ต้องผ่านการ Login แบ่งตาม Module (Incidents, Checklist, Reports, Settings)
+ 22: *   `components/`: Shared UI Components เช่น `WorkflowActionBar`, `UnifiedApprovalModal`
+ 23: *   `lib/`: Core Utilities เช่น `slaUtils.js` (คำนวณเวลา), `workflowRegistry.js` (ตั้งค่าตาราง), `supabaseAdmin.js` (Service Role Client)
+ 24: *   `docs/`: เอกสารมาตรฐานการพัฒนา (Standards), ประวัติการทำงาน (History), และคู่มือ (Manuals)
+ 25: *   `supabase/migrations/`: ไฟล์ SQL สำหรับสร้างตาราง, RLS Policies, และ RPC Functions (เช่น `handle_approval_step`)
+ 26: 
+ 27: ---
+ 28: 
+ 29: ## 2. Function Inventory
+ 30: 
+ 31: ตารางสรุป Server Actions และ Core Functions หลักที่ขับเคลื่อนระบบ:
+ 32: 
+ 33: | Function | File | Input | Output | หน้าที่ |
+ 34: | :--- | :--- | :--- | :--- | :--- |
+ 35: | `createIncident` | `app/actions/incidents.js:20` | `formData` | `{ success, docId, caseNo }` | รันเลขที่เอกสาร, สร้าง Incident, บันทึก Log |
+ 36: | `acknowledgeIncident` | `app/actions/incidents.js:108` | `id, severity, assigneeId` | `{ success, error }` | IT รับเรื่อง หรือ Admin มอบหมายงาน (Dispatch) |
+ 37: | `submitRequest` | `app/actions/workflow.js:806` | `docId, targetType, triggerKey, userEmail, ...` | `{ success, autoApproved }` | ส่งเอกสารขออนุมัติ, สร้าง Workflow Steps |
+ 38: | `submitApprovalStep` | `app/actions/workflow.js:1121` | `docId, docType, stepId, signatureData, pin, ...` | `{ success, isFinal }` | ตรวจสอบ PIN และเรียก RPC อนุมัติเอกสาร |
+ 39: | `generateWorkflowSteps` | `app/actions/workflow.js:908` | `docId, targetType, configKey, triggerKey` | `{ success, autoApproved }` | สร้างลำดับการอนุมัติจาก `workflow_configs` |
+ 40: | `onDocumentFinalApproval`| `app/actions/workflow.js:13` | `docId, docType` | `void` | Cross-module sync (เช่น ปิด Incident -> อัปเดต Checklist เป็น OK) |
+ 41: | `getSLAReportData` | `app/actions/reports.js:5` | `startDate, endDate, page` | `{ success, data, summary, settings }` | ดึงข้อมูลและคำนวณ SLA (Strict Mode) |
+ 42: | `calculateNetBusinessMinutes`| `lib/slaUtils.js:20` | `start, end, settings, holidays, exclusions` | `Number` (นาที) | คำนวณเวลาทำงานสุทธิ หักวันหยุดและนอกเวลา |
+ 43: | `unifiedLogin` | `app/actions/login.js:11` | `email, password` | `{ success, needs_onboarding, ... }` | Login ผ่าน Supabase Auth + เช็ค Whitelist |
+ 44: | `createAdminUser` | `app/actions/admin.js:34` | `email, password, full_name, role, ...` | `{ success, error }` | สร้าง User (Auth -> Whitelist -> Profile) |
+ 45: | `getTargetAssetHistory` | `app/actions/target.js:55` | `targetId` | `{ success, target, docs }` | ดึงประวัติการตรวจเช็คของ Asset (QR) |
+ 46: | `resolveChecklistQr` | `app/actions/target.js:256` | `qrCode` | `{ success, type, targetId, redirectUrl }` | แปลง QR Code เป็น URL ของ Asset/Point |
+ 47: 
+ 48: ---
+ 49: 
+ 50: ## 3. Module Workflow
+ 51: 
+ 52: ### 3.1 Incident Module
+ 53: 1.  **แจ้งปัญหา (Open):** User กรอกฟอร์ม → เรียก `createIncident` (`app/actions/incidents.js:20`) ระบบจะ Gen เลขที่เอกสารและบันทึกสถานะ `Open`
+ 54: 2.  **รับงาน/มอบหมาย (In Progress):** IT กดรับงาน หรือ Admin กด Dispatch → เรียก `acknowledgeIncident` (`app/actions/incidents.js:108`) เริ่มนับ Resolution SLA
+ 55: 3.  **แก้ไขและส่งงาน (Pending Approval):** IT กรอกวิธีแก้ปัญหาและเซ็นชื่อ → เรียก `submitRequest` (`app/actions/workflow.js:806`) ระบบจะสร้าง Steps การอนุมัติ
+ 56: 4.  **อนุมัติ (Closed):** ผู้อนุมัติ (หรือผู้แจ้ง) กรอก PIN 6 หลัก → เรียก `submitApprovalStep` (`app/actions/workflow.js:1121`) ซึ่งจะไปเรียก RPC `handle_approval_step` ใน Database หากเป็นคิวสุดท้าย สถานะจะเปลี่ยนเป็น `Closed`
+ 57: 
+ 58: ### 3.2 IT Checklist Module
+ 59: 1.  **สร้างเอกสาร:** User เลือก Template → UI เรียก `supabase.from('checklist_docs').insert(...)` (`app/dashboard/checklist/page.js:695`) และ Snapshot Template Config ลง `checklist_items`
+ 60: 2.  **ลงผลตรวจ:** User กด OK/NG หรืออัปโหลดรูป (รูปถูกส่งไป OneDrive ผ่าน `/api/upload/onedrive`) → UI อัปเดต `checklist_items` โดยตรง
+ 61: 3.  **ส่งอนุมัติ:** กดส่งงาน → เรียก `submitRequest` (`app/actions/workflow.js:806`)
+ 62: 4.  **อนุมัติ:** ผู้อนุมัติตรวจสอบและกรอก PIN → เรียก `submitApprovalStep` (`app/actions/workflow.js:1121`)
+ 63: 
+ 64: ### 3.3 SLA Engine
+ 65: *   **ไฟล์หลัก:** `lib/slaUtils.js`
+ 66: *   **ฟังก์ชัน:** `calculateNetBusinessMinutes` (Line 20)
+ 67: *   **วิธีคำนวณ:**
+ 68:     1.  แปลงเวลาเป็น Bangkok Time (UTC+7)
+ 69:     2.  Loop ทีละวันตั้งแต่ `start` ถึง `end`
+ 70:     3.  ตรวจสอบว่าวันนั้นอยู่ใน `work_days` (เช่น จันทร์-ศุกร์) และไม่อยู่ใน `holidays` (วันหยุดนักขัตฤกษ์)
+ 71:     4.  คำนวณเวลาที่ทับซ้อนกับ `start` และ `end` ของเวลาทำการ (เช่น 08:30 - 17:30)
+ 72:     5.  นำเวลาที่ได้มาหักลบกับ `exclusions` (เวลาที่ถูก Pause เช่น รออะไหล่) แบบ Recursive
+ 73: 
+ 74: ### 3.4 Approval Workflow (Unified Engine)
+ 75: *   **ไฟล์หลัก:** `app/actions/workflow.js`
+ 76: *   **ลำดับขั้นตอน:**
+ 77:     1.  `generateWorkflowSteps` (Line 908): อ่าน Config จาก `workflow_configs` (รองรับ JSONB steps) และ Insert ลง `document_approvals`
+ 78:     2.  `syncDynamicWorkflowApprovers` (Line 67): อัปเดต `approver_id` แบบ Dynamic (เช่น ดึง ID ของผู้แจ้งมาเป็นผู้อนุมัติใน Step ของ Reporter)
+ 79:     3.  `submitApprovalStep` (Line 1121): ตรวจสอบ PIN ผ่าน `verifyEmployeePIN` และส่งข้อมูลไปให้ PostgreSQL RPC `handle_approval_step` ทำงานแบบ Atomic Transaction
+ 80:     4.  `onDocumentFinalApproval` (Line 13): หากเอกสารจบ Flow จะทำ Cross-module sync (เช่น ปิด Incident แล้วไปอัปเดต Checklist Item เป็น OK อัตโนมัติ)
+ 81: 
+ 82: ### 3.5 Setup Module
+ 83: จัดการผ่านเมนู Settings (`app/dashboard/settings/`):
+ 84: *   **System Setup:** `No. Series` (เลขรันเอกสาร), `Working Hours` (เวลาทำการ), `Holidays` (วันหยุด)
+ 85: *   **Master Data:** `Incident Master Data` (Category, Affected System), `Checklist Master Data` (Category, Templates, Procedure Plans)
+ 86: *   **Workflow & Approval:** `Workflow Rules` (ลำดับขั้น), `Approval Flows` (ผู้อนุมัติหลัก), `Substitute Approvers` (คนเซ็นแทน)
+ 87: *   **Users & Access:** `Users` (จัดการบัญชี), `Permissions` (สิทธิ์ RO/RW/NONE)
+ 88: *   **Target Registry:** จัดการ Asset/Target รายตัวและ QR Code
+ 89: 
+ 90: ---
+ 91: 
+ 92: ## 4. Data Flow Diagram
+ 93: 
+ 94: ```mermaid
+ 95: sequenceDiagram
+ 96:     participant UI as Client Components (UI)
+ 97:     participant SA as Server Actions (Next.js)
+ 98:     participant RPC as Supabase RPC (PostgreSQL)
+ 99:     participant DB as Supabase Tables
+100: 
+101:     %% Incident Flow
+102:     rect rgb(240, 248, 255)
+103:     Note over UI, DB: Incident Creation & Resolve Flow
+104:     UI->>SA: createIncident(formData)
+105:     SA->>DB: Insert into 'incidents'
+106:     SA-->>UI: Return docId
+107:     UI->>SA: submitRequest(docId, 'incident', ...)
+108:     SA->>DB: generateWorkflowSteps() -> Insert 'document_approvals'
+109:     SA-->>UI: Success
+110:     end
+111: 
+112:     %% Approval Flow (Unified)
+113:     rect rgb(255, 240, 245)
+114:     Note over UI, DB: Unified Approval Flow (Incident & Checklist)
+115:     UI->>SA: submitApprovalStep(docId, stepId, pin, signature)
+116:     SA->>SA: verifyEmployeePIN(userId, pin)
+117:     SA->>RPC: rpc('handle_approval_step')
+118:     Note over RPC, DB: Atomic Transaction
+119:     RPC->>DB: Update 'document_approvals' (status='approved')
+120:     RPC->>DB: Unlock next step OR Update Main Table (status='Closed')
+121:     RPC->>DB: Insert into 'system_audit_logs'
+122:     RPC-->>SA: Return { success, is_final }
+123:     SA->>SA: onDocumentFinalApproval() [If is_final]
+124:     SA-->>UI: Return Success
+125:     end
+126: 
+127:     5. Database Tables
+128: ชื่อตาราง	Columns หลักที่ใช้บ่อย	ความสัมพันธ์ (Relations)
+129: user_profiles	id, email, full_name, role, signature_pin, is_active	Source of Truth ของ User. FK ไปยัง created_by, reported_by_id, approver_id
+130: user_whitelist	email_hash	ใช้ทำ Double-Lock Security ตอน Login
+131: incidents	id, case_number, status, severity, reported_by_id, assigned_to_id	1:N กับ document_approvals และ system_audit_logs
+132: checklist_docs	id, doc_no, freq_type, period_date, status, target_id	1:N กับ checklist_items และ document_approvals
+133: checklist_items	id, doc_id, item_key, status, template_data (JSONB)	เก็บผลตรวจและรูปภาพ (OneDrive ID) ใน template_data
+134: document_approvals	id, doc_id, doc_type, step_order, approver_id, status	เก็บสถานะ Workflow แต่ละ Step (รออนุมัติ, อนุมัติแล้ว)
+135: system_audit_logs	id, doc_id, doc_type, action, details, user_email	Centralized Log เก็บประวัติทุก Action ในระบบ
+136: checklist_targets	id, target_code, target_type, qr_value, metadata	ทะเบียน Asset สำหรับสแกน QR Code
+137: workflow_configs	id, target_type, condition_key, condition_value, steps (JSONB)	เก็บ Template ลำดับการอนุมัติ
+138: 6. ความเสี่ยงและจุดที่ควรระวัง (Risks & Cautions)
+139: Logic ที่ซับซ้อน (Heavy Computation):
+140: calculateNetBusinessMinutes (lib/slaUtils.js:20): มีการใช้ while loop วนทีละวันเพื่อคำนวณเวลาทำงาน หาก start และ end ห่างกันเป็นปี อาจทำให้เกิด Performance Bottleneck ได้ (แม้จะมี safetyCounter < 1000 ดักไว้ก็ตาม)
+141: getDashboardData (app/actions/dashboard.js:6): ดึงข้อมูลจากหลายตารางพร้อมกัน (Promise.all 14 queries) และมีการคำนวณ Streak/SLA ในหน่วยความจำฝั่ง Server ค่อนข้างเยอะ
+142: Shared Dependency (คอขวดของระบบ):
+143: app/actions/workflow.js: เป็นไฟล์ที่ใหญ่มากและรับผิดชอบ Logic ข้าม Module ทั้งหมด (Incident, Checklist, Approval, Logging, Sync) หากแก้ไขไฟล์นี้อาจกระทบระบบอื่นได้ง่าย
+144: lib/supabaseAdmin.js: ใช้ SUPABASE_SERVICE_ROLE_KEY เพื่อ Bypass RLS ใน Server Actions หากหลุดไปฝั่ง Client จะเป็นช่องโหว่ร้ายแรง (มีการป้องกันด้วย 'use server' แล้ว แต่ต้องระวังเวลา Refactor)
+145: จุดที่โค้ดยังไม่ครบหรือเป็น TODO:
+146: Target Registry & QR Asset History: ใน docs/history/IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md ระบุว่าโครงสร้างเสร็จแล้ว แต่ยังรอการทำ UAT Seed Data (scripts/seed_target_registry_uat.sql) และการนำไปใช้จริงใน Production
+147: RLS Policies: เพิ่งมีการสร้างไฟล์ supabase/migrations/add_rls_policies.sql เพื่อเปิด RLS 18 ตาราง (ตาม CHANGELOG_2026_05_13.md) แต่มี Note ว่า "ยังไม่ได้ถูก apply กับฐานข้อมูลจริง ต้อง review และทดสอบ" หาก Apply อาจทำให้บาง Query ที่ไม่ได้ใช้ Admin Client พังได้
+148: Legacy Data Cleanup: ใน workflow.js ยังมีการเขียน Log ลงตารางเก่า (incident_logs, checklist_logs) ควบคู่ไปกับ system_audit_logs (Line 256) เพื่อ Backward Compatibility ซึ่งควรถูก Deprecate ในอนาคต
+````
+
+## File: docs/history/project_summary.md
+````markdown
+ 1: # 🏛️ DOWA IT System - Project Summary
+ 2: 
+ 3: เอกสารฉบับนี้เป็นรายงานสรุปโครงสร้างสถาปัตยกรรมและรายละเอียดโฟลเดอร์ระบบ **DOWA IT System** จากการตรวจสอบโค้ดจริง มาตรฐาน และความสัมพันธ์ระหว่างระบบ โดยจัดทำเป็นคู่มือภาพรวมเพื่อความเข้าใจในการพัฒนาต่อยอด UAT และการตรวจสอบประวัติระบบ (Audit Trail)
+ 4: 
+ 5: ---
+ 6: 
+ 7: ## 🚀 1. ข้อมูลและสแต็กเทคโนโลยี (Technology Stack)
+ 8: 
+ 9: ระบบ **DOWA IT System** เป็นเว็บแอปพลิเคชันเกรดพรีเมียมระดับองค์กร (Enterprise Application) ที่ถูกออกแบบมาเพื่อจัดการกระบวนการทำงานด้านไอทีขององค์กร DOWA THT แบบมีธรรมาภิบาลและความปลอดภัยระดับสูงสุด
+10: 
+11: *   **Core Framework:** [Next.js 15 (App Router)](file:///c:/Users/Lenovo/dowa-it-system/app)
+12: *   **Design & UI System:** Tailwind CSS v4 ร่วมกับ CSS Explicit เกรดพรีเมียม (ดีไซน์ Glassmorphism รองรับ Multi-Device อย่างสมบูรณ์แบบตามมาตรฐาน [UI_UX_RESPONSIVE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_RESPONSIVE.md))
+13: *   **Database Management:** Supabase (PostgreSQL)
+14: *   **Authentication & Security:** Supabase Auth + Microsoft 365 SSO + Local Password + Double-Lock **6-digit PIN System** (เก็บความลับแบบ Bcrypt Hash ภายใต้ตาราง `user_profiles`)
+15: *   **Transactional Engine:** Server Actions (Next.js) แยกการประมวลผล Logic ออกจาก Client-side อย่างเป็นรูปธรรมเพื่อความปลอดภัยของสิทธิ์
+16: *   **Automated Verification:** ระบบทดสอบอัตโนมัติ [tests/](file:///c:/Users/Lenovo/dowa-it-system/tests) สำหรับการยืนยันผลระบบ (npm test)
+17: 
+18: ---
+19: 
+20: ## 🧠 2. สถาปัตยกรรมโมดูลหลัก (Core Modules & Engines)
+21: 
+22: ระบบถูกออกแบบโดยยึดความเสถียรและมาตรฐานของตารางข้อมูลเป็นหลัก โดยประกอบด้วย Engine สำคัญ 5 ส่วน:
+23: 
+24: ```mermaid
+25: graph TD
+26:     A["Identity & Security (RBAC/PIN)"] --> B["Unified Workflow Engine"]
+27:     C["IT Checklist Engine (Target Master)"] --> B
+28:     D["Incident Management"] --> B
+29:     B --> E["document_approvals (Transactional Store)"]
+30:     E --> F["Global Dashboard & SLA Reports"]
+31: ```
+32: 
+33: ### 1) Identity & Security (ระบบสิทธิ์และความปลอดภัยแบบรวมศูนย์)
+34: *   **Source of Truth:** ตาราง `user_profiles` ร่วมกับตาราง `user_whitelist`
+35: *   **ระดับของสิทธิ์ (RBAC):** มี 5 บทบาทหลัก ได้แก่ `admin`, `it_staff`, `approver`, `employee`, และ `auditor`
+36: *   **ความปลอดภัย:**
+37:     *   การทำกิจกรรมสำคัญ (เช่น อนุมัติเบิก/อนุมัติปิดเคส) ต้องผ่านการกรอก PIN 6 หลักที่ผ่านการเข้ารหัส Bcrypt
+38:     *   มีระบบ Lockout เมื่อกด PIN ผิดเกิน 5 ครั้งจะถูกระงับสิทธิ์ชั่วคราว 30 นาที
+39:     *   ระบบการลงนามแทน (Remote Approval) หาก Admin/IT ได้รับการยืนยัน PIN จากผู้อนุมัติจริง
+40: 
+41: ### 2) Unified Workflow Engine (ระบบการทำงานแบบอนุมัติร่วม)
+42: *   **จุดประสงค์:** จัดการลำดับขั้นและสิทธิ์การลงนามเซ็นเอกสารของทุกตารางในระบบ
+43: *   **ฐานข้อมูล:** ตาราง `document_approvals` (เก็บขั้นตอนการเซ็นและประวัติการลงนาม)
+44: *   **Logic การประมวลผล:** [workflow.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) ตรวจสิทธิ์และสร้าง Sequence การอนุมัติอัตโนมัติตามประเภทเอกสาร
+45: 
+46: ### 3) Incident Management Module (ระบบจัดการเหตุการณ์และปัญหาไอที)
+47: *   **จุดประสงค์:** ตรวจสอบกระบวนการตั้งแต่การรับแจ้งเหตุขัดข้อง จนกระทั่งแก้ไขและปิดงาน
+48: *   **Logic การประมวลผล:** [incidents.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/incidents.js) ควบคุมการยอมรับงานด้วยสิทธิ์ `it_staff` และการมอบหมายงานด้วยสิทธิ์ `admin` ตามหลักการตรวจสอบความถูกต้องด้านความปลอดภัย (Audit-Safe Workflow)
+49: *   **SLA Engine:** คำนวณระยะเวลาแก้ไขปัญหาแบบวินาทีต่อวินาที โดยอ้างอิงและหักออกด้วยปฏิทินวันหยุดประจำปี ([holidays](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/settings/holidays/page.js)) และเวลาปิดทำการขององค์กรจริง ผ่าน [slaUtils.js](file:///c:/Users/Lenovo/dowa-it-system/lib/slaUtils.js)
+50: 
+51: ### 4) IT Checklist Engine & Target Registry (ระบบเช็คลิสต์และบันทึกรายอุปกรณ์)
+52: *   **จุดประสงค์:** ควบคุมการทำความสะอาด ตรวจเช็ค และบำรุงรักษาอุปกรณ์ทางไอทีในระดับรายอุปกรณ์
+53: *   **ความสามารถหลัก:**
+54:     *   **Stable Point-Identity:** การเก็บข้อมูลประวัติตรวจรายข้อด้วย ID (Snapshot-First) แทนการอ้างอิงตำแหน่ง Array ช่วยรักษาประวัติย้อนหลังได้ยาวนาน
+55:     *   **QR Deep-Linking:** สแกน QR Code แล้วสามารถนำทางพาเจ้าหน้าที่เข้าไปทำแบบทดสอบหรือตรวจสอบประวัติเครื่องในหน้าจอประวัติอุปกรณ์ได้ทันที
+56:     *   **Dual-Write Architecture:** การจัดเก็บภาพหลักฐานคู่ขนานรองรับทั้งโครงสร้างข้อมูลใหม่และเก่าสำหรับช่วงการนำร่อง UAT
+57:     *   **Photo Geolocation:** สนับสนุนการเปิดใช้ตำแหน่งพิกัด GPS อัตโนมัติร่วมกับภาพถ่ายหลักฐานเพื่อการตรวจสอบความสัตย์จริงในการลงพื้นที่
+58: 
+59: ### 5) Global Dashboard & Reporting (หน้าจอรายงานผลสัมฤทธิ์)
+60: *   คำนวณและแสดงปริมาณงานรวมที่ผู้ใช้ค้างอนุมัติผ่าน Badge ด้านบนระบบ
+61: *   แสดงผล SLA ประจำเคสและค่า KPI ของศูนย์ไอทีแบบเรียลไทม์
+62: 
+63: ---
+64: 
+65: ## 📂 3. รายละเอียดและข้อมูลของ Root Folder ทั้งหมด
+66: 
+67: จากการตรวจสอบโครงสร้างที่จัดเก็บไฟล์ของโปรเจกต์ มีความหมายและการจัดเก็บข้อมูลดังต่อไปนี้:
+68: 
+69: | ชื่อโฟลเดอร์หลัก (Root Folder) | หน้าที่และประเภทข้อมูลที่จัดเก็บ |
+70: | :--- | :--- |
+71: | **[app/](file:///c:/Users/Lenovo/dowa-it-system/app)** | **Next.js App Router Core:** รวบรวมสถาปัตยกรรมการเปลี่ยนหน้าและกระบวนการประมวลผลเบื้องหลังทั้งหมด<br>• `actions/` – โค้ด Server Actions สำหรับ Logic การทำงานกับฐานข้อมูล เช่น workflow, incident, target<br>• `dashboard/` – ส่วนระบบหลังบ้านของผู้ใช้ที่ล็อกอิน (incidents, checklist, settings)<br>• `api/` – จุดสิ้นสุด API สำหรับ QR code lookup และการสื่อสารข้อมูลภายนอก<br>• `auth/`, `onboarding/`, `reset-pin/` – ระบบการระบุตัวตนและตั้งค่าความปลอดภัยบัญชี |
+72: | **[components/](file:///c:/Users/Lenovo/dowa-it-system/components)** | **UI Shared Components:** เก็บองค์ประกอบหน้าจอที่ใช้ซ้ำเพื่อรักษาเอกภาพของดีไซน์พรีเมียม<br>• `workflow/` – กล่องป๊อปอัปอนุมัติ UnifiedApprovalModal, แถบความคืบหน้า WorkflowProgressBar<br>• `DashboardHeader.js` – แถบหัวระบบสำหรับแสดงจำนวนงานและโปรไฟล์ผู้ใช้ |
+73: | **[lib/](file:///c:/Users/Lenovo/dowa-it-system/lib)** | **Core Logic & Libraries:** เก็บโมดูลประมวลผลที่เกี่ยวข้องกับตรรกะทางธุรกิจที่ปราศจากโค้ด UI<br>• `slaUtils.js` – ระบบประเมินวันทำงานและคำนวณเวลา SLA ตามปฏิทินจริง<br>• `noSeries.js` – ระบบสร้างเลขที่เอกสารความปลอดภัยสูง<br>• `checklistTemplateValidation.js` – ระบบยืนยันข้อมูลความเข้ากันได้ของโครงสร้างเทมเพลต<br>• `supabaseServer.js` – การเชื่อมโยงฝั่งเซิร์ฟเวอร์แบบจำกัดสิทธิ์ความปลอดภัยสูงสุด |
+74: | **[docs/](file:///c:/Users/Lenovo/dowa-it-system/docs)** | **Project Documentation Index:** คลังความรู้มาตรฐานและประวัติการพัฒนาโครงการ<br>• `standards/` – เอกสารความต้องการเชิงพัฒนาของ Agent และโครงสร้างระบบ (ZERO_HACK, UI_UX_SETTINGS)<br>• `history/` – บันทึกสรุปงานค้าง แผนการพัฒนา และบันทึกประวัติการเปลี่ยนแปลงรายวัน (CHANGELOG)<br>• `manuals/` – คู่มือช่วยเหลือผู้ใช้และแผนนำข้อมูล UAT เข้าสู่ระบบ |
+75: | **[supabase/](file:///c:/Users/Lenovo/dowa-it-system/supabase)** | **Supabase Configuration:** ไฟล์การอัปเดตและเก็บประวัติทางโครงสร้างตารางและนโยบายความปลอดภัยฐานข้อมูล<br>• `migrations/` – ลำดับสคริปต์ SQL ที่ใช้เปิดโครงตารางและระบบนโยบายล็อกระดับแถว (RLS Policies) |
+76: | **[scripts/](file:///c:/Users/Lenovo/dowa-it-system/scripts)** | **Database Scripts:** สำหรับการ Migration ข้อมูล และสคริปต์ช่วยเหลือนักพัฒนาในการตั้งค่าสิทธิ์หรือจำลองข้อมูลทดสอบ (เช่น การนำร่อง seed ข้อมูล UAT) |
+77: | **[scratch/](file:///c:/Users/Lenovo/dowa-it-system/scratch)** | **Development Workspace:** โฟลเดอร์รวมไฟล์ตรวจสอบตัวแปร เช็คค่าฐานข้อมูล และรันแก้ไขข้อผิดพลาดเร่งด่วนโดยนักพัฒนา ซึ่งจะไม่ส่งผลกระทบต่อคุณภาพของซอร์สโค้ดหลัก |
+78: | **[tests/](file:///c:/Users/Lenovo/dowa-it-system/tests)** | **Automated Testing Suites:** สำหรับเก็บบททดสอบการทำงานของ REST API, Target Registry, และ Logic การคำนวณเวลา เพื่อเป็นเกณฑ์ป้องกันการพังของระบบตามกฎ Pre-delivery Test |
+79: | **[ai-tasks/](file:///c:/Users/Lenovo/dowa-it-system/ai-tasks)** | **AI Collaboration Workflow:** จุดแลกเปลี่ยนสเปกงานระหว่าง Smart AI และ Fast AI |
+80: | **[public/](file:///c:/Users/Lenovo/dowa-it-system/public)** | **Static Assets:** ภาพประกอบ ไอคอน และโลโก้องค์กร DOWA |
+81: 
+82: ---
+83: 
+84: ## 🔄 4. รายงานงานค้างและขั้นตอนการพัฒนาถัดไป (UAT Reminder)
+85: 
+86: จากการสแกนความต้องการทางระบบล่าสุด มีสถานะงานที่จำเป็นต้องนำเสนอแด่ USER ดังนี้ครับ:
+87: 
+88: > [!IMPORTANT]
+89: > **การดำเนินการถัดไปเพื่อนำระบบเข้าสู่ UAT:**
+90: > 1.  **Review คู่มือการ Seed ข้อมูล UAT:** USER ควรศึกษาลำดับแผนงานในเอกสาร [TARGET_REGISTRY_UAT_SEED_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md)
+91: > 2.  **การยืนยันการนำเข้าข้อมูลจำลอง:** รันคำสั่ง SQL ใน [seed_target_registry_uat.sql](file:///c:/Users/Lenovo/dowa-it-system/scripts/seed_target_registry_uat.sql) เพื่อสถาปนาข้อมูลอุปกรณ์ CCTV Terminal Box ตัวอย่างในการทดสอบสแกน QR และเช็คประวัติจริง
+92: > 3.  **ความปลอดภัย:** หากเกิดความเสียหาย สามารถทำการดึงสคริปต์ [rollback_seed_target_registry_uat.sql](file:///c:/Users/Lenovo/dowa-it-system/scripts/rollback_seed_target_registry_uat.sql) มาลบตารางข้อมูลที่เกินมาได้อย่างรวดเร็ว
+93: 
+94: ---
+95: 
+96: จัดทำโดย **Antigravity (AI Coding Partner)**
+97: *วันที่ 17 พฤษภาคม 2569 (11:20 น.)*
+````
+
 ## File: docs/history/REF_DASHBOARD_HEADER.md
 ````markdown
  1: # 📋 แผนการปรับปรุง Dashboard Header & My Sent Pending
@@ -15192,103 +15470,6 @@ supabase/migrations/add_rls_policies.sql
 7: 
 8: ---
 9: *อัปเดตล่าสุด: 09-May-2026*
-````
-
-## File: docs/standards/SYSTEM_ARCHITECTURE_MAP.md
-````markdown
- 1: # 🗺️ System Architecture Map (Unified Version)
- 2: 
- 3: เอกสารฉบับนี้เป็น Aggregation Tool สำหรับ Agent เพื่อทำความเข้าใจโครงสร้างทางเทคนิคและ Logic Flow ของระบบทั้งหมดในที่เดียว
- 4: 
- 5: ---
- 6: 
- 7: ## 🏗️ 1. Core Architecture Pattern
- 8: - **Framework**: Next.js (App Router)
- 9: - **Database**: Supabase (PostgreSQL)
-10: - **Auth**: Supabase Auth + `user_profiles` (Source of Truth)
-11: - **Logic**: Server Actions (`app/actions/`)
-12: - **UI Architecture**: Component-based with Centralized State for Workflows
-13: 
-14: ---
-15: 
-16: ## 🧠 2. Unified Workflow Engine
-17: ระบบกลางที่จัดการลำดับการอนุมัติ (Approval Sequence) ของทุกโมดูล
-18: 
-19: ### **Key Components**
-20: - **Table**: `document_approvals` (Transactional tracking)
-21: - **Logic Handler**: `app/actions/workflow.js`
-22: - **Registry**: `lib/workflowRegistry.js` (Mapping types to tables)
-23: - **UI**: `components/workflow/UnifiedApprovalModal.js`
-24: 
-25: ### **Workflow Lifecycle**
-26: 1. **Submit**: `submitRequest` (in module actions) calls `generateWorkflowSteps`.
-27: 2. **Pending**: `getUnifiedPendingApprovals` lists tasks for approvers.
-28: 3. **Approve**: `submitApprovalStep` handles logic, PIN verification, and signature recording.
-29: 4. **Finalize**: `onDocumentFinalApproval` triggers cross-module actions (e.g., Incident -> Checklist sync).
-30: 
-31: ---
-32: 
-33: ## 🆘 3. Incident Management Module
-34: ระบบจัดการปัญหาไอทีแบบ End-to-End
-35: 
-36: ### **Key Components**
-37: - **Table**: `incidents`
-38: - **Logs**: `incident_logs` & `system_audit_logs`
-39: - **Logic Handler**: `app/actions/incidents.js`
-40: - **SLA Engine**: `lib/slaUtils.js` (Business minutes calculation)
-41: 
-42: ### **State Flow**
-43: - **Open**: เคสใหม่ รอ IT รับเรื่อง
-44: - **In Progress**: IT รับเรื่องแล้ว (Accept/Dispatch)
-45: - **Pending Approval**: แก้ไขปัญหาแล้ว รอผู้อนุมัติตรวจสอบ
-46: - **Closed**: จบงาน (SLA Stops)
-47: 
-48: ---
-49: 
-50: ## 📋 4. IT Checklist Engine
-51: ระบบตรวจสอบความพร้อมประจำวัน/สัปดาห์/เดือน/ปี
-52: 
-53: ### **Key Components**
-54: - **Tables**: `checklist_docs`, `checklist_items`, `checklist_templates`
-55: - **Logic Handler**: `app/actions/dashboard.js` (Aggregation) & `lib/checklistItems.js`
-56: - **Workflow**: ผูกกับ Workflow Engine โดยระบุ `freq_type` เป็นเงื่อนไข
-57: 
-58: ---
-59: 
-60: ## 👥 5. Identity & Security (The Unified Identity)
-61: ระบบจัดการบัญชีและสิทธิ์เข้าถึงแบบรวมศูนย์
-62: 
-63: ### **Key Components**
-64: - **Table**: `user_profiles` (Primary source for roles/PINs)
-65: - **Whitelist**: `user_whitelist` (Double-lock security)
-66: - **Auth Strategy**: Microsoft 365 SSO + Local Password + 6-digit PIN
-67: - **Roles (RBAC)**: `admin`, `it_staff`, `approver`, `employee`, `auditor`
-68: 
-69: ### **Security Features**
-70: - **PIN Verification**: ใช้ Bcrypt ในการ Hash และตรวจสอบ PIN 6 หลัก
-71: - **Lockout System**: ป้องกัน Brute Force (5 attempts -> Lock 30 mins)
-72: - **Remote Approval**: อนุญาตให้ Admin/IT เซ็นแทนได้หากมี PIN ของผู้อนุมัติจริง
-73: 
-74: ---
-75: 
-76: ## 📊 6. Global Dashboard & Reporting
-77: ระบบรวบรวมข้อมูลสถิติและ KPI
-78: 
-79: ### **Key Components**
-80: - **Logic**: `getDashboardData` (Aggregates stats from all tables)
-81: - **SLA Calculation**: คำนวณรายเคสแบบ Real-time ตามวันหยุดและเวลาทำการบริษัท
-82: - **Global Header**: `DashboardHeader.js` แสดงผลจำนวนงานค้างรวมของทั้งระบบ
-83: 
-84: ---
-85: 
-86: ## 🛠️ 7. Maintenance & Audit Tools
-87: - **Audit Logs**: `system_audit_logs` บันทึกทุกความเคลื่อนไหวสำคัญ
-88: - **No Series**: `lib/noSeries.js` จัดการเลขที่เอกสารแบบ Thread-safe
-89: - **Migration Helpers**: ฟังก์ชันใน `workflow.js` สำหรับปรับปรุงโครงสร้างข้อมูลเก่า
-90: 
-91: ---
-92: > [!TIP]
-93: > **Agent Usage**: ใช้ไฟล์นี้ร่วมกับ `grep_search` เพื่อหาไฟล์ Logic ที่เกี่ยวข้องตามชื่อโมดูลที่ระบุข้างต้น
 ````
 
 ## File: docs/standards/TARGET_REGISTRY.md
@@ -16671,6 +16852,121 @@ supabase/migrations/add_rls_policies.sql
 29: }
 ````
 
+## File: lib/workflow.js
+````javascript
+  1: import { createClient } from '@supabase/supabase-js'
+  2: import { supabase } from './supabase'
+  3: 
+  4: export async function recordLog(docId, type, action, details, userEmail) {
+  5:   try {
+  6:     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  7:     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  8:     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+  9: 
+ 10:     const table = type === 'checklist' ? 'checklist_logs' : 'incident_logs'
+ 11:     const fullAction = details ? `${action}: ${details}` : action
+ 12:     const { error } = await supabaseAdmin.from(table).insert({
+ 13:       doc_id: docId,
+ 14:       action: fullAction,
+ 15:       user_email: userEmail
+ 16:     })
+ 17:     if (error) throw error
+ 18:     return { success: true }
+ 19:   } catch (err) {
+ 20:     console.error('recordLog Error:', err)
+ 21:     return { success: false, error: err.message }
+ 22:   }
+ 23: }
+ 24: 
+ 25: /**
+ 26:  * Check if a user's PIN is currently locked due to too many failed attempts.
+ 27:  */
+ 28: export async function isPinLocked(userId) {
+ 29:   const { data, error } = await supabase
+ 30:     .from('user_profiles')
+ 31:     .select('pin_locked_until')
+ 32:     .eq('id', userId)
+ 33:     .single()
+ 34:   
+ 35:   if (error || !data.pin_locked_until) return false
+ 36:   
+ 37:   const lockedUntil = new Date(data.pin_locked_until)
+ 38:   const now = new Date()
+ 39:   
+ 40:   return lockedUntil > now
+ 41: }
+ 42: 
+ 43: /**
+ 44:  * Validates a signature PIN with rate limiting and lockout.
+ 45:  */
+ 46: export async function validateSignaturePin(userId, pin) {
+ 47:   // 1. Check if locked
+ 48:   if (await isPinLocked(userId)) {
+ 49:     return { success: false, error: 'รหัส PIN ของคุณถูกระงับชั่วคราว กรุณาลองใหม่ภายหลัง (15 นาที)' }
+ 50:   }
+ 51: 
+ 52:   // 2. We use a server-side API or Action to verify bcrypt hash
+ 53:   // For now, let's assume we have an action or we check it here (if client has bcrypt, which it might not)
+ 54:   // RECOMMENDATION: Use a Server Action for this to keep PIN hash safe.
+ 55:   // This is a placeholder for the logic that will call the server action.
+ 56:   const res = await fetch('/api/auth/verify-pin', {
+ 57:     method: 'POST',
+ 58:     body: JSON.stringify({ userId, pin })
+ 59:   }).then(r => r.json())
+ 60: 
+ 61:   return res
+ 62: }
+ 63: 
+ 64: /**
+ 65:  * Gets the list of users who are allowed to approve a specific document type.
+ 66:  * This handles the "Pool" logic.
+ 67:  */
+ 68: export async function getEligibleApprovers(targetType, triggerKey) {
+ 69:   const { data: config } = await supabase
+ 70:     .from('approval_configs')
+ 71:     .select('allowed_roles')
+ 72:     .eq('target_type', targetType)
+ 73:     .eq('freq_type', triggerKey)
+ 74:     .single()
+ 75:   
+ 76:   if (!config) return []
+ 77: 
+ 78:   const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+ 79:   const { data: users } = await supabaseAdmin
+ 80:     .from('user_profiles')
+ 81:     .select('id, full_name, role, signature_pin')
+ 82:     .in('role', config.allowed_roles)
+ 83:     .eq('is_active', true)
+ 84:   
+ 85:   return users?.map(u => ({
+ 86:     id: u.id,
+ 87:     full_name: u.full_name,
+ 88:     role: u.role,
+ 89:     has_pin: !!u.signature_pin
+ 90:   })) || []
+ 91: }
+ 92: 
+ 93: /**
+ 94:  * Check if the current user is an active substitute for another user.
+ 95:  */
+ 96: export async function isSubstituteOf(subId, primaryId) {
+ 97:   if (!primaryId) return false
+ 98:   const now = new Date().toISOString().split('T')[0]
+ 99:   
+100:   const { data, error } = await supabase
+101:     .from('approval_substitutes')
+102:     .select('id')
+103:     .eq('primary_approver_id', primaryId)
+104:     .eq('substitute_id', subId)
+105:     .eq('is_active', true)
+106:     .lte('start_date', now)
+107:     .gte('end_date', now)
+108:     .limit(1)
+109:   
+110:   return !!data?.length
+111: }
+````
+
 ## File: lib/workflowRegistry.js
 ````javascript
  1: /**
@@ -17532,6 +17828,210 @@ supabase/migrations/add_rls_policies.sql
 619: with check (approver_id = auth.uid() or (approver_id is null and role_required = public.current_user_role()));
 620: 
 621: commit;
+````
+
+## File: tests/qr-lookup-route.test.js
+````javascript
+ 1: import test from 'node:test'
+ 2: import assert from 'node:assert/strict'
+ 3: 
+ 4: test('qr lookup route source keeps guard clause before Supabase access', async () => {
+ 5:   const { readFile } = await import('node:fs/promises')
+ 6:   const source = await readFile(new URL('../app/api/qr/lookup/route.js', import.meta.url), 'utf8')
+ 7: 
+ 8:   const missingParamIndex = source.indexOf("if (!qrValue)")
+ 9:   const supabaseIndex = source.indexOf('const supabase = getSupabaseAdmin()')
+10: 
+11:   assert.notEqual(missingParamIndex, -1)
+12:   assert.notEqual(supabaseIndex, -1)
+13:   assert.ok(missingParamIndex < supabaseIndex)
+14:   assert.match(source, /status:\s*400/)
+15:   assert.match(source, /qr_value is required/)
+16: })
+17: 
+18: test('qr lookup route source includes not found and success branches', async () => {
+19:   const { readFile } = await import('node:fs/promises')
+20:   const source = await readFile(new URL('../app/api/qr/lookup/route.js', import.meta.url), 'utf8')
+21: 
+22:   assert.match(source, /Target not found/)
+23:   assert.match(source, /status:\s*404/)
+24:   assert.match(source, /success:\s*true/)
+25:   assert.match(source, /NextResponse\.json/)
+26: })
+````
+
+## File: tests/register-aliases.js
+````javascript
+ 1: import Module from 'node:module'
+ 2: import path from 'node:path'
+ 3: import { pathToFileURL } from 'node:url'
+ 4: 
+ 5: const originalResolve = Module._resolveFilename
+ 6: const projectRoot = process.cwd()
+ 7: 
+ 8: Module._resolveFilename = function patchedResolve(specifier, parent, ...rest) {
+ 9:   if (specifier.startsWith('@/')) {
+10:     const absolutePath = path.join(projectRoot, specifier.slice(2))
+11:     return originalResolve.call(this, pathToFileURL(absolutePath).href, parent, ...rest)
+12:   }
+13: 
+14:   return originalResolve.call(this, specifier, parent, ...rest)
+15: }
+````
+
+## File: tests/run-tests.js
+````javascript
+1: import { run } from 'node:test'
+2: import { spec } from 'node:test/reporters'
+3: 
+4: const stream = run({
+5:   globPatterns: ['tests/**/*.test.js'],
+6: })
+7: 
+8: stream.compose(spec).pipe(process.stdout)
+````
+
+## File: tests/target-registry.test.js
+````javascript
+  1: import test from 'node:test'
+  2: import assert from 'node:assert/strict'
+  3: 
+  4: import { getDefaultTemplateConfig, validateChecklistTemplate } from '../lib/checklistTemplateValidation.js'
+  5: import { normalizeProcedurePlanSteps, validateProcedurePlanInput } from '../lib/procedurePlanValidation.js'
+  6: 
+  7: test('validateChecklistTemplate accepts target registry fields for per_target templates', () => {
+  8:   const payload = {
+  9:     category: 'Infrastructure',
+ 10:     freq_type: 'Monthly',
+ 11:     item_label: 'Inspect CCTV cabinet exterior',
+ 12:     instruction: 'Capture cabinet condition and verify labels',
+ 13:     ui_template_type: 1,
+ 14:     template_config: {
+ 15:       ...getDefaultTemplateConfig(1),
+ 16:       photo_points: ['Front photo', 'Interior photo'],
+ 17:       min_photos: 2,
+ 18:     },
+ 19:     scope_mode: 'per_target',
+ 20:     target_type: 'cctv_terminal',
+ 21:     validation_rules: {
+ 22:       require_note_on_ng: true,
+ 23:     },
+ 24:     incident_rules: {
+ 25:       auto_open_incident: true,
+ 26:       severity: 'high',
+ 27:     },
+ 28:   }
+ 29: 
+ 30:   const result = validateChecklistTemplate(payload)
+ 31: 
+ 32:   if (!result.success) {
+ 33:     assert.fail(JSON.stringify(result.errors))
+ 34:   }
+ 35: 
+ 36:   assert.equal(result.success, true)
+ 37:   assert.equal(result.data.scope_mode, 'per_target')
+ 38:   assert.equal(result.data.target_type, 'cctv_terminal')
+ 39:   assert.deepEqual(result.data.validation_rules, { require_note_on_ng: true })
+ 40:   assert.deepEqual(result.data.incident_rules, {
+ 41:     auto_open_incident: true,
+ 42:     severity: 'high',
+ 43:   })
+ 44:   assert.deepEqual(result.data.template_config.photo_points, ['Front photo', 'Interior photo'])
+ 45: })
+ 46: 
+ 47: test('validateChecklistTemplate rejects invalid scope_mode values', () => {
+ 48:   const payload = {
+ 49:     category: 'Infrastructure',
+ 50:     freq_type: 'Monthly',
+ 51:     item_label: 'Inspect CCTV cabinet exterior',
+ 52:     instruction: '',
+ 53:     ui_template_type: 0,
+ 54:     template_config: getDefaultTemplateConfig(0),
+ 55:     scope_mode: 'site_only',
+ 56:   }
+ 57: 
+ 58:   const result = validateChecklistTemplate(payload)
+ 59: 
+ 60:   assert.equal(result.success, false)
+ 61:   assert.ok(result.errors.scope_mode)
+ 62: })
+ 63: 
+ 64: test('validateProcedurePlanInput accepts target registry companion fields', () => {
+ 65:   const payload = {
+ 66:     plan_name: 'CCTV Terminal Box SOP',
+ 67:     scope_mode: 'per_group',
+ 68:     target_type: 'cctv_terminal',
+ 69:     validation_rules: {
+ 70:       require_all_steps: true,
+ 71:     },
+ 72:     incident_rules: {
+ 73:       auto_open_incident: false,
+ 74:     },
+ 75:     steps: [
+ 76:       {
+ 77:         step_no: 1,
+ 78:         title: 'Open cabinet',
+ 79:         instruction: 'Inspect before touching internal wiring',
+ 80:         step_type: 'check',
+ 81:         required: true,
+ 82:         evidence_rule: {
+ 83:           photo_required: false,
+ 84:           note_required: false,
+ 85:         },
+ 86:       },
+ 87:     ],
+ 88:   }
+ 89: 
+ 90:   const result = validateProcedurePlanInput(payload)
+ 91: 
+ 92:   if (!result.success) {
+ 93:     assert.fail(JSON.stringify(result.errors))
+ 94:   }
+ 95: 
+ 96:   assert.equal(result.success, true)
+ 97:   assert.equal(result.data.plan_name, 'CCTV Terminal Box SOP')
+ 98:   assert.equal(result.data.steps.length, 1)
+ 99:   assert.equal(result.data.steps[0].title, 'Open cabinet')
+100: })
+101: 
+102: test('normalizeProcedurePlanSteps normalizes rows payload and defaults invalid step types', () => {
+103:   const result = normalizeProcedurePlanSteps({
+104:     rows: [
+105:       {
+106:         step_no: '9',
+107:         title: 'Record reading',
+108:         instruction: 'Capture measured voltage',
+109:         step_type: 'measure',
+110:         required: false,
+111:         evidence_rule: {
+112:           photo_required: true,
+113:           note_required: true,
+114:         },
+115:       },
+116:       {
+117:         title: 'Fallback step',
+118:         step_type: 'invalid-type',
+119:       },
+120:     ],
+121:   })
+122: 
+123:   assert.equal(result.length, 2)
+124:   assert.equal(result[0].step_no, 9)
+125:   assert.equal(result[0].step_type, 'measure')
+126:   assert.equal(result[0].evidence_rule.photo_required, true)
+127:   assert.equal(result[1].step_type, 'check')
+128:   assert.equal(result[1].required, true)
+129: })
+130: 
+131: test('target action source contains server-side asset history loader', async () => {
+132:   const { readFile } = await import('node:fs/promises')
+133:   const source = await readFile(new URL('../app/actions/target.js', import.meta.url), 'utf8')
+134: 
+135:   assert.match(source, /export async function getTargetAssetHistory/)
+136:   assert.match(source, /from\('checklist_docs'\)/)
+137:   assert.match(source, /from\('checklist_items'\)/)
+138:   assert.match(source, /buildAssetHistoryPhotoList/)
+139: })
 ````
 
 ## File: app/api/approval/send/route.js
@@ -19208,6 +19708,215 @@ supabase/migrations/add_rls_policies.sql
 73: *จัดทำมาตรฐานโดย AI Agent (Antigravity)*
 ````
 
+## File: docs/standards/SYSTEM_ARCHITECTURE_MAP.md
+````markdown
+  1: # 🗺️ System Architecture Map (Unified Version)
+  2: 
+  3: เอกสารฉบับนี้เป็น Aggregation Tool ส่วนกลางสำหรับ Agent และทีมพัฒนา เพื่อทำความเข้าใจโครงสร้างทางเทคนิค, Data Tables, Logic Flows และความเสี่ยงของระบบทั้งหมดแบบ End-to-End (อัปเดตสถานะและซิงค์ข้อมูลตามผลสแกน ณ วันที่ 17 พฤษภาคม 2569 12:50)
+  4: 
+  5: ---
+  6: 
+  7: ## 🏗️ 1. Core Architecture & Tech Stack
+  8: ระบบ DOWA IT System ถูกออกแบบตามหลัก Enterprise & Zero-Trust Architecture โดยใช้เทคโนโลยีดังนี้:
+  9: - **Core Framework**: Next.js 15 (App Router) + React 19
+ 10: - **Styling**: Tailwind CSS v4 (ประมวลผลเร็วพิเศษ) ใช้ร่วมกับ `clsx` และ `tailwind-merge` ผ่าน [lib/cn.js](file:///c:/Users/Lenovo/dowa-it-system/lib/cn.js) เพื่อควบคุม Spacing และ UI Consistent
+ 11: - **Database & Auth**: Supabase (PostgreSQL, Supabase Auth และ SSR Client บน Server Components/Actions)
+ 12: - **Security & Validation**: Bcrypt (สำหรับ Hash PIN 6 หลัก), Zod (สำหรับสแกนและ Validate โครงสร้างข้อมูลก่อนบันทึก)
+ 13: - **Integrations**: Resend (สำหรับบริการส่งอีเมลแจ้งเตือน), Microsoft Graph API (สำหรับเชื่อมต่อและอัปโหลดรูปภาพหลักฐานความละเอียดสูงเข้า OneDrive)
+ 14: - **UI Libraries**: Recharts (สำหรับการทำ Data Visualization บน Dashboard), `react-signature-canvas` (สำหรับการเซ็นชื่อแบบดิจิทัล)
+ 15: 
+ 16: ---
+ 17: 
+ 18: ## 📂 2. Directory Structure & Conventions
+ 19: ระบบมีการจัดเก็บและแยก Module ตามมาตรฐานอย่างเข้มงวด:
+ 20: - `app/actions/`: ศูนย์รวม Business Logic ทั้งหมด (Server Actions) ทำงานฝั่ง Server เพื่อความปลอดภัยสูงสุด (Zero-Trust)
+ 21: - `app/api/`: Route Handlers สำหรับบริการภายนอก เช่น Onboarding Init, Webhooks, QR Lookup, และ Auth Callbacks
+ 22: - `app/dashboard/`: หน้าจอ UI หลักของระบบสำหรับผู้ใช้ที่ Login แล้ว แบ่งออกเป็นหน้า Incidents, Checklist, Reports และ Settings
+ 23: - `components/`: Shared UI Components ที่ใช้ร่วมกัน เช่น `WorkflowActionBar`, `UnifiedApprovalModal`
+ 24: - `lib/`: Core Utilities เช่น [slaUtils.js](file:///c:/Users/Lenovo/dowa-it-system/lib/slaUtils.js) (คำนวณเวลา SLA), [workflowRegistry.js](file:///c:/Users/Lenovo/dowa-it-system/lib/workflowRegistry.js) (ตั้งค่าประเภทตารางเอกสาร) และ [supabaseAdmin.js](file:///c:/Users/Lenovo/dowa-it-system/lib/supabaseAdmin.js) (High-Privilege Service Role Client)
+ 25: - `docs/`: แหล่งเก็บเอกสารแยกตามประเภท Standards (กฎ/Logic), History (บันทึก/Audit) และ Manuals (คู่มือ/UAT)
+ 26: - `supabase/migrations/`: ไฟล์ SQL สำหรับควบคุม Schema Database, ตารางข้อมูล, RLS Policies และ RPC Database Functions
+ 27: 
+ 28: ---
+ 29: 
+ 30: ## 🧠 3. Unified Workflow Engine
+ 31: ระบบกลางจัดการลำดับการอนุมัติ (Approval Sequence) ของทุกโมดูลแบบบูรณาการผ่านตารางเดี่ยว
+ 32: 
+ 33: ### **Key Components**
+ 34: - **Table**: `document_approvals` (Transactional tracking ราย Step)
+ 35: - **Logic Handler**: [app/actions/workflow.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) (Monolithic Control Engine)
+ 36: - **Registry**: [lib/workflowRegistry.js](file:///c:/Users/Lenovo/dowa-it-system/lib/workflowRegistry.js) (จับคู่ประเภทเอกสารกับตารางจริง)
+ 37: - **UI Component**: `components/workflow/UnifiedApprovalModal.js`
+ 38: 
+ 39: ### **Workflow Lifecycle**
+ 40: 1. **Submit (`submitRequest`)**: เมื่อผู้ใช้ส่งเอกสาร ระบบจะดึง Config จาก `workflow_configs` เพื่อสร้างขั้นตอนใน `document_approvals` ผ่าน `generateWorkflowSteps`
+ 41: 2. **Dynamic Resolution**: เรียก `syncDynamicWorkflowApprovers` เพื่อดึงข้อมูลผู้อนุมัติแบบไดนามิก (เช่น หากบทบาทเป็น Reporter ระบบจะดึง UUID ของผู้แจ้งซ่อมจากเอกสารมาเติมให้อัตโนมัติ)
+ 42: 3. **PIN & Signature Verification**: ในขั้นตอนอนุมัติ ระบบจะใช้ `verifyEmployeePIN` ตรวจสอบความถูกต้องของ PIN 6 หลักของผู้เซ็น ก่อนส่งคำสั่งไปยัง PostgreSQL RPC `handle_approval_step` เพื่อดำเนินการแบบ Transaction
+ 43: 4. **Finalize (`onDocumentFinalApproval`)**: เมื่อขั้นตอนสุดท้ายได้รับการอนุมัติสำเร็จ ระบบจะเปลี่ยนสถานะหลักเป็น `Closed` และเรียก Side-effects ข้ามโมดูลอัตโนมัติ
+ 44: 
+ 45: ---
+ 46: 
+ 47: ## 🆘 4. Incident Management Module
+ 48: ระบบจัดการปัญหาไอทีแบบ End-to-End ตั้งแต่การแจ้งซ่อม มอบหมายงาน คำนวณ SLA ตลอดจนกระบวนการอนุมัติและปิดเคส
+ 49: 
+ 50: ### **Key Components**
+ 51: - **Table**: `incidents` (ตารางหลัก)
+ 52: - **Logs**: `incident_logs` และ `system_audit_logs` (มีการเขียนแบบ Dual-write เพื่อ Backward Compatibility)
+ 53: - **Logic Handler**: [app/actions/incidents.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/incidents.js)
+ 54: - **SLA Engine**: [lib/slaUtils.js](file:///c:/Users/Lenovo/dowa-it-system/lib/slaUtils.js) (คำนวณเวลาการแก้ไข)
+ 55: 
+ 56: ### **State Flow**
+ 57: - **Open**: เคสใหม่ที่เพิ่งสร้าง รอผู้ดูแลระบบ IT รับเรื่องและกำหนดผู้รับผิดชอบ
+ 58: - **In Progress**: เปลี่ยนสถานะอัตโนมัติเมื่อเจ้าหน้าที่ IT กดรับเรื่องหรือ Admin ทำการมอบหมายงาน (Acknowledge/Dispatch)
+ 59: - **Pending Approval**: สถานะเมื่อเจ้าหน้าที่กดแก้ไขปัญหาสำเร็จ (Resolve) และเข้าสู่ขั้นตอนการเก็บลายเซ็น
+ 60: - **Closed**: การแก้ไขปัญหาเสร็จสมบูรณ์และได้รับอนุมัติครบถ้วน (เวลา SLA จะหยุดนับ)
+ 61: 
+ 62: ---
+ 63: 
+ 64: ## 📋 5. IT Checklist Engine
+ 65: ระบบการตรวจความพร้อมและการตรวจสอบ (Inspection Framework) ตามรอบเวลา (Daily, Weekly, Monthly, Yearly) ทำงานร่วมกับ JSONB Configuration เพื่อความยืดหยุ่นสูง
+ 66: 
+ 67: ### **Key Components**
+ 68: - **Tables**: `checklist_docs`, `checklist_items`, `checklist_templates`
+ 69: - **Logic Handler**: [app/actions/dashboard.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/dashboard.js) & [lib/checklistItems.js](file:///c:/Users/Lenovo/dowa-it-system/lib/checklistItems.js)
+ 70: - **Image Cloud Storage**: อัปโหลดและประทับลายน้ำ (Watermark Timestamp Guard) เพื่อป้องกันการทุจริต ก่อนบันทึกรูปเข้า OneDrive ผ่าน `/api/upload/onedrive`
+ 71: 
+ 72: ### **The 5 Advanced Templates**
+ 73: 1. **Photo Evidence (T1)**: บังคับถ่ายภาพตามตำแหน่งที่ระบุพร้อมเช็ค Timestamp
+ 74: 2. **Procedure Table (T2)**: ตารางตรวจสอบลำดับ SOP และ Smart Plan Selection
+ 75: 3. **Measurement & Threshold (T3)**: กรอกตัวเลขจริง ตรวจสอบความถูกต้องตามเกณฑ์ Min/Max อัตโนมัติ
+ 76: 4. **Link & Service Verification (T4)**: ตรวจสุขภาพระบบหรือ API Link พร้อมบังคับจดบันทึก
+ 77: 5. **Sign-off / Approval (T5)**: กระบวนการเซ็นชื่อและยืนยันแบบ Multi-role
+ 78: 
+ 79: > [!NOTE]
+ 80: > **Auto-OK Engine:** ระบบจะสแกนข้อมูลที่ส่งเข้ามา หากผลการตรวจสอบผ่านเกณฑ์ทั้งหมด (เช่น มีการกรอกครบถ้วน ไม่มีค่าผิดปกติ) ระบบจะปรับสถานะหัวข้อเป็น `OK` อัตโนมัติ หากพบความผิดปกติ (`NG`) ระบบรองรับการเปิด **Incident Case** เพื่อแจ้งซ่อมทันที และหาก Incident นั้นถูกแก้ไขและปิดตัวลง (`Closed`) ระบบจะส่งสัญญาณ `onDocumentFinalApproval` ย้อนกลับมาปรับสถานะ Checklist Item เป็น `OK` อัตโนมัติ
+ 81: 
+ 82: ---
+ 83: 
+ 84: ## 👥 6. Identity & Security (The Unified Identity)
+ 85: ระบบจัดการตัวตน สิทธิ์เข้าถึง และการป้องกันระดับสูง (Multi-Tier RBAC & Whitelist Gatekeeper)
+ 86: - ** ตารางจัดเก็บ**: `user_profiles` (Source of Truth สำหรับสิทธิ์และลายเซ็นดิจิทัล)
+ 87: - **Double-Lock Security**: การเช็ค Whitelist โดยนำอีเมลที่ใช้เข้ารหัส SHA-256 ไปตรวจสอบกับตาราง `user_whitelist` ในขณะล็อกอิน
+ 88: - **SSO Integration**: รองรับทั้ง Microsoft 365 SSO และ Local Password
+ 89: - **Roles (RBAC)**: แบ่งระดับการเข้าถึงเป็น 4 ระดับหลัก (`administrator`, `supervisor`, `approval`, `guest`) พร้อมฟังก์ชัน `normalizeRole()` ป้องกันค่าสิทธิ์ตกหล่น
+ 90: - **PIN Verification**: ใช้ Bcrypt สำหรับการตรวจสอบ PIN 6 หลัก มี lockout system ป้องกัน Brute-force (จำกัดการกดผิด 5 ครั้ง ล็อก 30 นาที)
+ 91: - **Remote Approval Mode**: เอื้ออำนวยให้หัวหน้างาน/ผู้อนุมัติสามารถป้อน PIN 6 หลักบนอุปกรณ์ของผู้แจ้งซ่อมเพื่อยืนยันการลงชื่อและตัวตนจริงได้ (Verified by PIN ประทับตราใน Audit Log อย่างโปร่งใส)
+ 92: 
+ 93: ---
+ 94: 
+ 95: ## 📊 7. SLA & Dashboard Engine
+ 96: ระบบรวบรวมรายงาน ประเมินผลดัชนีชี้วัดความสามารถ (KPI) และการประมวลผลข้อมูลแบบเรียลไทม์
+ 97: - **ฟังก์ชันหลัก**: `calculateNetBusinessMinutes` (ใน [lib/slaUtils.js](file:///c:/Users/Lenovo/dowa-it-system/lib/slaUtils.js#L20)) ทำหน้าที่แปลงเวลาเป็น Bangkok Time (UTC+7), สแกนเวลาทำการในแต่ละวันตาม `work_days` และ `holidays` ที่กำหนดไว้ในตารางระบบ, รวมถึงการหักลบช่วงเวลาที่ผู้แจ้งกดขอหยุดเวลา (Exclusions) แบบ Recursive
+ 98: - **Dashboard API**: ฟังก์ชัน `getDashboardData` รวบรวมข้อมูลสถานะ Streak และตัวเลขการแจ้งซ่อมของพนักงานโดยใช้ Server Action
+ 99: 
+100: ---
+101: 
+102: ## 🛠️ 8. Maintenance & Audit Tools
+103: - **Centralized Audit Trails**: `system_audit_logs` เป็นจุดรวมประวัติการเข้าใช้งานและการทำธุรกรรมทั้งหมดของระบบ โดยจัดเก็บเชิงลึกผ่านคอลัมน์ `metadata` (JSONB)
+104: - **No Series Generation**: [lib/noSeries.js](file:///c:/Users/Lenovo/dowa-it-system/lib/noSeries.js) จัดการเรื่องเลขที่รันของเอกสารเพื่อป้องกันเอกสารซ้ำซ้อน
+105: - **Database Migrations Control**: จัดการการเปลี่ยนแปลง Schema ทั้งหมดในโฟลเดอร์ `supabase/migrations/` (ห้ามมีการรัน SQL นอกกระบวนการควบคุม)
+106: 
+107: ---
+108: 
+109: ## 🔄 9. Core System Sequence Flows
+110: 
+111: ```mermaid
+112: sequenceDiagram
+113:     participant UI as Client Components (UI)
+114:     participant SA as Server Actions (Next.js)
+115:     participant RPC as Supabase RPC (PostgreSQL)
+116:     participant DB as Supabase Tables
+117: 
+118:     %% Incident Lifecycle & Auto-Approve Flow
+119:     rect rgb(240, 248, 255)
+120:     Note over UI, DB: 1. Incident Creation & Resolve Flow
+121:     UI->>SA: createIncident(formData)
+122:     SA->>DB: Insert into 'incidents'
+123:     SA-->>UI: Return docId & caseNo
+124:     UI->>SA: submitRequest(docId, 'incident', ...)
+125:     SA->>DB: generateWorkflowSteps() -> Insert 'document_approvals'
+126:     SA-->>UI: Success
+127:     end
+128: 
+129:     %% Unified Approval Flow
+130:     rect rgb(255, 240, 245)
+131:     Note over UI, DB: 2. Unified Approval Flow (Incident & Checklist)
+132:     UI->>SA: submitApprovalStep(docId, stepId, pin, signature)
+133:     SA->>SA: verifyEmployeePIN(userId, pin)
+134:     SA->>RPC: rpc('handle_approval_step')
+135:     Note over RPC, DB: Atomic DB Transaction
+136:     RPC->>DB: Update 'document_approvals' (status='approved')
+137:     RPC->>DB: Unlock next step OR Update Main Table (status='Closed')
+138:     RPC->>DB: Insert into 'system_audit_logs'
+139:     RPC-->>SA: Return { success, is_final }
+140:     SA->>SA: onDocumentFinalApproval() [If is_final]
+141:     SA-->>UI: Return Success
+142:     end
+143: ```
+144: 
+145: ---
+146: 
+147: ## ⚙️ 10. Functional Inventory & Server Actions
+148: 
+149: | Function | File | Input Arguments | Output Format | Description & Core Responsibility |
+150: | :--- | :--- | :--- | :--- | :--- |
+151: | `createIncident` | [app/actions/incidents.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/incidents.js) | `formData: FormData` | `{ success: boolean, docId: string, caseNo: string }` | ประมวลผลรันเลขเอกสาร IT, ตรวจสอบผู้แจ้งซ่อม, บันทึกข้อมูลตั้งต้น, แทรกในตาราง `incidents` และ `system_audit_logs` |
+152: | `acknowledgeIncident` | [app/actions/incidents.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/incidents.js) | `id: string, severity: string, assigneeId: string` | `{ success: boolean, error?: string }` | อัปเดตการรับงานของเจ้าหน้าที่ IT หรือการจัดแจงมอบหมายงานโดย Admin พร้อมปรับสถานะเป็น `In Progress` และเริ่มนับ Resolution SLA |
+153: | `submitRequest` | [app/actions/workflow.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) | `docId: string, targetType: string, triggerKey: string, userEmail: string, ...` | `{ success: boolean, autoApproved: boolean }` | ประมวลคำขอส่งอนุมัติเอกสาร และเริ่มกระบวนการสร้างและประเมินบันทึกลำดับลำดับอนุมัติหลักของระบบ |
+154: | `submitApprovalStep` | [app/actions/workflow.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) | `docId: string, docType: string, stepId: string, signatureData: string, pin: string, ...` | `{ success: boolean, isFinal: boolean }` | ยืนยันรหัส PIN และสิทธิ์ ก่อนทำการเซ็นผ่านฐานข้อมูล โดยการสั่งการ RPC Function สำหรับอัปเดตสิทธิ์ธุรกรรม |
+155: | `generateWorkflowSteps` | [app/actions/workflow.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) | `docId: string, targetType: string, configKey: string, triggerKey: string` | `{ success: boolean, autoApproved: boolean }` | สแกนและแทรกลำดับขั้นตอนอนุมัติลงใน `document_approvals` โดยอ้างอิงเงื่อนไข `workflow_configs` |
+156: | `onDocumentFinalApproval` | [app/actions/workflow.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) | `docId: string, docType: string` | `Promise<void>` | ประมวล Side-effects ย้อนกลับเมื่อเอกสารอนุมัติครบถ้วน (เช่น ปิด Incident แล้วซิงค์ Checklist NG กลับเป็น OK) |
+157: | `getSLAReportData` | `app/actions/reports.js` | `startDate: Date, endDate: Date, page: number` | `{ success: boolean, data: array, summary: object, settings: object }` | ดึงและตรวจสอบข้อมูลรายงาน SLA ตามช่วงเวลาแบบละเอียด |
+158: | `calculateNetBusinessMinutes` | [lib/slaUtils.js](file:///c:/Users/Lenovo/dowa-it-system/lib/slaUtils.js) | `start: Date, end: Date, settings: object, holidays: array, exclusions: array` | `number` (นาทีทำการสุทธิ) | คำนวณเวลาที่ใช้ในการแก้ไขเคส โดยกรองวันทำการ นอกเวลา และ Pause Elements |
+159: | `unifiedLogin` | `app/actions/login.js` | `email: string, password: string` | `{ success: boolean, needs_onboarding: boolean, ... }` | ประตูเข้าสู่ระบบหลัก (ตรวจสอบข้อมูล Whitelist และสิทธิ์) |
+160: | `createAdminUser` | `app/actions/admin.js` | `email: string, password?: string, full_name: string, role: string, ...` | `{ success: boolean, error?: string }` | กระบวนการสร้าง User Account ปลอดภัย (Auth -> Whitelist -> Profile) |
+161: | `getTargetAssetHistory` | `app/actions/target.js` | `targetId: string` | `{ success: boolean, target: object, docs: array }` | ดึงรายละเอียดประวัติการตรวจสอบของ Asset/Equipment เพื่อแสดงในหน้า QR History |
+162: | `resolveChecklistQr` | `app/actions/target.js` | `qrCode: string` | `{ success: boolean, type: string, targetId: string, redirectUrl: string }` | วิเคราะห์และแปลงผล QR Code เป็น Link นำทางเพื่อเข้าดูข้อมูล Asset/Point |
+163: 
+164: ---
+165: 
+166: ## 🗄️ 11. Database Schema Reference
+167: 
+168: | Table Name | Primary Columns | Key Relations (Foreign Keys & Connections) | Description |
+169: | :--- | :--- | :--- | :--- |
+170: | **`user_profiles`** | `id` (UUID), `email`, `full_name`, `role`, `signature_pin`, `is_active` | FK ใน `created_by`, `reported_by_id`, `approver_id` ของทุกโมดูล | ตารางเก็บโปรไฟล์ ข้อมูลสิทธิ์ (RBAC) และ PIN ของผู้ใช้งานทุกคน |
+171: | **`user_whitelist`** | `email_hash` (Text - SHA-256) | เชื่อมผ่าน Email Hash ตอนเข้าระบบ | ตัวคัดกรอง Whitelist เพิ่มเติมสำหรับการล็อกอินป้องกัน Ghost Users |
+172: | **`incidents`** | `id` (UUID), `case_number`, `status`, `severity`, `reported_by_id`, `assigned_to` | `reported_by_id` -> `user_profiles.id`, เชื่อมโยง 1:N กับ `document_approvals` | ตารางควบคุมการแจ้งปัญหาไอทีและสถานะเคส |
+173: | **`checklist_docs`** | `id` (UUID), `doc_no`, `freq_type`, `period_date`, `status`, `target_id` | `target_id` -> `checklist_targets.id`, เชื่อมโยง 1:N กับ `checklist_items` | ตารางคุมเอกสารตรวจสอบ Checklist ในแต่ละรอบการตรวจ |
+174: | **`checklist_items`** | `id` (UUID), `doc_id`, `item_key`, `status`, `template_data` (JSONB) | `doc_id` -> `checklist_docs.id` | บันทึกผลการตรวจรายหัวข้อและ metadata เก็บภาพใน `template_data` |
+175: | **`document_approvals`** | `id` (UUID), `doc_id`, `doc_type`, `step_order`, `approver_id`, `status` | `approver_id` -> `user_profiles.id` | ขั้นตอนการอนุมัติรายใบเอกสาร (รอ/ผ่าน/ตีกลับ) |
+176: | **`system_audit_logs`** | `id` (UUID), `doc_id`, `doc_type`, `action`, `details`, `metadata` (JSONB) | เชื่อมกับ ID เอกสารหลักของทุกโมดูล | ตารางบันทึกความปลอดภัย ประวัติกิจกรรมการกดและแก้ไขทั้งหมด |
+177: | **`checklist_targets`** | `id` (UUID), `target_code`, `target_type`, `qr_value`, `metadata` | 1:N กับ `checklist_docs` | ทะเบียนข้อมูล Asset หรือ จุดตรวจสอบหลักบน Physical Shopfloor |
+178: | **`workflow_configs`** | `id` (UUID), `target_type`, `condition_key`, `condition_value`, `steps` (JSONB) | ใช้ประเมินเมื่อมีการ Submit เอกสาร | ตารางแม่บทที่ใช้กำหนดการรัน ลำดับขั้นผู้อนุมัติหลักของระบบ |
+179: 
+180: ---
+181: 
+182: ## ⚠️ 12. Technical Pitfalls & Performance Risks
+183: 
+184: > [!WARNING]
+185: > **Performance Hotspot (lib/slaUtils.js - calculateNetBusinessMinutes):**
+186: > มีการรัน `while` loop วนซ้ำทีละ 1 วันในการคำนวณวันทำการ หากเอกสารมีวันเริ่มต้นและสิ้นสุดห่างกันเป็นเวลานาน (เช่น ค้างข้ามปี) อาจเป็นสาเหตุให้ระบบเกิด CPU Bottleneck ได้ แม้ในตัวโค้ดจะมีเกราะป้องกันด้วยการจำกัดลูปสูงสุด `safetyCounter < 1000` ก็ตาม แต่ควรระมัดระวังในการส่งพารามิเตอร์ช่วงเวลาที่กว้างเกินไปเข้ามาคำนวณ
+187: 
+188: > [!WARNING]
+189: > **High Concurrent Queries (app/actions/dashboard.js - getDashboardData):**
+190: > ฟังก์ชันข้อมูลหน้า Dashboard ใช้ `Promise.all` ยิงพร้อมกันถึง 14 Queries รวมถึงการดึงประวัติ และคำนวณค่า Streak/SLA แบบ Real-time บนหน่วยความจำ การดึงข้อมูลลักษณะนี้ในขณะมีผู้ใช้งานสูงอาจก่อให้เกิดภาระหนักต่อฐานข้อมูล Supabase ได้ในระยะยาว
+191: 
+192: > [!IMPORTANT]
+193: > **Monolithic Dependency Bottleneck (app/actions/workflow.js):**
+194: > เป็น Server Action Monolithic ที่รวมเอาหน้าที่การอนุมัติ ตรวจสอบความถูกต้อง เชื่อมโยงข้ามโมดูล การบันทึก Logs ย้อนหลัง และการประเมินสิทธิ์ตัวตนทั้งหมดไว้ในไฟล์เดียว การแก้ไขจุดใดจุดหนึ่งในไฟล์นี้มีความเสี่ยงสูงที่จะก่อให้เกิดข้อผิดพลาดลูกโซ่ (Chain Reactions) ไปยังส่วนอื่นๆ ดังนั้นก่อนแก้ไขโค้ดทุกครั้งต้องตรวจสอบและทำ regression test อย่างละเอียด
+195: 
+196: > [!IMPORTANT]
+197: > **Supabase Bypass Danger (lib/supabaseAdmin.js):**
+198: > มีการเรียกใช้คีย์พิเศษ `SUPABASE_SERVICE_ROLE_KEY` สำหรับการเขียนทับข้อจำกัดความปลอดภัยของ Database RLS policies เพื่อความถูกต้องในการ onboarding และ auto-finalization ถึงแม้ตัวโค้ดจะถูกป้องกันด้วยคำสั่ง `"use server"` เพื่อจำกัดไว้ให้ทำงานฝั่ง Server เท่านั้น แต่ในการ refactor ห้ามเผลอ import คีย์นี้เข้าไปยังฝั่ง client-side component เด็ดขาด
+199: 
+200: > [!CAUTION]
+201: > **Pending Security Migration (supabase/migrations/add_rls_policies.sql):**
+202: > จากบันทึก Changelog ระบบมีการสร้างไฟล์การบังคับใช้ Row Level Security (RLS) จำนวน 18 ตารางข้อมูล ทว่าในปัจจุบัน *ตารางเหล่านี้ยังไม่ได้ถูกเปิดใช้งานจริงบน Production Database* เนื่องจากยังรอการตรวจรับและทดสอบระบบการเขียนเขียนข้อมูลผ่าน Client ปกติ การเปิดใช้งานในอนาคตจำเป็นต้องทำควบคู่กับการทดสอบสิทธิ์ผู้ใช้ (RBAC Checks) เพื่อไม่ให้สิทธิ์การกรอกข้อมูลและเข้าดูรายงานของระบบทั่วไปหยุดทำงาน
+203: 
+204: ---
+205: *Last Synchronized: 17-May-2026 12:50 | Document updated according to latest PROJECT_SCAN_SUMMARY.md*
+````
+
 ## File: docs/standards/UI_UX_RESPONSIVE.md
 ````markdown
  1: # 📱 Standard: Multi-Device Responsive Design (UI/UX)
@@ -19606,121 +20315,6 @@ supabase/migrations/add_rls_policies.sql
 92:     return { error: err.message };
 93:   }
 94: }
-````
-
-## File: lib/workflow.js
-````javascript
-  1: import { createClient } from '@supabase/supabase-js'
-  2: import { supabase } from './supabase'
-  3: 
-  4: export async function recordLog(docId, type, action, details, userEmail) {
-  5:   try {
-  6:     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  7:     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  8:     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
-  9: 
- 10:     const table = type === 'checklist' ? 'checklist_logs' : 'incident_logs'
- 11:     const fullAction = details ? `${action}: ${details}` : action
- 12:     const { error } = await supabaseAdmin.from(table).insert({
- 13:       doc_id: docId,
- 14:       action: fullAction,
- 15:       user_email: userEmail
- 16:     })
- 17:     if (error) throw error
- 18:     return { success: true }
- 19:   } catch (err) {
- 20:     console.error('recordLog Error:', err)
- 21:     return { success: false, error: err.message }
- 22:   }
- 23: }
- 24: 
- 25: /**
- 26:  * Check if a user's PIN is currently locked due to too many failed attempts.
- 27:  */
- 28: export async function isPinLocked(userId) {
- 29:   const { data, error } = await supabase
- 30:     .from('user_profiles')
- 31:     .select('pin_locked_until')
- 32:     .eq('id', userId)
- 33:     .single()
- 34:   
- 35:   if (error || !data.pin_locked_until) return false
- 36:   
- 37:   const lockedUntil = new Date(data.pin_locked_until)
- 38:   const now = new Date()
- 39:   
- 40:   return lockedUntil > now
- 41: }
- 42: 
- 43: /**
- 44:  * Validates a signature PIN with rate limiting and lockout.
- 45:  */
- 46: export async function validateSignaturePin(userId, pin) {
- 47:   // 1. Check if locked
- 48:   if (await isPinLocked(userId)) {
- 49:     return { success: false, error: 'รหัส PIN ของคุณถูกระงับชั่วคราว กรุณาลองใหม่ภายหลัง (15 นาที)' }
- 50:   }
- 51: 
- 52:   // 2. We use a server-side API or Action to verify bcrypt hash
- 53:   // For now, let's assume we have an action or we check it here (if client has bcrypt, which it might not)
- 54:   // RECOMMENDATION: Use a Server Action for this to keep PIN hash safe.
- 55:   // This is a placeholder for the logic that will call the server action.
- 56:   const res = await fetch('/api/auth/verify-pin', {
- 57:     method: 'POST',
- 58:     body: JSON.stringify({ userId, pin })
- 59:   }).then(r => r.json())
- 60: 
- 61:   return res
- 62: }
- 63: 
- 64: /**
- 65:  * Gets the list of users who are allowed to approve a specific document type.
- 66:  * This handles the "Pool" logic.
- 67:  */
- 68: export async function getEligibleApprovers(targetType, triggerKey) {
- 69:   const { data: config } = await supabase
- 70:     .from('approval_configs')
- 71:     .select('allowed_roles')
- 72:     .eq('target_type', targetType)
- 73:     .eq('freq_type', triggerKey)
- 74:     .single()
- 75:   
- 76:   if (!config) return []
- 77: 
- 78:   const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
- 79:   const { data: users } = await supabaseAdmin
- 80:     .from('user_profiles')
- 81:     .select('id, full_name, role, signature_pin')
- 82:     .in('role', config.allowed_roles)
- 83:     .eq('is_active', true)
- 84:   
- 85:   return users?.map(u => ({
- 86:     id: u.id,
- 87:     full_name: u.full_name,
- 88:     role: u.role,
- 89:     has_pin: !!u.signature_pin
- 90:   })) || []
- 91: }
- 92: 
- 93: /**
- 94:  * Check if the current user is an active substitute for another user.
- 95:  */
- 96: export async function isSubstituteOf(subId, primaryId) {
- 97:   if (!primaryId) return false
- 98:   const now = new Date().toISOString().split('T')[0]
- 99:   
-100:   const { data, error } = await supabase
-101:     .from('approval_substitutes')
-102:     .select('id')
-103:     .eq('primary_approver_id', primaryId)
-104:     .eq('substitute_id', subId)
-105:     .eq('is_active', true)
-106:     .lte('start_date', now)
-107:     .gte('end_date', now)
-108:     .limit(1)
-109:   
-110:   return !!data?.length
-111: }
 ````
 
 ## File: supabase/migrations/20260508_workflow_refinement_phase_2.sql
@@ -32634,105 +33228,275 @@ supabase/migrations/add_rls_policies.sql
 55: > - 🔴 **Critical**: ฟีเจอร์หลักใช้งานไม่ได้ ต้องได้รับการแก้ไขทันที
 ````
 
+## File: app/actions/login.js
+````javascript
+  1: 'use server'
+  2: 
+  3: import { cookies } from 'next/headers'
+  4: import { createServerClient } from '@supabase/ssr'
+  5: import { recordSystemError } from './workflow'
+  6: 
+  7: /**
+  8:  * 🔑 ระบบ Login ตัวเดียวสำหรับทุกคน (Unified Login)
+  9:  * รองรับทั้ง Administrator, Supervisor, Approval และ Guest
+ 10:  */
+ 11: export async function unifiedLogin(email, password) {
+ 12:   const cookieStore = await cookies()
+ 13:   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+ 14:   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+ 15: 
+ 16:   if (!supabaseUrl || !supabaseKey) {
+ 17:     return { success: false, error: 'Missing Configuration' }
+ 18:   }
+ 19: 
+ 20:   const supabase = createServerClient(supabaseUrl, supabaseKey, {
+ 21:     cookies: {
+ 22:       getAll: () => cookieStore.getAll(),
+ 23:       setAll: (cookiesToSet) => {
+ 24:         cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+ 25:       }
+ 26:     }
+ 27:   })
+ 28: 
+ 29:   // พยายาม Login ด้วย Supabase Auth
+ 30:   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+ 31:     email,
+ 32:     password
+ 33:   })
+ 34: 
+ 35:   if (authError) {
+ 36:     await recordSystemError('Auth', `Login failed for ${email}: ${authError.message}`, { email, error: authError })
+ 37:     return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }
+ 38:   }
+ 39: 
+ 40:   // 🛡️ เช็คทะเบียนขาว (Whitelist) ทันทีหลัง Login
+ 41:   const { createClient } = await import('@supabase/supabase-js')
+ 42:   const { hashEmail } = await import('@/lib/auth')
+ 43:   const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+ 44:   
+ 45:   const hashedEmail = hashEmail(email)
+ 46:   const { data: whitelistData } = await adminClient
+ 47:     .from('user_whitelist')
+ 48:     .select('id')
+ 49:     .eq('email_hash', hashedEmail)
+ 50:     .single()
+ 51: 
+ 52:   if (!whitelistData) {
+ 53:     console.log(`🚫 Security: ${email} logged in but not in whitelist. Purging session...`)
+ 54:     await supabase.auth.signOut()
+ 55:     return { success: false, redirect_to_denied: true }
+ 56:   }
+ 57: 
+ 58:   // ✅ Login สำเร็จและผ่านทะเบียนขาว
+ 59:   const userId = authData.user.id
+ 60:   
+ 61:   // 🛡️ เช็คสถานะ Onboarding และจัดการ Token (Gatekeeper Standard)
+ 62:   const onboarding = await checkOnboardingInternal(userId, adminClient)
+ 63: 
+ 64:   // 📝 บันทึก Login Log
+ 65:   await adminClient.from('login_logs').insert([{
+ 66:     user_id: userId,
+ 67:     user_email: email,
+ 68:     action: 'Login สำเร็จ',
+ 69:     ip_address: 'SERVER_SIDE',
+ 70:     user_agent: 'Unified Login'
+ 71:   }])
+ 72: 
+ 73:   // 🛡️ ตั้งค่า Cookie สำหรับ Onboarding (Gatekeeper Standard - Cookie based)
+ 74:   cookieStore.set('dowa_onboarded', (!onboarding.needs_onboarding).toString(), {
+ 75:     path: '/',
+ 76:     maxAge: 60 * 60 * 24 * 7, // 7 days
+ 77:     httpOnly: true,
+ 78:     secure: process.env.NODE_ENV === 'production',
+ 79:     sameSite: 'lax'
+ 80:   })
+ 81: 
+ 82:   return { 
+ 83:     success: true,
+ 84:     needs_onboarding: onboarding.needs_onboarding,
+ 85:     onboarding_token: onboarding.onboarding_token
+ 86:   }
+ 87: }
+ 88: 
+ 89: /**
+ 90:  * 🛠️ Helper สำหรับตรวจสอบ Onboarding และ Auto-Refresh Token
+ 91:  * (ใช้ร่วมกันทั้ง Unified Login และ Gatekeeper Status)
+ 92:  */
+ 93: async function checkOnboardingInternal(userId, adminClient) {
+ 94:   const { data: profile } = await adminClient
+ 95:     .from('user_profiles')
+ 96:     .select('is_onboarded, onboarding_token, onboarding_token_expires')
+ 97:     .eq('id', userId)
+ 98:     .single()
+ 99: 
+100:   if (!profile || profile.is_onboarded) {
+101:     return { needs_onboarding: false, onboarding_token: null }
+102:   }
+103: 
+104:   // Auto-Refresh Logic
+105:   const isExpired = profile.onboarding_token_expires && new Date(profile.onboarding_token_expires) < new Date()
+106:   let finalToken = profile.onboarding_token
+107: 
+108:   if (!finalToken || isExpired) {
+109:     const { randomUUID } = await import('crypto')
+110:     finalToken = randomUUID()
+111:     const newExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+112:     
+113:     console.log(`🛡️ Gatekeeper: Refreshing token for user ${userId}...`)
+114:     const { error: updateError } = await adminClient
+115:       .from('user_profiles')
+116:       .update({ 
+117:         onboarding_token: finalToken, 
+118:         onboarding_token_expires: newExpires 
+119:       })
+120:       .eq('id', userId)
+121: 
+122:     if (updateError) {
+123:       console.error('❌ Gatekeeper: Failed to refresh token:', updateError)
+124:       // หาก Update พลาด ให้ใช้ค่าเดิมไปก่อน (ถ้ามี) เพื่อไม่ให้ขัดจังหวะการเข้า Onboarding
+125:       finalToken = profile.onboarding_token || finalToken 
+126:     }
+127:   }
+128: 
+129:   return { 
+130:     needs_onboarding: true,
+131:     onboarding_token: finalToken
+132:   }
+133: }
+134: 
+135: /**
+136:  * 🕵️ ตรวจสอบสถานะ Onboarding สำหรับ Gatekeeper
+137:  */
+138: export async function getOnboardingStatus() {
+139:   const cookieStore = await cookies()
+140:   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+141:   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+142: 
+143:   const supabase = createServerClient(supabaseUrl, supabaseKey, {
+144:     cookies: {
+145:       getAll: () => cookieStore.getAll(),
+146:       setAll: (cookiesToSet) => {
+147:         cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+148:       }
+149:     }
+150:   })
+151: 
+152:   const { data: { user } } = await supabase.auth.getUser()
+153:   if (!user) return { needs_onboarding: false, session: false }
+154: 
+155:   const adminClient = await import('@supabase/supabase-js').then(m => m.createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY))
+156:   const onboarding = await checkOnboardingInternal(user.id, adminClient)
+157: 
+158:   return { 
+159:     session: true,
+160:     needs_onboarding: onboarding.needs_onboarding,
+161:     onboarding_token: onboarding.onboarding_token
+162:   }
+163: }
+````
+
 ## File: docs/INDEX.md
 ````markdown
- 1: # 📘 DOWA IT System - Documentation Index
- 2: 
- 3: **[ATTENTION AI AGENTS]**  
- 4: This is the central documentation hub. You MUST read this file first before starting any task to understand the system's architecture and find the relevant documentation for your specific task. **DO NOT read all files unless necessary to avoid context overflow.**
- 5: 
- 6: ---
- 7: 
- 8: ## 🏛️ 1. Architecture & Core Systems (`docs/architecture/`)
- 9: เอกสารหมวดนี้เกี่ยวกับโครงสร้างพื้นฐาน การออกแบบฐานข้อมูล และระบบความปลอดภัย
-10: - [DATABASE_AND_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/DATABASE_AND_FLOW.md) : โครงสร้าง Database หลัก, ความสัมพันธ์ของตาราง, และ Workflow การทำงาน (Authentication, Checklist Engine)
-11: - [RBAC.md](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/RBAC.md) : แผนงานและโครงสร้างของระบบสิทธิ์การใช้งาน (Role-Based Access Control) แบบ 4 ระดับ (Admin, Supervisor, Approval, Guest)
-12: - [RBAC_PLAN_THAI.txt](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/RBAC_PLAN_THAI.txt) : บันทึกการวางแผนระบบ RBAC เริ่มต้น (Archive)
-13: 
-14: ---
-15: 
-16: ## 📜 ประเภทที่ 1: มาตรฐานการพัฒนาระบบ (Development Standards)
-17: *หมวดหมู่นี้ใช้สำหรับให้ Agent ยึดถือเป็นหลักการและ Logic ในการพัฒนาระบบ (Source of Truth for Agents)*
-18: **Directory:** `docs/standards/`
-19: - [ZERO_HACK_POLICY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/ZERO_HACK_POLICY.md) : นโยบายห้ามใช้ UI Hacks
-20: - [DEVELOPMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DEVELOPMENT.md) : มาตรฐานโค้ด, Logging และ Security
-21: - [WORKFLOW_ENGINE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/WORKFLOW_ENGINE.md) : มาตรฐานการอนุมัติและสถานะเอกสาร
-22: - [USER_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/USER_MANAGEMENT.md) : มาตรฐานการจัดการผู้ใช้และความปลอดภัย
-23: - [PERMISSIONS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/PERMISSIONS.md) : มาตรฐานระบบสิทธิ์การใช้งาน
-24: - [UI_UX_SETTING.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_SETTING.md) : มาตรฐานการออกแบบหน้าจอ Master Data
-25: - [UI_UX_SETTINGS_DESIGN_SYSTEM.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_SETTINGS_DESIGN_SYSTEM.md) : มาตรฐาน Design System ของเมนู Settings ทั้งหมด อ้างอิงหน้า Permissions และกำหนด responsive สำหรับ tablet/smartphone
-26: - [UI_LAYOUT_SPACING_REMEDIATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_LAYOUT_SPACING_REMEDIATION.md) : มาตรฐานการตรวจและแก้ปัญหา layout ชิดขอบ, card/object ติดกัน, spacing หาย และ Tailwind utility ไม่เสถียร
-27: - [UI_UX_RESPONSIVE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_RESPONSIVE.md) : มาตรฐานหน้าจอ Multi-Device
-28: - [ENVIRONMENT_AND_SERVER_ACTIONS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/ENVIRONMENT_AND_SERVER_ACTIONS.md) : มาตรฐานการจัดการ Environment Variables และ Server Actions
-29: - [SLA_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SLA_MANAGEMENT.md) : มาตรฐานการคำนวณและบริหารจัดการ SLA (KPI)
-30: - [INCIDENT_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INCIDENT_MANAGEMENT.md) : มาตรฐานการจัดการเหตุการณ์และขั้นตอนการทำงาน
-31: - [TARGET_REGISTRY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/TARGET_REGISTRY.md) : มาตรฐาน Target Registry, โครงสร้างตาราง asset/target, และการผูก template กับ target/group
-32: - [QR_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/QR_ASSET_HISTORY.md) : มาตรฐาน API และ flow สำหรับ QR lookup และ Asset History
-33: - [INCIDENT_LIFECYCLE_OVERHAUL_SPEC.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INCIDENT_LIFECYCLE_OVERHAUL_SPEC.md) : รายละเอียดทางเทคนิคสำหรับการปรับปรุงวงจรชีวิต Incident
-34: - [DOCUMENT_MAPPING_STANDARD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DOCUMENT_MAPPING_STANDARD.md) : มาตรฐานการจับคู่ข้อมูลและสถานะ Workflow ของระบบ
-35: - [SYSTEM_ARCHITECTURE_MAP.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SYSTEM_ARCHITECTURE_MAP.md) : [AGGREGATION TOOL] แผนผังโครงสร้างสถาปัตยกรรมและ Logic Flow (สำหรับ Agent)
-36: - [AGENCY_QUICK_REFERENCE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/AGENCY_QUICK_REFERENCE.md) : [AGGREGATION TOOL] รวมสูตรสำเร็จ (Cheat Sheet) และคำสั่งที่ใช้บ่อย (สำหรับ Agent)
-37: 
-38: ### 👤 Agent Roles
-39: - [roles/README.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/roles/README.md) : สารบัญและโครงสร้างของบทบาท Agent ย่อย
-40: 
-41: 
-42: ---
-43: 
-44: ## 📅 ประเภทที่ 2: บันทึกการดำเนินการและประวัติ (Implementation History)
-45: *หมวดหมู่นี้ใช้สำหรับบันทึกความคืบหน้า ประวัติการเปลี่ยนแปลง และรายงานสถานะ (Audit Trail)*
-46: **Directory:** `docs/history/`
-47: - [UNIFIED_WORKFLOW_STANDARD_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/UNIFIED_WORKFLOW_STANDARD_PLAN.md): แผนการปรับปรุงมาตรฐาน Workflow ทั้งระบบ
-48: - [WORKFLOW_REFINEMENT_PHASE_2.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/WORKFLOW_REFINEMENT_PHASE_2.md): [PLAN] แผนการปรับปรุงความเสถียร (Phase 2: Transactions & Logs)
-49: - [UI_UX_WORKFLOW_CARD_UPGRADE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/UI_UX_WORKFLOW_CARD_UPGRADE.md): [PLAN] แผนการอัปเกรด UI/UX เป็นแบบ Card (Phase 3)
-50: - [CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md) : บันทึกการเปลี่ยนแปลงรายวัน
-51: - [USER_TASKS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/USER_TASKS.md) : รายการงานที่ USER ฝากแก้ไขและติดตามความคืบหน้า (Agent ต้องอ่านทุกครั้ง)
-52: - [REF_INCIDENT_CREATION_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_INCIDENT_CREATION_FLOW.md) : [PLAN] แผนการ Refactor ระบบการสร้าง Incident
-53: - [REF_ROLE_AUDITOR_REFACTOR.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_ROLE_AUDITOR_REFACTOR.md) : [PLAN] แผนการเปลี่ยนชื่อ Role จาก Guest เป็น Auditor
-54: - [REF_USER_MANAGEMENT_HARDENING.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_USER_MANAGEMENT_HARDENING.md) : [PLAN] แผนการเสริมความปลอดภัย User Management
-55: - [REF_SLA_CALCULATION_FIX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_SLA_CALCULATION_FIX.md) : [PLAN] แผนการแก้ไขสูตรคำนวณ SLA (Working Hours)
-56: - [REF_WORKFLOW_SCALABLE_UPGRADE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_WORKFLOW_SCALABLE_UPGRADE.md) : [PLAN] แผนการอัปเกรด Workflow Engine (Scalable & Integer-based)
-57: - [REF_DASHBOARD_WORKFLOW_FIX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_DASHBOARD_WORKFLOW_FIX.md) : [PLAN] แผนการปรับปรุง Dashboard และ Incident Workflow (Phase 3)
-58: - [IMPLEMENTATION_PLAN_INCIDENT_ACCEPT_DISPATCH_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_INCIDENT_ACCEPT_DISPATCH_AUDIT.md) : [PLAN] แผนปรับ Incident Accept/Dispatch ให้แยก IT Staff รับงานเอง และ Administrator มอบหมายงานตามหลัก Audit
-59: - [IMPLEMENTATION_PLAN_SETTINGS_MENU_RESTRUCTURE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_SETTINGS_MENU_RESTRUCTURE.md) : [PLAN] แผนปรับโครงสร้างเมนู Settings ให้แยก System Setup, Master Data, Workflow & Approval, Users & Access และ Audit & Logs
-60: - [IMPLEMENTATION_PLAN_SETTINGS_ROUTE_SEPARATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_SETTINGS_ROUTE_SEPARATION.md) : [PLAN] แผนแยก route Settings ออกจาก Master Data wrapper ให้เป็นหน้าอิสระ เช่น Holidays, Incident Master Data และ Checklist Master Data
-61: - [IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md) : [PLAN] แผนพัฒนา Checklist Template Master, Procedure Plan Editor และ Asset History/QR สำหรับงานตรวจรายอุปกรณ์
-62: - [IMPLEMENTATION_PLAN_CHECKLIST_POINT_HISTORY_AND_PHOTO_UI.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_CHECKLIST_POINT_HISTORY_AND_PHOTO_UI.md) : [PLAN] แผนละเอียดสำหรับปรับ UX ของ Photo Evidence และออกแบบสถาปัตยกรรม point-level history / QR รายจุดให้ Fast AI ลงมือทำได้ตรง spec
-63: - [IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md) : [PLAN] แผนลงรายละเอียดการพัฒนา Target Registry, QR Navigation และ Asset History หลัง Template Builder/Procedure Editor พร้อมแล้ว
-64: - [IMPLEMENTATION_PLAN_SETTINGS_GUIDE_LOGS_MASTERDATA_FIX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_SETTINGS_GUIDE_LOGS_MASTERDATA_FIX.md) : [PLAN] แผนแก้ Guide edit/content, Logs Doc No./Email/System Errors และลดขนาด Incident Master Data form
-65: - [SCAN_SUMMARY_SETTINGS_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/SCAN_SUMMARY_SETTINGS_AUDIT.md) : [AUDIT] รายงานผลการตรวจสอบสถาปัตยกรรมและ UI/UX ของโมดูล Settings (Standalone Route & Responsive)
-66: - [AUDIT_SYSTEM_GAP_ANALYSIS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_SYSTEM_GAP_ANALYSIS.md) : [AUDIT] รายงานการตรวจสอบความสอดคล้องระหว่างโค้ดและมาตรฐาน (Gap Analysis)
-67: - [STATUS_REPORT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/STATUS_REPORT.md) : รายงานสถานะฟีเจอร์ปัจจุบัน
-68: - [project_summary.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/project_summary.md) : รายงานสรุปโครงสร้างสถาปัตยกรรมและรายละเอียดโฟลเดอร์ระบบ DOWA IT System (ล่าสุด)
-69: - [INCIDENT_APPROVAL_MIGRATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/INCIDENT_APPROVAL_MIGRATION.md) : ประวัติการย้ายข้อมูล Workflow
-70: - [AUDIT_REPORT_LATEST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_LATEST.md) : รายงานการตรวจสอบคุณภาพล่าสุด (PASSED)
-71: - [AUDIT_REPORT_INCIDENT_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_INCIDENT_FLOW.md) : รายงานการตรวจสอบกระบวนการ Incident (Archive - FAILED)
-72: 
-73: ---
-74: 
-75: ## 📖 ประเภทที่ 3: คู่มือการใช้งานและเทคนิค (Manuals & Guides)
-76: *หมวดหมู่นี้ใช้สำหรับเป็นคู่มือขั้นตอนการทำงาน (Flow) สำหรับผู้ใช้และนักพัฒนา (How-to Guides)*
-77: **Directory:** `docs/manuals/`
-78: - [WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/WORKFLOW_GUIDE.md) : คู่มือขั้นตอนการทำงานของ Workflow (Incident & Checklist)
-79: - [USER_MANAGEMENT_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/USER_MANAGEMENT_GUIDE.md) : คู่มือการจัดการผู้ใช้, PIN และ Onboarding Flow
-80: - [TARGET_REGISTRY_UAT_SEED_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) : แผนเตรียมข้อมูล UAT สำหรับ Target Registry / QR Asset History โดยยังไม่ insert ข้อมูลจริง
-81: 
-82: ---
-83: 
-84: ## 🏛️ ข้อมูลสถาปัตยกรรม (Core Architecture)
-85: **Directory:** `docs/architecture/`
-86: - [DATABASE_AND_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/DATABASE_AND_FLOW.md) : โครงสร้าง Database และ Flow หลัก
-87: - [RBAC.md](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/RBAC.md) : โครงสร้างระบบสิทธิ์การใช้งาน
-88: 
-89: ---
-90: 
-91: ### 🤖 AI Agent Workflow Instructions:
-92: 1. **Identify the Task:** วิเคราะห์คำสั่งจาก USER ว่าเกี่ยวกับส่วนใดของระบบ
-93: 2. **Mandatory Check:** ต้องอ่าน `INDEX.md` และ **[USER_TASKS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/USER_TASKS.md)** ทุกครั้งก่อนเริ่มงาน
-94: 3. **Mandatory Categorization:** หากมีการเพิ่มเอกสารใหม่ **ต้อง** จัดกลุ่มให้ถูกต้องตามประเภท (Standards / History / Manuals) และบันทึกลงในโฟลเดอร์ย่อยเท่านั้น
-95: 4. **Find the Standard:** เลือกอ่านไฟล์ `.md` ในหมวดหมู่ `standards/` ที่เกี่ยวข้องกับงานก่อนเริ่มเสมอ
-96: 5. **Follow the Rules:** ปฏิบัติตาม `ZERO_HACK_POLICY.md` และกฎใน `AGENTS.md` อย่างเคร่งครัด
-97: 6. **Update Logs:** เมื่อทำงานเสร็จสิ้น ให้บันทึกผลลงใน `CHANGELOG.md` และอัปเดตสถานะใน `USER_TASKS.md` (หากเกี่ยวข้อง) ทุกครั้ง
+  1: # 📘 DOWA IT System - Documentation Index
+  2: 
+  3: **[ATTENTION AI AGENTS]**  
+  4: This is the central documentation hub. You MUST read this file first before starting any task to understand the system's architecture and find the relevant documentation for your specific task. **DO NOT read all files unless necessary to avoid context overflow.**
+  5: 
+  6: ---
+  7: 
+  8: ## 🏛️ 1. Architecture & Core Systems (`docs/architecture/`)
+  9: เอกสารหมวดนี้เกี่ยวกับโครงสร้างพื้นฐาน การออกแบบฐานข้อมูล และระบบความปลอดภัย
+ 10: - [DATABASE_AND_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/DATABASE_AND_FLOW.md) : โครงสร้าง Database หลัก, ความสัมพันธ์ของตาราง, และ Workflow การทำงาน (Authentication, Checklist Engine)
+ 11: - [RBAC.md](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/RBAC.md) : แผนงานและโครงสร้างของระบบสิทธิ์การใช้งาน (Role-Based Access Control) แบบ 4 ระดับ (Admin, Supervisor, Approval, Guest)
+ 12: - [RBAC_PLAN_THAI.txt](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/RBAC_PLAN_THAI.txt) : บันทึกการวางแผนระบบ RBAC เริ่มต้น (Archive)
+ 13: 
+ 14: ---
+ 15: 
+ 16: ## 📜 ประเภทที่ 1: มาตรฐานการพัฒนาระบบ (Development Standards)
+ 17: *หมวดหมู่นี้ใช้สำหรับให้ Agent ยึดถือเป็นหลักการและ Logic ในการพัฒนาระบบ (Source of Truth for Agents)*
+ 18: **Directory:** `docs/standards/`
+ 19: - [ZERO_HACK_POLICY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/ZERO_HACK_POLICY.md) : นโยบายห้ามใช้ UI Hacks
+ 20: - [DEVELOPMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DEVELOPMENT.md) : มาตรฐานโค้ด, Logging และ Security
+ 21: - [WORKFLOW_ENGINE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/WORKFLOW_ENGINE.md) : มาตรฐานการอนุมัติและสถานะเอกสาร
+ 22: - [USER_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/USER_MANAGEMENT.md) : มาตรฐานการจัดการผู้ใช้และความปลอดภัย
+ 23: - [PERMISSIONS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/PERMISSIONS.md) : มาตรฐานระบบสิทธิ์การใช้งาน
+ 24: - [UI_UX_SETTING.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_SETTING.md) : มาตรฐานการออกแบบหน้าจอ Master Data
+ 25: - [UI_UX_SETTINGS_DESIGN_SYSTEM.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_SETTINGS_DESIGN_SYSTEM.md) : มาตรฐาน Design System ของเมนู Settings ทั้งหมด อ้างอิงหน้า Permissions และกำหนด responsive สำหรับ tablet/smartphone
+ 26: - [UI_LAYOUT_SPACING_REMEDIATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_LAYOUT_SPACING_REMEDIATION.md) : มาตรฐานการตรวจและแก้ปัญหา layout ชิดขอบ, card/object ติดกัน, spacing หาย และ Tailwind utility ไม่เสถียร
+ 27: - [UI_UX_RESPONSIVE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_RESPONSIVE.md) : มาตรฐานหน้าจอ Multi-Device
+ 28: - [ENVIRONMENT_AND_SERVER_ACTIONS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/ENVIRONMENT_AND_SERVER_ACTIONS.md) : มาตรฐานการจัดการ Environment Variables และ Server Actions
+ 29: - [SLA_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SLA_MANAGEMENT.md) : มาตรฐานการคำนวณและบริหารจัดการ SLA (KPI)
+ 30: - [INCIDENT_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INCIDENT_MANAGEMENT.md) : มาตรฐานการจัดการเหตุการณ์และขั้นตอนการทำงาน
+ 31: - [TARGET_REGISTRY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/TARGET_REGISTRY.md) : มาตรฐาน Target Registry, โครงสร้างตาราง asset/target, และการผูก template กับ target/group
+ 32: - [QR_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/QR_ASSET_HISTORY.md) : มาตรฐาน API และ flow สำหรับ QR lookup และ Asset History
+ 33: - [INCIDENT_LIFECYCLE_OVERHAUL_SPEC.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INCIDENT_LIFECYCLE_OVERHAUL_SPEC.md) : รายละเอียดทางเทคนิคสำหรับการปรับปรุงวงจรชีวิต Incident
+ 34: - [DOCUMENT_MAPPING_STANDARD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DOCUMENT_MAPPING_STANDARD.md) : มาตรฐานการจับคู่ข้อมูลและสถานะ Workflow ของระบบ
+ 35: - [SYSTEM_ARCHITECTURE_MAP.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SYSTEM_ARCHITECTURE_MAP.md) : [AGGREGATION TOOL] แผนผังโครงสร้างสถาปัตยกรรมและ Logic Flow (สำหรับ Agent)
+ 36: - [AGENCY_QUICK_REFERENCE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/AGENCY_QUICK_REFERENCE.md) : [AGGREGATION TOOL] รวมสูตรสำเร็จ (Cheat Sheet) และคำสั่งที่ใช้บ่อย (สำหรับ Agent)
+ 37: - [AGENTS.md](file:///c:/Users/Lenovo/dowa-it-system/AGENTS.md) : กฎข้อบังคับและ Workflow สำหรับ AI และ Agent ทุกตัวในระบบ (มีผลบังคับใช้สูงสุด)
+ 38: - [.julesrules](file:///c:/Users/Lenovo/dowa-it-system/.julesrules) : กฎข้อบังคับและข้อกำหนดเฉพาะสำหรับ Google Jules Coding Agent
+ 39: 
+ 40: ### 👤 Agent Roles
+ 41: - [roles/README.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/roles/README.md) : สารบัญและโครงสร้างของบทบาท Agent ย่อย
+ 42: 
+ 43: 
+ 44: ---
+ 45: 
+ 46: ## 📅 ประเภทที่ 2: บันทึกการดำเนินการและประวัติ (Implementation History)
+ 47: *หมวดหมู่นี้ใช้สำหรับบันทึกความคืบหน้า ประวัติการเปลี่ยนแปลง และรายงานสถานะ (Audit Trail)*
+ 48: **Directory:** `docs/history/`
+ 49: - [UNIFIED_WORKFLOW_STANDARD_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/UNIFIED_WORKFLOW_STANDARD_PLAN.md): แผนการปรับปรุงมาตรฐาน Workflow ทั้งระบบ
+ 50: - [WORKFLOW_REFINEMENT_PHASE_2.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/WORKFLOW_REFINEMENT_PHASE_2.md): [PLAN] แผนการปรับปรุงความเสถียร (Phase 2: Transactions & Logs)
+ 51: - [UI_UX_WORKFLOW_CARD_UPGRADE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/UI_UX_WORKFLOW_CARD_UPGRADE.md): [PLAN] แผนการอัปเกรด UI/UX เป็นแบบ Card (Phase 3)
+ 52: - [CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md) : บันทึกการเปลี่ยนแปลงรายวัน
+ 53: - [USER_TASKS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/USER_TASKS.md) : รายการงานที่ USER ฝากแก้ไขและติดตามความคืบหน้า (Agent ต้องอ่านทุกครั้ง)
+ 54: - [REF_INCIDENT_CREATION_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_INCIDENT_CREATION_FLOW.md) : [PLAN] แผนการ Refactor ระบบการสร้าง Incident
+ 55: - [REF_ROLE_AUDITOR_REFACTOR.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_ROLE_AUDITOR_REFACTOR.md) : [PLAN] แผนการเปลี่ยนชื่อ Role จาก Guest เป็น Auditor
+ 56: - [REF_USER_MANAGEMENT_HARDENING.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_USER_MANAGEMENT_HARDENING.md) : [PLAN] แผนการเสริมความปลอดภัย User Management
+ 57: - [REF_SLA_CALCULATION_FIX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_SLA_CALCULATION_FIX.md) : [PLAN] แผนการแก้ไขสูตรคำนวณ SLA (Working Hours)
+ 58: - [REF_WORKFLOW_SCALABLE_UPGRADE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_WORKFLOW_SCALABLE_UPGRADE.md) : [PLAN] แผนการอัปเกรด Workflow Engine (Scalable & Integer-based)
+ 59: - [REF_DASHBOARD_WORKFLOW_FIX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_DASHBOARD_WORKFLOW_FIX.md) : [PLAN] แผนการปรับปรุง Dashboard และ Incident Workflow (Phase 3)
+ 60: - [IMPLEMENTATION_PLAN_INCIDENT_ACCEPT_DISPATCH_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_INCIDENT_ACCEPT_DISPATCH_AUDIT.md) : [PLAN] แผนปรับ Incident Accept/Dispatch ให้แยก IT Staff รับงานเอง และ Administrator มอบหมายงานตามหลัก Audit
+ 61: - [IMPLEMENTATION_PLAN_SETTINGS_MENU_RESTRUCTURE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_SETTINGS_MENU_RESTRUCTURE.md) : [PLAN] แผนปรับโครงสร้างเมนู Settings ให้แยก System Setup, Master Data, Workflow & Approval, Users & Access และ Audit & Logs
+ 62: - [IMPLEMENTATION_PLAN_SETTINGS_ROUTE_SEPARATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_SETTINGS_ROUTE_SEPARATION.md) : [PLAN] แผนแยก route Settings ออกจาก Master Data wrapper ให้เป็นหน้าอิสระ เช่น Holidays, Incident Master Data และ Checklist Master Data
+ 63: - [IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md) : [PLAN] แผนพัฒนา Checklist Template Master, Procedure Plan Editor และ Asset History/QR สำหรับงานตรวจรายอุปกรณ์
+ 64: - [IMPLEMENTATION_PLAN_CHECKLIST_POINT_HISTORY_AND_PHOTO_UI.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_CHECKLIST_POINT_HISTORY_AND_PHOTO_UI.md) : [PLAN] แผนละเอียดสำหรับปรับ UX ของ Photo Evidence และออกแบบสถาปัตยกรรม point-level history / QR รายจุดให้ Fast AI ลงมือทำได้ตรง spec
+ 65: - [IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md) : [PLAN] แผนลงรายละเอียดการพัฒนา Target Registry, QR Navigation และ Asset History หลัง Template Builder/Procedure Editor พร้อมแล้ว
+ 66: - [IMPLEMENTATION_PLAN_SETTINGS_GUIDE_LOGS_MASTERDATA_FIX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_SETTINGS_GUIDE_LOGS_MASTERDATA_FIX.md) : [PLAN] แผนแก้ Guide edit/content, Logs Doc No./Email/System Errors และลดขนาด Incident Master Data form
+ 67: - [SCAN_SUMMARY_SETTINGS_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/SCAN_SUMMARY_SETTINGS_AUDIT.md) : [AUDIT] รายงานผลการตรวจสอบสถาปัตยกรรมและ UI/UX ของโมดูล Settings (Standalone Route & Responsive)
+ 68: - [AUDIT_SYSTEM_GAP_ANALYSIS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_SYSTEM_GAP_ANALYSIS.md) : [AUDIT] รายงานการตรวจสอบความสอดคล้องระหว่างโค้ดและมาตรฐาน (Gap Analysis)
+ 69: - [STATUS_REPORT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/STATUS_REPORT.md) : รายงานสถานะฟีเจอร์ปัจจุบัน
+ 70: - [project_summary.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/project_summary.md) : รายงานสรุปโครงสร้างสถาปัตยกรรมและรายละเอียดโฟลเดอร์ระบบ DOWA IT System (ล่าสุด)
+ 71: - [PROJECT_SCAN_SUMMARY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/PROJECT_SCAN_SUMMARY.md) : รายงานการตรวจสอบโครงสร้าง Flow, Database Tables, ความเสี่ยง และ TODO ล่าสุด (ณ วันที่ 17-May-2026 12:50)
+ 72: - [INCIDENT_APPROVAL_MIGRATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/INCIDENT_APPROVAL_MIGRATION.md) : ประวัติการย้ายข้อมูล Workflow
+ 73: - [AUDIT_REPORT_LATEST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_LATEST.md) : รายงานการตรวจสอบคุณภาพล่าสุด (PASSED)
+ 74: - [AUDIT_REPORT_INCIDENT_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_INCIDENT_FLOW.md) : รายงานการตรวจสอบกระบวนการ Incident (Archive - FAILED)
+ 75: 
+ 76: ---
+ 77: 
+ 78: ## 📖 ประเภทที่ 3: คู่มือการใช้งานและเทคนิค (Manuals & Guides)
+ 79: *หมวดหมู่นี้ใช้สำหรับเป็นคู่มือขั้นตอนการทำงาน (Flow) สำหรับผู้ใช้และนักพัฒนา (How-to Guides)*
+ 80: **Directory:** `docs/manuals/`
+ 81: - [WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/WORKFLOW_GUIDE.md) : คู่มือขั้นตอนการทำงานของ Workflow (Incident & Checklist)
+ 82: - [USER_MANAGEMENT_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/USER_MANAGEMENT_GUIDE.md) : คู่มือการจัดการผู้ใช้, PIN และ Onboarding Flow
+ 83: - [TARGET_REGISTRY_UAT_SEED_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) : แผนเตรียมข้อมูล UAT สำหรับ Target Registry / QR Asset History โดยยังไม่ insert ข้อมูลจริง
+ 84: 
+ 85: ---
+ 86: 
+ 87: ## 🏛️ ข้อมูลสถาปัตยกรรม (Core Architecture)
+ 88: **Directory:** `docs/architecture/`
+ 89: - [DATABASE_AND_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/DATABASE_AND_FLOW.md) : โครงสร้าง Database และ Flow หลัก
+ 90: - [RBAC.md](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/RBAC.md) : โครงสร้างระบบสิทธิ์การใช้งาน
+ 91: 
+ 92: ---
+ 93: 
+ 94: ### 🤖 AI Agent Workflow Instructions:
+ 95: 1. **Identify the Task:** วิเคราะห์คำสั่งจาก USER ว่าเกี่ยวกับส่วนใดของระบบ
+ 96: 2. **Mandatory Check:** ต้องอ่าน `INDEX.md` และ **[USER_TASKS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/USER_TASKS.md)** ทุกครั้งก่อนเริ่มงาน
+ 97: 3. **Mandatory Categorization:** หากมีการเพิ่มเอกสารใหม่ **ต้อง** จัดกลุ่มให้ถูกต้องตามประเภท (Standards / History / Manuals) และบันทึกลงในโฟลเดอร์ย่อยเท่านั้น
+ 98: 4. **Find the Standard:** เลือกอ่านไฟล์ `.md` ในหมวดหมู่ `standards/` ที่เกี่ยวข้องกับงานก่อนเริ่มเสมอ
+ 99: 5. **Follow the Rules:** ปฏิบัติตาม `ZERO_HACK_POLICY.md` และกฎใน `AGENTS.md` อย่างเคร่งครัด
+100: 6. **Update Logs:** เมื่อทำงานเสร็จสิ้น ให้บันทึกผลลงใน `CHANGELOG.md` และอัปเดตสถานะใน `USER_TASKS.md` (หากเกี่ยวข้อง) ทุกครั้ง
 ````
 
 ## File: AGENTS.md
@@ -33074,173 +33838,6 @@ supabase/migrations/add_rls_policies.sql
 335:    - **Manuals & Guides**: คู่มือการใช้งานและขั้นตอนการทำงาน (สำหรับ User/Developer)
 336: 
 337: 4. **[REPORTING STANDARD]** การรายงานผลต้องใช้หลักการ **Evidence-Based** (อ้างอิงไฟล์และหมายเลขบรรทัด) และต้องระบุสถานะความถูกต้องตามความเป็นจริงเสมอ (ห้าม UI Hacks หรือตอบแบบคาดเดา)
-````
-
-## File: app/actions/login.js
-````javascript
-  1: 'use server'
-  2: 
-  3: import { cookies } from 'next/headers'
-  4: import { createServerClient } from '@supabase/ssr'
-  5: import { recordSystemError } from './workflow'
-  6: 
-  7: /**
-  8:  * 🔑 ระบบ Login ตัวเดียวสำหรับทุกคน (Unified Login)
-  9:  * รองรับทั้ง Administrator, Supervisor, Approval และ Guest
- 10:  */
- 11: export async function unifiedLogin(email, password) {
- 12:   const cookieStore = await cookies()
- 13:   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
- 14:   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
- 15: 
- 16:   if (!supabaseUrl || !supabaseKey) {
- 17:     return { success: false, error: 'Missing Configuration' }
- 18:   }
- 19: 
- 20:   const supabase = createServerClient(supabaseUrl, supabaseKey, {
- 21:     cookies: {
- 22:       getAll: () => cookieStore.getAll(),
- 23:       setAll: (cookiesToSet) => {
- 24:         cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
- 25:       }
- 26:     }
- 27:   })
- 28: 
- 29:   // พยายาม Login ด้วย Supabase Auth
- 30:   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
- 31:     email,
- 32:     password
- 33:   })
- 34: 
- 35:   if (authError) {
- 36:     await recordSystemError('Auth', `Login failed for ${email}: ${authError.message}`, { email, error: authError })
- 37:     return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }
- 38:   }
- 39: 
- 40:   // 🛡️ เช็คทะเบียนขาว (Whitelist) ทันทีหลัง Login
- 41:   const { createClient } = await import('@supabase/supabase-js')
- 42:   const { hashEmail } = await import('@/lib/auth')
- 43:   const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
- 44:   
- 45:   const hashedEmail = hashEmail(email)
- 46:   const { data: whitelistData } = await adminClient
- 47:     .from('user_whitelist')
- 48:     .select('id')
- 49:     .eq('email_hash', hashedEmail)
- 50:     .single()
- 51: 
- 52:   if (!whitelistData) {
- 53:     console.log(`🚫 Security: ${email} logged in but not in whitelist. Purging session...`)
- 54:     await supabase.auth.signOut()
- 55:     return { success: false, redirect_to_denied: true }
- 56:   }
- 57: 
- 58:   // ✅ Login สำเร็จและผ่านทะเบียนขาว
- 59:   const userId = authData.user.id
- 60:   
- 61:   // 🛡️ เช็คสถานะ Onboarding และจัดการ Token (Gatekeeper Standard)
- 62:   const onboarding = await checkOnboardingInternal(userId, adminClient)
- 63: 
- 64:   // 📝 บันทึก Login Log
- 65:   await adminClient.from('login_logs').insert([{
- 66:     user_id: userId,
- 67:     user_email: email,
- 68:     action: 'Login สำเร็จ',
- 69:     ip_address: 'SERVER_SIDE',
- 70:     user_agent: 'Unified Login'
- 71:   }])
- 72: 
- 73:   // 🛡️ ตั้งค่า Cookie สำหรับ Onboarding (Gatekeeper Standard - Cookie based)
- 74:   cookieStore.set('dowa_onboarded', (!onboarding.needs_onboarding).toString(), {
- 75:     path: '/',
- 76:     maxAge: 60 * 60 * 24 * 7, // 7 days
- 77:     httpOnly: true,
- 78:     secure: process.env.NODE_ENV === 'production',
- 79:     sameSite: 'lax'
- 80:   })
- 81: 
- 82:   return { 
- 83:     success: true,
- 84:     needs_onboarding: onboarding.needs_onboarding,
- 85:     onboarding_token: onboarding.onboarding_token
- 86:   }
- 87: }
- 88: 
- 89: /**
- 90:  * 🛠️ Helper สำหรับตรวจสอบ Onboarding และ Auto-Refresh Token
- 91:  * (ใช้ร่วมกันทั้ง Unified Login และ Gatekeeper Status)
- 92:  */
- 93: async function checkOnboardingInternal(userId, adminClient) {
- 94:   const { data: profile } = await adminClient
- 95:     .from('user_profiles')
- 96:     .select('is_onboarded, onboarding_token, onboarding_token_expires')
- 97:     .eq('id', userId)
- 98:     .single()
- 99: 
-100:   if (!profile || profile.is_onboarded) {
-101:     return { needs_onboarding: false, onboarding_token: null }
-102:   }
-103: 
-104:   // Auto-Refresh Logic
-105:   const isExpired = profile.onboarding_token_expires && new Date(profile.onboarding_token_expires) < new Date()
-106:   let finalToken = profile.onboarding_token
-107: 
-108:   if (!finalToken || isExpired) {
-109:     const { randomUUID } = await import('crypto')
-110:     finalToken = randomUUID()
-111:     const newExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-112:     
-113:     console.log(`🛡️ Gatekeeper: Refreshing token for user ${userId}...`)
-114:     const { error: updateError } = await adminClient
-115:       .from('user_profiles')
-116:       .update({ 
-117:         onboarding_token: finalToken, 
-118:         onboarding_token_expires: newExpires 
-119:       })
-120:       .eq('id', userId)
-121: 
-122:     if (updateError) {
-123:       console.error('❌ Gatekeeper: Failed to refresh token:', updateError)
-124:       // หาก Update พลาด ให้ใช้ค่าเดิมไปก่อน (ถ้ามี) เพื่อไม่ให้ขัดจังหวะการเข้า Onboarding
-125:       finalToken = profile.onboarding_token || finalToken 
-126:     }
-127:   }
-128: 
-129:   return { 
-130:     needs_onboarding: true,
-131:     onboarding_token: finalToken
-132:   }
-133: }
-134: 
-135: /**
-136:  * 🕵️ ตรวจสอบสถานะ Onboarding สำหรับ Gatekeeper
-137:  */
-138: export async function getOnboardingStatus() {
-139:   const cookieStore = await cookies()
-140:   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-141:   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-142: 
-143:   const supabase = createServerClient(supabaseUrl, supabaseKey, {
-144:     cookies: {
-145:       getAll: () => cookieStore.getAll(),
-146:       setAll: (cookiesToSet) => {
-147:         cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
-148:       }
-149:     }
-150:   })
-151: 
-152:   const { data: { user } } = await supabase.auth.getUser()
-153:   if (!user) return { needs_onboarding: false, session: false }
-154: 
-155:   const adminClient = await import('@supabase/supabase-js').then(m => m.createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY))
-156:   const onboarding = await checkOnboardingInternal(user.id, adminClient)
-157: 
-158:   return { 
-159:     session: true,
-160:     needs_onboarding: onboarding.needs_onboarding,
-161:     onboarding_token: onboarding.onboarding_token
-162:   }
-163: }
 ````
 
 ## File: app/dashboard/checklist/[id]/page.js
@@ -36411,25 +37008,28 @@ supabase/migrations/add_rls_policies.sql
  3: <!-- บันทึกใหม่จะถูกเพิ่มที่นี่ -->
  4: 
  5: ## 17 พฤษภาคม 2569 (17-May-2026)
- 6: - **04:35 +07:00 | CHORE:** ดำเนินการตรวจสอบ Change Log และทำ Daily Log Shrinking สำเร็จ โดยย้ายบันทึกและล้างข้อมูลขยะ/ประวัติซ้ำซ้อนจากวันก่อนหน้าเพื่อให้ไฟล์มีขนาดกระชับ พร้อมเริ่มงานวันใหม่ตามมาตรฐาน `AGENTS.md`
- 7: 
- 8: ---
- 9: 
-10: ## 📦 บันทึกย้อนหลัง (Archives)
-11: 
-12: ### พฤษภาคม 2569 (May 2026)
-13: - [CHANGELOG_2026_05_15.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_15.md)
-14: - [CHANGELOG_2026_05_14.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_14.md)
-15: - [CHANGELOG_2026_05_13.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_13.md)
-16: - [CHANGELOG_2026_05_12.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_12.md)
-17: - [CHANGELOG_2026_05_11.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_11.md)
-18: - [CHANGELOG_2026_05_10.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_10.md)
-19: - [CHANGELOG_2026_05_09.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_09.md)
-20: - [CHANGELOG_2026_05_08.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_08.md)
-21: - [CHANGELOG_2026_05_07.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_07.md)
-22: 
-23: ---
-24: *อัปเดตล่าสุด: 17-May-2026*
+ 6: - **13:05 +07:00 | CHORE:** ดำเนินการติดตั้ง Google Jules CLI Tool (`@google/jules`) ทั่วทั้งระบบสำเร็จ และสร้างไฟล์ข้อกำหนดการพัฒนา `.julesrules` และ `.cursorrules` ที่โฟลเดอร์หลัก เพื่อให้ Jules เข้าใจมาตรฐาน โครงสร้าง และขอบเขตด้านความปลอดภัยของโปรเจกต์ DOWA IT System พร้อมกับลงทะเบียนเข้าสารบัญเอกสารหลัก [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) ครบถ้วนตามมาตรฐานความปลอดภัยและแนวปฏิบัติของทีม
+ 7: - **13:00 +07:00 | DOCS:** ดำเนินการวิเคราะห์และอัปเดตสแกน Flow ระบบทั้งหมดรวมถึง Database schema จาก `docs/history/PROJECT_SCAN_SUMMARY.md` ลงในเอกสารมาตรฐานหลัก `docs/standards/SYSTEM_ARCHITECTURE_MAP.md` และลงทะเบียนเข้าสารบัญระบบ `docs/INDEX.md` เพื่อให้ข้อมูลแผนที่สถาปัตยกรรมทางเทคนิคสะท้อนสถานะระบบในปัจจุบัน 100% สอดคล้องตามกฎข้อบังคับข้อ 5 และ ข้อ 7 ของโครงการอย่างสมบูรณ์
+ 8: - **12:41 +07:00 | CHORE:** ดำเนินการติดตั้งและตั้งค่า Repomix รวมถึงรันการ Export Codebase เป็น `repomix-output.md` ตามเงื่อนไขและขั้นตอนทั้งหมดใน `REPOMIX_SETUP_TASK.md` สำเร็จเรียบร้อย โดยได้ตรวจสอบคุณภาพและความสมบูรณ์ของผลลัพธ์ผ่านเกณฑ์มาตรฐานอย่างเป็นระบบ
+ 9: - **04:35 +07:00 | CHORE:** ดำเนินการตรวจสอบ Change Log และทำ Daily Log Shrinking สำเร็จ โดยย้ายบันทึกและล้างข้อมูลขยะ/ประวัติซ้ำซ้อนจากวันก่อนหน้าเพื่อให้ไฟล์มีขนาดกระชับ พร้อมเริ่มงานวันใหม่ตามมาตรฐาน `AGENTS.md`
+10: 
+11: ---
+12: 
+13: ## 📦 บันทึกย้อนหลัง (Archives)
+14: 
+15: ### พฤษภาคม 2569 (May 2026)
+16: - [CHANGELOG_2026_05_15.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_15.md)
+17: - [CHANGELOG_2026_05_14.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_14.md)
+18: - [CHANGELOG_2026_05_13.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_13.md)
+19: - [CHANGELOG_2026_05_12.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_12.md)
+20: - [CHANGELOG_2026_05_11.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_11.md)
+21: - [CHANGELOG_2026_05_10.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_10.md)
+22: - [CHANGELOG_2026_05_09.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_09.md)
+23: - [CHANGELOG_2026_05_08.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_08.md)
+24: - [CHANGELOG_2026_05_07.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_07.md)
+25: 
+26: ---
+27: *อัปเดตล่าสุด: 17-May-2026*
 ````
 
 ## File: app/actions/workflow.js
