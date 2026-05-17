@@ -34,6 +34,8 @@ This is the central documentation hub. You MUST read this file first before star
 - [DOCUMENT_MAPPING_STANDARD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DOCUMENT_MAPPING_STANDARD.md) : มาตรฐานการจับคู่ข้อมูลและสถานะ Workflow ของระบบ
 - [SYSTEM_ARCHITECTURE_MAP.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SYSTEM_ARCHITECTURE_MAP.md) : [AGGREGATION TOOL] แผนผังโครงสร้างสถาปัตยกรรมและ Logic Flow (สำหรับ Agent)
 - [AGENCY_QUICK_REFERENCE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/AGENCY_QUICK_REFERENCE.md) : [AGGREGATION TOOL] รวมสูตรสำเร็จ (Cheat Sheet) และคำสั่งที่ใช้บ่อย (สำหรับ Agent)
+- [AGENTS.md](file:///c:/Users/Lenovo/dowa-it-system/AGENTS.md) : กฎข้อบังคับและ Workflow สำหรับ AI และ Agent ทุกตัวในระบบ (มีผลบังคับใช้สูงสุด)
+- [.julesrules](file:///c:/Users/Lenovo/dowa-it-system/.julesrules) : กฎข้อบังคับและข้อกำหนดเฉพาะสำหรับ Google Jules Coding Agent
 
 ### 👤 Agent Roles
 - [roles/README.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/roles/README.md) : สารบัญและโครงสร้างของบทบาท Agent ย่อย
@@ -65,6 +67,8 @@ This is the central documentation hub. You MUST read this file first before star
 - [SCAN_SUMMARY_SETTINGS_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/SCAN_SUMMARY_SETTINGS_AUDIT.md) : [AUDIT] รายงานผลการตรวจสอบสถาปัตยกรรมและ UI/UX ของโมดูล Settings (Standalone Route & Responsive)
 - [AUDIT_SYSTEM_GAP_ANALYSIS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_SYSTEM_GAP_ANALYSIS.md) : [AUDIT] รายงานการตรวจสอบความสอดคล้องระหว่างโค้ดและมาตรฐาน (Gap Analysis)
 - [STATUS_REPORT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/STATUS_REPORT.md) : รายงานสถานะฟีเจอร์ปัจจุบัน
+- [project_summary.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/project_summary.md) : รายงานสรุปโครงสร้างสถาปัตยกรรมและรายละเอียดโฟลเดอร์ระบบ DOWA IT System (ล่าสุด)
+- [PROJECT_SCAN_SUMMARY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/PROJECT_SCAN_SUMMARY.md) : รายงานการตรวจสอบโครงสร้าง Flow, Database Tables, ความเสี่ยง และ TODO ล่าสุด (ณ วันที่ 17-May-2026 12:50)
 - [INCIDENT_APPROVAL_MIGRATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/INCIDENT_APPROVAL_MIGRATION.md) : ประวัติการย้ายข้อมูล Workflow
 - [AUDIT_REPORT_LATEST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_LATEST.md) : รายงานการตรวจสอบคุณภาพล่าสุด (PASSED)
 - [AUDIT_REPORT_INCIDENT_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_INCIDENT_FLOW.md) : รายงานการตรวจสอบกระบวนการ Incident (Archive - FAILED)

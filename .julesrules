@@ -1,0 +1,49 @@
+# 🤖 Google Jules Developer Rules (.julesrules)
+
+Welcome, Jules! You are working as an autonomous coding agent on the **DOWA IT System** project. 
+To ensure architectural integrity, safety, and compatibility, you **MUST** strictly follow the guidelines below.
+
+---
+
+## 🏛️ 1. Core Stack & Architecture Rules
+- **Framework**: Next.js 15 App Router (Strictly **NO** Pages Router).
+- **Styling**: Tailwind CSS v4. Use [lib/cn.js](file:///c:/Users/Lenovo/dowa-it-system/lib/cn.js) (`clsx` + `tailwind-merge`) for all class merging.
+- **Database & Auth**: Supabase. Use SSR client (`supabaseServer.js`) for Server Components and Server Actions. **NEVER** use browser client inside Server Components.
+- **TypeScript**: Strict Mode. Avoid using `any` unless absolutely necessary. Use generated types from `supabase_types.ts`.
+
+---
+
+## 📂 2. File & Directory Conventions
+You must keep the codebase clean and maintain strict boundary controls:
+- **Server Actions**: Store business logic in `app/actions/` using `verbNoun` naming (e.g., `createIncident`, `resolveIncident`).
+- **Pages & UI**: Define routes in `app/dashboard/[module]/[sub-path]/page.js`.
+- **Shared Components**: PascalCase in `components/` (e.g., `UnifiedApprovalModal.js`).
+- **Database Migrations**: Add all schema changes in `supabase/migrations/`. **NEVER** run direct SQL in production without migrations.
+- **Documentation**: All Markdown files must reside in:
+  - `docs/standards/` (Development regulations and technical standards)
+  - `docs/history/` (Changelog and audit logs)
+  - `docs/manuals/` (Guides and manual logs)
+  - **Rule**: Any new markdown files **MUST** be registered in [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) immediately! No `.md` files at the root level except `AGENTS.md`.
+
+---
+
+## 🛡️ 3. Security & Critical Boundaries (MANDATORY)
+Zero-Trust architecture is strictly enforced:
+- **No Client service_role**: Never expose or use the `service_role` key on the client-side or in insecure Server Components.
+- **No RLS Bypass**: Do not write queries that bypass Supabase Row Level Security (RLS) policies.
+- **PIN Verification**: The 6-digit Bcrypt PIN system is highly critical. Never modify or bypass it.
+- **Unified Approvals**: Every approval operation must run through `app/actions/workflow.js`. Do not write isolated approval logic.
+- **Role-Based Access (RBAC)**: Respect role permissions (`administrator`, `supervisor`, `approval`, `guest`). Use `normalizeRole()` to handle roles safely.
+
+---
+
+## ⚙️ 4. Development Workflow & Verification
+Before submitting a PR or declaring a task complete:
+1. **Evidence-Based Verification**: When asked to verify logic, inspect the actual file contents (using code viewers/greppers) and cite `filename:line` references. Never answer from training memory.
+2. **Pre-delivery Test**: You **MUST** run `npm test` locally to ensure 100% test completion. If any test fails, you must resolve it before presenting the solution.
+3. **Dev Server Safety**: When running `npm run dev`, verify port 3000 using `netstat -ano | findstr :3000` and kill only that specific PID rather than killing `node.exe` globally.
+4. **Update Changelog**: Register your changes in [docs/history/CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md) at the end of the day or task. Include a detailed Thai language summary and exact timestamp (e.g., `13:00 +07:00 | MODULE: Description`).
+
+---
+
+*Thank you for collaborating! Let's build a premium, reliable IT checklist & incident management system.*
