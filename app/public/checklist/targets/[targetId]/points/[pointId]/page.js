@@ -1,8 +1,6 @@
 import { getTargetPointHistoryPublic } from '@/app/actions/public-checklist'
 import Image from 'next/image'
 import Link from 'next/link'
-import { format } from 'date-fns'
-import { th } from 'date-fns/locale'
 
 export const metadata = {
   title: 'Point History | Public Inspection',
@@ -12,7 +10,20 @@ export const metadata = {
 function formatDate(dateStr) {
   if (!dateStr) return '-'
   try {
-    return format(new Date(dateStr), 'dd MMM yyyy HH:mm', { locale: th })
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    
+    const day = String(d.getDate()).padStart(2, '0')
+    const months = [
+      'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+      'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+    ]
+    const month = months[d.getMonth()]
+    const year = d.getFullYear() + 543 // พ.ศ.
+    const hours = String(d.getHours()).padStart(2, '0')
+    const minutes = String(d.getMinutes()).padStart(2, '0')
+    
+    return `${day} ${month} ${year} ${hours}:${minutes}`
   } catch (e) {
     return dateStr
   }
