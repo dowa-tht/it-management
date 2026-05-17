@@ -27,3 +27,5 @@
 
 ---
 *อัปเดตล่าสุด: 17-May-2026*
+
+13:47 +07:00 | MODULE: Dashboard - ปรับปรุงประสิทธิภาพของ Dashboard Server Action ให้ทำ count แทนการดึงข้อมูลทั้งหมด และดึง Dashboard Page ออกมาเป็น Server Component โดยแยกการแสดงผลไปที่ DashboardClient.js

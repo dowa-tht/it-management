@@ -66,13 +66,13 @@ export async function getDashboardData(timezoneOffset = -420) {
       supabaseAdmin.from('checklist_templates').select('freq_type, item_key').eq('is_active', true),
       // Fetch Pending Approvals (Unified Workflow - For Approver) — split into 2 queries for reliability
       userProfile ? Promise.all([
-        supabaseAdmin.from('document_approvals').select('id').eq('status', 'pending').eq('approver_id', userProfile.id),
-        supabaseAdmin.from('document_approvals').select('id').eq('status', 'pending').is('approver_id', null).eq('role_required', userProfile.role)
-      ]).then(([byId, byRole]) => ({ data: [...(byId.data || []), ...(byRole.data || [])] })) : Promise.resolve({ data: [] }),
+        supabaseAdmin.from('document_approvals').select('id', { count: 'exact', head: true }).eq('status', 'pending').eq('approver_id', userProfile.id),
+        supabaseAdmin.from('document_approvals').select('id', { count: 'exact', head: true }).eq('status', 'pending').is('approver_id', null).eq('role_required', userProfile.role)
+      ]).then(([byId, byRole]) => ({ count: (byId.count || 0) + (byRole.count || 0) })) : Promise.resolve({ count: 0 }),
       // Fetch My Sent Pending Items (For Sender Tracking) — UUID-based lookup
-      userProfile ? supabaseAdmin.from('checklist_docs').select('id').in('workflow_status', ['pending', 'PENDING', 'Pending Approval']).eq('created_by_id', userProfile.id) : Promise.resolve({ data: [] }),
-      userProfile ? supabaseAdmin.from('incidents').select('id').ilike('status', 'Pending Approval')
-          .eq('reported_by_id', userProfile.id) : Promise.resolve({ data: [] }),
+      userProfile ? supabaseAdmin.from('checklist_docs').select('id', { count: 'exact', head: true }).in('workflow_status', ['pending', 'PENDING', 'Pending Approval']).eq('created_by_id', userProfile.id) : Promise.resolve({ count: 0 }),
+      userProfile ? supabaseAdmin.from('incidents').select('id', { count: 'exact', head: true }).ilike('status', 'Pending Approval')
+          .eq('reported_by_id', userProfile.id) : Promise.resolve({ count: 0 }),
       supabaseAdmin.from('incidents').select('id, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system, reported_by, reported_by_id, assigned_to').gte('created_at', ytdStartIso)
     ])
 
@@ -238,6 +238,16 @@ export async function getDashboardData(timezoneOffset = -420) {
       : 0
 
     const allExclusions = exclusionsRes.data || []
+
+    // Create an exclusion map to prevent O(N^2) filtering
+    const exclusionsMap = new Map();
+    for (const exclusion of allExclusions) {
+      if (!exclusionsMap.has(exclusion.incident_id)) {
+        exclusionsMap.set(exclusion.incident_id, []);
+      }
+      exclusionsMap.get(exclusion.incident_id).push(exclusion);
+    }
+
     const dynamicSlaLimits = slaLimitsRes.data?.value || SLA_LIMITS
     
     // Extract limits with deep fallback to the new standard
@@ -252,83 +262,50 @@ export async function getDashboardData(timezoneOffset = -420) {
       Low: dynamicSlaLimits.Low || 1620
     }
 
-    const reportData = incidents.map(inc => {
-      const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
-      const resLimit = resolutionLimits[inc.severity] || resolutionLimits.Medium
-      const respLimit = responseLimits[inc.severity] || responseLimits.Medium
+    // Helper to calculate SLA compliance
+    const calculateSlaForIncident = (inc) => {
+      const incExclusions = exclusionsMap.get(inc.id) || [];
+      const resLimit = resolutionLimits[inc.severity] || resolutionLimits.Medium;
+      const respLimit = responseLimits[inc.severity] || responseLimits.Medium;
       
-      let respMin = null
-      const respTime = inc.acknowledged_at || inc.assigned_at
-      if (respTime) respMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, [])
+      let respMin = null;
+      const respTime = inc.acknowledged_at || inc.assigned_at;
+      if (respTime) respMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, []);
       
-      let resMin = null
+      let resMin = null;
       if (inc.resolved_at) {
-        resMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions)
+        resMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions);
       }
 
-      // --- Strict Mode Logic ---
-      let isResponseOK = null
+      let isResponseOK = null;
       if (respMin !== null) {
-        isResponseOK = respMin <= respLimit
+        isResponseOK = respMin <= respLimit;
       } else {
-        const currentMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, [])
-        isResponseOK = currentMin > respLimit ? false : null
+        const currentMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, []);
+        isResponseOK = currentMin > respLimit ? false : null;
       }
 
-      let isResolveOK = null
+      let isResolveOK = null;
       if (resMin !== null) {
-        isResolveOK = resMin <= resLimit
+        isResolveOK = resMin <= resLimit;
       } else {
-        const currentResMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, incExclusions)
-        isResolveOK = (inc.status !== 'Closed') ? (currentResMin > resLimit ? false : null) : false
+        const currentResMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, incExclusions);
+        isResolveOK = (inc.status !== 'Closed') ? (currentResMin > resLimit ? false : null) : false;
       }
 
       return {
         ...inc,
         isResponseOK,
         isResolveOK
-      }
-    })
+      };
+    };
 
+    const reportData = incidents.map(calculateSlaForIncident)
     const { complianceRate: slaComplianceRate } = calculateSLARates(reportData)
 
     // YTD Calculation
     const ytdIncidents = ytdIncRes.data || []
-    const ytdReportData = ytdIncidents.map(inc => {
-      const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
-      const resLimit = resolutionLimits[inc.severity] || resolutionLimits.Medium
-      const respLimit = responseLimits[inc.severity] || responseLimits.Medium
-      
-      let respMin = null
-      const respTime = inc.acknowledged_at || inc.assigned_at
-      if (respTime) respMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, [])
-      
-      let resMin = null
-      if (inc.resolved_at) resMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions)
-      
-      // --- Strict Mode Logic ---
-      let isResponseOK = null
-      if (respMin !== null) {
-        isResponseOK = respMin <= respLimit
-      } else {
-        const currentMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, [])
-        isResponseOK = currentMin > respLimit ? false : null
-      }
-
-      let isResolveOK = null
-      if (resMin !== null) {
-        isResolveOK = resMin <= resLimit
-      } else {
-        const currentResMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, incExclusions)
-        isResolveOK = (inc.status !== 'Closed') ? (currentResMin > resLimit ? false : null) : false
-      }
-
-      return {
-        ...inc,
-        isResponseOK,
-        isResolveOK
-      }
-    })
+    const ytdReportData = ytdIncidents.map(calculateSlaForIncident)
     const { complianceRate: slaComplianceRateYTD } = calculateSLARates(ytdReportData)
 
     // Incident 7 days chart data
@@ -374,8 +351,8 @@ export async function getDashboardData(timezoneOffset = -420) {
       checklists,
       checklistActions,
       userProfile,
-      pendingApprovalsCount: pendingApprovalsRes?.data?.length || 0,
-      myPendingFollowupsCount: (myPendingChkRes?.data?.length || 0) + (myPendingIncRes?.data?.length || 0),
+      pendingApprovalsCount: pendingApprovalsRes?.count || 0,
+      myPendingFollowupsCount: (myPendingChkRes?.count || 0) + (myPendingIncRes?.count || 0),
       wh: wh,
       holidays: holidays,
       
