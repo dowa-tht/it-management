@@ -10,7 +10,29 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 > กฎทุกข้อในส่วนนี้มีผลบังคับใช้กับ AI ทุก Model ทุก Role โดยไม่มีข้อยกเว้น
 
-1. **[BEFORE START]** ก่อนเริ่มทำงานทุกครั้ง **ต้องตรวจสอบบทบาท (Role) ของตัวเองใน `docs/standards/roles/` (หากมีการระบุ)** และต้องอ่านไฟล์ **`docs/INDEX.md`** และ **`docs/history/USER_TASKS.md`** เป็นลำดับถัดไป เพื่อรับทราบโครงสร้างเอกสารปัจจุบัน และตรวจสอบงานที่ USER โน้ตค้างไว้ เพื่อแจ้งเตือนหรือ Remind USER ถึงสิ่งที่ต้องทำต่อไป
+## 🎚️ Task Criticality Tiers (Balanced Execution)
+
+เพื่อให้การทำงานเร็วขึ้นในงานเล็ก แต่ยังคงความปลอดภัยในงานสำคัญ ให้จัดประเภทงานก่อนเริ่มทุกครั้งดังนี้:
+
+- **Quick**: งานเล็กที่ไม่กระทบ Business Logic หรือ Security เช่น แก้คำ, ปรับข้อความ, ปรับ Markdown, ปรับ UI spacing เล็กน้อย
+- **Standard**: งานพัฒนา/แก้ไขเฉพาะจุดที่มีผลกับพฤติกรรมระบบบางส่วน แต่ไม่แตะ security-critical flow
+- **Critical**: งานที่แตะ Security Boundary, RBAC, RLS, PIN, Approval Workflow, Database schema/migration, หรือ cross-module core logic
+
+### Tier Enforcement Matrix
+
+| Rule | Quick | Standard | Critical |
+|---|---|---|---|
+| Before Start full preflight | ลดรูป (อ่านเฉพาะไฟล์ที่เกี่ยวข้องโดยตรง) | ใช้แบบย่อ (อ่าน INDEX + ไฟล์งานที่เกี่ยวข้อง) | ใช้เต็มรูปแบบ |
+| Evidence-based line-by-line | เฉพาะเมื่อ USER ขอ audit/check เชิงยืนยัน | ใช้กับจุดสำคัญ | ใช้เต็มรูปแบบ |
+| Double verification after edit | ใช้เมื่อแก้ไฟล์ logic/config เท่านั้น | ใช้ตามปกติ | ใช้เต็มรูปแบบ |
+| Pre-delivery test | อย่างน้อย lint/targeted tests ตาม scope | รัน tests ตาม module ที่ได้รับผลกระทบ | ต้องรัน `npm test` เต็มชุดและต้องผ่าน 100% |
+
+> หมายเหตุ: กฎความปลอดภัยทั้งหมดในหัวข้อ **[SECURITY BOUNDARY — MANDATORY]** ยังคงบังคับใช้ทุก Tier โดยไม่มีข้อยกเว้น
+
+1. **[BEFORE START]** ก่อนเริ่มทำงานทุกครั้ง **ต้องตรวจสอบบทบาท (Role) ของตัวเองใน `docs/standards/roles/` (หากมีการระบุ)** และทำ preflight ตาม Tier:
+   - **Quick:** อ่านเฉพาะไฟล์ที่เกี่ยวข้องโดยตรงกับงาน + role doc ที่เกี่ยวข้อง
+   - **Standard:** อ่าน `docs/INDEX.md` + ไฟล์มาตรฐาน/งานที่เกี่ยวข้อง + `docs/history/USER_TASKS.md` แบบเฉพาะหัวข้อที่สัมพันธ์
+   - **Critical:** ต้องอ่าน `docs/INDEX.md` และ `docs/history/USER_TASKS.md` ครบตามลำดับเดิม
 
 2. **[PRIORITIZE STANDARDS]** ไม่ว่า USER จะใช้คำเรียกใดในระหว่างการสั่งงาน (เช่น "ปิดงาน", "Resolved", "เสร็จสิ้น") **AI ต้องยึดถือชื่อสถานะและ Logic ตามไฟล์มาตรฐาน (อ้างอิงจาก `docs/INDEX.md`) เป็นหลักเสมอ** ห้ามใช้ชื่อสถานะนอกเหนือจากที่กำหนดใน Standard
 
@@ -29,7 +51,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
    และหลังจากสร้างแล้ว **ต้องไปอัปเดตลิงก์ใน `docs/INDEX.md` ตามหมวดหมู่ให้เรียบร้อยเสมอ**
 
-8. **[EVIDENCE-BASED VERIFICATION]** เมื่อ USER ถามหรือสั่งให้ "ตรวจสอบ", "ดูว่า...", "ระบบทำงานถูกต้องไหม" หรือคำสั่งในลักษณะเดียวกัน **AI ต้องดำเนินการดังนี้โดยไม่มีข้อยกเว้น**:
+8. **[EVIDENCE-BASED VERIFICATION]** เมื่อ USER ถามหรือสั่งให้ "ตรวจสอบ", "ดูว่า...", "ระบบทำงานถูกต้องไหม" หรือคำสั่งในลักษณะเดียวกัน ให้บังคับตาม Tier:
+   - **Quick:** ตอบแบบกระชับจากไฟล์ที่เกี่ยวข้องโดยตรง และใส่ line reference เมื่อเป็นข้อสรุปเชิงยืนยัน
+   - **Standard/Critical:** ใช้หลักฐานแบบเต็มตามรายการด้านล่าง
    - **อ่านไฟล์จริง**: ใช้ `view_file` หรือ `grep_search` อ่านโค้ดหรือไฟล์ที่เกี่ยวข้องจริงๆ ก่อนตอบ **ห้ามตอบจากความจำ**
    - **อ้างอิงหลักฐาน**: คำตอบต้องระบุ ชื่อไฟล์ + หมายเลขบรรทัด + โค้ดที่เกี่ยวข้อง เพื่อพิสูจน์คำตอบ เช่น `app/actions/workflow.js:L75 — applySignaturesToWorkflow() ถูกเรียกหลัง generateWorkflowSteps()`
    - **เปรียบเทียบกับมาตรฐาน**: ต้องระบุด้วยว่าโค้ดที่พบ **สอดคล้อง** หรือ **ไม่สอดคล้อง** กับมาตรฐานใน `docs/standards/` โดยอ้างอิง Section ที่เกี่ยวข้อง
@@ -38,7 +62,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 9. **[DAILY LOG SHRINKING]** เมื่อ USER แจ้งว่า "เริ่มงานได้" หรือก่อนเริ่มงานในวันใหม่ทุกครั้ง **AI ต้องตรวจสอบวันที่ล่าสุดใน `docs/history/CHANGELOG.md` ทันที** หากวันที่ปัจจุบันไม่ตรงกับวันที่ล่าสุดใน Changelog ต้องทำการย้าย (Archive) บันทึกของวันก่อนหน้าทั้งหมดไปไว้ในไฟล์ `docs/history/archive/CHANGELOG_YYYY_MM_DD.md` ก่อนเริ่มงานหรือก่อนบันทึกงานใหม่ เพื่อรักษาขนาดไฟล์ `CHANGELOG.md` ให้กะทัดรัดและทำงานได้รวดเร็วเสมอ
 
-10. **[DOUBLE-VERIFICATION BEFORE CONFIRMATION]** ห้ามตอบ USER ว่า "อัปเดตแล้ว", "แก้ไขแล้ว" หรือ "บันทึกแล้ว" จนกว่าจะได้ทำการ **ตรวจสอบไฟล์จริง** (View File) อีกครั้งหลังจากส่งคำสั่งแก้ไข เพื่อยืนยันว่าการบันทึกสำเร็จและข้อมูลถูกต้อง 100% ห้ามตอบจากสถานะของ Tool เพียงอย่างเดียว
+10. **[DOUBLE-VERIFICATION BEFORE CONFIRMATION]** ห้ามตอบ USER ว่า "อัปเดตแล้ว", "แก้ไขแล้ว" หรือ "บันทึกแล้ว" จนกว่าจะได้ทำการ **ตรวจสอบไฟล์จริง** (View File) อีกครั้งหลังจากส่งคำสั่งแก้ไข โดยใช้ตาม Tier:
+   - **Quick:** บังคับเมื่อแก้ไฟล์ที่มีผลต่อ logic/config/security หรือไฟล์ที่ USER ระบุให้ตรวจละเอียด
+   - **Standard/Critical:** บังคับทุกครั้งตามกฎเดิม
 
 11. **[NON-INTUITIVE DETAILED PLANNING]** ในการทำ Implementation Plan ห้ามใช้ "ความรู้สึก" หรือ "ความน่าจะเป็น" ในการกำหนด Logic หากจุดใดมีความซับซ้อน **ต้องระบุเป็น Technical Logic/Pseudocode** ให้ละเอียดถึงระดับฟิลด์ข้อมูลและเงื่อนไข (If/Else) เพื่อป้องกัน Agent อื่นๆ ตีความผิดพลาด
 
@@ -122,7 +148,10 @@ ai-tasks/
 - Migration ทุกอันต้องบันทึกใน `supabase/migrations/` เท่านั้น
 ## การทำงานของ Agent
 - **[DEV SERVER SAFETY]** เมื่อ USER สั่งให้รัน `localhost` หรือ `npm run dev` ให้ตรวจสอบ port 3000 ก่อนด้วย `netstat -ano | findstr :3000` และปิดเฉพาะ process ที่ใช้ port นั้น (`taskkill /F /PID <PID>`) แทนการ kill node.exe ทั้งหมด เพื่อป้องกัน process อื่นที่ไม่เกี่ยวข้องถูกปิดไปด้วย
-- **[PRE-DELIVERY TEST]** ก่อนส่งงานทุกครั้ง (หรือก่อนตอบ "เสร็จแล้ว") ต้องรันคำสั่ง `npm test` และต้องผ่าน 100% หากมีข้อผิดพลาดต้องแก้ไขให้ผ่านก่อนส่งงาน
+- **[PRE-DELIVERY TEST]** ก่อนส่งงานทุกครั้ง (หรือก่อนตอบ "เสร็จแล้ว") ให้รันการทดสอบตาม Tier:
+  - **Quick:** อย่างน้อย `npm run lint` หรือ targeted tests ตาม scope
+  - **Standard:** รัน tests เฉพาะ module/feature ที่ได้รับผลกระทบ และเพิ่ม lint
+  - **Critical:** ต้องรันคำสั่ง `npm test` เต็มชุดและต้องผ่าน 100% หากมีข้อผิดพลาดต้องแก้ไขให้ผ่านก่อนส่งงาน
 - ใช้ Context7 ทุกครั้งที่ต้องการ docs ของ library ภายนอก
 - **[CLOUD SYNC FLOW]** เมื่อมีการผสานโค้ดจาก Cloud AI (เช่น Google Jules) กลับมาที่กิ่งหลัก `main` บน GitHub:
   - Agent ต้องแจ้ง USER และเสนอช่วยดึงโค้ดล่าสุดกลับลงมาอัปเดตเครื่อง Localhost ด้วยคำสั่ง `git pull origin main` ทันทีเพื่อรักษาสภาพแวดล้อมให้ตรงกัน 100%

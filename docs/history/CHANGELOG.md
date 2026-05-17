@@ -3,6 +3,9 @@
 <!-- บันทึกใหม่จะถูกเพิ่มที่นี่ -->
 
 ## 17 พฤษภาคม 2569 (17-May-2026)
+- **20:53 +07:00 | BUGFIX:** ดำเนินการแก้ไขข้อผิดพลาด (Errors) สำคัญ 2 จุด:
+  1. แก้ไขปัญหา Hydration Mismatch ที่ RootLayout โดยการตั้งค่า `className=""` บนแท็ก `<body>` ใน `app/layout.js` เพื่อให้การเรนเดอร์ระดับคลาสตรงกันอย่างสมบูรณ์ทั้งฝั่ง Server และ Client ป้องกันหน้าจอข้อผิดพลาดของ Next.js 16
+  2. แก้ไขปัญหา Console AuthApiError `Invalid Refresh Token` จากกรณี DB Reset หรือข้อมูลหมดอายุโดยติดตั้งระบบ Client-side Self-healing Script ไว้ใน `<head>` ของ `app/layout.js` คอยล้างคุกกี้และ localStorage ของ Supabase อัตโนมัติเมื่อพบข้อผิดพลาดดังกล่าว พร้อมดึงผู้ใช้กลับหน้าหลัก `/` ทันที ป้องกันหน้าจอสีแดงของนักพัฒนาค้างอย่างถาวร
 - **18:55 +07:00 | DOCS:** จัดทำและสร้างคู่มือการประสานงาน AI ร่วมกัน [MULTI_AGENT_WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/MULTI_AGENT_WORKFLOW_GUIDE.md) เพื่อกำหนดบทบาทและแนวทางการเลือกใช้เครื่องมือระหว่าง Antigravity (Local Smart AI) และ Google Jules (Cloud Fast AI) พร้อมเชื่อมเข้าสู่หน้าสารบัญเอกสารระบบ `docs/INDEX.md` อย่างเป็นระบบ
 - **16:50 +07:00 | CHORE:** สร้างไฟล์แผนงานสำหรับบอท Jules (`ai-tasks/tasks/Public_Checklist_Point_History_004.md`) เพื่อกำหนดกรอบการตรวจสอบและพัฒนาฟังก์ชันการทำงานของ Checklist ตั้งแต่การ Setup ถึงหน้าประวัติ Timeline และภาพถ่ายรายจุดแบบไม่ผ่าน Login พร้อมเชื่อมเข้าสารบัญเอกสารหลัก `docs/INDEX.md` ครบถ้วนตามมาตรฐาน
 - **13:33 +07:00 | DOCS:** ดำเนินการอัปเดตไฟล์ [AGENTS.md](file:///c:/Users/Lenovo/dowa-it-system/AGENTS.md) เพื่อกำหนดแนวทางปฏิบัติการทำงานแบบคู่ขนานและการผสานโค้ดขัดแย้งระหว่างผู้พัฒนากับระบบปัญญาประดิษฐ์ภายนอก (Cloud AI Sync & Conflict Resolution Policy) เป็นมาตรฐานกลางของทีมพัฒนา

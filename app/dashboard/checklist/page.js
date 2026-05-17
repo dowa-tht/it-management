@@ -696,6 +696,35 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
     if (selectedTemplateIds.length === 0) return
     setCreating(true)
 
+    // Re-verify that the selected items are not already used by another user in this period
+    const range = getPeriodRange(date, freq)
+    const { data: periodDocs } = await supabase
+      .from('checklist_docs')
+      .select('id')
+      .eq('freq_type', freq)
+      .gte('period_date', range.start)
+      .lte('period_date', range.end)
+
+    const docIds = periodDocs?.map(d => d.id) || []
+    let usedKeys = new Set()
+    if (docIds.length > 0) {
+      const { data: itemsData } = await supabase
+        .from('checklist_items')
+        .select('item_key')
+        .in('doc_id', docIds)
+      usedKeys = new Set(itemsData?.map(i => i.item_key) || [])
+    }
+
+    const selectedTemplates = items.filter(t => selectedTemplateIds.includes(t.selection_key))
+    const duplicateTemplates = selectedTemplates.filter(t => usedKeys.has(t.item_key))
+
+    if (duplicateTemplates.length > 0) {
+      const duplicateLabels = duplicateTemplates.map(t => t.item_label).join(', ')
+      alert(`ไม่สามารถสร้างเอกสารได้เนื่องจากรายการต่อไปนี้ถูกสร้างการตรวจสอบไปแล้วในรอบนี้: ${duplicateLabels}`)
+      setCreating(false)
+      return
+    }
+
     const noRes = await getNextNo('CHK')
     const docNo = noRes ? noRes.nextNo : `CHK-${Date.now()}`
 
@@ -714,7 +743,7 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
     if (error) { alert(error.message); setCreating(false); return }
     if (noRes) { const { updateLastNo } = await import('@/lib/noSeries'); await updateLastNo('CHK', docNo) }
 
-    const selectedTemplates = items.filter(t => selectedTemplateIds.includes(t.selection_key))
+    // Reuse selectedTemplates declared on line 718
     const inserts = selectedTemplates.map(t => {
       const config = { ...(t.template_config || {}) }
       

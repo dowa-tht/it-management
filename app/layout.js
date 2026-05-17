@@ -34,7 +34,43 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="th" className={`${notoSansThai.variable} ${notoSans.variable}`}>
-      <body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `
+          (function() {
+            const originalError = console.error;
+            console.error = function(...args) {
+              const msg = args.map(a => {
+                if (a && a.message) return a.message;
+                return String(a);
+              }).join(' ');
+              if (msg.includes('Invalid Refresh Token') || msg.includes('Refresh Token Not Found')) {
+                try {
+                  const keysToRemove = [];
+                  for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+                      keysToRemove.push(key);
+                    }
+                  }
+                  keysToRemove.forEach(k => localStorage.removeItem(k));
+                  document.cookie.split(";").forEach(function(c) {
+                    const name = c.split("=")[0].trim();
+                    if (name.startsWith("sb-") || name.includes("auth-token") || name.includes("supabase")) {
+                      document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                    }
+                  });
+                  window.location.href = '/';
+                } catch (e) {
+                  originalError.apply(console, args);
+                }
+                return;
+              }
+              originalError.apply(console, args);
+            };
+          })();
+        `}} />
+      </head>
+      <body className="">
         <WorkingDateProvider>
           {children}
         </WorkingDateProvider>
