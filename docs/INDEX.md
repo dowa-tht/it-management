@@ -72,8 +72,10 @@ This is the central documentation hub. You MUST read this file first before star
 - [INCIDENT_APPROVAL_MIGRATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/INCIDENT_APPROVAL_MIGRATION.md) : ประวัติการย้ายข้อมูล Workflow
 - [AUDIT_REPORT_LATEST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_LATEST.md) : รายงานการตรวจสอบคุณภาพล่าสุด (PASSED)
 - [AUDIT_REPORT_INCIDENT_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_INCIDENT_FLOW.md) : รายงานการตรวจสอบกระบวนการ Incident (Archive - FAILED)
+- [Public_Checklist_Point_History_004.md](file:///c:/Users/Lenovo/dowa-it-system/ai-tasks/tasks/Public_Checklist_Point_History_004.md) : [JULES TASK] แผนปฏิบัติงานสำหรับบอท Jules เพื่อพัฒนา Public QR Lookup และ Timeline ประวัติรายจุดแบบไม่ผ่าน Login
 
 ---
+
 
 ## 📖 ประเภทที่ 3: คู่มือการใช้งานและเทคนิค (Manuals & Guides)
 *หมวดหมู่นี้ใช้สำหรับเป็นคู่มือขั้นตอนการทำงาน (Flow) สำหรับผู้ใช้และนักพัฒนา (How-to Guides)*
