@@ -122,6 +122,37 @@ export function TemplateForm({
             font-size: 18px;
           }
         }
+        .photo-evidence-stack {
+          display: grid;
+          gap: 20px;
+        }
+        .photo-points-list {
+          display: grid;
+          gap: 12px;
+        }
+        .photo-point-row {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+          background: #ffffff;
+          padding: 12px 16px;
+          border-radius: 16px;
+          border: 1px solid #f1f5f9;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+        .photo-config-card {
+          display: grid;
+          gap: 16px;
+          background: #ffffff;
+          padding: 20px;
+          border-radius: 18px;
+          border: 1px solid #f1f5f9;
+        }
+        @media (min-width: 768px) {
+          .photo-config-card {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
       `}</style>
       <section className="template-form-card">
         <SectionTitle
@@ -249,7 +280,7 @@ export function TemplateForm({
           )}
 
           {template.ui_template_type === 1 && (
-            <div className="space-y-5">
+            <div className="photo-evidence-stack">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-bold text-slate-700">รายการจุดตรวจเช็ค (Inspection Points)</span>
@@ -270,7 +301,7 @@ export function TemplateForm({
                   </button>
                 </div>
                 
-                <div className="space-y-3">
+                <div className="photo-points-list">
                   {(config.photo_points || []).length === 0 && (
                     <div className="text-center py-8 bg-white border border-dashed border-slate-200 rounded-2xl">
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">ยังไม่มีการกำหนดจุดตรวจ</p>
@@ -280,7 +311,7 @@ export function TemplateForm({
                   {(config.photo_points || []).map((p, idx) => {
                     const point = typeof p === 'string' ? { label: p, point_code: `P${(idx + 1).toString().padStart(2, '0')}` } : p
                     return (
-                      <div key={idx} className="flex gap-3 items-start bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                      <div key={idx} className="photo-point-row">
                         <div className="w-16 shrink-0">
                           <input
                             value={point.point_code}
@@ -322,7 +353,7 @@ export function TemplateForm({
                 <FieldHint text={fieldErrors.photo_points?.[0]} />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 bg-white p-4 rounded-2xl border border-slate-100">
+              <div className="photo-config-card">
                 <label className="block">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-bold text-slate-700">จำนวนภาพขั้นต่ำ</span>

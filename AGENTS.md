@@ -153,6 +153,11 @@ ai-tasks/
   - **Standard:** รัน tests เฉพาะ module/feature ที่ได้รับผลกระทบ และเพิ่ม lint
   - **Critical:** ต้องรันคำสั่ง `npm test` เต็มชุดและต้องผ่าน 100% หากมีข้อผิดพลาดต้องแก้ไขให้ผ่านก่อนส่งงาน
 - ใช้ Context7 ทุกครั้งที่ต้องการ docs ของ library ภายนอก
+- **[SUPERPOWERS INTEGRATION]** แนะนำและส่งเสริมให้ AI Agents ทุกตัว นำเอาระเบียบปฏิบัติจาก **Superpowers Skills Library (v5.1.0)** ใน [SUPERPOWERS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SUPERPOWERS.md) มาใช้ร่วมกับการจัดเตรียมแผนและการทำงานทุกประเภท โดยเฉพาะอย่างยิ่ง:
+  - การใช้กระบวนการ **Brainstorming** และ **Writing Plans** ก่อนลงมือสร้าง/แก้ไขโค้ดเชิงระบบ
+  - การทำ **Test-Driven Development (TDD)** ในขั้นตอนพัฒนา เพื่อความเสถียร 100%
+  - การใช้กระบวนการ **Systematic Debugging** ในการวิเคราะห์และแก้ไข Bug
+  - การตรวจสอบความถูกต้องก่อนจบงานด้วย **Verification Before Completion**
 - **[CLOUD SYNC FLOW]** เมื่อมีการผสานโค้ดจาก Cloud AI (เช่น Google Jules) กลับมาที่กิ่งหลัก `main` บน GitHub:
   - Agent ต้องแจ้ง USER และเสนอช่วยดึงโค้ดล่าสุดกลับลงมาอัปเดตเครื่อง Localhost ด้วยคำสั่ง `git pull origin main` ทันทีเพื่อรักษาสภาพแวดล้อมให้ตรงกัน 100%
   - ห้ามเขียนทับโค้ดบนเครื่อง Localhost ด้วยมือโดยไม่มีการทำ Git Pull หรือ Git Merge อย่างถูกต้องเด็ดขาด

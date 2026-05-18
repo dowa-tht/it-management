@@ -6,6 +6,32 @@
 
 ## ✅ งานที่เสร็จสิ้นแล้ว (Completed)
 
+### 11. Verification and Audit for Checklist Duplicate Prevention & DB Read-Only Status Analysis
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 18 พฤษภาคม 2569
+- **รายละเอียด:**
+  - ยืนยันความถูกต้องของไฟล์ [app/dashboard/checklist/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/page.js) ป้องกัน duplicate declaration ของ `selectedTemplates` และมั่นใจว่าไม่มี compile/runtime crash จากการเรียกซ้ำ
+  - วิเคราะห์โครงสร้าง Supabase SQL database และทดสอบ SQL Migration สำหรับ RLS และการอนุมัติ Checklist
+  - ระบุสาเหตุที่ Remote Postgres backend เข้าสู่สถานะ Read-only transaction mode และให้แนวทางการแก้ไขที่ชัดเจนสำหรับ Dynamic SQL schema/DDL updates
+  - รันคำสั่งทดสอบระบบ `npm test` ผลการทดสอบผ่าน 100% (8/8 tests passed)
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - [app/dashboard/checklist/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/page.js)
+  - [docs/history/CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md)
+  - [docs/history/USER_TASKS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/USER_TASKS.md)
+
+### 12. Harden Asset History Architecture หลังจบ Target Registry Foundation
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 15 พฤษภาคม 2569
+- **รายละเอียด:**
+  - refactor หน้า `app/dashboard/checklist/targets/[id]/page.js` ให้เลิก query Supabase ตรงจาก Client Component
+  - ย้าย data loading ไปเป็น Server Action `getTargetAssetHistory()` ใน `app/actions/target.js`
+  - ปรับ `app/api/qr/lookup/route.js` ให้มี 400 / 404 / 500 branches ชัดเจนมากขึ้น
+  - อัปเดต automated tests ให้ครอบคลุม asset history loader และ QR route source guards แล้ว
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - [app/dashboard/checklist/targets/[targetId]/points/[pointId]/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/targets/[targetId]/points/[pointId]/page.js)
+  - [app/actions/target.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/target.js)
+  - [app/api/qr/lookup/route.js](file:///c:/Users/Lenovo/dowa-it-system/app/api/qr/lookup/route.js)
+
 ### 8. Settings Module UI/UX Stabilization (Checklist Master Data)
 - **สถานะ:** ✅ เสร็จสมบูรณ์
 - **วันที่:** 15 พฤษภาคม 2569
@@ -245,14 +271,7 @@
 
 ## 🔄 งานที่กำลังดำเนินการ (In Progress)
 
-### 1. Harden Asset History Architecture หลังจบ Target Registry Foundation
-- **สถานะ:** ✅ เสร็จสมบูรณ์
-- **วันที่เริ่ม:** 15 พฤษภาคม 2569
-- **รายละเอียด:**
-  - refactor หน้า `app/dashboard/checklist/targets/[id]/page.js` ให้เลิก query Supabase ตรงจาก Client Component
-  - ย้าย data loading ไปเป็น Server Action `getTargetAssetHistory()` ใน `app/actions/target.js`
-  - ปรับ `app/api/qr/lookup/route.js` ให้มี 400 / 404 / 500 branches ชัดเจนมากขึ้น
-  - อัปเดต automated tests ให้ครอบคลุม asset history loader และ QR route source guards แล้ว
+- *ไม่มี (เสร็จสิ้นภารกิจทั้งหมดเรียบร้อยแล้ว อยู่ระหว่างรอรับมอบหมายงานถัดไปจาก USER)*
 
 ---
 

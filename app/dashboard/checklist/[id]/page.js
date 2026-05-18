@@ -141,6 +141,7 @@ export default function ChecklistDetailPage() {
   const [showSignatureModal, setShowSignatureModal] = useState(false)
   const [approvalLoading, setApprovalLoading] = useState(false)
   const [workflowSteps, setWorkflowSteps] = useState([])
+  const [isEditing, setIsEditing] = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -185,6 +186,8 @@ export default function ChecklistDetailPage() {
   }, [fetchData])
 
   const isAuditor = currentUser?.role === 'auditor'
+  const isClosed = doc?.status === 'Closed'
+  const isLocked = isClosed || isAuditor || !isEditing
 
   const handleSubmitApproval = async () => {
     if (!confirm('ยืนยันการส่งใบงานนี้เพื่อขออนุมัติ? เมื่อส่งแล้วจะไม่สามารถแก้ไขข้อมูลได้')) return
@@ -228,6 +231,7 @@ export default function ChecklistDetailPage() {
   }
 
   const updateItemData = async (itemId, newData) => {
+    if (isLocked) return
     const updatedItems = [...items]
     const itemIndex = updatedItems.findIndex(i => i.id === itemId)
     updatedItems[itemIndex].template_data = newData
@@ -236,7 +240,7 @@ export default function ChecklistDetailPage() {
   }
 
   const handleStatusClick = async (index, newStatus) => {
-    if (doc.status === 'Closed' || isAuditor) return
+    if (isLocked) return
     const newItems = [...items]
     if (newStatus === 'NG') setActiveNgItem({ ...newItems[index], index })
     else {
@@ -251,6 +255,7 @@ export default function ChecklistDetailPage() {
   }
 
   const handleNgConfirm = async (notes) => {
+    if (isLocked) return
     const newItems = [...items]
     newItems[activeNgItem.index].status = 'NG'; newItems[activeNgItem.index].notes = notes
     setItems(newItems)
@@ -262,12 +267,24 @@ export default function ChecklistDetailPage() {
     setActiveNgItem(null)
   }
 
+  const handleSaveEdit = async () => {
+    setSaving(true)
+    setTimeout(() => {
+      setIsEditing(false)
+      setSaving(false)
+    }, 400)
+  }
+
+  const handleCancelEdit = async () => {
+    setIsEditing(false)
+    await fetchData()
+  }
+
   if (loading) return <div className="p-20 text-center text-slate-400 animate-pulse">กำลังโหลดข้อมูล...</div>
   if (!doc) return <div className="p-20 text-center text-slate-400">ไม่พบเอกสารนี้</div>
 
   const doneCount = items.filter(i => i.status).length
   const progress = items.length ? Math.round((doneCount / items.length) * 100) : 0
-  const isClosed = doc.status === 'Closed'
   const currentStep = workflowSteps.find(s => s.status === 'pending')
   const canApprove = currentStep && (currentStep.approver_id === currentUser?.id || (currentStep.role_required === currentUser?.role && !currentStep.approver_id) || isSubstituteOf(currentUser?.role, currentStep.role_required))
 
@@ -291,11 +308,15 @@ export default function ChecklistDetailPage() {
 
       <WorkflowActionBar 
         status={doc.status}
-        canSubmit={!isClosed && doc.workflow_status !== 'pending' && progress === 100}
+        canEdit={!isClosed && !isAuditor}
+        isEditing={isEditing}
+        onEdit={() => setIsEditing(true)}
+        onCancelEdit={handleCancelEdit}
+        onSave={handleSaveEdit}
+        canSubmit={!isClosed && doc.workflow_status !== 'pending' && progress === 100 && !isEditing}
         canApprove={canApprove}
         canReject={canApprove}
         canReopen={(currentUser?.role === 'admin' || currentUser?.role === 'it_staff') && isClosed}
-        onSave={() => alert('💾 ระบบบันทึกข้อมูลอัตโนมัติขณะแก้ไข')}
         onSubmit={handleSubmitApproval}
         onApprove={() => setShowSignatureModal(true)}
         onReject={handleReject}
@@ -378,7 +399,7 @@ export default function ChecklistDetailPage() {
                             >📄</button>
                           </div>
                           
-                          <TemplateRenderer item={item} template={dbTemplate} onUpdate={(data) => updateItemData(item.id, data)} isClosed={isClosed} isVisitor={isAuditor} />
+                          <TemplateRenderer item={item} template={dbTemplate} onUpdate={(data) => updateItemData(item.id, data)} isClosed={isLocked} isAuditor={isAuditor} />
                           
                           {item.status === 'NG' && (
                             <div style={{ marginTop: '20px', padding: '16px', borderRadius: '12px', background: '#fff', border: '1px solid #fecaca', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
@@ -399,25 +420,25 @@ export default function ChecklistDetailPage() {
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button 
                             onClick={() => handleStatusClick(index, 'OK')} 
-                            disabled={isClosed || isAuditor} 
+                            disabled={isLocked} 
                             style={{ 
                               padding: '10px 24px', borderRadius: '12px', border: 'none', fontWeight: 900, fontSize: '12px', cursor: 'pointer',
                               background: item.status === 'OK' ? '#10b981' : '#f1f5f9', 
                               color: item.status === 'OK' ? '#fff' : '#94a3b8',
                               transition: 'all 0.2s',
-                              opacity: (isClosed || isAuditor) ? 0.6 : 1,
+                              opacity: isLocked ? 0.6 : 1,
                               boxShadow: item.status === 'OK' ? '0 4px 12px rgba(16, 185, 129, 0.2)' : 'none'
                             }}
                           >OK</button>
                           <button 
                             onClick={() => handleStatusClick(index, 'NG')} 
-                            disabled={isClosed || isAuditor} 
+                            disabled={isLocked} 
                             style={{ 
                               padding: '10px 24px', borderRadius: '12px', border: 'none', fontWeight: 900, fontSize: '12px', cursor: 'pointer',
                               background: item.status === 'NG' ? '#dc2626' : '#f1f5f9', 
                               color: item.status === 'NG' ? '#fff' : '#94a3b8',
                               transition: 'all 0.2s',
-                              opacity: (isClosed || isAuditor) ? 0.6 : 1,
+                              opacity: isLocked ? 0.6 : 1,
                               boxShadow: item.status === 'NG' ? '0 4px 12px rgba(220, 38, 38, 0.2)' : 'none'
                             }}
                           >NG</button>

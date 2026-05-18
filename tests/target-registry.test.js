@@ -44,6 +44,47 @@ test('validateChecklistTemplate accepts target registry fields for per_target te
   assert.deepEqual(result.data.template_config.photo_points, ['Front photo', 'Interior photo'])
 })
 
+test('validateChecklistTemplate accepts object-based and mixed-based photo points', () => {
+  const payload = {
+    category: 'Infrastructure',
+    freq_type: 'Monthly',
+    item_label: 'Inspect CCTV cabinet exterior',
+    instruction: 'Capture cabinet condition and verify labels',
+    ui_template_type: 1,
+    template_config: {
+      ...getDefaultTemplateConfig(1),
+      photo_points: [
+        'Front photo',
+        {
+          point_code: 'P02',
+          label: 'Interior component photo',
+          qr_enabled: true,
+        }
+      ],
+      min_photos: 2,
+    },
+    scope_mode: 'per_target',
+    target_type: 'cctv_terminal',
+  }
+
+  const result = validateChecklistTemplate(payload)
+
+  if (!result.success) {
+    assert.fail(JSON.stringify(result.errors))
+  }
+
+  assert.equal(result.success, true)
+  assert.equal(result.data.template_config.photo_points[0], 'Front photo')
+  assert.deepEqual(result.data.template_config.photo_points[1], {
+    point_id: null,
+    point_code: 'P02',
+    label: 'Interior component photo',
+    description: null,
+    sort_order: null,
+    qr_enabled: true,
+  })
+})
+
 test('validateChecklistTemplate rejects invalid scope_mode values', () => {
   const payload = {
     category: 'Infrastructure',

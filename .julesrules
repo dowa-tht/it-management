@@ -43,6 +43,7 @@ Before submitting a PR or declaring a task complete:
 2. **Pre-delivery Test**: You **MUST** run `npm test` locally to ensure 100% test completion. If any test fails, you must resolve it before presenting the solution.
 3. **Dev Server Safety**: When running `npm run dev`, verify port 3000 using `netstat -ano | findstr :3000` and kill only that specific PID rather than killing `node.exe` globally.
 4. **Update Changelog**: Register your changes in [docs/history/CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md) at the end of the day or task. Include a detailed Thai language summary and exact timestamp (e.g., `13:00 +07:00 | MODULE: Description`).
+5. **Superpowers Integration**: You must read and adopt the **Superpowers Skills Library (v5.1.0)** integration rules defined in [SUPERPOWERS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SUPERPOWERS.md) for all coding tasks, including systematic debugging, TDD, planning, and verification before completion.
 
 ---
 

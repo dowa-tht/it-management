@@ -36,6 +36,7 @@ This is the central documentation hub. You MUST read this file first before star
 - [AGENCY_QUICK_REFERENCE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/AGENCY_QUICK_REFERENCE.md) : [AGGREGATION TOOL] รวมสูตรสำเร็จ (Cheat Sheet) และคำสั่งที่ใช้บ่อย (สำหรับ Agent)
 - [AGENTS.md](file:///c:/Users/Lenovo/dowa-it-system/AGENTS.md) : กฎข้อบังคับและ Workflow สำหรับ AI และ Agent ทุกตัวในระบบ (มีผลบังคับใช้สูงสุด)
 - [.julesrules](file:///c:/Users/Lenovo/dowa-it-system/.julesrules) : กฎข้อบังคับและข้อกำหนดเฉพาะสำหรับ Google Jules Coding Agent
+- [SUPERPOWERS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SUPERPOWERS.md) : คู่มือการผสานและใช้งาน Superpowers Skills Library (v5.1.0) สำหรับ AI Agents ทุกตัว
 
 ### 👤 Agent Roles
 - [roles/README.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/roles/README.md) : สารบัญและโครงสร้างของบทบาท Agent ย่อย
@@ -73,6 +74,9 @@ This is the central documentation hub. You MUST read this file first before star
 - [AUDIT_REPORT_LATEST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_LATEST.md) : รายงานการตรวจสอบคุณภาพล่าสุด (PASSED)
 - [AUDIT_REPORT_INCIDENT_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_INCIDENT_FLOW.md) : รายงานการตรวจสอบกระบวนการ Incident (Archive - FAILED)
 - [Public_Checklist_Point_History_004.md](file:///c:/Users/Lenovo/dowa-it-system/ai-tasks/tasks/Public_Checklist_Point_History_004.md) : [JULES TASK] แผนปฏิบัติงานสำหรับบอท Jules เพื่อพัฒนา Public QR Lookup และ Timeline ประวัติรายจุดแบบไม่ผ่าน Login
+- [remediation_plan_photo_evidence_spacing.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/remediation_plan_photo_evidence_spacing.md) : [PLAN] แผนการปรับปรุงระยะ Spacing ของหน้าจอสร้างเทมเพลต Photo Evidence (ui_template_type: 1)
+- [remediation_plan_checklist_edit_lock.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/remediation_plan_checklist_edit_lock.md) : [PLAN] แผนติดตั้งระบบล็อกแก้ไขสำหรับป้องกันการแก้ไขข้อมูล Checklist โดยไม่ตั้งใจ (View/Edit Lock Flow)
+- [audit_report_checklist_dtt_chk_2605_010.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/audit_report_checklist_dtt_chk_2605_010.md) : [AUDIT] รายงานการตรวจสอบตรรกะเงื่อนไขและกระบวนการอนุมัติสำหรับเอกสาร DTT-CHK-2605-010
 
 ---
 
