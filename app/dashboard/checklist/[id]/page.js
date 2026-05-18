@@ -583,11 +583,13 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
   const showLocationToggle = config.enable_location_toggle !== false
 
   // Logic for completion
-  const capturedCount = Object.keys(data.photos || {}).length
+  const capturedCount = Object.keys(data.photos_by_point || {}).length || Object.keys(data.photos || {}).length
   const totalPoints = points.length
   const minRequired = config.min_photos || 0
   const isComplete = capturedCount >= Math.max(totalPoints, minRequired)
-  const gpsCount = Object.values(data.photo_meta || {}).filter(m => m.status === 'captured').length
+  const gpsCount = Object.keys(data.photos_by_point || {}).length
+    ? Object.values(data.photo_meta_by_point || {}).filter(m => m?.status === 'captured').length
+    : Object.values(data.photo_meta || {}).filter(m => m?.status === 'captured').length
 
   const handleUpload = async (pointIdx, e) => {
     if (disabled) {
@@ -608,27 +610,30 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
     reader.onload = (event) => {
       const img = new Image()
       img.onload = async () => {
-        const canvas = document.createElement('canvas')
-        const scale = 1000 / img.width
-        canvas.width = 1000
-        canvas.height = img.height * scale
-        const ctx = canvas.getContext('2d')
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-        
-        // Premium Watermark
-        ctx.fillStyle = "rgba(0,0,0,0.5)"
-        ctx.fillRect(0, canvas.height - 60, canvas.width, 60)
-        ctx.font = "bold 20px Arial"
-        ctx.fillStyle = "#ffffff"
-        ctx.fillText(`DOWA IT SYSTEM | ${new Date().toLocaleString()}`, 20, canvas.height - 35)
-        if (locationMeta.status === 'captured') {
-          ctx.font = "16px Arial"
-          ctx.fillText(`GPS: ${locationMeta.lat.toFixed(6)}, ${locationMeta.lng.toFixed(6)}`, 20, canvas.height - 12)
-        }
-        
-        const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1]
-
         try {
+          const canvas = document.createElement('canvas')
+          const scale = Math.min(1, 1200 / img.width) // Limit max width to 1200px to prevent memory crashes on mobile
+          canvas.width = img.width * scale
+          canvas.height = img.height * scale
+          const ctx = canvas.getContext('2d')
+          if (!ctx) throw new Error('Canvas 2D context not available on this device');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+          
+          // Premium Watermark
+          ctx.fillStyle = "rgba(0,0,0,0.5)"
+          ctx.fillRect(0, canvas.height - 60, canvas.width, 60)
+          ctx.font = "bold 20px Arial"
+          ctx.fillStyle = "#ffffff"
+          ctx.fillText(`DOWA IT SYSTEM | ${new Date().toLocaleString()}`, 20, canvas.height - 35)
+          if (locationMeta.status === 'captured') {
+            ctx.font = "16px Arial"
+            ctx.fillText(`GPS: ${locationMeta.lat.toFixed(6)}, ${locationMeta.lng.toFixed(6)}`, 20, canvas.height - 12)
+          }
+          
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
+          if (!dataUrl || !dataUrl.includes(',')) throw new Error('Failed to generate image data URL');
+          const base64 = dataUrl.split(',')[1]
+
           const res = await fetch('/api/upload/onedrive', {
             method: 'POST',
             body: JSON.stringify({
@@ -637,6 +642,12 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
               folderPath: 'Apps/Dowa-IT-System/Evidence'
             })
           })
+          
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `Server error (Status ${res.status})`);
+          }
+
           const resJ = await res.json()
           if (resJ.success) {
             const point = points[pointIdx]
@@ -686,14 +697,43 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
             } else {
               setLocationBanner({ text: 'บันทึกรูปภาพสำเร็จ แต่ไม่ได้พิกัดตำแหน่ง', tone: 'warning' })
             }
+          } else {
+            throw new Error(resJ.error || 'OneDrive upload succeeded but returned success: false');
           }
+        } catch (uploadError) {
+          console.error('Photo upload error:', uploadError);
+          alert(`❌ อัปโหลดรูปภาพล้มเหลว: ${uploadError.message || uploadError}`);
+          setLocationBanner({ text: `อัปโหลดล้มเหลว: ${uploadError.message || uploadError}`, tone: 'danger' })
         } finally {
           setUploading(p => ({ ...p, [pointIdx]: false }))
         }
       }
+      
+      img.onerror = () => {
+        alert('❌ ไม่สามารถอ่านไฟล์ภาพได้ (Image decoding failed)');
+        setLocationBanner({ text: 'ไม่สามารถอ่านไฟล์ภาพได้', tone: 'danger' });
+        setUploading(p => ({ ...p, [pointIdx]: false }));
+      }
+
       img.src = event.target.result
     }
-    reader.readAsDataURL(file)
+    
+    reader.onerror = () => {
+      alert('❌ ไม่สามารถเปิดไฟล์ได้ (FileReader error)');
+      setLocationBanner({ text: 'ไม่สามารถเปิดไฟล์ได้', tone: 'danger' });
+      setUploading(p => ({ ...p, [pointIdx]: false }));
+    }
+
+    try {
+      reader.readAsDataURL(file)
+    } catch (readErr) {
+      alert(`❌ ไม่สามารถเริ่มอ่านไฟล์ภาพ: ${readErr.message || readErr}`);
+      setLocationBanner({ text: 'ล้มเหลวในการอ่านข้อมูลเบื้องต้น', tone: 'danger' });
+      setUploading(p => ({ ...p, [pointIdx]: false }));
+    }
+    
+    // Reset file input so same file can trigger onChange again if needed
+    e.target.value = ''
   }
 
   return (
@@ -793,8 +833,11 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
           const pointLabel = typeof p === 'string' ? p : p.label
           const pointCode = typeof p === 'string' ? `P${(idx + 1).toString().padStart(2, '0')}` : (p.point_code || `P${(idx + 1).toString().padStart(2, '0')}`)
           const pointDesc = typeof p === 'string' ? null : p.description
-          const photoPath = data.photos?.[idx]
-          const meta = data.photo_meta?.[idx]
+          
+          const pointId = typeof p === 'object' ? (p.point_id || p.point_code || pointCode) : pointCode
+          const photoPath = data.photos_by_point?.[pointId] || data.photos_by_point?.[pointCode] || data.photos?.[idx]
+          const meta = data.photo_meta_by_point?.[pointId] || data.photo_meta_by_point?.[pointCode] || data.photo_meta?.[idx]
+          
           const badge = formatLocationBadge(meta)
           const isUploading = uploading[idx]
 

@@ -1,6 +1,16 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Change Logs)
 
 ## 18 พฤษภาคม 2569 (18-May-2026)
+- **19:20 +07:00 | MOBILE PHOTO ROBUST EXCEPTION HANDLING:** แก้ปัญหา Silent Failure และอาการหมุนค้างระหว่างการอัปโหลดภาพถ่ายขนาดใหญ่บนโทรศัพท์มือถือ
+  - ครอบคลุมชุดคำสั่งด้วย `try-catch` แบบเบ็ดเสร็จ (Comprehensive Exception Boundary) สำหรับวงจรชีวิตรูปภาพทั้งหมด ตั้งแต่ `FileReader.readAsDataURL`, `Image.onload`, ไปจนถึง `canvas.toDataURL` ในไฟล์ [app/dashboard/checklist/[id]/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/[id]/page.js)
+  - เพิ่มดักจับข้อผิดพลาด `img.onerror` และ `reader.onerror` พร้อมแจ้ง `alert` ให้ผู้ใช้ทราบ หากภาพถ่ายมีไฟล์ขนาดใหญ่เกินไป หรือเกิดปัญหา Memory Crash บน Mobile Safari / Android WebView
+  - ลดขนาด Canvas Scale อัตโนมัติ (จำกัดความกว้างสูงสุด 1200px) ป้องกันปัญหา Canvas Limit บนอุปกรณ์มือถือที่มีแรมน้อย 
+  - ล้างค่า File Input อัตโนมัติ (`e.target.value = ''`) เพื่อป้องกันบั๊กการอัปโหลดซ้ำไฟล์เดิมแล้ว `onChange` ไม่ยอมทำงาน
+- **19:00 +07:00 | MOBILE PHOTO EVIDENCE GRAPH & SCHEMA SYNC:** แก้ไขข้อผิดพลาดเชิงลึกของการดึงภาพถ่ายและการเชื่อมต่อ OneDrive บนโทรศัพท์มือถือ
+  - ปรับปรุงการสืบค้นข้อมูลพิกัดและภาพถ่ายแบบสองทิศทาง (Bidirectional Resolution) ในไฟล์ [app/dashboard/checklist/[id]/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/[id]/page.js) ให้รองรับการอ่านและคำนวณจำนวนรูปภาพ/พิกัด GPS ครบถ้วนจากทั้งโครงสร้างข้อมูลเกบล่าสุด (`photos_by_point`, `photo_meta_by_point`) ที่ผูกตาม Point ID/Code และโครงสร้างข้อมูลดั้งเดิม (`photos`, `photo_meta`) ที่ผูกตามลำดับดัชนี
+  - ติดตั้งตัวบังคับการค้นหาโดเมนอินเทอร์เน็ตแบบ IPv4 First ในไฟล์ [lib/onedrive.js](file:///c:/Users/Lenovo/dowa-it-system/lib/onedrive.js) เพื่อแก้ปัญหา Windows / Node.js 18+ dual-stack (IPv6 preferred) ส่งผลให้การ fetch ไปยัง `login.microsoftonline.com` เกิด error `fetch failed`
+  - ปรับปรุงตรรกะของฟังก์ชัน `handleUpload` ในคอมโพเนนต์ `PhotoTemplate` ให้ครอบคลุมด้วยชุดคำสั่ง `try-catch` อย่างเป็นระบบ หากเซิร์ฟเวอร์หรือ Microsoft Graph เกิดข้อผิดพลาด จะส่งการแจ้งเตือน `alert` และเปลี่ยนแบนเนอร์แสดงรายละเอียดข้อผิดพลาดทันที แทนการหมุนค้างและเงียบหาย (Silent Failure)
+  - รันการตรวจสอบความถูกต้องของการเชื่อมต่อสิทธิ์ OneDrive ผ่านสคริปต์ `scratch/test_onedrive.js` สามารถอัปโหลดและดาวน์โหลดไฟล์ทดสอบสำเร็จ 100%
 - **17:30 +07:00 | MOBILE PHOTO EVIDENCE BUGFIX:** แก้ไขปัญหาการถ่ายภาพบนโทรศัพท์มือถือแล้วรูปไม่บันทึก/ไม่แสดงตัวอย่างผลลัพธ์ (เนื่องจากปัญหา WebKit / Mobile Browser ละเลยสถานะ `disabled` บนป้าย `<label>`)
   - ปรับโครงสร้างส่วนแสดงผลจุดเช็คพอยต์ภาพถ่ายว่างในกรณีล็อก (`disabled === true`) ให้ใช้แท็ก `<div>` แทน `<label>` ในไฟล์ [app/dashboard/checklist/[id]/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/[id]/page.js) เพื่อป้องกันไม่ให้เบราว์เซอร์บนมือถือเปิดกล้อง/เลือกภาพได้เมื่อเอกสารอยู่ในสถานะล็อก
   - เพิ่มเงื่อนไขป้องกันการอัปโหลด (`disabled` Check Guard) ที่ด้านบนสุดของฟังก์ชัน `handleUpload` โดยจะแจ้งเตือนผู้ใช้ด้วย `alert` ให้กดปุ่มแก้ไขที่แถบด้านล่างก่อนดำเนินการ เพื่อป้องกันการ Fail Silently และ Early Return ใน `updateItemData`

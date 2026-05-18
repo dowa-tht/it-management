@@ -31,11 +31,11 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function main() {
-  console.log('Querying document...');
+  console.log('Querying document DTT-CHK-2605-011...');
   const { data: doc, error: docErr } = await supabase
     .from('checklist_docs')
     .select('*')
-    .eq('doc_no', 'DTT-CHK-2605-010')
+    .eq('doc_no', 'DTT-CHK-2605-011')
     .single();
 
   if (docErr) {
@@ -43,20 +43,27 @@ async function main() {
     return;
   }
 
-  // Also query workflow steps if any
-  console.log('\nQuerying workflow steps without order...');
-  const { data: steps, error: stepsErr } = await supabase
-    .from('document_approvals')
+  // Query checklist_items for this document
+  console.log('\nQuerying checklist items for doc ID:', doc.id);
+  const { data: items, error: itemsErr } = await supabase
+    .from('checklist_items')
     .select('*')
     .eq('doc_id', doc.id);
 
-  if (stepsErr) {
-    console.error('Error fetching steps:', stepsErr);
+  if (itemsErr) {
+    console.error('Error fetching items:', itemsErr);
     return;
   }
 
-  console.log(`Found ${steps.length} workflow steps:`);
-  console.log(JSON.stringify(steps, null, 2));
+  console.log(`Found ${items.length} items:`);
+  const output = {
+    document: doc,
+    items: items
+  };
+  fs.writeFileSync(path.join(__dirname, 'check_doc_output.json'), JSON.stringify(output, null, 2), 'utf8');
+  console.log('✅ Wrote output to check_doc_output.json');
 }
 
 main().catch(console.error);
+
+
