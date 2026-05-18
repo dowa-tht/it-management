@@ -1,6 +1,10 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Change Logs)
 
 ## 18 พฤษภาคม 2569 (18-May-2026)
+- **17:30 +07:00 | MOBILE PHOTO EVIDENCE BUGFIX:** แก้ไขปัญหาการถ่ายภาพบนโทรศัพท์มือถือแล้วรูปไม่บันทึก/ไม่แสดงตัวอย่างผลลัพธ์ (เนื่องจากปัญหา WebKit / Mobile Browser ละเลยสถานะ `disabled` บนป้าย `<label>`)
+  - ปรับโครงสร้างส่วนแสดงผลจุดเช็คพอยต์ภาพถ่ายว่างในกรณีล็อก (`disabled === true`) ให้ใช้แท็ก `<div>` แทน `<label>` ในไฟล์ [app/dashboard/checklist/[id]/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/[id]/page.js) เพื่อป้องกันไม่ให้เบราว์เซอร์บนมือถือเปิดกล้อง/เลือกภาพได้เมื่อเอกสารอยู่ในสถานะล็อก
+  - เพิ่มเงื่อนไขป้องกันการอัปโหลด (`disabled` Check Guard) ที่ด้านบนสุดของฟังก์ชัน `handleUpload` โดยจะแจ้งเตือนผู้ใช้ด้วย `alert` ให้กดปุ่มแก้ไขที่แถบด้านล่างก่อนดำเนินการ เพื่อป้องกันการ Fail Silently และ Early Return ใน `updateItemData`
+  - ทำการตรวจสอบภาพรวมระบบและการผสานความเข้ากันได้ และรันการตรวจสอบไฟล์จริง (Double-Verification Check) สำเร็จ 100%
 - **17:00 +07:00 | AUDIT & VERIFICATION REPORT:** ตรวจสอบกระบวนการและเงื่อนไขอนุมัติเอกสาร DTT-CHK-2605-010 พร้อมจัดทำรายงานอิงหลักฐานแบบบรรทัดต่อบรรทัด (Evidence-Based Verification)
   - เขียนรายงานการวิเคราะห์และตรวจสอบความสอดคล้องมาตรฐานเวิร์กโฟลว์ของโครงการที่ [audit_report_checklist_dtt_chk_2605_010.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/audit_report_checklist_dtt_chk_2605_010.md) และลงทะเบียนลิงก์ในดัชนีรวม [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md)
   - วิเคราะห์และพิสูจน์ตรรกะการทำงานของเงื่อนไขการส่งอนุมัติ (`canSubmit`) ในไฟล์ [app/dashboard/checklist/[id]/page.js:L316](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/%5Bid%5D/page.js#L316) ร่วมกับขั้นตอนเวิร์กโฟลว์ส่วนกลางใน [app/actions/workflow.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/workflow.js)

@@ -590,6 +590,10 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
   const gpsCount = Object.values(data.photo_meta || {}).filter(m => m.status === 'captured').length
 
   const handleUpload = async (pointIdx, e) => {
+    if (disabled) {
+      alert('⚠️ ไม่สามารถแก้ไขรูปภาพได้ในขณะนี้ กรุณากดปุ่ม "แก้ไข" ที่แถบด้านล่างก่อนดำเนินการ')
+      return
+    }
     const file = e.target.files[0]
     if (!file) return
 
@@ -839,6 +843,23 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
                        }}>{badge.label}</span>
                     </div>
                   </>
+                ) : disabled ? (
+                  <div style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    cursor: 'not-allowed',
+                    padding: '24px',
+                    textAlign: 'center',
+                    background: '#f8fafc'
+                  }}>
+                    <span style={{ fontSize: '32px', marginBottom: '8px', opacity: 0.5 }}>📷</span>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>ยังไม่ได้ถ่ายภาพ</span>
+                    <div style={{ fontSize: '10px', color: '#cbd5e1', marginTop: '6px', fontWeight: 700 }}>กดปุ่ม "แก้ไข" เพื่อเปิดกล้อง</div>
+                  </div>
                 ) : (
                   <label style={{ 
                     width: '100%', 
@@ -847,14 +868,14 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
                     flexDirection: 'column', 
                     alignItems: 'center', 
                     justifyContent: 'center', 
-                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    cursor: 'pointer',
                     padding: '24px',
                     textAlign: 'center'
                   }}>
                     <span style={{ fontSize: '32px', marginBottom: '8px' }}>📸</span>
                     <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>คลิกเพื่อถ่ายภาพ</span>
                     {pointDesc && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', fontWeight: 500 }}>{pointDesc}</div>}
-                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleUpload(idx, e)} disabled={disabled} />
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleUpload(idx, e)} />
                   </label>
                 )}
               </div>
