@@ -636,6 +636,9 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
 
           const res = await fetch('/api/upload/onedrive', {
             method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
               fileName: `checklist_${item.id}_${pointIdx}.jpg`,
               base64Data: base64,

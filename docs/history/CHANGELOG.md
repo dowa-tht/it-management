@@ -1,6 +1,10 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Change Logs)
 
 ## 18 พฤษภาคม 2569 (18-May-2026)
+- **21:25 +07:00 | MOBILE PHOTO CONTENT-TYPE FIX:** แก้ไขปัญหาการอัปโหลดรูปภาพล้มเหลวบนโทรศัพท์มือถือที่ฟ้องข้อความ `Content-Type was not one of "multipart/form-data" or "application/x-www-form-urlencoded"`
+  - เพิ่ม explicit header `'Content-Type': 'application/json'` ในฟังก์ชัน `handleUpload` ของคอมโพเนนต์ `PhotoTemplate` ภายในไฟล์ [app/dashboard/checklist/[id]/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/[id]/page.js) เพื่อบังคับให้ API Route `/api/upload/onedrive` แยกแยะ Payload ประเภท JSON (Base64) ได้อย่างถูกต้อง ไม่ตกไปฝั่ง parsing `req.formData()`
+  - รันการทดสอบระบบผ่าน `npm test` ผลลัพธ์ผ่านการทดสอบ 100% (9/9 pass)
+  - พร้อมทำการบันทึกและพุชข้อมูลขึ้น GitHub (`git push origin main`) เพื่อทำการ Deploy ใหม่บน Vercel
 - **19:20 +07:00 | MOBILE PHOTO ROBUST EXCEPTION HANDLING:** แก้ปัญหา Silent Failure และอาการหมุนค้างระหว่างการอัปโหลดภาพถ่ายขนาดใหญ่บนโทรศัพท์มือถือ
   - ครอบคลุมชุดคำสั่งด้วย `try-catch` แบบเบ็ดเสร็จ (Comprehensive Exception Boundary) สำหรับวงจรชีวิตรูปภาพทั้งหมด ตั้งแต่ `FileReader.readAsDataURL`, `Image.onload`, ไปจนถึง `canvas.toDataURL` ในไฟล์ [app/dashboard/checklist/[id]/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/[id]/page.js)
   - เพิ่มดักจับข้อผิดพลาด `img.onerror` และ `reader.onerror` พร้อมแจ้ง `alert` ให้ผู้ใช้ทราบ หากภาพถ่ายมีไฟล์ขนาดใหญ่เกินไป หรือเกิดปัญหา Memory Crash บน Mobile Safari / Android WebView
