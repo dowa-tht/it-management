@@ -26,16 +26,6 @@ export default function WorkflowSettingsPage() {
     { value: 'creator', label: 'Creator (Dynamic Role)' }
   ]
 
-  useEffect(() => {
-    fetchInitialData()
-    fetchGuide()
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) {
-        supabase.from('user_profiles').select('*').eq('id', data.session.user.id).single().then(({ data: p }) => setCurrentUser(p))
-      }
-    })
-  }, [])
-
   const fetchGuide = async () => {
     const { data } = await supabase.from('system_settings').select('value').eq('key', 'workflow_guide_content').single()
     if (data) setGuideContent(data.value)
@@ -241,6 +231,20 @@ export default function WorkflowSettingsPage() {
     fetchInitialData()
     setSaving(false)
   }
+
+
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchInitialData()
+    fetchGuide()
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session?.user) {
+        supabase.from('user_profiles').select('*').eq('id', data.session.user.id).single().then(({ data: p }) => setCurrentUser(p))
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>กำลังโหลด...</div>
 
