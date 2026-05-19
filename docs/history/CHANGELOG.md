@@ -9,6 +9,9 @@
   - **09:40 +07:00 | PHOTO COMPRESSION & ONEDRIVE RETAKE CLEANUP:**
     - พัฒนาระบบบีบอัดภาพหลักฐานด้วย HTML5 Canvas บน Client-side ให้จำกัดความยาวด้านสูงสุดที่ `1000px` (ยืดหยุ่นทั้งแนวตั้งและแนวนอนด้วย `Math.max`) และลดคุณภาพการบีบอัดลงมาที่ `0.5` ในไฟล์ `app/dashboard/checklist/[id]/page.js` ช่วยลดขนาดรูปภาพลงกว่า 50% (ประหยัดแบนด์วิดท์เหลือเพียง ~50-90KB ต่อรูป)
     - เพิ่มกระบวนการลบรูปเก่าออกจาก Microsoft OneDrive อย่างปลอดภัย โดยตรวจหา `oldFilePath` ( OneDrive File ID เดิม) และเรียก `DELETE /api/upload/onedrive` แบบ Asynchronous ในพื้นหลัง (Background Fetch) ทันทีที่การอัปโหลดรูปภาพใหม่สำเร็จ เพื่อป้องกันการทิ้งไฟล์ขยะ (Orphaned Files) บน OneDrive
+  - **09:55 +07:00 | ONEDRIVE RETAKE DUPLICATE ID BUG FIX:**
+    - แก้ไขปัญหาบั๊กที่ถ่ายรูปใหม่ซ้ำแบบเดิม 2 ครั้งจึงจะสำเร็จ โดยหาสาเหตุพบว่า เกิดจาก OneDrive Graph API เมื่ออัปโหลดไฟล์ที่มีชื่อเดิมซ้ำ ระบบจะทำการเขียนทับเนื้อหาเดิมโดยยังรักษา File ID เดิมเอาไว้ (เช่น `1234`) ส่งผลให้ `oldFilePath` และ `resJ.filePath` มีค่า ID เดียวกัน และเมื่อกระบวนการ Asynchronous Deletion ทำงานเบื้องหลัง ระบบจึงส่งคำสั่งลบ ID นั้นออกไป ทำให้ไฟล์รูปภาพที่เพิ่งอัปโหลดใหม่ถูกลบออกไปด้วย
+    - วิธีการแก้ไข: (1) ปรับปรุงชื่อไฟล์ที่ส่งไป OneDrive ให้มีความเป็นเอกลักษณ์เฉพาะตัว (Unique) ด้วยการต่อท้ายด้วย Timestamp `checklist_${item.id}_${pointIdx}_${Date.now()}.jpg` ทำให้ OneDrive สร้าง File Item ใหม่ที่ได้ ID ใหม่เสมอ และ (2) เพิ่มมาตรการป้องกันเชิงรุก (Defense in Depth) ด้วยการเช็กว่า ID เก่าและใหม่ต้องไม่ตรงกันก่อนส่งคำสั่งลบ: `if (oldFilePath && oldFilePath !== resJ.filePath)` ในไฟล์ `app/dashboard/checklist/[id]/page.js`
 
 ---
 

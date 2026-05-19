@@ -642,7 +642,7 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              fileName: `checklist_${item.id}_${pointIdx}.jpg`,
+              fileName: `checklist_${item.id}_${pointIdx}_${Date.now()}.jpg`,
               base64Data: base64,
               folderPath: 'Apps/Dowa-IT-System/Evidence'
             })
@@ -699,7 +699,7 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
             })
 
             // Asynchronously delete the old photo from OneDrive after successful upload of the new one
-            if (oldFilePath) {
+            if (oldFilePath && oldFilePath !== resJ.filePath) {
               console.log(`[OneDrive] Replacing old image. Triggering deletion for old ID: ${oldFilePath}`);
               fetch('/api/upload/onedrive', {
                 method: 'DELETE',

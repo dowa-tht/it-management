@@ -174,3 +174,7 @@ We will modify the `handleUpload` function inside `PhotoTemplate` component in `
 
 3. **Type Consistency:**
    - No database schema or types are modified. OneDrive API DELETE payload uses `{ filePath: oldFilePath }` which exactly matches `api/upload/onedrive/route.js:72`.
+
+4. **OneDrive Same-Name File Overwrite & Duplicate ID Edge Case (Resolved 19-May-2026):**
+   - **Bug Symptom:** In retake attempts, uploading the image under the static filename `checklist_${item.id}_${pointIdx}.jpg` overrode the existing OneDrive file but retained the *same* OneDrive Item ID. The asynchronous DELETE routine would then fire on that same ID, resulting in the newly uploaded file being deleted immediately and failing the preview.
+   - **Fix:** (1) Dynamic Timestamp: Appended `_${Date.now()}` to the upload filename to guarantee a brand new file item and ID are generated for every upload. (2) Safety Guard: Added an equality check `if (oldFilePath && oldFilePath !== resJ.filePath)` before triggering the background DELETE call to guarantee the new image item is never deleted.
