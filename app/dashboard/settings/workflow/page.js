@@ -16,7 +16,15 @@ export default function WorkflowSettingsPage() {
   const [guideContent, setGuideContent] = useState('')
   const [editingGuide, setEditingGuide] = useState(false)
 
-  const roles = ['admin', 'it_staff', 'approver', 'employee', 'auditor']
+  const roleOptions = [
+    { value: 'admin', label: 'Admin (System Role)' },
+    { value: 'it_staff', label: 'IT Staff (System Role)' },
+    { value: 'approver', label: 'Approver (System Role)' },
+    { value: 'employee', label: 'Employee (System Role)' },
+    { value: 'auditor', label: 'Auditor (System Role)' },
+    { value: 'reporter', label: 'Reporter (Dynamic Role)' },
+    { value: 'creator', label: 'Creator (Dynamic Role)' }
+  ]
 
   useEffect(() => {
     fetchInitialData()
@@ -33,21 +41,57 @@ export default function WorkflowSettingsPage() {
     if (data) setGuideContent(data.value)
     else {
       setGuideContent(`### ⚙️ คู่มือการตั้งค่าลำดับการอนุมัติ (Workflow Guide)
-ระบบใช้การอนุมัติแบบลำดับขั้น (Sequential Approval) โดยคุณสามารถกำหนดกี่ขั้นตอนก็ได้
+ระบบใช้การอนุมัติแบบลำดับขั้น (Sequential Approval) โดยคุณสามารถกำหนดการอนุมัติในแต่ละระดับได้หลากหลายประเภท
 
 ---
-#### **1. ลำดับขั้นตอน (Step Order)**
-- ลำดับที่ 1 จะได้รับแจ้งเตือนและต้องลงนามก่อนเสมอ
-- ลำดับถัดไปจะได้รับแจ้งเตือนเมื่อขั้นตอนก่อนหน้าลงนาม "อนุมัติ" แล้วเท่านั้น
+#### **1. ประเภทบทบาทในการอนุมัติ (Role Types)**
+การเลือกผู้อนุมัติแบ่งออกเป็น 2 กลุ่มหลัก เพื่อรองรับความยืดหยุ่นในแบบ Static และ Dynamic:
+
+##### **A. System Roles (บทบาทระบบ)**
+เป็นสิทธิ์ที่ถูกกำหนดไว้ตายตัวในโปรไฟล์ของผู้ใช้แต่ละคน:
+- **Admin (System Role):** ผู้ดูแลระบบสูงสุด มีสิทธิ์จัดการและอนุมัติทุกส่วน
+- **IT Staff (System Role):** เจ้าหน้าที่ไอที สำหรับขั้นตอนการแก้ไขหรือปฏิบัติงานด้านเทคนิค
+- **Approver (System Role):** ผู้อนุมัติ/หัวหน้างานที่ได้รับมอบหมายสิทธิ์อนุมัติทั่วไป
+- **Employee (System Role):** พนักงานทั่วไปในระบบ
+- **Auditor (System Role):** ผู้ตรวจสอบระบบ
+
+##### **B. Dynamic Roles (บทบาทแปรผันตามเอกสาร)**
+เป็นสิทธิ์ที่จะถูกคำนวณและระบุตัวบุคคลโดยอัตโนมัติจากข้อมูลในเอกสารแต่ละฉบับ:
+- **Creator (Dynamic Role):** ผู้สร้างเอกสาร (อ้างอิงจาก \`created_by_id\` และจะใช้ \`reported_by_id\` เป็นค่าสำรองหากไม่พบ)
+- **Reporter (Dynamic Role):** ผู้แจ้งเรื่อง/ผู้รายงาน (อ้างอิงจาก \`reported_by_id\` และจะใช้ \`created_by_id\` เป็นค่าสำรองหากไม่พบ)
+
+> 💡 **การประยุกต์ใช้:** ในกรณีที่เจ้าหน้าที่ IT Staff สร้างเอกสารแทนพนักงาน (IT Staff เป็น Creator, พนักงานเป็น Reporter) ระบบจะแยกแยะและส่งใบงานให้ผู้ที่เกี่ยวข้องลงนามตามจริงได้อย่างถูกต้องตามประเภทบทบาทที่เลือก
 
 ---
 #### **2. สิทธิ์และผู้อนุมัติเฉพาะเจาะจง**
-- **Role Only:** หากเลือกเฉพาะ Role ใครก็ตามที่มีสิทธิ์นั้นจะเห็นเอกสารและเซ็นได้ (ใครเซ็นก่อนถือว่าผ่านขั้นนั้น)
-- **Specific Person:** หากเลือกตัวบุคคล ระบบจะเจาะจงให้คนนั้นเท่านั้นที่เป็นคนเซ็น (แม้จะมี Role เดียวกันคนอื่นก็เซ็นไม่ได้)
+- **Role Only:** หากระบุเฉพาะบทบาท (Role) ใครก็ตามที่มีบทบาทนั้นจะสามารถเห็นและอนุมัติเอกสารในขั้นนั้นได้ (ใครอนุมัติก่อนถือว่าผ่านขั้นตอนนั้นทันที)
+- **Specific Person:** หากระบุตัวบุคคล (User) ระบบจะเจาะจงให้บุคคลนั้นลงนามเท่านั้น แม้ว่าจะมีผู้ใช้อื่นที่มีบทบาทตรงกันก็จะไม่สามารถลงนามแทนได้
 
 ---
-#### **3. การแก้ไข**
-- การแก้ไขลำดับจะมีผลกับ **เอกสารที่สร้างขึ้นใหม่** หลังจากกดบันทึกเท่านั้น เอกสารเดิมที่ค้างอยู่ใน Workflow จะยังคงลำดับเดิม`)
+#### **3. เงื่อนไขการจัดเส้นทางอนุมัติ (Approval Routing Conditions)**
+ระบบจะเลือกรูปแบบขั้นตอนอนุมัติตามประเภทและระดับเงื่อนไขของเอกสารแต่ละใบดังนี้:
+
+##### **📋 Checklist Docs (เงื่อนไขตามความถี่)**
+- **Daily (รายวัน):** กระบวนการสั้น กระชับ สำหรับงานประเมินประจำวัน
+- **Weekly (รายสัปดาห์):** สำหรับงานประเมินสรุปรอบสัปดาห์
+- **Monthly (รายเดือน):** สำหรับงานตรวจสอบประจำเดือนที่มีผู้เกี่ยวข้องมากขึ้น
+- **Yearly (รายปี):** งานประเมินระดับปีที่ครอบคลุมหน่วยงานระดับผู้บริหาร
+
+##### **🚨 Incidents (เงื่อนไขตามความรุนแรง)**
+- **Low (ต่ำ):** สำหรับการซ่อมแซม/แก้ปัญหาระบบทั่วไปที่ไม่ส่งผลกระทบวงกว้าง
+- **Medium (ปานกลาง):** สำหรับปัญหาเฉพาะด้านที่มีความสำคัญปานกลาง
+- **High (สูง):** สำหรับปัญหาระบบหลักขัดข้องหรือส่งผลกระทบต่อธุรกิจสูง
+
+---
+#### **4. กฎการอนุมัติอัตโนมัติ (Auto-Approval Rules)**
+ระบบมีกลไกตรวจสอบและอนุมัติอัตโนมัติเพื่อป้องกันการหยุดชะงักของงานดังนี้:
+- **Auto-Approval (ไม่มีขั้นตอนอนุมัติ):** หากเงื่อนไขบางประเภท (เช่น Incident ความรุนแรงต่ำ หรือ Checklist รายวัน) ไม่มีการตั้งขั้นตอนการอนุมัติ (Steps) ไว้เลย เมื่อผู้ใช้กดส่งคำขออนุมัติ ระบบจะทำเครื่องหมายผ่านอนุมัติให้อัตโนมัติทันที
+- **ผลลัพธ์ของ Auto-Approval:** เอกสารจะถูกปรับสถานะเป็น **Closed** และ **approved** ทันที พร้อมเรียกใช้ Post-Approval Sync ไปอัปเดตโมดูลอื่น (ถ้ามี)
+- **การบันทึกประวัติ:** ระบบจะทำการบันทึก Log กลางในตาราง \`system_audit_logs\` โดยระบุ Action เป็น **Auto-Approved** และรายละเอียดระบุเหตุผลชัดเจนว่าได้รับการอนุมัติอัตโนมัติตามค่าตั้งคอนฟิก
+
+---
+#### **5. ผลของการแก้ไขตั้งค่า**
+- การเปลี่ยนแปลงลำดับขั้นและการตั้งค่าจะมีผลกับ **เอกสารที่เริ่มส่งอนุมัติใหม่** หลังจากบันทึกค่าแล้วเท่านั้น เอกสารเดิมที่กำลังดำเนินขั้นตอนอยู่จะใช้โครงสร้างและลำดับเดิมจนเสร็จสิ้นกระบวนการ`)
     }
   }
 
@@ -60,14 +104,60 @@ export default function WorkflowSettingsPage() {
 
   const fetchInitialData = async () => {
     setLoading(true)
-    const [{ data: confs }, { data: usrs }] = await Promise.all([
-      supabase.from('workflow_configs').select('*').order('doc_type', { ascending: true }),
+    const [{ data: rawConfs }, { data: usrs }] = await Promise.all([
+      supabase.from('workflow_configs').select('*').order('target_type', { ascending: true }).order('condition_value', { ascending: true }).order('step_order', { ascending: true }),
       supabase.from('user_profiles').select('id, full_name, email, role').eq('is_active', true).order('full_name', { ascending: true })
     ])
     
-    if (confs) {
-      setConfigs(confs)
-      if (confs.length > 0) handleSelectConfig(confs[0])
+    if (rawConfs) {
+      const getTriggerValue = (c) => {
+         if (c.target_type === 'checklist') {
+            if (c.condition_value === '0') return 'ความถี่: Daily (รายวัน)'
+            if (c.condition_value === '1') return 'ความถี่: Weekly (รายสัปดาห์)'
+            if (c.condition_value === '2') return 'ความถี่: Monthly (รายเดือน)'
+            if (c.condition_value === '3') return 'ความถี่: Yearly (รายปี)'
+         }
+         if (c.target_type === 'incident') {
+            if (c.condition_value === '0') return 'ความรุนแรง: Low (ต่ำ)'
+            if (c.condition_value === '1') return 'ความรุนแรง: Medium (ปานกลาง)'
+            if (c.condition_value === '2') return 'ความรุนแรง: High (สูง)'
+         }
+         return 'ไม่ระบุเงื่อนไข'
+      }
+
+      // Group steps by config
+      const grouped = {}
+      rawConfs.forEach(row => {
+        const key = `${row.target_type}_${row.condition_key}_${row.condition_value}`
+        if (!grouped[key]) {
+          grouped[key] = {
+            id: key,
+            target_type: row.target_type,
+            condition_key: row.condition_key,
+            condition_value: row.condition_value,
+            trigger_value: getTriggerValue(row),
+            steps: []
+          }
+        }
+        grouped[key].steps.push({
+          id: row.id,
+          step_order: row.step_order,
+          role_required: row.role_required,
+          approver_id: row.approver_id
+        })
+      })
+      
+      const confList = Object.values(grouped)
+      setConfigs(confList)
+      if (confList.length > 0) {
+         const currentKey = selectedConfig?.id
+         const nextConfig = confList.find(c => c.id === currentKey) || confList[0]
+         setSelectedConfig(nextConfig)
+         setSteps(nextConfig.steps || [])
+      } else {
+         setSelectedConfig(null)
+         setSteps([])
+      }
     }
     if (usrs) setUsers(usrs)
     setLoading(false)
@@ -85,7 +175,6 @@ export default function WorkflowSettingsPage() {
 
   const removeStep = (idx) => {
     const newSteps = steps.filter((_, i) => i !== idx)
-    // Re-order
     const reordered = newSteps.map((s, i) => ({ ...s, step_order: i + 1 }))
     setSteps(reordered)
   }
@@ -94,7 +183,6 @@ export default function WorkflowSettingsPage() {
     const newSteps = [...steps]
     newSteps[idx][field] = value
     if (field === 'approver_id' && value) {
-        // Auto set role if user selected
         const user = users.find(u => u.id === value)
         if (user) newSteps[idx].role_required = user.role
     }
@@ -103,19 +191,54 @@ export default function WorkflowSettingsPage() {
 
   const handleSave = async () => {
     if (!selectedConfig) return
-    setSaving(true)
-    const { error } = await supabase
-      .from('workflow_configs')
-      .update({ steps })
-      .eq('id', selectedConfig.id)
 
-    if (error) {
-      alert(`Error saving: ${error.message}`)
-    } else {
-      alert('💾 บันทึก Workflow สำเร็จ!')
-      await recordLog(selectedConfig.id, 'workflow_config', 'Updated', `ปรับปรุงลำดับการอนุมัติสำหรับ ${selectedConfig.doc_type} (${selectedConfig.trigger_value})`, currentUser?.email)
-      fetchInitialData()
+    // 🛡️ [Phase 2] UI Guardrails
+    if (selectedConfig.target_type === 'incident') {
+      const hasDynamicRole = steps.some(s => ['reporter', 'creator'].includes(s.role_required))
+      if (!hasDynamicRole) {
+        alert('⚠️ ไม่สามารถบันทึกได้: Workflow ของ Incident จำเป็นต้องมีขั้นตอนสำหรับ "reporter" (ผู้แจ้ง) หรือ "creator" (ผู้สร้าง)')
+        return
+      }
     }
+
+    setSaving(true)
+    
+    // 1. Delete existing steps for this config
+    const { error: delErr } = await supabase
+      .from('workflow_configs')
+      .delete()
+      .eq('target_type', selectedConfig.target_type)
+      .eq('condition_key', selectedConfig.condition_key)
+      .eq('condition_value', selectedConfig.condition_value)
+      
+    if (delErr) {
+       alert(`Error deleting old configs: ${delErr.message}`)
+       setSaving(false)
+       return
+    }
+    
+    // 2. Insert new steps
+    if (steps.length > 0) {
+        const inserts = steps.map((s, idx) => ({
+            target_type: selectedConfig.target_type,
+            condition_key: selectedConfig.condition_key,
+            condition_value: selectedConfig.condition_value,
+            step_order: idx + 1,
+            role_required: s.role_required,
+            approver_id: s.approver_id || null,
+            is_active: true
+        }))
+        const { error: insErr } = await supabase.from('workflow_configs').insert(inserts)
+        if (insErr) {
+            alert(`Error saving: ${insErr.message}`)
+            setSaving(false)
+            return
+        }
+    }
+
+    alert('💾 บันทึก Workflow สำเร็จ!')
+    await recordLog('00000000-0000-0000-0000-000000000000', 'workflow_config', 'Updated', `ปรับปรุงลำดับการอนุมัติสำหรับ ${selectedConfig.target_type} (${selectedConfig.trigger_value})`, currentUser?.email)
+    fetchInitialData()
     setSaving(false)
   }
 
@@ -248,7 +371,7 @@ export default function WorkflowSettingsPage() {
                   width: '100%'
                 }}
               >
-                <div style={{ fontSize: 14 }}>{c.doc_type === 'checklist' ? '📋 Checklist' : '🚨 Incident'}</div>
+                <div style={{ fontSize: 14 }}>{c.target_type === 'checklist' ? '📋 Checklist' : '🚨 Incident'}</div>
                 <div style={{ fontSize: 12, opacity: 0.7 }}>{c.trigger_value}</div>
               </div>
             ))}
@@ -264,8 +387,11 @@ export default function WorkflowSettingsPage() {
             <>
               <div className="workflow-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#7c3aed', marginBottom: 4, letterSpacing: '0.05em' }}>
-                    EDITING WORKFLOW: {selectedConfig.doc_type.toUpperCase()}
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#7c3aed', marginBottom: 4, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    EDITING WORKFLOW: {selectedConfig.target_type.toUpperCase()}
+                    <span style={{ padding: '2px 8px', background: '#fef3c7', color: '#d97706', borderRadius: 6, fontSize: 11, border: '1px solid #fde68a' }}>
+                      ⚡ ROLE-BASED DYNAMIC LOGIC
+                    </span>
                   </div>
                   <h2 style={{ fontSize: 24, fontWeight: 800, color: '#111827', margin: 0 }}>
                     {selectedConfig.trigger_value}
@@ -302,7 +428,7 @@ export default function WorkflowSettingsPage() {
                               onChange={(e) => updateStep(idx, 'role_required', e.target.value)}
                               style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 14 }}
                             >
-                              {roles.map(r => <option key={r} value={r}>{r}</option>)}
+                              {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                             </select>
                           </div>
                           <div>

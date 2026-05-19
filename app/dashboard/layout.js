@@ -151,7 +151,6 @@ export default function DashboardLayout({ children }) {
       icon: '🔄',
       items: [
         { href: '/dashboard/settings/workflow', label: 'Workflow Rules', feature: 'settings' },
-        { href: '/dashboard/settings/approvals', label: 'Approval Flows', feature: 'settings' },
         { href: '/dashboard/settings/substitutes', label: 'Substitute Approvers', feature: 'settings' },
       ],
     },

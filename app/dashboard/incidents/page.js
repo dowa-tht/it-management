@@ -451,7 +451,7 @@ function IncidentsContent() {
                       </div>
                       {inc.reported_by && (
                         <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '3px', fontWeight: 500 }}>
-                          ผู้สร้าง: {inc.reported_by}
+                          ผู้แจ้ง: {inc.reported_by}
                         </div>
                       )}
                     </td>

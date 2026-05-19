@@ -206,7 +206,7 @@ export default function IncidentDetailPage() {
         { data: hols }, 
         { data: excl }
       ] = await Promise.all([
-        supabase.from('incidents').select('*, reporter:user_profiles!reported_by_id(full_name, email)').eq('id', id).single(),
+        supabase.from('incidents').select('*, reporter:user_profiles!reported_by_id(full_name, email), creator:user_profiles!created_by_id(full_name, email)').eq('id', id).single(),
         supabase.from('system_audit_logs').select('*').eq('doc_id', id).order('created_at', { ascending: false }),
         supabase.from('system_settings').select('*').eq('key', 'working_hours').single(),
         supabase.from('sla_holidays').select('*'),
@@ -634,12 +634,16 @@ export default function IncidentDetailPage() {
               </div>
               <div className="field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px' }}>
                 <div style={{ marginBottom: '20px' }}>
-                  <div className="field-label">ผู้แจ้ง / Requester</div>
-                  <div className="field-value">{incident.reporter?.full_name || incident.reported_by || <span style={{ fontStyle: 'italic', color: '#cbd5e1' }}>— ยังไม่มีข้อมูล —</span>}</div>
+                  <div className="field-label" style={{ fontSize: '10px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>ผู้สร้าง / Creator</div>
+                  <div className="field-value" style={{ fontSize: '14px', fontWeight: 700, color: '#334155' }}>{incident.creator?.full_name || incident.created_by || <span style={{ fontStyle: 'italic', color: '#cbd5e1' }}>— ไม่ระบุ —</span>}</div>
                 </div>
                 <div style={{ marginBottom: '20px' }}>
-                  <div className="field-label">ผู้รับผิดชอบ / IT Assignee</div>
-                  <div className="field-value">{incident.assigned_to || <span style={{ fontStyle: 'italic', color: '#cbd5e1' }}>— ยังไม่มีข้อมูล —</span>}</div>
+                  <div className="field-label" style={{ fontSize: '10px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>ผู้แจ้ง / Requester</div>
+                  <div className="field-value" style={{ fontSize: '14px', fontWeight: 700, color: '#334155' }}>{incident.reporter?.full_name || incident.reported_by || <span style={{ fontStyle: 'italic', color: '#cbd5e1' }}>— ยังไม่มีข้อมูล —</span>}</div>
+                </div>
+                <div style={{ marginBottom: '20px' }}>
+                  <div className="field-label" style={{ fontSize: '10px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>ผู้รับผิดชอบ / IT Assignee</div>
+                  <div className="field-value" style={{ fontSize: '14px', fontWeight: 700, color: '#334155' }}>{incident.assigned_to || <span style={{ fontStyle: 'italic', color: '#cbd5e1' }}>— ยังไม่มีข้อมูล —</span>}</div>
                 </div>
               </div>
               {field('อาการที่พบ / รายละเอียด', 'description', form.description)}

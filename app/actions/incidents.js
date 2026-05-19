@@ -33,13 +33,23 @@ export async function createIncident(formData) {
     // 2. เตรียมข้อมูลสำหรับบันทึก (แยก ref_doc_id ออกเพราะเป็น UI field)
     const { ref_doc_id, ...cleanData } = formData
     
+    const { data: actorProfile, error: actorError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, email, full_name')
+      .eq('id', session.user.id)
+      .single()
+      
+    const creatorName = actorProfile ? (actorProfile.full_name || actorProfile.email) : userEmail
+
     const insertData = {
       ...cleanData,
       case_number: caseNo,
       status: formData.assigned_to ? 'In Progress' : 'Open',
       acknowledged_at: formData.assigned_to ? new Date().toISOString() : null,
       assigned_at: formData.assigned_to ? new Date().toISOString() : null,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      created_by_id: userId,
+      created_by: creatorName
     }
 
     // 3. บันทึกลงตาราง incidents

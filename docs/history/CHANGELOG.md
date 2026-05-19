@@ -12,12 +12,29 @@
   - **09:55 +07:00 | ONEDRIVE RETAKE DUPLICATE ID BUG FIX:**
     - แก้ไขปัญหาบั๊กที่ถ่ายรูปใหม่ซ้ำแบบเดิม 2 ครั้งจึงจะสำเร็จ โดยหาสาเหตุพบว่า เกิดจาก OneDrive Graph API เมื่ออัปโหลดไฟล์ที่มีชื่อเดิมซ้ำ ระบบจะทำการเขียนทับเนื้อหาเดิมโดยยังรักษา File ID เดิมเอาไว้ (เช่น `1234`) ส่งผลให้ `oldFilePath` และ `resJ.filePath` มีค่า ID เดียวกัน และเมื่อกระบวนการ Asynchronous Deletion ทำงานเบื้องหลัง ระบบจึงส่งคำสั่งลบ ID นั้นออกไป ทำให้ไฟล์รูปภาพที่เพิ่งอัปโหลดใหม่ถูกลบออกไปด้วย
     - วิธีการแก้ไข: (1) ปรับปรุงชื่อไฟล์ที่ส่งไป OneDrive ให้มีความเป็นเอกลักษณ์เฉพาะตัว (Unique) ด้วยการต่อท้ายด้วย Timestamp `checklist_${item.id}_${pointIdx}_${Date.now()}.jpg` ทำให้ OneDrive สร้าง File Item ใหม่ที่ได้ ID ใหม่เสมอ และ (2) เพิ่มมาตรการป้องกันเชิงรุก (Defense in Depth) ด้วยการเช็กว่า ID เก่าและใหม่ต้องไม่ตรงกันก่อนส่งคำสั่งลบ: `if (oldFilePath && oldFilePath !== resJ.filePath)` ในไฟล์ `app/dashboard/checklist/[id]/page.js`
-  - **10:55 +07:00 | WORKFLOW ENGINE UX & INTEGRATION:**
+  - **10:45 +07:00 | SYSTEM ARCHITECTURE & WORKFLOW UPGRADE:**
+    - **Zero-Downtime Upgrade (Phase 1 to 4 Full Cutover)**: 
+      - `app/actions/workflow.js`: Implemented Dynamic Step Resolution based on `role_required`. Removed legacy hardcoded step loop (`step_order` 1, 2, 3) and fully transitioned to dynamic role-based logic.
+      - `lib/workflow.js`: Switched `validateSignaturePin` to use `verifyEmployeePIN` Server Action directly for secure PIN validation, removing the legacy `fetch` API call.
+      - `lib/workflowRegistry.js`: Added CRITICAL contract block to prevent structural changes to `WORKFLOW_DOC_REGISTRY` without corresponding DB RPC migrations.
+      - `app/dashboard/settings/workflow/page.js`: Added UI Guardrails to prevent removal of `reporter` role from Incident workflows, ensuring zero breakages during step configuration. Added "ROLE-BASED DYNAMIC LOGIC" indicator.
     - พัฒนาระบบแจ้งเตือนและยกระดับระบบการทำงาน (Workflow Engine UX Upgrade) ด้วยโมดูลกลาง `WorkflowNotification` (`components/workflow/WorkflowNotification.js`)
     - สร้าง Custom Modal, Alert, และ Toast แจ้งเตือนแบบ Premium Glassmorphism ที่แสดงสถานะขออนุมัติ, ตีกลับเอกสาร, อนุมัติสำเร็จ และการทำงานผิดพลาดของ API ได้อย่างสวยงามตามหลักสรีรศาสตร์
     - ปรับปรุงให้หน้าจอ Checklist และ Incident ในทุกๆ Workflow Actions (ส่งขออนุมัติ, อนุมัติ, ตีกลับ, เปิดใหม่, รับทราบเคส) ทำการเรียก `fetchData()` ควบคู่กับ `router.refresh()` ทันทีเพื่อทำ Auto-Refresh ข้อมูลบนหน้าจอโดยไม่ต้องกด Refresh ตัวเองของ User
     - กำจัดคำสั่ง `alert()` แบบเดิมๆ ใน Workflow State Handling ออกทั้งหมดเพื่อความสวยงามและความพรีเมียมระดับองค์กร
-
+  - **15:20 +07:00 | INCIDENT CREATOR & REQUESTER SEPARATION:**
+    - แยกบทบาทระหว่าง "ผู้สร้างเอกสาร (Creator)" และ "ผู้แจ้งปัญหา (Requester)" ในระบบ Incident Management ออกจากกันอย่างสมบูรณ์
+    - **Database Migration**: รันคำสั่งเพิ่มคอลัมน์ `created_by` และ `created_by_id` ลงในตาราง `incidents` และ Backfill ข้อมูลเก่าจากตาราง `system_audit_logs` เรียบร้อยแล้ว (Migration Script เก็บไว้ที่ `docs/history/incident_creator_migration.sql`)
+    - **Workflow Logic**: `app/actions/workflow.js` อัปเกรดให้สามารถแยกแยะ Dynamic Role ของ `creator` ออกจาก `reporter` ได้ ทำให้สามารถส่งขออนุมัติตามสายงานของ "ผู้สร้าง" ได้อย่างถูกต้อง
+    - **UI Updates**:
+      - `app/dashboard/settings/workflow/page.js`: เพิ่มตัวเลือก `creator` ลงใน Workflow Setup dropdown และอัปเดต Guardrails
+      - `app/dashboard/incidents/page.js`: เปลี่ยนชื่อ Label แสดงผลผู้แจ้งใน List View ให้ชัดเจนขึ้น
+      - `app/dashboard/incidents/[id]/page.js`: เพิ่มฟิลด์การแสดงข้อมูล "ผู้สร้าง / Creator" ในรายละเอียด Incident หน้า Detail View
+  - **16:00 +07:00 | WORKFLOW SETTINGS UI REFACTOR & LEGACY APPROVAL FLOWS CLEANUP:**
+    - ปรับปรุงการแสดงผล Role Options ใน Workflow Settings โดยระบุประเภทอย่างชัดเจนต่อท้ายบทบาท เช่น `(System Role)` หรือ `(Dynamic Role)` เพื่อความเข้าใจง่าย
+    - ปรับปรุงเนื้อหา Workflow Guide Fallback Text ในหน้าจอตั้งค่า โดยเพิ่มคำอธิบายของ System Roles และ Dynamic Roles พร้อมทั้งยกตัวอย่างและอธิบายการทำงานของ Creator และ Reporter
+    - เพิ่มเติมข้อมูลของระดับเงื่อนไขการจัดเส้นทางอนุมัติ (Approval Routing Conditions) ทั้งแบบ Checklist (Daily/Weekly/Monthly/Yearly) และ Incident (Low/Medium/High) รวมถึงกฎการอนุมัติอัตโนมัติ (Auto-Approval Rules) เมื่อไม่มีขั้นตอนอนุมัติกำหนดไว้ ครบถ้วนครอบคลุมทุกสถานการณ์
+    - ลบหน้าจอระบบการตั้งค่าการอนุมัติเดิม (Legacy Approval Flows) ที่ซ้ำซ้อนออกทั้งหมด โดยลบไฟล์ `app/dashboard/settings/approvals/page.js`, ลบลิงก์เชื่อมโยงออกจาก `app/dashboard/layout.js` และลบสิทธิ์การเข้าถึงใน `lib/auth.js`
 
 ---
 
@@ -37,4 +54,4 @@
 - [CHANGELOG_2026_05_07.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_07.md)
 
 ---
-*อัปเดตล่าสุด: 19-May-2026*
+*อัปเดตล่าสุด: 19-May-2026 16:00*

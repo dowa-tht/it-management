@@ -61,6 +61,11 @@ async function resolveDynamicWorkflowApproverId(step, doc) {
     // 🕵️ Support both incidents (reported_by_id) and checklists (created_by_id)
     return doc?.reported_by_id || doc?.created_by_id || null
   }
+  if (step.role_required === 'creator') {
+    // 🕵️ Support explicit 'creator' role for incidents (created_by_id) 
+    // Fallback to reported_by_id for backward compatibility if created_by_id isn't populated
+    return doc?.created_by_id || doc?.reported_by_id || null
+  }
   return step.approver_id || null
 }
 
@@ -715,21 +720,24 @@ async function applySignaturesToWorkflow(docId, initialSignatures, submitterEmai
 
   if (!steps || steps.length === 0) return
 
-  // Map step_order to signature data
-  const sigMap = {
-    1: initialSignatures.it,       // IT Officer
-    2: initialSignatures.reporter,  // Reporter / ผู้แจ้ง
-    3: initialSignatures.manager,   // Manager (High severity only)
-  }
-
   const now = new Date().toISOString()
   let lastApprovedOrder = 0
 
+  // --------------------------------------------------------------------------
+  // 🟢 FULL CUTOVER (Phase 3 & 4): Dynamic Step Execution
+  // --------------------------------------------------------------------------
+  const roleSigMap = {
+    'it_staff': initialSignatures.it,
+    'admin': initialSignatures.it, // Treat admin similarly for IT step if needed
+    'reporter': initialSignatures.reporter,
+    'manager': initialSignatures.manager
+  }
+
   for (const step of steps) {
-    const sigData = sigMap[step.step_order]
+    const sigData = roleSigMap[step.role_required]
     
-    // 🛡️ Step 1 (IT Officer) is always approved during Resolve (Log-only)
-    if (step.step_order === 1) {
+    // 🛡️ Step: IT Officer is always approved during Resolve (Log-only)
+    if (step.role_required === 'it_staff' || step.role_required === 'admin') {
       const { error: updateErr } = await supabaseAdmin
         .from('document_approvals')
         .update({
@@ -746,16 +754,24 @@ async function applySignaturesToWorkflow(docId, initialSignatures, submitterEmai
       await recordLog(
         docId, 'incident',
         'Approved',
-        `อนุมัติขั้นที่ 1 | ${sigData?.name || 'IT Officer'} (Auto-approved during Resolve)`,
+        `อนุมัติขั้นที่ ${step.step_order} | ${sigData?.name || 'IT Officer'} (Auto-approved during Resolve)`,
         submitterEmail
       )
-      lastApprovedOrder = 1
+      lastApprovedOrder = step.step_order
       continue
     }
 
-    // 🛡️ Step 2 (Reporter) - Optional Auto-approval via PIN
-    if (step.step_order === 2) {
+    // 🛡️ Step: Reporter - Optional Auto-approval via PIN
+    if (step.role_required === 'reporter') {
       if (reporterPIN) {
+        // Assume verifyEmployeePIN is imported or we use fetch. In this context, verifyEmployeePIN from '@/app/actions/users' should be used.
+        // Wait, applySignaturesToWorkflow doesn't have verifyEmployeePIN imported directly. 
+        // Let's use the validateSignaturePin from lib/workflow.js, which we will update in a moment.
+        // Wait, the previous legacy code had:
+        // const pinCheck = await verifyEmployeePIN(sigData?.userId, reporterPIN)
+        // Which means verifyEmployeePIN was ALREADY imported or used in workflow.js!
+        // Let's check imports. Wait, I shouldn't assume. The previous legacy block had `await verifyEmployeePIN(...)`.
+        // So I will just use it exactly as it was.
         const pinCheck = await verifyEmployeePIN(sigData?.userId, reporterPIN)
         if (!pinCheck.success) {
           throw new Error('รหัส PIN ของผู้แจ้งไม่ถูกต้อง')
@@ -777,19 +793,18 @@ async function applySignaturesToWorkflow(docId, initialSignatures, submitterEmai
         await recordLog(
           docId, 'incident',
           'Approved',
-          `อนุมัติขั้นที่ 2 | ${sigData?.name || 'Reporter'} (Verified by PIN during Resolve)`,
+          `อนุมัติขั้นที่ ${step.step_order} | ${sigData?.name || 'Reporter'} (Verified by PIN during Resolve)`,
           submitterEmail
         )
-        lastApprovedOrder = 2
+        lastApprovedOrder = step.step_order
         continue
       } else {
         // No PIN provided, so the reporter must approve manually later.
-        // We STOP auto-approving here.
         break
       }
     }
 
-    // Step 3 (Manager) - Usually not auto-approved during Resolve unless explicitly handled
+    // Stop execution for other roles (like manager) as they need manual approval
     break
   }
 
@@ -957,9 +972,10 @@ export async function generateWorkflowSteps(docId, targetType, configKey, trigge
       .eq('doc_id', docId)
       .eq('doc_type', targetType)
 
-    // 3. [NEW] Dynamic Role Resolution (e.g., 'reporter')
-    // If any step requires the reporter, fetch the source document and inject their ID
-    if (stepsToInsert.some(s => s.role_required === 'reporter')) {
+    // 3. [NEW] Dynamic Role Resolution (e.g., 'reporter', 'creator')
+    // If any step requires a dynamic role, fetch the source document and inject their ID
+    const hasDynamicRoles = stepsToInsert.some(s => ['reporter', 'creator'].includes(s.role_required))
+    if (hasDynamicRoles) {
       const reg = WORKFLOW_DOC_REGISTRY[targetType?.toLowerCase()]
       if (reg) {
         const { data: doc } = await supabaseAdmin
@@ -969,10 +985,14 @@ export async function generateWorkflowSteps(docId, targetType, configKey, trigge
           .single()
         
         if (doc) {
-          const reporterId = await resolveDynamicWorkflowApproverId({ role_required: 'reporter' }, doc)
-          stepsToInsert = stepsToInsert.map(s => 
-            s.role_required === 'reporter' ? { ...s, approver_id: reporterId } : s
-          )
+          // Resolve IDs asynchronously and map to steps
+          stepsToInsert = await Promise.all(stepsToInsert.map(async s => {
+            if (['reporter', 'creator'].includes(s.role_required)) {
+              const dynamicId = await resolveDynamicWorkflowApproverId({ role_required: s.role_required }, doc)
+              return { ...s, approver_id: dynamicId }
+            }
+            return s
+          }))
         }
       }
     }
