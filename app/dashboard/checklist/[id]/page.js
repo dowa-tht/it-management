@@ -612,7 +612,8 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
       img.onload = async () => {
         try {
           const canvas = document.createElement('canvas')
-          const scale = Math.min(1, 1200 / img.width) // Limit max width to 1200px to prevent memory crashes on mobile
+          // Scale to limit both width and height to maximum 1000px for 50%+ file size reduction
+          const scale = Math.min(1, 1000 / Math.max(img.width, img.height))
           canvas.width = img.width * scale
           canvas.height = img.height * scale
           const ctx = canvas.getContext('2d')
@@ -630,7 +631,8 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
             ctx.fillText(`GPS: ${locationMeta.lat.toFixed(6)}, ${locationMeta.lng.toFixed(6)}`, 20, canvas.height - 12)
           }
           
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
+          // Compress image using JPEG quality 0.5 (Option A) to reduce size to ~50-80KB
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.5)
           if (!dataUrl || !dataUrl.includes(',')) throw new Error('Failed to generate image data URL');
           const base64 = dataUrl.split(',')[1]
 
@@ -656,6 +658,9 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
             const point = points[pointIdx]
             const pointId = typeof point === 'object' ? (point.point_id || point.point_code) : `P${(pointIdx + 1).toString().padStart(2, '0')}`
             const pointLabel = typeof point === 'object' ? point.label : point
+
+            // Identify old photo OneDrive ID if present
+            const oldFilePath = data.photos_by_point?.[pointId] || data.photos?.[pointIdx]
 
             onUpdate({
               ...data,
@@ -692,6 +697,29 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
                 }
               }
             })
+
+            // Asynchronously delete the old photo from OneDrive after successful upload of the new one
+            if (oldFilePath) {
+              console.log(`[OneDrive] Replacing old image. Triggering deletion for old ID: ${oldFilePath}`);
+              fetch('/api/upload/onedrive', {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ filePath: oldFilePath })
+              })
+              .then(async (delRes) => {
+                const delData = await delRes.json().catch(() => ({}));
+                if (delRes.ok && delData.success) {
+                  console.log(`[OneDrive] Successfully deleted old file ID: ${oldFilePath}`);
+                } else {
+                  console.warn(`[OneDrive] Deletion warning for old ID: ${oldFilePath}. Error:`, delData.error || delRes.statusText);
+                }
+              })
+              .catch((delErr) => {
+                console.error('[OneDrive] Failed to send delete request for old ID:', oldFilePath, delErr);
+              });
+            }
 
             if (locationMeta.status === 'captured') {
               setLocationBanner({ text: 'แนบพิกัดสำเร็จพร้อมรูปภาพ', tone: 'success' })

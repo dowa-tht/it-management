@@ -27,31 +27,135 @@ This version has breaking changes — APIs, conventions, and file structure may 
 | Double verification after edit | ใช้เมื่อแก้ไฟล์ logic/config เท่านั้น | ใช้ตามปกติ | ใช้เต็มรูปแบบ |
 | Pre-delivery test | อย่างน้อย lint/targeted tests ตาม scope | รัน tests ตาม module ที่ได้รับผลกระทบ | ต้องรัน `npm test` เต็มชุดและต้องผ่าน 100% |
 
+### Scan Scope Matrix
+
+| Mode | Quick | Standard | Critical |
+|---|---|---|---|
+| Fast AI | อ่านเฉพาะไฟล์ที่อยู่ใน Task file และ dependency ตรงเท่านั้น | อ่านเพิ่มได้เฉพาะไฟล์ที่ถูกอ้างอิงจาก call chain | ห้าม scan ทั้ง repo เอง ต้องได้รับอนุมัติจาก Human ก่อน |
+| Smart AI | วางแผนจากเอกสารที่เกี่ยวข้อง | ออกแบบ task และ boundary | ทำ full architecture review ได้เมื่อ Human ระบุชัด |
+
+## Superpowers Trigger Matrix
+
+| Work Type | Mandatory Skill |
+|---|---|
+| New feature หรือ refactor | `brainstorming` + `writing-plans` |
+| Implementation ตามแผน | `executing-plans` |
+| Bug investigation | `systematic-debugging` |
+| ก่อนส่งมอบ | `verification-before-completion` |
+| งานที่มี test impact | `test-driven-development` |
+
+## 🎛️ Superpowers Workflow Catalog (Thai Quick Guide)
+
+เมื่อ AI ต้องให้ USER เลือก workflow ให้แสดงรายการต่อไปนี้พร้อมคำอธิบายไทยแบบสั้น:
+
+| Workflow | ใช้เมื่อ | คำอธิบายสั้น (TH) |
+|---|---|---|
+| `brainstorming` | Requirement ยังไม่ชัด / ต้องแตกโจทย์ | ช่วยตั้งคำถามทีละข้อ สรุปโจทย์ให้ชัดก่อนเริ่ม |
+| `writing-plans` | มีโจทย์แล้ว ต้องทำแผน | แปลงโจทย์เป็นแผนลงมือทำแบบ step-by-step |
+| `executing-plans` | มีแผนที่อนุมัติแล้ว | ลงมือทำตามแผนทีละขั้น พร้อม checkpoints |
+| `verification-before-completion` | ก่อนส่งงานทุกครั้ง | ตรวจความถูกต้องสุดท้าย + ยืนยันความพร้อมส่งมอบ |
+| `test-driven-development` | งานมีผลกับ test/logic | เขียนเทสต์นำก่อน แล้วค่อยแก้โค้ดเพื่อให้เทสต์ผ่าน |
+| `systematic-debugging` | พบ bug/อาการผิดปกติ | หา root cause แบบเป็นระบบ ห้ามเดาสุ่มแก้ |
+| `subagent-driven-development` | งานใหญ่หลายส่วน | แบ่งงานให้ agent ย่อยแบบมี quality gates |
+| `dispatching-parallel-agents` | งานแยกทำขนานได้ | จัดการหลายงานพร้อมกัน ลดเวลาโดยไม่เสียการควบคุม |
+| `requesting-code-review` | ต้องส่งรีวิว | เตรียม context และ checklist ให้รีวิวได้เร็ว |
+| `receiving-code-review` | ได้ feedback กลับมา | รับ/จัดลำดับ feedback และแก้อย่างเป็นระบบ |
+| `using-git-worktrees` | ต้องแยกสภาพแวดล้อม | แยก branch workspace เพื่อลดการชนกันของงาน |
+| `finishing-a-development-branch` | ก่อนปิดงาน/รวมโค้ด | เก็บงานให้สะอาดพร้อม merge |
+| `using-superpowers` | ต้องอธิบายการใช้งานคลังทักษะ | เลือก skill ให้ตรงงานและเรียงลำดับการใช้ |
+| `writing-skills` | ต้องสร้าง/ปรับปรุง skill เอง | เขียนหรือยกระดับเอกสาร skill มาตรฐาน |
+
+## 🧭 Ambiguous Prompt Router (Mandatory)
+
+เมื่อ USER ส่งคำสั่งคลุมเครือ (เช่น "เช็ก checklist", "workflow ผิด", "UI ติดกัน") AI **ต้องหยุด** และส่ง prompt เลือก workflow ก่อนเสมอ โดยใช้ฟอร์แมตนี้:
+
+```text
+> [!IMPORTANT]
+คำสั่งยังไม่ชัดเจนพอสำหรับการลงมือทำทันที
+
+เลือก Workflow ที่ต้องการ:
+1) brainstorming — ช่วยแตกโจทย์และเก็บ requirement ให้ชัด
+2) systematic-debugging — สืบหาสาเหตุ bug แบบเป็นระบบ
+3) writing-plans — สร้างแผน implementation ก่อนลงมือ
+4) executing-plans — ลงมือทำตามแผนที่อนุมัติแล้ว
+5) verification-before-completion — ตรวจความถูกต้องก่อนปิดงาน
+
+ตอบกลับเป็นเลขข้อ + ขอบเขตที่ต้องการ (module/path)
+```
+
+กฎบังคับ:
+- ห้ามข้ามขั้น Router เมื่อ requirement ยังไม่ชัด
+- หาก USER ไม่เลือก workflow ให้ default เป็น `brainstorming`
+- หลังเลือก workflow แล้วค่อยดำเนินการตามลำดับ Superpowers lifecycle
+
+## 🧪 Model Suitability Check (Mandatory)
+
+ก่อนเริ่มงานทุก prompt AI ต้องประเมินความเหมาะสมของ model ปัจจุบันเทียบกับประเภทงานเสมอ
+
+เกณฑ์บังคับ:
+- หากงานเป็น **Critical**, งาน **debug ซับซ้อน**, งาน **ข้ามหลาย module**, หรือมี **security boundary impact** ให้ประเมินเป็นงานความเสี่ยงสูง
+- หาก model ปัจจุบันไม่เหมาะกับงานความเสี่ยงสูง AI **ต้องหยุดก่อนลงมือ** และแจ้ง USER ให้ยืนยัน
+- ห้าม execute ต่อจนกว่า USER จะยืนยันเลือก “ใช้ model เดิม” หรือ “สลับ model”
+
+ฟอร์แมตแจ้งเตือนบังคับ:
+
+```text
+> [!IMPORTANT]
+Model Suitability Alert
+
+งานนี้มีความเสี่ยงระดับ: [Quick/Standard/Critical]
+Model ปัจจุบัน: [model-name]
+เหตุผลความเสี่ยง: [สั้น กระชับตามหลักฐาน]
+
+ตัวเลือก:
+1) ยืนยันใช้ model ปัจจุบันต่อ
+2) สลับไป model ที่เหมาะกว่า แล้วค่อยดำเนินการ
+
+ตอบกลับเป็นเลขข้อ
+```
+
+Model Mapping (Default Policy):
+- **Quick:** fast model ได้
+- **Standard:** balanced/coding model
+- **Critical/Complex Debug/Security:** reasoning-capable model ระดับสูง
+
 > หมายเหตุ: กฎความปลอดภัยทั้งหมดในหัวข้อ **[SECURITY BOUNDARY — MANDATORY]** ยังคงบังคับใช้ทุก Tier โดยไม่มีข้อยกเว้น
 
 1. **[BEFORE START]** ก่อนเริ่มทำงานทุกครั้ง **ต้องตรวจสอบบทบาท (Role) ของตัวเองใน `docs/standards/roles/` (หากมีการระบุ)** และทำ preflight ตาม Tier:
    - **Quick:** อ่านเฉพาะไฟล์ที่เกี่ยวข้องโดยตรงกับงาน + role doc ที่เกี่ยวข้อง
+     - Fast AI: ห้ามเปิดไฟล์นอก Task scope ยกเว้น import chain ที่จำเป็น
    - **Standard:** อ่าน `docs/INDEX.md` + ไฟล์มาตรฐาน/งานที่เกี่ยวข้อง + `docs/history/USER_TASKS.md` แบบเฉพาะหัวข้อที่สัมพันธ์
+     - Fast AI: ต้องยึด input file list จาก Task file เป็นหลัก
    - **Critical:** ต้องอ่าน `docs/INDEX.md` และ `docs/history/USER_TASKS.md` ครบตามลำดับเดิม
+     - Fast AI: ต้องรายงานเหตุผลก่อนขยาย scope การอ่านทุกครั้ง
+
+   หมายเหตุการ reconcile:
+   - Quick tier: อนุญาตอ่านเฉพาะ section ที่เกี่ยวข้องใน `docs/history/USER_TASKS.md` แทนการอ่านทั้งไฟล์
+   - Standard/Critical: ปฏิบัติตามกฎเดิมเต็มรูปแบบ
 
 2. **[PRIORITIZE STANDARDS]** ไม่ว่า USER จะใช้คำเรียกใดในระหว่างการสั่งงาน (เช่น "ปิดงาน", "Resolved", "เสร็จสิ้น") **AI ต้องยึดถือชื่อสถานะและ Logic ตามไฟล์มาตรฐาน (อ้างอิงจาก `docs/INDEX.md`) เป็นหลักเสมอ** ห้ามใช้ชื่อสถานะนอกเหนือจากที่กำหนดใน Standard
 
 3. **[ZERO UI HACKS]** ห้าม AI เขียนโค้ดเพื่อดัดแปลงค่าแสดงผลให้ดูเหมือนถูกต้อง (เช่น `status === 'Resolved' ? 'Closed' : status`) หากพบข้อมูลในระบบไม่ตรงตามมาตรฐาน **ห้ามทำการแก้ขัดโดยเด็ดขาด** ให้แจ้ง USER ทันทีและเสนอทำการ Data Migration เพื่อแก้ไขข้อมูลที่ต้นทางให้ถูกต้องตามมาตรฐาน
 
-4. **[CRITICAL LOGIC CONFIRMATION]** หากพบจุดที่มีความกำกวมหรือไม่มั่นใจในเงื่อนไขสำคัญของระบบ (Critical Logic/Workflow) **ต้องหยุดถาม USER พร้อมระบุป้าย `> [!IMPORTANT]`** เพื่อแจ้งเตือนทุกครั้งก่อนลงมือแก้ไข
+4. **[CRITICAL LOGIC CONFIRMATION]** หากพบจุดที่มีความกำกวมหรือไม่มั่นใจในเงื่อนไขสำคัญของระบบ (Critical Logic/Workflow) หรือคำสั่งจาก USER มีรายละเอียดไม่เพียงพอ (Vague Requirements) **ต้องหยุดถาม USER ทันที** พร้อมระบุป้าย `> [!IMPORTANT]` และใช้ความสามารถจาก `brainstorming` เพื่อช่วย USER ขยายความต้องการให้ชัดเจนก่อนลงมือแก้ไข
 
-5. **[DOCUMENTATION SYNC]** หลังจากการสอบถาม USER และได้รับการยืนยันการเพิ่มคำสั่งใหม่หรือเปลี่ยน Logic ใดๆ **ต้องอัปเดตข้อมูลลงในไฟล์ `.md` ที่เกี่ยวข้องทันที** เพื่อให้เอกสารสะท้อนสถานะปัจจุบันของระบบเสมอ
+5. **[SUPERPOWERS-FIRST MANDATE]** AI Agents ทุกตัวต้องใช้แนวปฏิบัติจาก [SUPERPOWERS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SUPERPOWERS.md) เป็นพื้นฐานหลักในทุก Prompt ของ USER แม้ USER จะไม่ได้สั่งโดยตรง:
+   - ทุกคำสั่ง "ตรวจสอบ" หรือ "แก้ไข" ต้องเข้าสู่ workflow: `brainstorming` → `writing-plans` → `executing-plans` → `verification-before-completion`
+   - ห้ามลงมือแก้ไขทันทีหากยังไม่มี "แผนการทำงาน" (Implementation Plan) ที่ USER อนุมัติแล้ว
+   - หากไม่มั่นใจว่าคำสั่งนั้นเข้าข่าย Skill ใด ให้ใช้ `brainstorming` เพื่อจัดกลุ่มงานก่อนเสมอ
 
-6. **[BEFORE END]** เมื่อจบงานในแต่ละวัน (หรือเมื่อ USER สั่งจบงาน) **ต้องทำการอัปเดตส่วน "Change Logs" ใน `docs/history/CHANGELOG.md`** โดยต้อง **ระบุวันที่และเวลา (Timestamp)** เข้าไปด้วยเสมอ เนื่องจากในหนึ่งวันอาจมีการบันทึกหลายครั้ง
+6. **[DOCUMENTATION SYNC]** หลังจากการสอบถาม USER และได้รับการยืนยันการเพิ่มคำสั่งใหม่หรือเปลี่ยน Logic ใดๆ **ต้องอัปเดตข้อมูลลงในไฟล์ `.md` ที่เกี่ยวข้องทันที** เพื่อให้เอกสารสะท้อนสถานะปัจจุบันของระบบเสมอ
 
-7. **[DOCUMENTATION STRUCTURE]** หากมีการสร้างไฟล์ `.md` ใหม่ **ห้ามสร้างไว้ที่ Root Folder โดยเด็ดขาด** และ AI ต้องจัดหมวดหมู่ไฟล์ให้ถูกต้องตามประเภทงานเสมอ:
+7. **[BEFORE END]** เมื่อจบงานในแต่ละวัน (หรือเมื่อ USER สั่งจบงาน) **ต้องทำการอัปเดตส่วน "Change Logs" ใน `docs/history/CHANGELOG.md`** โดยต้อง **ระบุวันที่และเวลา (Timestamp)** เข้าไปด้วยเสมอ เนื่องจากในหนึ่งวันอาจมีการบันทึกหลายครั้ง
+
+8. **[DOCUMENTATION STRUCTURE]** หากมีการสร้างไฟล์ `.md` ใหม่ **ห้ามสร้างไว้ที่ Root Folder โดยเด็ดขาด** และ AI ต้องจัดหมวดหมู่ไฟล์ให้ถูกต้องตามประเภทงานเสมอ:
    - **Development Standards**: เก็บใน `docs/standards/` (สำหรับกฎและ Logic)
    - **Implementation History**: เก็บใน `docs/history/` (สำหรับบันทึกการทำงาน/Audit)
    - **Manuals & Guides**: เก็บใน `docs/manuals/` (สำหรับคู่มือการใช้งาน)
 
    และหลังจากสร้างแล้ว **ต้องไปอัปเดตลิงก์ใน `docs/INDEX.md` ตามหมวดหมู่ให้เรียบร้อยเสมอ**
 
-8. **[EVIDENCE-BASED VERIFICATION]** เมื่อ USER ถามหรือสั่งให้ "ตรวจสอบ", "ดูว่า...", "ระบบทำงานถูกต้องไหม" หรือคำสั่งในลักษณะเดียวกัน ให้บังคับตาม Tier:
+9. **[EVIDENCE-BASED VERIFICATION]** เมื่อ USER ถามหรือสั่งให้ "ตรวจสอบ", "ดูว่า...", "ระบบทำงานถูกต้องไหม" หรือคำสั่งในลักษณะเดียวกัน ให้บังคับตาม Tier:
    - **Quick:** ตอบแบบกระชับจากไฟล์ที่เกี่ยวข้องโดยตรง และใส่ line reference เมื่อเป็นข้อสรุปเชิงยืนยัน
    - **Standard/Critical:** ใช้หลักฐานแบบเต็มตามรายการด้านล่าง
    - **อ่านไฟล์จริง**: ใช้ `view_file` หรือ `grep_search` อ่านโค้ดหรือไฟล์ที่เกี่ยวข้องจริงๆ ก่อนตอบ **ห้ามตอบจากความจำ**
@@ -60,17 +164,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
    - **ห้ามตอบแบบ "น่าจะ" หรือ "โดยทั่วไป"**: หากไม่แน่ใจให้ระบุว่า "ยังไม่ได้ตรวจสอบโค้ดจริง กำลังดำเนินการ..." แล้วไปอ่านไฟล์ก่อนตอบ
    - **รายงานตามความจริง**: หากพบว่าโค้ดยังไม่เป็นไปตามมาตรฐาน **ต้องรายงานตรงๆ** พร้อมระบุจุดที่ไม่ตรงและเสนอแนวทางแก้ไข ห้ามรายงานว่า "ถูกต้องแล้ว" หากยังไม่ตรวจสอบจริง
 
-9. **[DAILY LOG SHRINKING]** เมื่อ USER แจ้งว่า "เริ่มงานได้" หรือก่อนเริ่มงานในวันใหม่ทุกครั้ง **AI ต้องตรวจสอบวันที่ล่าสุดใน `docs/history/CHANGELOG.md` ทันที** หากวันที่ปัจจุบันไม่ตรงกับวันที่ล่าสุดใน Changelog ต้องทำการย้าย (Archive) บันทึกของวันก่อนหน้าทั้งหมดไปไว้ในไฟล์ `docs/history/archive/CHANGELOG_YYYY_MM_DD.md` ก่อนเริ่มงานหรือก่อนบันทึกงานใหม่ เพื่อรักษาขนาดไฟล์ `CHANGELOG.md` ให้กะทัดรัดและทำงานได้รวดเร็วเสมอ
+10. **[DAILY LOG SHRINKING]** เมื่อ USER แจ้งว่า "เริ่มงานได้" หรือก่อนเริ่มงานในวันใหม่ทุกครั้ง **AI ต้องตรวจสอบวันที่ล่าสุดใน `docs/history/CHANGELOG.md` ทันที** หากวันที่ปัจจุบันไม่ตรงกับวันที่ล่าสุดใน Changelog ต้องทำการย้าย (Archive) บันทึกของวันก่อนหน้าทั้งหมดไปไว้ในไฟล์ `docs/history/archive/CHANGELOG_YYYY_MM_DD.md` ก่อนเริ่มงานหรือก่อนบันทึกงานใหม่ เพื่อรักษาขนาดไฟล์ `CHANGELOG.md` ให้กะทัดรัดและทำงานได้รวดเร็วเสมอ
 
-10. **[DOUBLE-VERIFICATION BEFORE CONFIRMATION]** ห้ามตอบ USER ว่า "อัปเดตแล้ว", "แก้ไขแล้ว" หรือ "บันทึกแล้ว" จนกว่าจะได้ทำการ **ตรวจสอบไฟล์จริง** (View File) อีกครั้งหลังจากส่งคำสั่งแก้ไข โดยใช้ตาม Tier:
+11. **[DOUBLE-VERIFICATION BEFORE CONFIRMATION]** ห้ามตอบ USER ว่า "อัปเดตแล้ว", "แก้ไขแล้ว" หรือ "บันทึกแล้ว" จนกว่าจะได้ทำการ **ตรวจสอบไฟล์จริง** (View File) อีกครั้งหลังจากส่งคำสั่งแก้ไข โดยใช้ตาม Tier:
    - **Quick:** บังคับเมื่อแก้ไฟล์ที่มีผลต่อ logic/config/security หรือไฟล์ที่ USER ระบุให้ตรวจละเอียด
    - **Standard/Critical:** บังคับทุกครั้งตามกฎเดิม
 
-11. **[NON-INTUITIVE DETAILED PLANNING]** ในการทำ Implementation Plan ห้ามใช้ "ความรู้สึก" หรือ "ความน่าจะเป็น" ในการกำหนด Logic หากจุดใดมีความซับซ้อน **ต้องระบุเป็น Technical Logic/Pseudocode** ให้ละเอียดถึงระดับฟิลด์ข้อมูลและเงื่อนไข (If/Else) เพื่อป้องกัน Agent อื่นๆ ตีความผิดพลาด
+12. **[NON-INTUITIVE DETAILED PLANNING]** ในการทำ Implementation Plan ห้ามใช้ "ความรู้สึก" หรือ "ความน่าจะเป็น" ในการกำหนด Logic หากจุดใดมีความซับซ้อน **ต้องระบุเป็น Technical Logic/Pseudocode** ให้ละเอียดถึงระดับฟิลด์ข้อมูลและเงื่อนไข (If/Else) เพื่อป้องกัน Agent อื่นๆ ตีความผิดพลาด
 
-12. **[VISUAL EVIDENCE ANALYSIS]** เมื่อ USER ส่งรูปภาพ (Screenshot) มาเพื่อแจ้งปัญหาการแสดงผล (UI/UX) หรือ Error **AI ต้องวิเคราะห์จากภาพจริงที่เห็นเป็นลำดับแรก** ห้ามตอบว่า "สวยแล้ว" หรือ "แก้ไขแล้ว" โดยดูเพียงแค่โค้ดหากภาพจริงยังแสดงความผิดพลาดหรือความไม่สวยงาม AI ต้องยอมรับความจริงตามภาพหลักฐานและดำเนินการแก้ไขจนกว่าผลลัพธ์ในภาพจะถูกต้อง 100%
+13. **[VISUAL EVIDENCE ANALYSIS]** เมื่อ USER ส่งรูปภาพ (Screenshot) มาเพื่อแจ้งปัญหาการแสดงผล (UI/UX) หรือ Error **AI ต้องวิเคราะห์จากภาพจริงที่เห็นเป็นลำดับแรก** ห้ามตอบว่า "สวยแล้ว" หรือ "แก้ไขแล้ว" โดยดูเพียงแค่โค้ดหากภาพจริงยังแสดงความผิดพลาดหรือความไม่สวยงาม AI ต้องยอมรับความจริงตามภาพหลักฐานและดำเนินการแก้ไขจนกว่าผลลัพธ์ในภาพจะถูกต้อง 100%
 
-13. **[MODULE BOUNDARY]** ทุกครั้งที่ทำงาน Agent ต้องระบุให้ชัดว่างานนั้นอยู่ใน module ใด และต้องทำงานภายใน boundary ของ module นั้นเท่านั้น:
+14. **[MODULE BOUNDARY]** ทุกครั้งที่ทำงาน Agent ต้องระบุให้ชัดว่างานนั้นอยู่ใน module ใด และต้องทำงานภายใน boundary ของ module นั้นเท่านั้น:
 
     | Module | Scope | Actions file | DB Tables หลัก |
     |---|---|---|---|
@@ -81,12 +185,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
     **ห้าม** แก้ไขไฟล์ของ module อื่นโดยไม่ได้รับคำสั่งชัดเจนจาก USER
 
-14. **[DATABASE CONTRACT]** ห้ามสร้างตารางใหม่ในฐานข้อมูลโดยไม่ได้รับการอนุมัติจาก USER ก่อนทุกครั้ง หากต้องการตารางใหม่ให้:
+15. **[DATABASE CONTRACT]** ห้ามสร้างตารางใหม่ในฐานข้อมูลโดยไม่ได้รับการอนุมัติจาก USER ก่อนทุกครั้ง หากต้องการตารางใหม่ให้:
     1. แจ้ง USER พร้อม schema ที่เสนอ
     2. รอ USER อนุมัติ
     3. สร้าง migration file ใน `supabase/migrations/` เท่านั้น ห้ามรัน SQL ตรงกับ production โดยไม่มี migration
 
-15. **[SECURITY BOUNDARY — MANDATORY]** กฎความปลอดภัยต่อไปนี้มีผลบังคับใช้ทุกครั้งโดยไม่มีข้อยกเว้น:
+16. **[SECURITY BOUNDARY — MANDATORY]** กฎความปลอดภัยต่อไปนี้มีผลบังคับใช้ทุกครั้งโดยไม่มีข้อยกเว้น:
     - **ห้ามใช้ `service_role` key ใน client-side** หรือใน Server Component ที่ไม่จำเป็น
     - **ห้ามเขียน Logic ที่ bypass RLS** ของ Supabase ไม่ว่ากรณีใดก็ตาม
     - **ห้ามแก้ไข PIN System** (6-digit Bcrypt) โดยไม่ผ่านการ review จาก USER — ให้ escalate ทันที
@@ -153,11 +257,11 @@ ai-tasks/
   - **Standard:** รัน tests เฉพาะ module/feature ที่ได้รับผลกระทบ และเพิ่ม lint
   - **Critical:** ต้องรันคำสั่ง `npm test` เต็มชุดและต้องผ่าน 100% หากมีข้อผิดพลาดต้องแก้ไขให้ผ่านก่อนส่งงาน
 - ใช้ Context7 ทุกครั้งที่ต้องการ docs ของ library ภายนอก
-- **[SUPERPOWERS INTEGRATION]** แนะนำและส่งเสริมให้ AI Agents ทุกตัว นำเอาระเบียบปฏิบัติจาก **Superpowers Skills Library (v5.1.0)** ใน [SUPERPOWERS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SUPERPOWERS.md) มาใช้ร่วมกับการจัดเตรียมแผนและการทำงานทุกประเภท โดยเฉพาะอย่างยิ่ง:
-  - การใช้กระบวนการ **Brainstorming** และ **Writing Plans** ก่อนลงมือสร้าง/แก้ไขโค้ดเชิงระบบ
-  - การทำ **Test-Driven Development (TDD)** ในขั้นตอนพัฒนา เพื่อความเสถียร 100%
-  - การใช้กระบวนการ **Systematic Debugging** ในการวิเคราะห์และแก้ไข Bug
-  - การตรวจสอบความถูกต้องก่อนจบงานด้วย **Verification Before Completion**
+- **[SUPERPOWERS-FIRST MANDATE]** AI Agents ทุกตัวต้องใช้แนวปฏิบัติจาก [SUPERPOWERS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SUPERPOWERS.md) เป็นพื้นฐานหลักก่อนเริ่มงานทุกครั้ง:
+  - งาน implementation หรือ refactor ต้องผ่านลำดับ `brainstorming` → `writing-plans` → `executing-plans` → `verification-before-completion`
+  - งาน debugging ต้องใช้ `systematic-debugging`
+  - งานที่มีผลกับ test scope ต้องใช้ `test-driven-development`
+  - หากไม่พบ skill ที่เกี่ยวข้อง ให้ escalate พร้อมเหตุผล
 - **[CLOUD SYNC FLOW]** เมื่อมีการผสานโค้ดจาก Cloud AI (เช่น Google Jules) กลับมาที่กิ่งหลัก `main` บน GitHub:
   - Agent ต้องแจ้ง USER และเสนอช่วยดึงโค้ดล่าสุดกลับลงมาอัปเดตเครื่อง Localhost ด้วยคำสั่ง `git pull origin main` ทันทีเพื่อรักษาสภาพแวดล้อมให้ตรงกัน 100%
   - ห้ามเขียนทับโค้ดบนเครื่อง Localhost ด้วยมือโดยไม่มีการทำ Git Pull หรือ Git Merge อย่างถูกต้องเด็ดขาด
@@ -180,8 +284,18 @@ ai-tasks/
 **ห้าม:** แก้โค้ดโดยตรงโดยไม่มี Task file ใน workflow นี้ หรือทำงาน execution ที่ Fast AI ทำได้
 
 ### Fast AI
-**หน้าที่:** Scan codebase, Execute Task files, Self-validate, Report ผล  
+**หน้าที่:** Execute Task files ตาม scope ที่ได้รับ, อ่านไฟล์เท่าที่จำเป็น, Self-validate, Report ผล  
 **ห้าม:** วิเคราะห์หรือวางแผนนอก scope ที่กำหนดใน Task file หรือตัดสินใจเปลี่ยน logic สำคัญเอง
+
+**ข้อจำกัดการสแกน:**
+- ห้าม scan ทั้ง codebase โดยไม่มี Task directive หรือ Human approval
+- หาก scope ไม่พอ ต้อง escalate ด้วย format `ESCALATE`
+
+**Fast AI Stop Conditions:**
+- ขาดไฟล์ input สำหรับทำงาน
+- ต้องอ่านไฟล์นอก Scope
+- ต้องแก้ schema/env/security boundary
+- เมื่อเข้าเงื่อนไข ให้หยุดและใช้ format `ESCALATE` ทันที
 
 ## กฎข้อที่ 1: รายงานตัวก่อนเริ่ม workflow
 
@@ -276,8 +390,8 @@ Suggestion  : [ความเห็นของ Fast AI ถ้ามี]
 ## Workflow มาตรฐาน
 
 ```text
-Step 1  Fast AI     Scan & Summarize codebase
-                    Output → SCAN_SUMMARY.md
+Step 1  Fast AI     Scoped Scan ตาม Task input เท่านั้น
+                    Output → SCAN_SUMMARY.md หรือ MODULE_SCAN_SUMMARY.md
                     Human Checkpoint
 
 Step 2  Smart AI    รับ SCAN_SUMMARY.md + Requirements
@@ -307,6 +421,8 @@ FastAi
 Step   : [Step ที่เท่าไหร่]
 Input  : [ไฟล์ที่ต้องอ่าน เช่น Checklist_Template_Builder_001.md]
 Task   : [อธิบายสั้นๆ ว่าทำอะไร]
+Scope  : [allowed paths เช่น app/actions/incidents.js, components/workflow/*]
+OutOfScope: [paths ที่ห้ามแตะ]
 ```
 
 เรียก Smart AI:

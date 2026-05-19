@@ -39,11 +39,44 @@ Zero-Trust architecture is strictly enforced:
 
 ## ⚙️ 4. Development Workflow & Verification
 Before submitting a PR or declaring a task complete:
-1. **Evidence-Based Verification**: When asked to verify logic, inspect the actual file contents (using code viewers/greppers) and cite `filename:line` references. Never answer from training memory.
-2. **Pre-delivery Test**: You **MUST** run `npm test` locally to ensure 100% test completion. If any test fails, you must resolve it before presenting the solution.
-3. **Dev Server Safety**: When running `npm run dev`, verify port 3000 using `netstat -ano | findstr :3000` and kill only that specific PID rather than killing `node.exe` globally.
-4. **Update Changelog**: Register your changes in [docs/history/CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md) at the end of the day or task. Include a detailed Thai language summary and exact timestamp (e.g., `13:00 +07:00 | MODULE: Description`).
-5. **Superpowers Integration**: You must read and adopt the **Superpowers Skills Library (v5.1.0)** integration rules defined in [SUPERPOWERS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SUPERPOWERS.md) for all coding tasks, including systematic debugging, TDD, planning, and verification before completion.
+0. **Model Suitability Check (Mandatory)**: Before starting any prompt, evaluate whether the current model matches task risk. If task is critical/complex-debug/security-impact and model is not suitable, stop and request explicit user confirmation before continuing.
+   - Required alert format:
+```text
+> [!IMPORTANT]
+Model Suitability Alert
+
+งานนี้มีความเสี่ยงระดับ: [Quick/Standard/Critical]
+Model ปัจจุบัน: [model-name]
+เหตุผลความเสี่ยง: [สั้น กระชับตามหลักฐาน]
+
+ตัวเลือก:
+1) ยืนยันใช้ model ปัจจุบันต่อ
+2) สลับไป model ที่เหมาะกว่า แล้วค่อยดำเนินการ
+
+ตอบกลับเป็นเลขข้อ
+```
+   - Default mapping: Quick = fast model, Standard = coding/balanced model, Critical/Complex Debug/Security = high-reasoning model.
+1. **Mandatory Clarification**: If a task description or user prompt is vague (e.g., "fix the dashboard", "workflow is wrong"), you **MUST** stop and ask for specific details using the `brainstorming` skill. Do not proceed until the requirement is clearly defined.
+   - Use this router format:
+```text
+> [!IMPORTANT]
+คำสั่งยังไม่ชัดเจนพอสำหรับการลงมือทำทันที
+
+เลือก Workflow ที่ต้องการ:
+1) brainstorming — ช่วยแตกโจทย์และเก็บ requirement ให้ชัด
+2) systematic-debugging — สืบหาสาเหตุ bug แบบเป็นระบบ
+3) writing-plans — สร้างแผน implementation ก่อนลงมือ
+4) executing-plans — ลงมือทำตามแผนที่อนุมัติแล้ว
+5) verification-before-completion — ตรวจความถูกต้องก่อนปิดงาน
+
+ตอบกลับเป็นเลขข้อ + ขอบเขตที่ต้องการ (module/path)
+```
+   - If user does not choose, default to `brainstorming`.
+2. **Superpowers-First**: All coding and debugging tasks must follow the Superpowers Skills Library lifecycle: `brainstorming` → `writing-plans` → `executing-plans` → `verification-before-completion`. This applies to every prompt, even if not explicitly requested.
+3. **Evidence-Based Verification**: When asked to verify logic, inspect the actual file contents (using code viewers/greppers) and cite `filename:line` references. Never answer from training memory.
+4. **Pre-delivery Test**: You **MUST** run `npm test` locally to ensure 100% test completion. If any test fails, you must resolve it before presenting the solution.
+5. **Dev Server Safety**: When running `npm run dev`, verify port 3000 using `netstat -ano | findstr :3000` and kill only that specific PID rather than killing `node.exe` globally.
+6. **Update Changelog**: Register your changes in [docs/history/CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md) at the end of the day or task. Include a detailed Thai language summary and exact timestamp (e.g., `13:00 +07:00 | MODULE: Description`).
 
 ---
 

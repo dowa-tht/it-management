@@ -271,7 +271,15 @@
 
 ## 🔄 งานที่กำลังดำเนินการ (In Progress)
 
-- *ไม่มี (เสร็จสิ้นภารกิจทั้งหมดเรียบร้อยแล้ว อยู่ระหว่างรอรับมอบหมายงานถัดไปจาก USER)*
+### 13. Mobile Photo Verification & Image Compression Audit
+- **สถานะ:** 🔄 กำลังดำเนินการ (รอการเริ่มงานในวันถัดไปจาก USER)
+- **วันเริ่ม:** 18 พฤษภาคม 2569
+- **รายละเอียด:**
+  - เตือน USER ให้ทำ UAT ถ่ายภาพและอัปโหลดบนมือถือเครื่องจริงกับเอกสาร **DTT-CHK-2605-011** (หลัง Vercel จัดเตรียมระบบเรียบร้อย)
+  - วิเคราะห์และตรวจสอบว่าระบบปัจจุบันมีการจำกัดหรือลดขนาดไฟล์ภาพ (Compression/Resizing) ก่อนจัดส่ง Base64 ไปยัง OneDrive หรือไม่ เพื่อความประหยัดของเนื้อที่การเก็บข้อมูล
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - [app/dashboard/checklist/[id]/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/[id]/page.js)
+  - [docs/history/CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md)
 
 ---
 

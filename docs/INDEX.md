@@ -77,6 +77,7 @@ This is the central documentation hub. You MUST read this file first before star
 - [remediation_plan_photo_evidence_spacing.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/remediation_plan_photo_evidence_spacing.md) : [PLAN] แผนการปรับปรุงระยะ Spacing ของหน้าจอสร้างเทมเพลต Photo Evidence (ui_template_type: 1)
 - [remediation_plan_checklist_edit_lock.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/remediation_plan_checklist_edit_lock.md) : [PLAN] แผนติดตั้งระบบล็อกแก้ไขสำหรับป้องกันการแก้ไขข้อมูล Checklist โดยไม่ตั้งใจ (View/Edit Lock Flow)
 - [audit_report_checklist_dtt_chk_2605_010.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/audit_report_checklist_dtt_chk_2605_010.md) : [AUDIT] รายงานการตรวจสอบตรรกะเงื่อนไขและกระบวนการอนุมัติสำหรับเอกสาร DTT-CHK-2605-010
+- [remediation_plan_photo_compression_and_delete_on_retake.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/remediation_plan_photo_compression_and_delete_on_retake.md) : [PLAN] แผนการเพิ่มประสิทธิภาพการบีบอัดรูปภาพ 50% และการลบรูปเก่าออกจาก OneDrive อัตโนมัติเมื่อกดถ่ายใหม่
 
 ---
 
