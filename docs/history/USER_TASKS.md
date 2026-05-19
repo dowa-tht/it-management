@@ -1,10 +1,27 @@
 # 📋 รายการงาน (Task Tracker)
 
-**อัปเดตล่าสุด:** 15 พฤษภาคม 2569 (21:45 น.)
+**อัปเดตล่าสุด:** 19 พฤษภาคม 2569 (16:00 น.)
 
 ---
 
 ## ✅ งานที่เสร็จสิ้นแล้ว (Completed)
+
+### 13. Separation of Incident Creator & Requester, and Workflow Settings UX & Guide Hardening
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 19 พฤษภาคม 2569
+- **รายละเอียด:**
+  - แยกฟิลด์และบทบาทระหว่างผู้แจ้งเหตุ (Reporter) และผู้สร้างใบงาน (Creator) ในโมดูล Incident
+  - อัปเกรดระบบ Workflow Engine และ Actions ให้รองรับ Dynamic Role `creator` และ `reporter`
+  - ปรับปรุง Workflow Settings UI ให้แสดงประเภทบทบาทชัดเจน เช่น `(System Role)` และ `(Dynamic Role)`
+  - ปรับปรุงเอกสารคู่มือตั้งค่า Workflow (Guide Fallback) ในระบบให้ครอบคลุมเงื่อนไขการจัดเส้นทาง (Checklist & Incident) และกฎการอนุมัติอัตโนมัติ (Auto-Approval) พร้อมการบันทึก Audit Logs
+  - ลบหน้าจอระบบตั้งค่าการอนุมัติเดิม (Legacy Approval Flows) ที่ไม่ได้ใช้งานออกจากระบบทั้งหมด
+  - รันการทดสอบระบบ (`npm test`) และผ่านการตรวจสอบ 100% (9/9 tests passed)
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `app/actions/incidents.js`
+  - `app/actions/workflow.js`
+  - `app/dashboard/settings/workflow/page.js`
+  - `docs/history/CHANGELOG.md`
+  - `docs/history/USER_TASKS.md`
 
 ### 11. Verification and Audit for Checklist Duplicate Prevention & DB Read-Only Status Analysis
 - **สถานะ:** ✅ เสร็จสมบูรณ์
