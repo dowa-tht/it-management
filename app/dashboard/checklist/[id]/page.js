@@ -10,6 +10,7 @@ import { recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep
 import { WorkflowProgressBar } from '@/components/workflow/WorkflowProgressBar'
 import { UnifiedApprovalModal } from '@/components/workflow/UnifiedApprovalModal'
 import { WorkflowActionBar } from '@/components/workflow/WorkflowActionBar'
+import { useWorkflowNotification } from '@/components/workflow/WorkflowNotification'
 
 // Local CSS for Media Queries and Layout
 const PageStyles = () => (
@@ -143,6 +144,8 @@ export default function ChecklistDetailPage() {
   const [workflowSteps, setWorkflowSteps] = useState([])
   const [isEditing, setIsEditing] = useState(false)
 
+  const { NotificationComponent, showToast, showModal } = useWorkflowNotification()
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     const [{ data: docData }, { data: itemsData }, { data: logsData }, { data: templateData }] = await Promise.all([
@@ -194,9 +197,20 @@ export default function ChecklistDetailPage() {
     setSaving(true)
     try {
       const res = await submitRequest(id, 'checklist', doc.freq_type, currentUser.email)
-      if (res.success) fetchData()
-      else alert(res.error)
-    } catch (err) { alert(err.message) }
+      if (res.success) {
+        await fetchData()
+        router.refresh()
+        showModal({
+          title: 'ส่งเอกสารสำเร็จ! 🎉',
+          message: 'ใบงาน Checklist นี้ได้รับการส่งเข้าสู่ระบบขออนุมัติเรียบร้อยแล้ว',
+          type: 'success'
+        })
+      } else {
+        showToast({ message: res.error, type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
     setSaving(false)
   }
 
@@ -207,27 +221,49 @@ export default function ChecklistDetailPage() {
       if (!currentStep) throw new Error('No pending step found')
       const res = await submitApprovalStep(id, 'checklist', currentStep.id, signatureData, comment, pin, currentStep.approver_id || null)
       if (res.success) {
-        alert('✅ อนุมัติเรียบร้อย')
-        setShowSignatureModal(false); fetchData()
-      } else alert(res.error)
-    } catch (err) { alert(err.message) }
+        setShowSignatureModal(false)
+        await fetchData()
+        router.refresh()
+        showToast({ message: '✅ อนุมัติรายการเรียบร้อยแล้ว', type: 'success' })
+      } else {
+        showToast({ message: res.error, type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
     setApprovalLoading(false)
   }
 
   const handleReject = async () => {
     const reason = prompt('กรุณาระบุเหตุผลที่ตีกลับงานนี้:')
     if (!reason) return
-    const res = await rejectDocumentWorkflow(id, 'checklist', reason)
-    if (res.success) fetchData()
-    else alert(res.error)
+    try {
+      const res = await rejectDocumentWorkflow(id, 'checklist', reason)
+      if (res.success) {
+        await fetchData()
+        router.refresh()
+        showToast({ message: '↩️ ตีกลับเอกสารเรียบร้อย', type: 'success' })
+      } else {
+        showToast({ message: res.error, type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
   }
 
   const handleReopen = async () => {
     if (!confirm('ต้องการ Reopen เอกสารนี้ใช่หรือไม่? ลายเซ็นเดิมจะถูกลบออกทั้งหมด')) return
     setSaving(true)
-    await resetDocumentWorkflow(id, 'checklist')
-    await supabase.from('checklist_docs').update({ status: 'Open', workflow_status: null, approved_at: null, approved_by: null }).eq('id', id)
-    await fetchData(); setSaving(false)
+    try {
+      await resetDocumentWorkflow(id, 'checklist')
+      await supabase.from('checklist_docs').update({ status: 'Open', workflow_status: null, approved_at: null, approved_by: null }).eq('id', id)
+      await fetchData()
+      router.refresh()
+      showToast({ message: '🔓 เปิดเอกสารใหม่เรียบร้อย', type: 'success' })
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+    setSaving(false)
   }
 
   const updateItemData = async (itemId, newData) => {
@@ -506,6 +542,7 @@ export default function ChecklistDetailPage() {
           </div>
         </div>
       </div>
+      <NotificationComponent />
     </div>
   )
 }

@@ -12,6 +12,12 @@
   - **09:55 +07:00 | ONEDRIVE RETAKE DUPLICATE ID BUG FIX:**
     - แก้ไขปัญหาบั๊กที่ถ่ายรูปใหม่ซ้ำแบบเดิม 2 ครั้งจึงจะสำเร็จ โดยหาสาเหตุพบว่า เกิดจาก OneDrive Graph API เมื่ออัปโหลดไฟล์ที่มีชื่อเดิมซ้ำ ระบบจะทำการเขียนทับเนื้อหาเดิมโดยยังรักษา File ID เดิมเอาไว้ (เช่น `1234`) ส่งผลให้ `oldFilePath` และ `resJ.filePath` มีค่า ID เดียวกัน และเมื่อกระบวนการ Asynchronous Deletion ทำงานเบื้องหลัง ระบบจึงส่งคำสั่งลบ ID นั้นออกไป ทำให้ไฟล์รูปภาพที่เพิ่งอัปโหลดใหม่ถูกลบออกไปด้วย
     - วิธีการแก้ไข: (1) ปรับปรุงชื่อไฟล์ที่ส่งไป OneDrive ให้มีความเป็นเอกลักษณ์เฉพาะตัว (Unique) ด้วยการต่อท้ายด้วย Timestamp `checklist_${item.id}_${pointIdx}_${Date.now()}.jpg` ทำให้ OneDrive สร้าง File Item ใหม่ที่ได้ ID ใหม่เสมอ และ (2) เพิ่มมาตรการป้องกันเชิงรุก (Defense in Depth) ด้วยการเช็กว่า ID เก่าและใหม่ต้องไม่ตรงกันก่อนส่งคำสั่งลบ: `if (oldFilePath && oldFilePath !== resJ.filePath)` ในไฟล์ `app/dashboard/checklist/[id]/page.js`
+  - **10:55 +07:00 | WORKFLOW ENGINE UX & INTEGRATION:**
+    - พัฒนาระบบแจ้งเตือนและยกระดับระบบการทำงาน (Workflow Engine UX Upgrade) ด้วยโมดูลกลาง `WorkflowNotification` (`components/workflow/WorkflowNotification.js`)
+    - สร้าง Custom Modal, Alert, และ Toast แจ้งเตือนแบบ Premium Glassmorphism ที่แสดงสถานะขออนุมัติ, ตีกลับเอกสาร, อนุมัติสำเร็จ และการทำงานผิดพลาดของ API ได้อย่างสวยงามตามหลักสรีรศาสตร์
+    - ปรับปรุงให้หน้าจอ Checklist และ Incident ในทุกๆ Workflow Actions (ส่งขออนุมัติ, อนุมัติ, ตีกลับ, เปิดใหม่, รับทราบเคส) ทำการเรียก `fetchData()` ควบคู่กับ `router.refresh()` ทันทีเพื่อทำ Auto-Refresh ข้อมูลบนหน้าจอโดยไม่ต้องกด Refresh ตัวเองของ User
+    - กำจัดคำสั่ง `alert()` แบบเดิมๆ ใน Workflow State Handling ออกทั้งหมดเพื่อความสวยงามและความพรีเมียมระดับองค์กร
+
 
 ---
 

@@ -14,6 +14,7 @@ import { WorkflowProgressBar } from '@/components/workflow/WorkflowProgressBar'
 import { UnifiedApprovalModal } from '@/components/workflow/UnifiedApprovalModal'
 import { WorkflowActionBar } from '@/components/workflow/WorkflowActionBar'
 import { WORKFLOW_DOC_REGISTRY } from '@/lib/workflowRegistry'
+import { useWorkflowNotification } from '@/components/workflow/WorkflowNotification'
 
 const SLA_LABELS = {
   High:   { response: 'ทันที (ภายใน 1 ชั่วโมง)', resolve: 'ภายใน 4 ชั่วโมง' },
@@ -161,6 +162,7 @@ function SLAWidget({ label, targetLabel, start, end, severity, type, settings, h
 
 export default function IncidentDetailPage() {
   const { id } = useParams()
+  const router = useRouter()
   const [incident, setIncident] = useState(null)
   const [form, setForm] = useState({})
   const [editing, setEditing] = useState(false)
@@ -169,6 +171,8 @@ export default function IncidentDetailPage() {
   const [currentUser, setCurrentUser] = useState(null)
   const [logs, setLogs] = useState([])
   const [workflowSteps, setWorkflowSteps] = useState([])
+
+  const { NotificationComponent, showToast, showModal } = useWorkflowNotification()
   
   const [showSignatureModal, setShowSignatureModal] = useState(false)
   const [approvalLoading, setApprovalLoading] = useState(false)
@@ -302,7 +306,7 @@ export default function IncidentDetailPage() {
     }).eq('id', id)
 
     if (updateErr) {
-      alert('ไม่สามารถบันทึกข้อมูลการแก้ไขได้: ' + updateErr.message)
+      showToast({ message: 'ไม่สามารถบันทึกข้อมูลการแก้ไขได้: ' + updateErr.message, type: 'error' })
       setSaving(false)
       return
     }
@@ -313,12 +317,22 @@ export default function IncidentDetailPage() {
       reporter: { ...signatures.reporter, userId: incident.reported_by_id }
     }
 
-    const res = await submitRequest(id, 'incident', incident.severity, currentUser.email, signaturesWithIds, reporter_pin)
-    if (res.success) {
-      setShowResolveDialog(false)
-      fetchData()
-    } else {
-      alert('เกิดข้อผิดพลาดในการส่งอนุมัติ: ' + res.error)
+    try {
+      const res = await submitRequest(id, 'incident', incident.severity, currentUser.email, signaturesWithIds, reporter_pin)
+      if (res.success) {
+        setShowResolveDialog(false)
+        await fetchData()
+        router.refresh()
+        showModal({
+          title: 'ส่งงานแก้ไขปัญหาสำเร็จ! 🎉',
+          message: 'เคส Incident นี้ได้รับการส่งขออนุมัติปิดงานเรียบร้อยแล้ว',
+          type: 'success'
+        })
+      } else {
+        showToast({ message: 'เกิดข้อผิดพลาดในการส่งอนุมัติ: ' + res.error, type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
     }
     setSaving(false)
   }
@@ -327,47 +341,80 @@ export default function IncidentDetailPage() {
 
   const handleApprove = async ({ pin, signatureData, comment }) => {
     setApprovalLoading(true)
-    let currentStep = workflowSteps.find(s => s.status === 'pending')
-    if (isRemoteApprovalMode && currentStep?.role_required === 'reporter' && !currentStep.approver_id && incident?.reported_by_id) {
-      currentStep = { ...currentStep, approver_id: incident.reported_by_id }
+    try {
+      let currentStep = workflowSteps.find(s => s.status === 'pending')
+      if (isRemoteApprovalMode && currentStep?.role_required === 'reporter' && !currentStep.approver_id && incident?.reported_by_id) {
+        currentStep = { ...currentStep, approver_id: incident.reported_by_id }
+      }
+      const overrideApproverId = isRemoteApprovalMode
+        ? (currentStep?.approver_id || incident?.reported_by_id || null)
+        : (currentStep?.approver_id || null)
+      const res = await submitApprovalStep(id, 'incident', currentStep.id, signatureData, comment, pin, overrideApproverId)
+      if (res.success) {
+        setShowSignatureModal(false)
+        setIsRemoteApprovalMode(false)
+        await fetchData()
+        router.refresh()
+        showToast({ message: '✅ อนุมัติรายการเรียบร้อยแล้ว', type: 'success' })
+      } else {
+        showToast({ message: res.error, type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
     }
-    const overrideApproverId = isRemoteApprovalMode
-      ? (currentStep?.approver_id || incident?.reported_by_id || null)
-      : (currentStep?.approver_id || null)
-    const res = await submitApprovalStep(id, 'incident', currentStep.id, signatureData, comment, pin, overrideApproverId)
-    if (res.success) {
-      setShowSignatureModal(false)
-      setIsRemoteApprovalMode(false)
-      fetchData()
-    } else alert(res.error)
     setApprovalLoading(false)
   }
 
   const handleRejectIncident = async () => {
     const reason = prompt('กรุณาระบุเหตุผลในการตีกลับ:')
     if (!reason) return
-    const res = await rejectDocumentWorkflow(id, 'incident', reason)
-    if (res.success) fetchData()
-    else alert(res.error)
+    try {
+      const res = await rejectDocumentWorkflow(id, 'incident', reason)
+      if (res.success) {
+        await fetchData()
+        router.refresh()
+        showToast({ message: '↩️ ตีกลับเอกสารเรียบร้อย', type: 'success' })
+      } else {
+        showToast({ message: res.error, type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
   }
 
   const handleReopen = async (reason) => {
     setSaving(true)
-    const res = await resetDocumentWorkflow(id, 'incident', reason)
-    if (res.success) {
-      setShowReopenDialog(false)
-      fetchData()
-    } else alert(res.error)
+    try {
+      const res = await resetDocumentWorkflow(id, 'incident', reason)
+      if (res.success) {
+        setShowReopenDialog(false)
+        await fetchData()
+        router.refresh()
+        showToast({ message: '🔓 เปิดเคสใหม่เรียบร้อย', type: 'success' })
+      } else {
+        showToast({ message: res.error, type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
     setSaving(false)
   }
 
   const handleAcknowledge = async (acknowledgeData) => {
     setSaving(true)
-    const res = await acknowledgeIncident(id, acknowledgeData.severity, acknowledgeData.assignee_id)
-    if (res.success) {
-      setShowAcknowledgeDialog(false)
-      fetchData()
-    } else alert(res.error)
+    try {
+      const res = await acknowledgeIncident(id, acknowledgeData.severity, acknowledgeData.assignee_id)
+      if (res.success) {
+        setShowAcknowledgeDialog(false)
+        await fetchData()
+        router.refresh()
+        showToast({ message: '📌 รับเรื่องเรียบร้อยแล้ว', type: 'success' })
+      } else {
+        showToast({ message: res.error, type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
     setSaving(false)
   }
 
@@ -680,6 +727,7 @@ export default function IncidentDetailPage() {
           </div>
         </div>
       </div>
+      <NotificationComponent />
     </div>
   )
 }
