@@ -75,10 +75,11 @@ export async function getChecklistTemplateBuilderPageData() {
   noStore()
 
   const { profile, adminClient } = await requireAdminProfile()
-  const [templatesResult, categoriesResult, procedurePlansResult] = await Promise.all([
+
+  const [templatesResult, categoriesResult, procedurePlansResult, targetTypesResult, targetsResult, groupsResult] = await Promise.all([
     adminClient
       .from('checklist_templates')
-      .select('id, item_key, category, freq_type, item_label, instruction, ui_template_type, template_config, is_active, sort_order')
+      .select('id, item_key, category, freq_type, item_label, instruction, ui_template_type, template_config, is_active, sort_order, scope_mode, target_type')
       .order('freq_type')
       .order('sort_order'),
     adminClient
@@ -91,7 +92,32 @@ export async function getChecklistTemplateBuilderPageData() {
       .from('checklist_procedure_plans')
       .select('id, plan_name, steps')
       .order('plan_name'),
+    adminClient
+      .from('master_data')
+      .select('id, value')
+      .eq('type', 'target_type')
+      .eq('is_active', true)
+      .order('sort_order'),
+    adminClient
+      .from('checklist_targets')
+      .select('id, name, target_code, target_type')
+      .eq('is_active', true)
+      .order('name'),
+    adminClient
+      .from('checklist_target_groups')
+      .select('id, group_name, group_code, target_type')
+      .order('group_name'),
   ])
+
+  // Need to also fetch mappings for templates
+  let templateMappings = []
+  if (templatesResult.data && templatesResult.data.length > 0) {
+    const { data: mappings } = await adminClient
+      .from('checklist_template_targets')
+      .select('*')
+
+    templateMappings = mappings || []
+  }
 
   if (templatesResult.error) throw new Error(templatesResult.error.message)
   if (categoriesResult.error) throw new Error(categoriesResult.error.message)
@@ -102,6 +128,11 @@ export async function getChecklistTemplateBuilderPageData() {
     step_count: Array.isArray(plan.steps?.rows) ? plan.steps.rows.length : Array.isArray(plan.steps) ? plan.steps.length : 0,
   }))
 
+  const templates = (templatesResult.data || []).map((record) => {
+    const targets = templateMappings.filter(m => m.template_id === record.id)
+    return formatBuilderTemplate({ ...record, targets }, procedurePlans)
+  })
+
   return {
     currentUser: {
       id: profile.id,
@@ -109,9 +140,13 @@ export async function getChecklistTemplateBuilderPageData() {
       role: profile.role,
     },
     categories: (categoriesResult.data || []).map((category) => category.value),
+    targetTypes: (targetTypesResult.data || []).map((t) => t.value),
+    targets: targetsResult.data || [],
+    targetGroups: groupsResult.data || [],
     procedurePlans,
-    templates: (templatesResult.data || []).map((record) => formatBuilderTemplate(record, procedurePlans)),
+    templates,
   }
+
 }
 
 export async function saveChecklistTemplate(payload) {
@@ -133,7 +168,8 @@ export async function saveChecklistTemplate(payload) {
     let itemKey = payload?.item_key || ''
 
     if (!existingId) {
-      const { data: latestTemplate } = await adminClient
+
+    const { data: latestTemplate } = await adminClient
         .from('checklist_templates')
         .select('sort_order')
         .order('sort_order', { ascending: false })
@@ -144,6 +180,35 @@ export async function saveChecklistTemplate(payload) {
       itemKey = `custom_${Date.now()}_${randomUUID().slice(0, 8)}`
     }
 
+    // Checking for overlapping frequencies for the targets
+    if (template.scope_mode !== 'global' && template.targets && template.targets.length > 0) {
+      const targetIds = template.targets.filter(t => t.target_id).map(t => t.target_id)
+
+      if (targetIds.length > 0) {
+        // Fetch all templates for these targets
+        const { data: existingMappings, error: mapError } = await adminClient
+          .from('checklist_template_targets')
+          .select(`
+            target_id,
+            template:checklist_templates (id, freq_type, item_label)
+          `)
+          .in('target_id', targetIds)
+
+        if (!mapError && existingMappings) {
+          // Check if any mapping has the same frequency
+          for (const mapping of existingMappings) {
+            // Ignore if it's the current template being updated
+            if (mapping.template && mapping.template.id !== existingId && mapping.template.freq_type === template.freq_type) {
+               return {
+                  success: false,
+                  error: `ไม่สามารถบันทึกได้: อุปกรณ์มีเทมเพลตรอบการตรวจแบบ ${template.freq_type} อยู่แล้ว ("${mapping.template.item_label}")`,
+               }
+            }
+          }
+        }
+      }
+    }
+
     const dataToSave = {
       category: template.category,
       freq_type: template.freq_type,
@@ -151,6 +216,8 @@ export async function saveChecklistTemplate(payload) {
       instruction: template.instruction,
       ui_template_type: template.ui_template_type,
       template_config: template.template_config,
+      scope_mode: template.scope_mode,
+      target_type: template.target_type,
       is_active: payload?.is_active !== false,
       sort_order: sortOrder,
       item_key: itemKey,
@@ -168,6 +235,36 @@ export async function saveChecklistTemplate(payload) {
         error: error.message,
       }
     }
+
+    const savedTemplateId = data.id
+
+    // Process targets mapping
+    if (template.scope_mode !== 'global') {
+      // First, delete existing mappings
+      await adminClient.from('checklist_template_targets').delete().eq('template_id', savedTemplateId)
+
+      // Insert new mappings
+      if (template.targets && template.targets.length > 0) {
+        const mappingsToInsert = template.targets.map(t => ({
+          template_id: savedTemplateId,
+          target_id: t.target_id || null,
+          target_group_id: t.target_group_id || null,
+          target_type: t.target_type || template.target_type,
+          override_config: t.override_config || null,
+          is_active: t.is_active !== false
+        }))
+
+        const { error: insertMapError } = await adminClient.from('checklist_template_targets').insert(mappingsToInsert)
+        if (insertMapError) {
+          console.error('Failed to insert mappings:', insertMapError)
+          // Continue execution, but log error
+        }
+      }
+    } else {
+      // If changed back to global, clear all mappings
+      await adminClient.from('checklist_template_targets').delete().eq('template_id', savedTemplateId)
+    }
+
 
     const { data: procedurePlans } = await adminClient
       .from('checklist_procedure_plans')

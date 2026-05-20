@@ -181,3 +181,68 @@ export async function getTargetPointHistoryPublic(targetId, pointId) {
     return { success: false, error: 'ระบบขัดข้อง กรุณาลองใหม่อีกครั้ง', history: [] }
   }
 }
+
+
+export async function getTargetHistoryPublic(targetId) {
+  noStore()
+
+  try {
+    const adminClient = getSupabaseAdmin()
+
+    // 1. Fetch Target (Public Safe)
+    const { data: target, error: targetError } = await adminClient
+      .from('checklist_targets')
+      .select(PUBLIC_TARGET_SELECT)
+      .eq('id', targetId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (targetError || !target) {
+      return { success: false, error: 'ไม่พบข้อมูลอุปกรณ์', history: [] }
+    }
+
+    // Fetch related templates for this target to group results by template frequency
+    // (A target can be mapped directly or via group)
+    const { data: targetMapping } = await adminClient
+      .from('checklist_targets')
+      .select('target_group_id')
+      .eq('id', targetId)
+      .single()
+
+    const { data: templateMappings } = await adminClient
+      .from('checklist_template_targets')
+      .select('template_id')
+      .or(`target_id.eq.${targetId},target_group_id.eq.${targetMapping?.target_group_id || '00000000-0000-0000-0000-000000000000'}`)
+
+    const templateIds = (templateMappings || []).map(m => m.template_id)
+
+    // Default config if templates exist
+    let templates = []
+    if (templateIds.length > 0) {
+      const { data: t } = await adminClient
+        .from('checklist_templates')
+        .select('id, freq_type, item_label')
+        .in('id', templateIds)
+      templates = t || []
+    }
+
+    // 2. Fetch Docs
+    const { data: docs, error: docsError } = await adminClient
+      .from('checklist_docs')
+      .select('id, doc_no, period_date, status, checked_at, template_id')
+      .eq('target_id', targetId)
+      .order('period_date', { ascending: false })
+      .limit(200) // Increase limit for calendar view
+
+    if (docsError) return { success: false, error: 'เกิดข้อผิดพลาดในการโหลดข้อมูล', history: [] }
+
+    return {
+      success: true,
+      target: formatTargetPublic(target),
+      templates: templates,
+      history: docs || []
+    }
+  } catch (error) {
+    return { success: false, error: 'ระบบขัดข้อง กรุณาลองใหม่อีกครั้ง', history: [] }
+  }
+}
