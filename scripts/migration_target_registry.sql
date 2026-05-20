@@ -48,6 +48,7 @@ CREATE TABLE checklist_template_targets (
   target_id UUID REFERENCES checklist_targets(id) ON DELETE CASCADE,
   target_group_id UUID REFERENCES checklist_target_groups(id) ON DELETE CASCADE,
   target_type TEXT NOT NULL,
+  override_config JSONB,
   is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 

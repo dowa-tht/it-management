@@ -156,7 +156,13 @@ export function ChecklistTemplateBuilderClient({
     setStatus({ type: '', text: '' })
 
     startTransition(async () => {
-      const result = await saveChecklistTemplate(draft)
+
+    // Process target formatting before save
+    const payload = {
+      ...draft,
+      targets: draft.targets || []
+    }
+    const result = await saveChecklistTemplate(payload)
       setSaving(false)
 
       if (!result.success) {
@@ -656,6 +662,9 @@ export function ChecklistTemplateBuilderClient({
             <TemplateForm
               categories={categories}
               procedurePlans={procedurePlans}
+              targetTypes={initialData.targetTypes || []}
+              targets={initialData.targets || []}
+              targetGroups={initialData.targetGroups || []}
               template={draft}
               fieldErrors={fieldErrors}
               onChange={updateField}
