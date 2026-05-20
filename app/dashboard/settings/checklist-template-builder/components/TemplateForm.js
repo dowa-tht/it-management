@@ -26,7 +26,114 @@ export function TemplateForm({
   onChange,
   onConfigChange,
 }) {
-  const config = template.template_config || {}
+    const config = template.template_config || {}
+
+  const [newTargetType, setNewTargetType] = useState('')
+  const [targetSearch, setTargetSearch] = useState('')
+  const [isSeparateBehavior, setIsSeparateBehavior] = useState(false)
+
+  // Memoized available targets for selected type
+  const availableTargets = useMemo(() => {
+    if (!template.target_type) return []
+    return targets.filter(t => t.target_type === template.target_type)
+  }, [template.target_type, targets])
+
+  const availableGroups = useMemo(() => {
+    if (!template.target_type) return []
+    return targetGroups.filter(g => g.target_type === template.target_type)
+  }, [template.target_type, targetGroups])
+
+  const filteredTargets = useMemo(() => {
+    if (!targetSearch) return availableTargets
+    return availableTargets.filter(t =>
+      t.name.toLowerCase().includes(targetSearch.toLowerCase()) ||
+      t.target_code.toLowerCase().includes(targetSearch.toLowerCase())
+    )
+  }, [availableTargets, targetSearch])
+
+  const toggleTarget = (targetId) => {
+    const currentTargets = template.targets || []
+    const exists = currentTargets.find(t => t.target_id === targetId)
+
+    if (exists) {
+      onChange('targets', currentTargets.filter(t => t.target_id !== targetId))
+    } else {
+      onChange('targets', [...currentTargets, {
+        target_id: targetId,
+        target_type: template.target_type,
+        override_config: null
+      }])
+    }
+  }
+
+  const toggleGroup = (groupId) => {
+    const currentTargets = template.targets || []
+    const exists = currentTargets.find(t => t.target_group_id === groupId)
+
+    if (exists) {
+      onChange('targets', currentTargets.filter(t => t.target_group_id !== groupId))
+    } else {
+      onChange('targets', [...currentTargets, {
+        target_group_id: groupId,
+        target_type: template.target_type,
+        override_config: null
+      }])
+    }
+  }
+
+  const applyBulkBehavior = () => {
+    if (!template.targets || template.targets.length === 0) return
+
+    const baseOverride = {
+      ui_template_type: template.ui_template_type,
+      template_config: { ...template.template_config }
+    }
+
+    onChange('targets', template.targets.map(t => ({
+      ...t,
+      override_config: baseOverride
+    })))
+  }
+
+  const updateTargetBehavior = (targetId, field, value) => {
+    const currentTargets = template.targets || []
+    const updated = currentTargets.map(t => {
+      if (t.target_id === targetId) {
+        const baseConfig = t.override_config || { ui_template_type: template.ui_template_type, template_config: { ...template.template_config } }
+        return {
+          ...t,
+          override_config: {
+            ...baseConfig,
+            [field]: value
+          }
+        }
+      }
+      return t
+    })
+    onChange('targets', updated)
+  }
+
+  const updateTargetConfig = (targetId, field, value) => {
+    const currentTargets = template.targets || []
+    const updated = currentTargets.map(t => {
+      if (t.target_id === targetId) {
+        const baseConfig = t.override_config || { ui_template_type: template.ui_template_type, template_config: { ...template.template_config } }
+        return {
+          ...t,
+          override_config: {
+            ...baseConfig,
+            template_config: {
+              ...baseConfig.template_config,
+              [field]: value
+            }
+          }
+        }
+      }
+      return t
+    })
+    onChange('targets', updated)
+  }
+
 
   return (
     <div className="template-form-stack">

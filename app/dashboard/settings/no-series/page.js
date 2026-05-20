@@ -5,7 +5,7 @@ import { generateNextNo } from '@/lib/noSeries'
 import { formatDate } from '@/lib/dateFormat'
 import { useWorkingDate } from '@/lib/context/WorkingDateContext'
 
-const LINKED_FORMS = ['FR-IT-02', 'ไม่ผูกกับเอกสาร']
+
 
 // --- Modern Action Button Component ---
 const ActionButton = ({ onClick, icon, color, title, disabled }) => {
@@ -47,6 +47,7 @@ export default function NoSeriesPage() {
   const [editingId, setEditingId] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState({ code: '', description: '', format: '', linked_form: 'ไม่ผูกกับเอกสาร' })
+  const [mappings, setMappings] = useState([])
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState({ text: '', type: '' })
   const [currentUser, setCurrentUser] = useState(null)
@@ -63,6 +64,16 @@ export default function NoSeriesPage() {
     }
     await fetchData()
     setLoading(false)
+  }
+
+  const fetchMappings = async () => {
+    try {
+      const res = await fetch('/api/no-series-mapping');
+      const data = await res.json();
+      if(Array.isArray(data)) setMappings(data);
+    } catch(err) {
+      console.error(err);
+    }
   }
 
   const fetchData = async () => {
@@ -392,7 +403,7 @@ export default function NoSeriesPage() {
       {showNew && (
         <div style={{ background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(20px)', borderRadius: 24, padding: 32, marginBottom: 32, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', border: '2px solid #3b82f6' }}>
           <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 24 }}>➕ สร้าง Series Header ใหม่</h3>
-          <div className="new-series-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
+          <div className="new-series-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 20 }}>
             <input value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="Series Code (e.g. SO)" style={{ padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} />
             <input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Description" style={{ padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} />
             <input value={form.format} onChange={e => setForm({ ...form, format: e.target.value })} placeholder="Format (e.g. SO-YYMM-###)" style={{ padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12 }} />
@@ -428,7 +439,53 @@ export default function NoSeriesPage() {
 
               {isExpanded && (
                 <div style={{ padding: '0 32px 32px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingTop: 16, borderTop: '1px solid #f1f5f9' }}>
+                  <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>Header Settings</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, alignItems: 'end' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 6 }}>Description</label>
+                        <input value={s.description || ''} onChange={e => {
+                          const updated = [...series];
+                          const idx = updated.findIndex(x => x.id === s.id);
+                          updated[idx].description = e.target.value;
+                          setSeries(updated);
+                        }} style={{ width: '100%', padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13 }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 6 }}>Format</label>
+                        <input value={s.format || ''} onChange={e => {
+                          const updated = [...series];
+                          const idx = updated.findIndex(x => x.id === s.id);
+                          updated[idx].format = e.target.value;
+                          setSeries(updated);
+                        }} style={{ width: '100%', padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13 }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 6 }}>Linked Form</label>
+                        <select value={s.linked_form || 'ไม่ผูกกับเอกสาร'} onChange={e => {
+                          const updated = [...series];
+                          const idx = updated.findIndex(x => x.id === s.id);
+                          updated[idx].linked_form = e.target.value;
+                          setSeries(updated);
+                        }} style={{ width: '100%', padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13 }}>
+                          {mappings.map(m => <option key={m.key} value={m.key}>{m.displayName}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <button onClick={async () => {
+                          const { error } = await supabase.from('no_series').update({
+                            description: s.description,
+                            format: s.format,
+                            linked_form: s.linked_form
+                          }).eq('id', s.id);
+                          if(error) showMessage('Error saving header', 'error');
+                          else showMessage('Header updated successfully', 'success');
+                        }} style={{ background: '#10b981', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 600, fontSize: 13, width: '100%' }}>Save Header</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Series Lines</div>
                       <button onClick={(e) => { e.stopPropagation(); handleDeleteSeries(s.id, s.code) }} style={{ fontSize: 12, color: '#ef4444', background: '#fef2f2', border: '1px solid #fecaca', padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>🗑️ Delete Series</button>
