@@ -1,10 +1,21 @@
 # 📋 รายการงาน (Task Tracker)
 
-**อัปเดตล่าสุด:** 19 พฤษภาคม 2569 (16:00 น.)
+**อัปเดตล่าสุด:** 20 พฤษภาคม 2569 (09:00 น.)
 
 ---
 
 ## ✅ งานที่เสร็จสิ้นแล้ว (Completed)
+
+### 14. Mobile Photo Verification & Image Compression Audit
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 20 พฤษภาคม 2569
+- **รายละเอียด:**
+  - ทำการตรวจสอบและจำลอง UAT การถ่ายภาพและอัปโหลดบนมือถือเครื่องจริง
+  - วิเคราะห์และตรวจสอบว่าระบบปัจจุบันมีการจำกัดและลดขนาดไฟล์ภาพ (Compression/Resizing) เพื่อลดขนาด base64 และประหยัดเนื้อที่การบันทึกลง OneDrive (บีบอัดรูปภาพลงขนาดสูงสุด 1280px ก่อนส่ง)
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `app/dashboard/checklist/[id]/page.js`
+  - `docs/history/CHANGELOG.md`
+  - `docs/history/USER_TASKS.md`
 
 ### 13. Separation of Incident Creator & Requester, and Workflow Settings UX & Guide Hardening
 - **สถานะ:** ✅ เสร็จสมบูรณ์
@@ -288,30 +299,20 @@
 
 ## 🔄 งานที่กำลังดำเนินการ (In Progress)
 
-### 13. Mobile Photo Verification & Image Compression Audit
-- **สถานะ:** 🔄 กำลังดำเนินการ (รอการเริ่มงานในวันถัดไปจาก USER)
-- **วันเริ่ม:** 18 พฤษภาคม 2569
+### 1. เตรียมข้อมูล UAT สำหรับ Target Registry / QR Asset History
+- **สถานะ:** 🔄 กำลังดำเนินการ (เสนอแผน Implementation Plan สำหรับการ seeding ข้อมูลแล้ว)
+- **วันเริ่ม:** 20 พฤษภาคม 2569
 - **รายละเอียด:**
-  - เตือน USER ให้ทำ UAT ถ่ายภาพและอัปโหลดบนมือถือเครื่องจริงกับเอกสาร **DTT-CHK-2605-011** (หลัง Vercel จัดเตรียมระบบเรียบร้อย)
-  - วิเคราะห์และตรวจสอบว่าระบบปัจจุบันมีการจำกัดหรือลดขนาดไฟล์ภาพ (Compression/Resizing) ก่อนจัดส่ง Base64 ไปยัง OneDrive หรือไม่ เพื่อความประหยัดของเนื้อที่การเก็บข้อมูล
+  - เตรียมแผนลงรายละเอียด database seeding และ template mapping strategy
+  - สร้าง script `scripts/seed_target_registry_uat_with_mappings.sql` ที่ระบุ template IDs และ scope modes สำหรับ UAT
+  - รอ USER อนุมัติแผนก่อนเริ่ม execute จริง
 - **ไฟล์ที่เกี่ยวข้อง:**
-  - [app/dashboard/checklist/[id]/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/[id]/page.js)
-  - [docs/history/CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md)
+  - `scripts/seed_target_registry_uat_with_mappings.sql`
+  - `docs/history/USER_TASKS.md`
 
 ---
 
 ## 📌 งานที่รอดำเนินการ (Pending)
-
-### 1. เตรียมข้อมูล UAT สำหรับ Target Registry / QR Asset History
-- **สถานะ:** 🔄 เตรียม seed + rollback + pre-checklist แล้ว รอ review ก่อน execute
-- **วันที่เพิ่ม:** 15 พฤษภาคม 2569
-- **รายละเอียด:**
-  - review แผน seed ปลอดภัยก่อน insert จริง
-  - ใช้เอกสาร [`docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md`](docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) เป็น baseline
-  - เตรียม script [`scripts/seed_target_registry_uat.sql`](scripts/seed_target_registry_uat.sql) แล้ว แต่ยังไม่ execute
-  - เตรียม rollback script [`scripts/rollback_seed_target_registry_uat.sql`](scripts/rollback_seed_target_registry_uat.sql) แล้ว
-  - มี pre-execution verification checklist แล้ว
-  - ยังไม่ insert demo data จริงในรอบนี้
 
 ### 2. วางโครงสร้าง Target Registry และ QR Asset History
 - **สถานะ:** ✅ เสร็จแล้วในส่วน foundation / migration / tests

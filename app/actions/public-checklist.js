@@ -203,27 +203,29 @@ export async function getTargetHistoryPublic(targetId) {
 
     // Fetch related templates for this target to group results by template frequency
     // (A target can be mapped directly or via group)
-    const { data: targetMapping } = await adminClient
-      .from('checklist_targets')
-      .select('target_group_id')
-      .eq('id', targetId)
-      .single()
-
-    const { data: templateMappings } = await adminClient
-      .from('checklist_template_targets')
-      .select('template_id')
-      .or(`target_id.eq.${targetId},target_group_id.eq.${targetMapping?.target_group_id || '00000000-0000-0000-0000-000000000000'}`)
-
-    const templateIds = (templateMappings || []).map(m => m.template_id)
-
-    // Default config if templates exist
     let templates = []
-    if (templateIds.length > 0) {
-      const { data: t } = await adminClient
-        .from('checklist_templates')
-        .select('id, freq_type, item_label')
-        .in('id', templateIds)
-      templates = t || []
+    try {
+      const { data: targetMapping } = await adminClient
+        .from('checklist_targets')
+        .select('target_group_id')
+        .eq('id', targetId)
+        .single()
+
+      const { data: templateMappings } = await adminClient
+        .from('checklist_template_targets')
+        .select('template_id')
+        .or(`target_id.eq.${targetId},target_group_id.eq.${targetMapping?.target_group_id || '00000000-0000-0000-0000-000000000000'}`)
+
+      const templateIds = (templateMappings || []).map(m => m.template_id)
+      if (templateIds.length > 0) {
+        const { data: t } = await adminClient
+          .from('checklist_templates')
+          .select('id, freq_type, item_label')
+          .in('id', templateIds)
+        templates = t || []
+      }
+    } catch {
+      templates = []
     }
 
     // 2. Fetch Docs
@@ -234,7 +236,15 @@ export async function getTargetHistoryPublic(targetId) {
       .order('period_date', { ascending: false })
       .limit(200) // Increase limit for calendar view
 
-    if (docsError) return { success: false, error: 'เกิดข้อผิดพลาดในการโหลดข้อมูล', history: [] }
+    if (docsError) {
+      return {
+        success: true,
+        target: formatTargetPublic(target),
+        templates,
+        history: [],
+        warning: 'ไม่สามารถโหลดประวัติย้อนหลังได้ในขณะนี้',
+      }
+    }
 
     return {
       success: true,

@@ -2,6 +2,7 @@ import './globals.css'
 import { Noto_Sans_Thai, Noto_Sans } from 'next/font/google'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { WorkingDateProvider } from '@/lib/context/WorkingDateContext'
+import Script from 'next/script'
 
 const notoSansThai = Noto_Sans_Thai({
   subsets: ['thai'],
@@ -35,7 +36,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="th" className={`${notoSansThai.variable} ${notoSans.variable}`}>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: `
+        <Script id="supabase-token-error-guard" strategy="beforeInteractive">{`
           (function() {
             const originalError = console.error;
             console.error = function(...args) {
@@ -68,7 +69,7 @@ export default function RootLayout({ children }) {
               originalError.apply(console, args);
             };
           })();
-        `}} />
+        `}</Script>
       </head>
       <body className="">
         <WorkingDateProvider>

@@ -32,4 +32,14 @@ where coalesce((metadata->>'uat_seed')::boolean, false) = true
 delete from checklist_target_groups
 where group_code in ('GRP-CCTV-TERM', 'GRP-NET-EDGE');
 
+-- 4) Reset template scope properties to default global
+update checklist_templates
+set scope_mode = 'global', target_type = null
+where id in (
+  'f5fe056d-3f40-46fa-b106-84d59fdd2d1f', -- CCTV Terminal Box
+  '7ddbc5ce-cd67-42db-908d-599a5a051121', -- UPS Test
+  'f2d7828d-76ee-4921-9653-26f980e484b7', -- Cisco Meraki
+  '86e2a38b-6367-40f3-9fbe-8f253d218299'  -- HPE Aruba
+);
+
 commit;

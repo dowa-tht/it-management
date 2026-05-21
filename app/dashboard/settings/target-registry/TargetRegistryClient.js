@@ -1,6 +1,4 @@
 'use client'
-
-import Link from 'next/link'
 import { startTransition, useDeferredValue, useMemo, useState } from 'react'
 import { saveChecklistTarget, saveChecklistTargetGroup } from '@/app/actions/target'
 import { cn } from '@/lib/cn'
@@ -13,6 +11,12 @@ const EMPTY_TARGET = {
   location: '',
   qr_value: '',
   metadata: {},
+  building: '',
+  floor: '',
+  zone: '',
+  serial_no: '',
+  vendor: '',
+  _original_qr_value: '',
   is_active: true,
 }
 
@@ -29,6 +33,57 @@ function metadataToText(metadata) {
   return JSON.stringify(metadata, null, 2)
 }
 
+const KNOWN_METADATA_KEYS = ['building', 'floor', 'zone', 'serial_no', 'vendor']
+
+function normalizeBaseUrl(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+  try {
+    const u = new URL(withProtocol)
+    return `${u.protocol}//${u.host}`
+  } catch {
+    return ''
+  }
+}
+
+function buildAbsolutePublicUrl(baseUrl, qrValue) {
+  const normalizedBase = normalizeBaseUrl(baseUrl)
+  const code = String(qrValue || '').trim()
+  if (!normalizedBase || !code) return ''
+  return `${normalizedBase}/public/checklist/qr?value=${encodeURIComponent(code)}`
+}
+
+function hydrateTargetDraft(record) {
+  const metadata = record?.metadata && typeof record.metadata === 'object' ? record.metadata : {}
+  return {
+    ...record,
+    metadata,
+    building: metadata.building || '',
+    floor: metadata.floor || '',
+    zone: metadata.zone || '',
+    serial_no: metadata.serial_no || '',
+    vendor: metadata.vendor || '',
+    _original_qr_value: record?.qr_value || '',
+  }
+}
+
+function composeMetadataFromDraft(draft) {
+  const base = { ...(draft.metadata || {}) }
+  for (const key of KNOWN_METADATA_KEYS) delete base[key]
+
+  const next = {
+    ...base,
+    ...(draft.building ? { building: draft.building } : {}),
+    ...(draft.floor ? { floor: draft.floor } : {}),
+    ...(draft.zone ? { zone: draft.zone } : {}),
+    ...(draft.serial_no ? { serial_no: draft.serial_no } : {}),
+    ...(draft.vendor ? { vendor: draft.vendor } : {}),
+  }
+
+  return next
+}
+
 function getTargetTypeOptions(targets, groups) {
   const types = new Set(['cctv_terminal_box', 'ups', 'nvr', 'switch'])
   targets.forEach((target) => target.target_type && types.add(target.target_type))
@@ -36,68 +91,365 @@ function getTargetTypeOptions(targets, groups) {
   return Array.from(types).sort()
 }
 
-function TargetForm({ draft, fieldErrors, saving, targetTypeOptions, onChange, onSave, onNew }) {
+// ── Shared styles ──────────────────────────────────────────────
+const S = {
+  card: {
+    background: '#fff',
+    border: '1px solid #e2e8f0',
+    borderRadius: 20,
+    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 16,
+    padding: '24px 32px',
+    borderBottom: '1px solid #f1f5f9',
+    background: '#fafafa',
+  },
+  cardBody: {
+    padding: '28px 32px',
+  },
+  cardFooter: {
+    padding: '16px 32px',
+    borderTop: '1px solid #f1f5f9',
+    display: 'flex',
+    justifyContent: 'flex-end',
+  },
+  eyebrow: (color) => ({
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.18em',
+    color,
+    marginBottom: 6,
+  }),
+  h2: {
+    fontSize: 20,
+    fontWeight: 800,
+    color: '#0f172a',
+    margin: '0 0 4px',
+  },
+  subtitle: {
+    fontSize: 13,
+    color: '#64748b',
+    lineHeight: 1.6,
+    margin: 0,
+  },
+  newBtn: {
+    padding: '8px 16px',
+    borderRadius: 10,
+    border: '1px solid #e2e8f0',
+    background: '#f8fafc',
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#475569',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'all 0.15s',
+  },
+  formGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 20,
+  },
+  fieldGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: '#64748b',
+  },
+  input: (accent) => ({
+    width: '100%',
+    padding: '10px 14px',
+    border: '1px solid #e2e8f0',
+    borderRadius: 10,
+    fontSize: 14,
+    color: '#0f172a',
+    background: '#f8fafc',
+    outline: 'none',
+    boxSizing: 'border-box',
+    transition: 'border-color 0.15s, box-shadow 0.15s',
+  }),
+  textarea: {
+    width: '100%',
+    padding: '10px 14px',
+    border: '1px solid #e2e8f0',
+    borderRadius: 10,
+    fontSize: 13,
+    fontFamily: 'monospace',
+    color: '#0f172a',
+    background: '#f8fafc',
+    outline: 'none',
+    resize: 'none',
+    boxSizing: 'border-box',
+    lineHeight: 1.6,
+  },
+  errMsg: {
+    fontSize: 12,
+    color: '#dc2626',
+    marginTop: 2,
+  },
+  checkboxRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '10px 14px',
+    border: '1px solid #e2e8f0',
+    borderRadius: 10,
+    background: '#f8fafc',
+    cursor: 'pointer',
+    fontSize: 14,
+    color: '#334155',
+    fontWeight: 500,
+  },
+  saveBtn: (color, shadow) => ({
+    padding: '10px 24px',
+    borderRadius: 10,
+    border: 'none',
+    background: color,
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: 'pointer',
+    boxShadow: shadow,
+  }),
+}
+
+function TargetForm({
+  draft,
+  fieldErrors,
+  saving,
+  targetTypeOptions,
+  qrBaseDefault,
+  qrEnvLabel,
+  qrBaseOverride,
+  onQrBaseOverrideChange,
+  onResetQrBaseOverride,
+  onChange,
+  onSave,
+  onNew,
+}) {
   const metadataText = metadataToText(draft.metadata)
+  const qrValue = String(draft.qr_value || '').trim()
+  const publicPreviewUrl = qrValue
+    ? `/public/checklist/qr?value=${encodeURIComponent(qrValue)}`
+    : ''
+  const effectiveBaseUrl = String(qrBaseOverride || '').trim() || qrBaseDefault
+  const absolutePublicUrl = buildAbsolutePublicUrl(effectiveBaseUrl, qrValue)
+  const publicLinkDisplay = absolutePublicUrl || publicPreviewUrl
+  const hasBaseUrlError = Boolean(qrValue) && !absolutePublicUrl
+  const qrPreviewImage = absolutePublicUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(absolutePublicUrl)}`
+    : ''
+
+  function handleDownloadQr() {
+    if (!qrPreviewImage) return
+    const a = document.createElement('a')
+    a.href = qrPreviewImage
+    a.download = `${(draft.target_code || 'qr-code').replace(/\s+/g, '-')}.png`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
 
   return (
-    <section className="rounded-[28px] border border-slate-200/90 bg-white/95 p-6 shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-slate-100 pb-5 md:flex-row md:items-center md:justify-between">
+    <section style={S.card}>
+      {/* Header */}
+      <div style={S.cardHeader}>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-600">Target record</p>
-          <h2 className="mt-2 text-2xl font-black text-slate-950">{draft.id ? 'Edit Target' : 'Create Target'}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-500">ลงทะเบียน asset รายตัวพร้อม QR value สำหรับใช้ต่อยอด Asset History</p>
+          <p style={S.eyebrow('#3b82f6')}>Target Record</p>
+          <h2 style={S.h2}>{draft.id ? 'Edit Target' : 'Create Target'}</h2>
+          <p style={S.subtitle}>ลงทะเบียน asset รายตัวพร้อม QR value สำหรับใช้ต่อยอด Asset History</p>
         </div>
-        <button type="button" onClick={onNew} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">
-          New Target
-        </button>
+        <button type="button" onClick={onNew} style={S.newBtn}>+ New Target</button>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <label className="grid gap-2 text-sm font-bold text-slate-700">
-          Target Code
-          <input value={draft.target_code} onChange={(event) => onChange('target_code', event.target.value)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500" />
-          {fieldErrors.target_code && <span className="text-xs text-red-600">{fieldErrors.target_code}</span>}
-        </label>
+      {/* Fields */}
+      <div style={S.cardBody}>
+        <div style={S.formGrid}>
 
-        <label className="grid gap-2 text-sm font-bold text-slate-700">
-          Target Type
-          <input list="target-type-options" value={draft.target_type} onChange={(event) => onChange('target_type', event.target.value)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500" />
-          <datalist id="target-type-options">
-            {targetTypeOptions.map((type) => <option key={type} value={type} />)}
-          </datalist>
-          {fieldErrors.target_type && <span className="text-xs text-red-600">{fieldErrors.target_type}</span>}
-        </label>
+          {/* Target Code */}
+          <div style={S.fieldGroup}>
+            <label style={S.label}>Target Code</label>
+            <input
+              value={draft.target_code}
+              onChange={(e) => onChange('target_code', e.target.value)}
+              style={S.input('#3b82f6')}
+            />
+            {fieldErrors.target_code && <span style={S.errMsg}>{fieldErrors.target_code}</span>}
+          </div>
 
-        <label className="grid gap-2 text-sm font-bold text-slate-700 md:col-span-2">
-          Target Name
-          <input value={draft.name} onChange={(event) => onChange('name', event.target.value)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500" />
-          {fieldErrors.name && <span className="text-xs text-red-600">{fieldErrors.name}</span>}
-        </label>
+          {/* Target Type */}
+          <div style={S.fieldGroup}>
+            <label style={S.label}>Target Type</label>
+            <input
+              list="target-type-options"
+              value={draft.target_type}
+              onChange={(e) => onChange('target_type', e.target.value)}
+              style={S.input('#3b82f6')}
+            />
+            <datalist id="target-type-options">
+              {targetTypeOptions.map((type) => <option key={type} value={type} />)}
+            </datalist>
+            {fieldErrors.target_type && <span style={S.errMsg}>{fieldErrors.target_type}</span>}
+          </div>
 
-        <label className="grid gap-2 text-sm font-bold text-slate-700">
-          Location
-          <input value={draft.location} onChange={(event) => onChange('location', event.target.value)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500" />
-        </label>
+          {/* Target Name — full width */}
+          <div style={{ ...S.fieldGroup, gridColumn: 'span 2' }}>
+            <label style={S.label}>Target Name</label>
+            <input
+              value={draft.name}
+              onChange={(e) => onChange('name', e.target.value)}
+              style={S.input('#3b82f6')}
+            />
+            {fieldErrors.name && <span style={S.errMsg}>{fieldErrors.name}</span>}
+          </div>
 
-        <label className="grid gap-2 text-sm font-bold text-slate-700">
-          QR Value
-          <input value={draft.qr_value} onChange={(event) => onChange('qr_value', event.target.value)} placeholder="ปล่อยว่างเพื่อ generate จาก type/code" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500" />
-          {fieldErrors.qr_value && <span className="text-xs text-red-600">{fieldErrors.qr_value}</span>}
-        </label>
+          {/* Location */}
+          <div style={S.fieldGroup}>
+            <label style={S.label}>Location</label>
+            <input
+              value={draft.location}
+              onChange={(e) => onChange('location', e.target.value)}
+              style={S.input('#3b82f6')}
+            />
+          </div>
 
-        <label className="grid gap-2 text-sm font-bold text-slate-700 md:col-span-2">
-          Metadata JSON
-          <textarea value={metadataText} onChange={(event) => onChange('metadataText', event.target.value)} rows={6} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-xs text-slate-900 outline-none focus:border-blue-500" />
-        </label>
+          {/* QR Value */}
+          <div style={S.fieldGroup}>
+            <label style={S.label}>QR Value</label>
+            <input
+              value={draft.qr_value}
+              onChange={(e) => onChange('qr_value', e.target.value)}
+              placeholder="ปล่อยว่างเพื่อ generate จาก type/code"
+              style={S.input('#3b82f6')}
+            />
+            {fieldErrors.qr_value && <span style={S.errMsg}>{fieldErrors.qr_value}</span>}
+          </div>
 
-        <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-700">
-          <input type="checkbox" checked={draft.is_active !== false} onChange={(event) => onChange('is_active', event.target.checked)} />
-          Active target
-        </label>
+          {/* QR Preview + Public link */}
+          <div style={{ ...S.fieldGroup, gridColumn: 'span 2', padding: '14px', border: '1px solid #e2e8f0', borderRadius: 12, background: '#f8fafc' }}>
+            <label style={S.label}>QR Preview</label>
+            {qrValue ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
+                <a href={qrPreviewImage} target="_blank" rel="noreferrer" title="Open full size QR (400x400)">
+                  <img src={qrPreviewImage} alt="QR Preview" style={{ width: 160, height: 160, border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff' }} />
+                </a>
+                <div style={{ display: 'grid', gap: 8, minWidth: 260 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b' }}>
+                    <span>Public Link</span>
+                    <span
+                      title={`QR จะใช้โดเมนจาก environment อัตโนมัติ (${qrEnvLabel}) และสามารถ override ได้เฉพาะครั้งก่อน Download`}
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: 999,
+                        border: '1px solid #cbd5e1',
+                        color: '#64748b',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'help',
+                        background: '#fff',
+                      }}
+                    >
+                      i
+                    </span>
+                  </div>
+                  <input value={publicLinkDisplay} readOnly style={{ ...S.input(), fontSize: 12, background: '#fff' }} />
+                  {hasBaseUrlError ? (
+                    <span style={S.errMsg}>Base URL ไม่ถูกต้อง กรุณาใส่โดเมนให้ถูกต้อง เช่น https://it.dowa.co.th</span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleDownloadQr}
+                    disabled={!qrPreviewImage}
+                    style={{ ...S.newBtn, textAlign: 'center', opacity: qrPreviewImage ? 1 : 0.5 }}
+                  >
+                    Download QR Code
+                  </button>
+                  <a href={absolutePublicUrl || publicPreviewUrl} target="_blank" rel="noreferrer" style={{ ...S.newBtn, textDecoration: 'none', textAlign: 'center', pointerEvents: hasBaseUrlError ? 'none' : 'auto', opacity: hasBaseUrlError ? 0.5 : 1 }}>
+                    Preview Public Page
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: '#94a3b8' }}>กรอกหรือปล่อยให้ระบบ generate QR Value ก่อน เพื่อดูตัวอย่าง QR</div>
+            )}
+          </div>
+
+          {/* Metadata Fields — full width */}
+          <div style={{ ...S.fieldGroup, gridColumn: 'span 2' }}>
+            <label style={S.label}>Asset Metadata</label>
+            <div style={S.formGrid} className="tr-form-grid">
+              <div style={S.fieldGroup}>
+                <label style={S.label}>Building</label>
+                <input value={draft.building || ''} onChange={(e) => onChange('building', e.target.value)} style={S.input('#3b82f6')} />
+              </div>
+              <div style={S.fieldGroup}>
+                <label style={S.label}>Floor</label>
+                <input value={draft.floor || ''} onChange={(e) => onChange('floor', e.target.value)} style={S.input('#3b82f6')} />
+              </div>
+              <div style={S.fieldGroup}>
+                <label style={S.label}>Zone</label>
+                <input value={draft.zone || ''} onChange={(e) => onChange('zone', e.target.value)} style={S.input('#3b82f6')} />
+              </div>
+              <div style={S.fieldGroup}>
+                <label style={S.label}>Serial No</label>
+                <input value={draft.serial_no || ''} onChange={(e) => onChange('serial_no', e.target.value)} style={S.input('#3b82f6')} />
+              </div>
+              <div style={{ ...S.fieldGroup, gridColumn: 'span 2' }}>
+                <label style={S.label}>Vendor</label>
+                <input value={draft.vendor || ''} onChange={(e) => onChange('vendor', e.target.value)} style={S.input('#3b82f6')} />
+              </div>
+            </div>
+          </div>
+
+          {/* Metadata JSON (read-only) */}
+          <div style={{ ...S.fieldGroup, gridColumn: 'span 2' }}>
+            <label style={S.label}>Metadata JSON (Auto-generated)</label>
+            <textarea
+              value={metadataText}
+              readOnly
+              rows={5}
+              style={S.textarea}
+            />
+          </div>
+
+          {/* Active checkbox */}
+          <label style={{ ...S.checkboxRow, gridColumn: 'span 2', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={draft.is_active !== false}
+              onChange={(e) => onChange('is_active', e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: '#3b82f6' }}
+            />
+            Active target
+          </label>
+
+        </div>
       </div>
 
-      <div className="mt-6 flex justify-end">
-        <button type="button" disabled={saving} onClick={onSave} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 disabled:opacity-50">
+      {/* Footer */}
+      <div style={S.cardFooter}>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onSave}
+          style={{ ...S.saveBtn('#2563eb', '0 4px 12px rgba(37,99,235,0.25)'), opacity: saving ? 0.5 : 1 }}
+        >
           {saving ? 'Saving...' : 'Save Target'}
         </button>
       </div>
@@ -107,45 +459,76 @@ function TargetForm({ draft, fieldErrors, saving, targetTypeOptions, onChange, o
 
 function GroupForm({ draft, fieldErrors, saving, targetTypeOptions, onChange, onSave, onNew }) {
   return (
-    <section className="rounded-[28px] border border-slate-200/90 bg-white/95 p-6 shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-slate-100 pb-5 md:flex-row md:items-center md:justify-between">
+    <section style={S.card}>
+      {/* Header */}
+      <div style={S.cardHeader}>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-violet-600">Target group</p>
-          <h2 className="mt-2 text-2xl font-black text-slate-950">{draft.id ? 'Edit Group' : 'Create Group'}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-500">จัดกลุ่ม asset เพื่อเตรียมผูก template แบบ per_group</p>
+          <p style={S.eyebrow('#7c3aed')}>Target Group</p>
+          <h2 style={S.h2}>{draft.id ? 'Edit Group' : 'Create Group'}</h2>
+          <p style={S.subtitle}>จัดกลุ่ม asset เพื่อเตรียมผูก template แบบ per_group</p>
         </div>
-        <button type="button" onClick={onNew} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">
-          New Group
-        </button>
+        <button type="button" onClick={onNew} style={S.newBtn}>+ New Group</button>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <label className="grid gap-2 text-sm font-bold text-slate-700">
-          Group Code
-          <input value={draft.group_code} onChange={(event) => onChange('group_code', event.target.value)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-violet-500" />
-          {fieldErrors.group_code && <span className="text-xs text-red-600">{fieldErrors.group_code}</span>}
-        </label>
-        <label className="grid gap-2 text-sm font-bold text-slate-700">
-          Target Type
-          <input list="group-target-type-options" value={draft.target_type} onChange={(event) => onChange('target_type', event.target.value)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-violet-500" />
-          <datalist id="group-target-type-options">
-            {targetTypeOptions.map((type) => <option key={type} value={type} />)}
-          </datalist>
-          {fieldErrors.target_type && <span className="text-xs text-red-600">{fieldErrors.target_type}</span>}
-        </label>
-        <label className="grid gap-2 text-sm font-bold text-slate-700 md:col-span-2">
-          Group Name
-          <input value={draft.group_name} onChange={(event) => onChange('group_name', event.target.value)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-violet-500" />
-          {fieldErrors.group_name && <span className="text-xs text-red-600">{fieldErrors.group_name}</span>}
-        </label>
-        <label className="grid gap-2 text-sm font-bold text-slate-700 md:col-span-2">
-          Description
-          <textarea value={draft.description} onChange={(event) => onChange('description', event.target.value)} rows={4} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-500" />
-        </label>
+      {/* Fields */}
+      <div style={S.cardBody}>
+        <div style={S.formGrid}>
+
+          <div style={S.fieldGroup}>
+            <label style={S.label}>Group Code</label>
+            <input
+              value={draft.group_code}
+              onChange={(e) => onChange('group_code', e.target.value)}
+              style={S.input('#7c3aed')}
+            />
+            {fieldErrors.group_code && <span style={S.errMsg}>{fieldErrors.group_code}</span>}
+          </div>
+
+          <div style={S.fieldGroup}>
+            <label style={S.label}>Target Type</label>
+            <input
+              list="group-target-type-options"
+              value={draft.target_type}
+              onChange={(e) => onChange('target_type', e.target.value)}
+              style={S.input('#7c3aed')}
+            />
+            <datalist id="group-target-type-options">
+              {targetTypeOptions.map((type) => <option key={type} value={type} />)}
+            </datalist>
+            {fieldErrors.target_type && <span style={S.errMsg}>{fieldErrors.target_type}</span>}
+          </div>
+
+          <div style={{ ...S.fieldGroup, gridColumn: 'span 2' }}>
+            <label style={S.label}>Group Name</label>
+            <input
+              value={draft.group_name}
+              onChange={(e) => onChange('group_name', e.target.value)}
+              style={S.input('#7c3aed')}
+            />
+            {fieldErrors.group_name && <span style={S.errMsg}>{fieldErrors.group_name}</span>}
+          </div>
+
+          <div style={{ ...S.fieldGroup, gridColumn: 'span 2' }}>
+            <label style={S.label}>Description</label>
+            <textarea
+              value={draft.description}
+              onChange={(e) => onChange('description', e.target.value)}
+              rows={4}
+              style={{ ...S.textarea, fontFamily: 'inherit' }}
+            />
+          </div>
+
+        </div>
       </div>
 
-      <div className="mt-6 flex justify-end">
-        <button type="button" disabled={saving} onClick={onSave} className="rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-violet-600/20 disabled:opacity-50">
+      {/* Footer */}
+      <div style={S.cardFooter}>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={onSave}
+          style={{ ...S.saveBtn('#7c3aed', '0 4px 12px rgba(124,58,237,0.25)'), opacity: saving ? 0.5 : 1 }}
+        >
           {saving ? 'Saving...' : 'Save Group'}
         </button>
       </div>
@@ -153,7 +536,7 @@ function GroupForm({ draft, fieldErrors, saving, targetTypeOptions, onChange, on
   )
 }
 
-export function TargetRegistryClient({ currentUser, initialTargets, initialGroups, mappings }) {
+export function TargetRegistryClient({ currentUser, initialTargets, initialGroups, mappings, embedded = false }) {
   const [targets, setTargets] = useState(initialTargets)
   const [groups, setGroups] = useState(initialGroups)
   const [activeTab, setActiveTab] = useState('targets')
@@ -164,7 +547,24 @@ export function TargetRegistryClient({ currentUser, initialTargets, initialGroup
   const [groupErrors, setGroupErrors] = useState({})
   const [status, setStatus] = useState({ type: '', text: '' })
   const [saving, setSaving] = useState(false)
+  const [qrBaseOverride, setQrBaseOverride] = useState('')
   const deferredSearch = useDeferredValue(search)
+
+  const qrBaseDefault = useMemo(() => {
+    const fromEnv = normalizeBaseUrl(process.env.NEXT_PUBLIC_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL)
+    if (fromEnv) return fromEnv
+    if (typeof window !== 'undefined') return normalizeBaseUrl(window.location.origin)
+    return ''
+  }, [])
+
+  const qrEnvLabel = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      const host = String(window.location.hostname || '').toLowerCase()
+      if (host.includes('localhost') || host === '127.0.0.1') return 'Localhost'
+    }
+    if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') return 'Production'
+    return 'Development'
+  }, [])
 
   const targetTypeOptions = useMemo(() => getTargetTypeOptions(targets, groups), [targets, groups])
   const activeTargets = targets.filter((target) => target.is_active !== false).length
@@ -176,24 +576,32 @@ export function TargetRegistryClient({ currentUser, initialTargets, initialGroup
     return `${target.target_code} ${target.target_type} ${target.name} ${target.location}`.toLowerCase().includes(needle)
   })
 
-  function updateTargetDraft(field, value) {
-    if (field === 'metadataText') {
-      try {
-        setTargetDraft((current) => ({ ...current, metadata: value.trim() ? JSON.parse(value) : {} }))
-      } catch {
-        setTargetDraft((current) => ({ ...current, metadata: current.metadata }))
-      }
-      return
-    }
+  const filteredGroups = groups.filter((group) => {
+    const needle = deferredSearch.trim().toLowerCase()
+    if (!needle) return true
+    return `${group.group_code} ${group.group_name} ${group.target_type} ${group.description || ''}`.toLowerCase().includes(needle)
+  })
 
+  function updateTargetDraft(field, value) {
     setTargetDraft((current) => ({ ...current, [field]: value }))
   }
 
   function saveTarget() {
+    const qrChanged = Boolean(targetDraft.id) && String(targetDraft.qr_value || '').trim() !== String(targetDraft._original_qr_value || '').trim()
+    if (qrChanged) {
+      const confirmed = window.confirm('QR Value มีการเปลี่ยนแปลง\nระบบแนะนำให้พิมพ์/บันทึกรูป QR ใหม่ทุกครั้ง\nยืนยันบันทึกต่อหรือไม่?')
+      if (!confirmed) return
+    }
+
+    const payload = {
+      ...targetDraft,
+      metadata: composeMetadataFromDraft(targetDraft),
+    }
+
     setSaving(true)
     setStatus({ type: '', text: '' })
     startTransition(async () => {
-      const result = await saveChecklistTarget(targetDraft)
+      const result = await saveChecklistTarget(payload)
       setSaving(false)
       if (!result.success) {
         setTargetErrors(result.fieldErrors || {})
@@ -202,7 +610,7 @@ export function TargetRegistryClient({ currentUser, initialTargets, initialGroup
       }
       setTargetErrors({})
       setStatus({ type: 'success', text: result.message })
-      setTargetDraft(result.target)
+      setTargetDraft(hydrateTargetDraft(result.target))
       setTargets((current) => {
         const index = current.findIndex((target) => target.id === result.target.id)
         if (index === -1) return [...current, result.target]
@@ -238,83 +646,185 @@ export function TargetRegistryClient({ currentUser, initialTargets, initialGroup
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.10),transparent_24%),linear-gradient(180deg,#f8fbff_0%,#f8fafc_56%,#f1f5f9_100%)] px-4 py-6 md:px-8">
-      <div className="mx-auto grid max-w-7xl gap-6">
-        <header className="rounded-[30px] border border-slate-200/90 bg-white/95 p-6 shadow-sm md:p-8">
-          <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-blue-600">Target Registry Foundation</p>
-              <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">Target Registry</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-500">
-                จัดการ asset/target รายตัวสำหรับ checklist แบบผูกอุปกรณ์ เช่น CCTV Terminal Box พร้อม QR value และข้อมูลตั้งต้นสำหรับ Asset History
-              </p>
+    <div>
+      <style>{`
+        * { box-sizing: border-box; }
+        .tr-input:focus { border-color: #93c5fd !important; box-shadow: 0 0 0 3px rgba(147,197,253,0.25) !important; background: #fff !important; }
+        .tr-input-violet:focus { border-color: #c4b5fd !important; box-shadow: 0 0 0 3px rgba(196,181,253,0.25) !important; background: #fff !important; }
+        .tr-list-btn:hover { background: #f8fafc !important; }
+        .tr-list-btn-active { background: #eff6ff !important; border-color: #bfdbfe !important; }
+        .tr-list-btn-active-violet { background: #f5f3ff !important; border-color: #ddd6fe !important; }
+        .tr-new-btn:hover { background: #f1f5f9 !important; border-color: #cbd5e1 !important; color: #1e293b !important; }
+        .tr-save-btn:hover { filter: brightness(1.08); }
+        @media (max-width: 768px) {
+          .tr-form-grid { grid-template-columns: 1fr !important; }
+          .tr-form-grid > [style*="span 2"] { grid-column: span 1 !important; }
+          .tr-main-layout { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: embedded ? 16 : 20 }}>
+
+        {/* ── Page Header (standalone mode) ── */}
+        {!embedded && (
+          <header style={{ ...S.card, padding: '24px 28px' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#2563eb', marginBottom: 6 }}>Checklist Setup</p>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: '0 0 8px', letterSpacing: '-0.5px' }}>Target Registry</h1>
+            <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.7, margin: '0 0 16px', maxWidth: 640 }}>
+              จัดการ asset/target รายตัวสำหรับ checklist แบบผูกอุปกรณ์ เช่น CCTV Terminal Box พร้อม QR value และข้อมูลตั้งต้นสำหรับ Asset History
+            </p>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#f1f5f9', borderRadius: 8, fontSize: 13, color: '#475569' }}>
+              <span style={{ fontWeight: 700, color: '#0f172a' }}>User:</span> {currentUser?.full_name || 'Admin'}
             </div>
-            <div className="grid gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              <div><span className="font-black text-slate-950">User:</span> {currentUser?.full_name || 'Admin'}</div>
-              <Link href="/dashboard/settings/checklist-master-data?type=checklist_categories" className="rounded-2xl bg-slate-900 px-4 py-2 text-center text-sm font-black text-white">
-                Back to Master Data
-              </Link>
-            </div>
+          </header>
+        )}
+
+        {/* ── Stats row (standalone mode) ── */}
+        {!embedded && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            {[['Total Targets', targets.length], ['Active Targets', activeTargets], ['Mapped Targets', mappedTargets]].map(([label, value]) => (
+              <div key={label} style={{ ...S.card, padding: '20px 24px' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#94a3b8', margin: '0 0 10px' }}>{label}</p>
+                <div style={{ fontSize: 30, fontWeight: 800, color: '#0f172a' }}>{value}</div>
+              </div>
+            ))}
           </div>
-        </header>
+        )}
 
-        <section className="grid gap-4 md:grid-cols-3">
-          {[
-            ['Total Targets', targets.length],
-            ['Active Targets', activeTargets],
-            ['Mapped Targets', mappedTargets],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">{label}</p>
-              <div className="mt-3 text-3xl font-black text-slate-950">{value}</div>
-            </div>
-          ))}
-        </section>
-
+        {/* ── Status message ── */}
         {status.text && (
-          <div className={cn('rounded-2xl border px-4 py-3 text-sm font-bold', status.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>
+          <div style={{
+            padding: '12px 18px', borderRadius: 12, fontSize: 14, fontWeight: 600,
+            background: status.type === 'error' ? '#fef2f2' : '#f0fdf4',
+            color: status.type === 'error' ? '#b91c1c' : '#15803d',
+            border: `1px solid ${status.type === 'error' ? '#fecaca' : '#bbf7d0'}`,
+          }}>
             {status.text}
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
-          <aside className="grid gap-4 rounded-[28px] border border-slate-200 bg-white/95 p-5 shadow-sm">
-            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
-              <button type="button" onClick={() => setActiveTab('targets')} className={cn('rounded-xl px-3 py-2 text-sm font-black', activeTab === 'targets' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500')}>
-                Targets
-              </button>
-              <button type="button" onClick={() => setActiveTab('groups')} className={cn('rounded-xl px-3 py-2 text-sm font-black', activeTab === 'groups' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500')}>
-                Groups
-              </button>
+        {/* ── Main layout: aside + form ── */}
+        <div className="tr-main-layout" style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 24, alignItems: 'start' }}>
+
+          {/* Sidebar */}
+          <aside style={{ ...S.card, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Tab switcher */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, background: '#f1f5f9', borderRadius: 12, padding: 4 }}>
+              <button
+                type="button"
+                onClick={() => setActiveTab('targets')}
+                style={{
+                  padding: '8px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
+                  background: activeTab === 'targets' ? '#fff' : 'transparent',
+                  color: activeTab === 'targets' ? '#1d4ed8' : '#64748b',
+                  boxShadow: activeTab === 'targets' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                }}
+              >Targets</button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('groups')}
+                style={{
+                  padding: '8px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
+                  background: activeTab === 'groups' ? '#fff' : 'transparent',
+                  color: activeTab === 'groups' ? '#7c3aed' : '#64748b',
+                  boxShadow: activeTab === 'groups' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                }}
+              >Groups</button>
             </div>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search target..." className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500" />
-            <div className="grid max-h-[640px] gap-3 overflow-auto pr-1">
+
+            {/* Search */}
+            <input
+              className="tr-input"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={activeTab === 'targets' ? 'ค้นหา Target...' : 'ค้นหา Group...'}
+              style={{ ...S.input(), padding: '10px 14px', borderRadius: 10 }}
+            />
+
+            {/* List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 520, overflowY: 'auto', paddingRight: 2 }}>
               {activeTab === 'targets' ? filteredTargets.map((target) => (
-                <button key={target.id} type="button" onClick={() => setTargetDraft(target)} className={cn('rounded-2xl border p-4 text-left transition', targetDraft.id === target.id ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50')}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="font-black text-slate-950">{target.target_code}</div>
-                    <span className={cn('rounded-full px-2 py-1 text-[11px] font-black', target.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500')}>{target.is_active ? 'Active' : 'Inactive'}</span>
+                <button
+                  key={target.id}
+                  type="button"
+                  onClick={() => setTargetDraft(hydrateTargetDraft(target))}
+                  className={cn('tr-list-btn', targetDraft.id === target.id ? 'tr-list-btn-active' : '')}
+                  style={{
+                    width: '100%', textAlign: 'left', padding: '12px 14px', borderRadius: 12, border: '1px solid #e2e8f0',
+                    background: targetDraft.id === target.id ? '#eff6ff' : '#fff', cursor: 'pointer', transition: 'all 0.15s',
+                    borderColor: targetDraft.id === target.id ? '#bfdbfe' : '#e2e8f0',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{target.target_code}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: target.is_active ? '#dcfce7' : '#f1f5f9', color: target.is_active ? '#16a34a' : '#64748b' }}>
+                      {target.is_active ? 'Active' : 'Inactive'}
+                    </span>
                   </div>
-                  <div className="mt-1 text-sm font-bold text-slate-700">{target.name}</div>
-                  <div className="mt-1 text-xs text-slate-500">{target.target_type} · {target.location || 'No location'}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 2 }}>{target.name}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8' }}>{target.target_type} · {target.location || 'No location'}</div>
                 </button>
-              )) : groups.map((group) => (
-                <button key={group.id} type="button" onClick={() => setGroupDraft(group)} className={cn('rounded-2xl border p-4 text-left transition', groupDraft.id === group.id ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white hover:bg-slate-50')}>
-                  <div className="font-black text-slate-950">{group.group_code}</div>
-                  <div className="mt-1 text-sm font-bold text-slate-700">{group.group_name}</div>
-                  <div className="mt-1 text-xs text-slate-500">{group.target_type}</div>
+              )) : filteredGroups.map((group) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => setGroupDraft(group)}
+                  className={cn('tr-list-btn', groupDraft.id === group.id ? 'tr-list-btn-active-violet' : '')}
+                  style={{
+                    width: '100%', textAlign: 'left', padding: '12px 14px', borderRadius: 12, border: '1px solid #e2e8f0',
+                    background: groupDraft.id === group.id ? '#f5f3ff' : '#fff', cursor: 'pointer', transition: 'all 0.15s',
+                    borderColor: groupDraft.id === group.id ? '#ddd6fe' : '#e2e8f0',
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 3 }}>{group.group_code}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 2 }}>{group.group_name}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8' }}>{group.target_type}</div>
                 </button>
               ))}
+
+              {activeTab === 'targets' && filteredTargets.length === 0 && (
+                <div style={{ padding: '20px 16px', textAlign: 'center', fontSize: 13, color: '#94a3b8', border: '1px dashed #cbd5e1', borderRadius: 12, background: '#f8fafc' }}>
+                  ไม่พบ Target ตามคำค้นหา
+                </div>
+              )}
+              {activeTab === 'groups' && filteredGroups.length === 0 && (
+                <div style={{ padding: '20px 16px', textAlign: 'center', fontSize: 13, color: '#94a3b8', border: '1px dashed #cbd5e1', borderRadius: 12, background: '#f8fafc' }}>
+                  ไม่พบ Group ตามคำค้นหา
+                </div>
+              )}
             </div>
           </aside>
 
-          <main className="grid gap-6">
+          {/* Form */}
+          <main>
             {activeTab === 'targets' ? (
-              <TargetForm draft={targetDraft} fieldErrors={targetErrors} saving={saving} targetTypeOptions={targetTypeOptions} onChange={updateTargetDraft} onSave={saveTarget} onNew={() => setTargetDraft(EMPTY_TARGET)} />
+              <TargetForm
+                draft={targetDraft}
+                fieldErrors={targetErrors}
+                saving={saving}
+                targetTypeOptions={targetTypeOptions}
+                qrBaseDefault={qrBaseDefault}
+                qrEnvLabel={qrEnvLabel}
+                qrBaseOverride={qrBaseOverride}
+                onQrBaseOverrideChange={setQrBaseOverride}
+                onResetQrBaseOverride={() => setQrBaseOverride('')}
+                onChange={updateTargetDraft}
+                onSave={saveTarget}
+                onNew={() => setTargetDraft(EMPTY_TARGET)}
+              />
             ) : (
-              <GroupForm draft={groupDraft} fieldErrors={groupErrors} saving={saving} targetTypeOptions={targetTypeOptions} onChange={(field, value) => setGroupDraft((current) => ({ ...current, [field]: value }))} onSave={saveGroup} onNew={() => setGroupDraft(EMPTY_GROUP)} />
+              <GroupForm
+                draft={groupDraft}
+                fieldErrors={groupErrors}
+                saving={saving}
+                targetTypeOptions={targetTypeOptions}
+                onChange={(field, value) => setGroupDraft((current) => ({ ...current, [field]: value }))}
+                onSave={saveGroup}
+                onNew={() => setGroupDraft(EMPTY_GROUP)}
+              />
             )}
           </main>
+
         </div>
       </div>
     </div>

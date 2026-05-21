@@ -30,6 +30,7 @@ This is the central documentation hub. You MUST read this file first before star
 - [INCIDENT_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INCIDENT_MANAGEMENT.md) : มาตรฐานการจัดการเหตุการณ์และขั้นตอนการทำงาน
 - [TARGET_REGISTRY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/TARGET_REGISTRY.md) : มาตรฐาน Target Registry, โครงสร้างตาราง asset/target, และการผูก template กับ target/group
 - [QR_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/QR_ASSET_HISTORY.md) : มาตรฐาน API และ flow สำหรับ QR lookup และ Asset History
+- [TARGET_REGISTRY_QR_HISTORY_REQUIREMENTS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/TARGET_REGISTRY_QR_HISTORY_REQUIREMENTS.md) : [NEW] ข้อกำหนดทางระบบสำหรับ Target Registry, Behavior Overrides, และหน้าปฏิทินสาธารณะสแกน QR Code 30 นาที
 - [INCIDENT_LIFECYCLE_OVERHAUL_SPEC.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INCIDENT_LIFECYCLE_OVERHAUL_SPEC.md) : รายละเอียดทางเทคนิคสำหรับการปรับปรุงวงจรชีวิต Incident
 - [DOCUMENT_MAPPING_STANDARD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DOCUMENT_MAPPING_STANDARD.md) : มาตรฐานการจับคู่ข้อมูลและสถานะ Workflow ของระบบ
 - [SYSTEM_ARCHITECTURE_MAP.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SYSTEM_ARCHITECTURE_MAP.md) : [AGGREGATION TOOL] แผนผังโครงสร้างสถาปัตยกรรมและ Logic Flow (สำหรับ Agent)
@@ -89,6 +90,7 @@ This is the central documentation hub. You MUST read this file first before star
 - [USER_MANAGEMENT_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/USER_MANAGEMENT_GUIDE.md) : คู่มือการจัดการผู้ใช้, PIN และ Onboarding Flow
 - [TARGET_REGISTRY_UAT_SEED_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) : แผนเตรียมข้อมูล UAT สำหรับ Target Registry / QR Asset History โดยยังไม่ insert ข้อมูลจริง
 - [MULTI_AGENT_WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/MULTI_AGENT_WORKFLOW_GUIDE.md) : คู่มือการประสานงานทำงานร่วมกันและใช้เครื่องมือระหว่าง Antigravity และ Google Jules
+- [PRODUCTION_MIGRATION_PLAYBOOK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_MIGRATION_PLAYBOOK.md) : คู่มือมาตรฐานการ Migration จาก Dev ไป Production (GitHub/Vercel/Supabase), Checkpoint, Verification และ Rollback
 
 ---
 

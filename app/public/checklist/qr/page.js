@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
 import { resolveChecklistQrPublic } from '@/app/actions/public-checklist'
 import Link from 'next/link'
+import { QrRedirectClient } from './QrRedirectClient'
 
 export const metadata = {
   title: 'QR Resolver | Public',
@@ -37,16 +36,7 @@ export default async function PublicQrResolverPage({ searchParams }) {
   const result = await resolveChecklistQrPublic(qrValue)
 
   if (result.success && result.redirectUrl) {
-    const cookieStore = await cookies()
-    // Set 30-minute secure session limit
-    cookieStore.set(`qr_session_${result.targetId}`, 'active', {
-      maxAge: 1800, // 30 minutes in seconds
-      httpOnly: false, // Allow client side to clear it potentially
-      secure: process.env.NODE_ENV === 'production',
-      path: '/'
-    })
-
-    redirect(result.redirectUrl)
+    return <QrRedirectClient targetId={result.targetId} redirectUrl={result.redirectUrl} />
   }
 
   return (
