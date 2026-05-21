@@ -22,6 +22,8 @@ export default async function ChecklistTemplateBuilderPage({ searchParams }) {
       templates={data.templates}
       categories={data.categories}
       procedurePlans={data.procedurePlans}
+      targetTypes={data.targetTypes}
+      targets={data.targets}
       initialTemplateId={query?.templateId || null}
       initialMode={query?.mode || 'manage'}
     />

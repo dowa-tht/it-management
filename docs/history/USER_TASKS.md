@@ -310,6 +310,26 @@
   - `scripts/seed_target_registry_uat_with_mappings.sql`
   - `docs/history/USER_TASKS.md`
 
+### 2. Complete Removal of Target Groups & Transition to per_type Mapping
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันเริ่ม:** 21 พฤษภาคม 2569
+- **รายละเอียด:**
+  - ลบตาราง `checklist_target_groups` และคอลัมน์ `target_group_id` ออกจากระบบ
+  - เปลี่ยน mapping mode จาก `per_group` ไปเป็นแบบ dynamic `per_type`
+  - อัปเดต Validation schema, Server Actions, และ UI Components หน้าจอ Target Registry และ Checklist Template Builder
+  - ถอด group-based runtime paths ออกจาก action/UI contracts และคงการแมปเฉพาะ `per_target` + `per_type`
+  - รันทดสอบระบบ `npm test` ผ่าน 100% (12/12 tests)
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `supabase/migrations/20260521_remove_target_groups.sql`
+  - `lib/checklistTemplateValidation.js`
+  - `lib/procedurePlanValidation.js`
+  - `app/actions/checklist-template.js`
+  - `app/actions/target.js`
+  - `app/actions/public-checklist.js`
+  - `app/dashboard/settings/target-registry/TargetRegistryClient.js`
+  - `app/dashboard/settings/checklist-template-builder/components/TemplateForm.js`
+  - `tests/target-registry.test.js`
+
 ---
 
 ## 📌 งานที่รอดำเนินการ (Pending)

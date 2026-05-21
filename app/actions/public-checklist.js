@@ -202,19 +202,19 @@ export async function getTargetHistoryPublic(targetId) {
     }
 
     // Fetch related templates for this target to group results by template frequency
-    // (A target can be mapped directly or via group)
+    // (A target can be mapped directly or via target type)
     let templates = []
     try {
       const { data: targetMapping } = await adminClient
         .from('checklist_targets')
-        .select('target_group_id')
+        .select('target_type')
         .eq('id', targetId)
         .single()
 
       const { data: templateMappings } = await adminClient
         .from('checklist_template_targets')
         .select('template_id')
-        .or(`target_id.eq.${targetId},target_group_id.eq.${targetMapping?.target_group_id || '00000000-0000-0000-0000-000000000000'}`)
+        .or(`target_id.eq.${targetId},target_type.eq.${targetMapping?.target_type || '__no_target_type__'}`)
 
       const templateIds = (templateMappings || []).map(m => m.template_id)
       if (templateIds.length > 0) {

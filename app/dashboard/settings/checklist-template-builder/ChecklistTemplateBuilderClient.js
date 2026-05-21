@@ -30,7 +30,6 @@ export function ChecklistTemplateBuilderClient({
   procedurePlans,
   targetTypes = [],
   targets = [],
-  targetGroups = [],
   initialTemplateId,
   initialMode,
 }) {
@@ -649,19 +648,6 @@ export function ChecklistTemplateBuilderClient({
                   <h2 className="mt-2 text-xl font-extrabold text-slate-950">{sectionTitle}</h2>
                   <p className="mt-1 text-sm text-slate-500">{activeTemplateTypeLabel}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  className={cn(
-                    'template-builder-action px-5 text-white transition',
-                    saving
-                      ? 'cursor-not-allowed bg-slate-300'
-                      : 'bg-gradient-to-r from-blue-700 to-sky-500 shadow-lg shadow-blue-500/20 hover:translate-y-[-1px]'
-                  )}
-                >
-                  {saving ? 'กำลังบันทึก...' : saveLabel}
-                </button>
               </div>
             </section>
 
@@ -670,34 +656,37 @@ export function ChecklistTemplateBuilderClient({
               procedurePlans={procedurePlans}
               targetTypes={targetTypes}
               targets={targets}
-              targetGroups={targetGroups}
+              templates={templateList}
               template={draft}
               fieldErrors={fieldErrors}
               onChange={updateField}
               onConfigChange={updateConfigField}
             />
-          </main>
 
-          <aside>
-            <section className="template-builder-snapshot-card">
-              <div className="template-builder-snapshot-frame">
-                <div className="template-builder-section-copy">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Standards Snapshot</p>
-                  <h3 className="text-[20px] font-extrabold text-slate-900">Builder standards</h3>
-                  <p className="text-sm leading-7 text-slate-500">
-                    สรุปข้อกำหนดหลักที่หน้า Template Builder ต้องยึดไว้ระหว่างสร้างหรือแก้ไข Template
-                  </p>
-                </div>
-                <div className="template-builder-snapshot-config-box">
-                  <div className="template-builder-snapshot-grid lg:grid-cols-3">
-                    <div className="template-builder-snapshot-item">Standalone route ตาม Settings Design System</div>
-                    <div className="template-builder-snapshot-item">Validate `template_config` ที่ server ก่อนบันทึกทุกครั้ง</div>
-                    <div className="template-builder-snapshot-item">คง `template_config` เป็น source of truth เดิมของ `checklist_templates`</div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </aside>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className={cn(
+                  'template-builder-action px-8 text-white transition',
+                  saving
+                    ? 'cursor-not-allowed bg-slate-300'
+                    : 'bg-gradient-to-r from-blue-700 to-sky-500 shadow-lg shadow-blue-500/20 hover:translate-y-[-1px]'
+                )}
+                style={{
+                  minHeight: 48,
+                  fontSize: 15,
+                  paddingLeft: 32,
+                  paddingRight: 32,
+                  borderRadius: 14,
+                  cursor: saving ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {saving ? 'กำลังบันทึก...' : saveLabel}
+              </button>
+            </div>
+          </main>
         </div>
 
         {showPreviewModal && (

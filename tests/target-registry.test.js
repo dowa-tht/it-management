@@ -105,7 +105,7 @@ test('validateChecklistTemplate rejects invalid scope_mode values', () => {
 test('validateProcedurePlanInput accepts target registry companion fields', () => {
   const payload = {
     plan_name: 'CCTV Terminal Box SOP',
-    scope_mode: 'per_group',
+    scope_mode: 'per_type',
     target_type: 'cctv_terminal',
     validation_rules: {
       require_all_steps: true,
@@ -177,4 +177,72 @@ test('target action source contains server-side asset history loader', async () 
   assert.match(source, /from\('checklist_docs'\)/)
   assert.match(source, /from\('checklist_items'\)/)
   assert.match(source, /buildAssetHistoryPhotoList/)
+})
+
+test('validateChecklistTemplate rejects ui_template_type greater than 4 (T5 decommissioned)', () => {
+  const payload = {
+    category: 'Infrastructure',
+    freq_type: 'Monthly',
+    item_label: 'Decommissioned T5',
+    instruction: '',
+    ui_template_type: 5,
+    template_config: {},
+    scope_mode: 'global',
+  }
+
+  const result = validateChecklistTemplate(payload)
+
+  assert.equal(result.success, false)
+  assert.ok(result.errors.ui_template_type)
+})
+
+test('validateChecklistTemplate accepts ui_template_type equal to 4 (T4 Link Verification)', () => {
+  const payload = {
+    category: 'Infrastructure',
+    freq_type: 'Monthly',
+    item_label: 'T4 Link Verification',
+    instruction: '',
+    ui_template_type: 4,
+    template_config: {
+      url: 'https://example.com/api',
+      note_required: true,
+      screenshot_required: false,
+    },
+    scope_mode: 'global',
+  }
+
+  const result = validateChecklistTemplate(payload)
+
+  assert.equal(result.success, true)
+  assert.equal(result.data.ui_template_type, 4)
+  assert.equal(result.data.template_config.url, 'https://example.com/api')
+})
+
+test('validateChecklistTemplate accepts T1 template with empty photo_points (target-as-point mode)', () => {
+  // When photo_points is [] each Target is the inspection point.
+  // min_photos drives completion — no specific sub-points needed.
+  const payload = {
+    category: 'Infrastructure',
+    freq_type: 'Monthly',
+    item_label: 'CCTV Cabinet Photo Check',
+    instruction: 'Capture at least 1 photo per target',
+    ui_template_type: 1,
+    template_config: {
+      ...getDefaultTemplateConfig(1),
+      photo_points: [],
+      min_photos: 1,
+    },
+    scope_mode: 'per_target',
+    target_type: 'cctv_terminal',
+  }
+
+  const result = validateChecklistTemplate(payload)
+
+  if (!result.success) {
+    assert.fail(JSON.stringify(result.errors))
+  }
+
+  assert.equal(result.success, true)
+  assert.deepEqual(result.data.template_config.photo_points, [])
+  assert.equal(result.data.template_config.min_photos, 1)
 })

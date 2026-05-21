@@ -212,15 +212,13 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
     if (activeType !== 'target_registry') return
     const loadTargetRegistry = async () => {
       setTargetRegistryLoading(true)
-      const [{ data: targets }, { data: groups }, { data: mappings }] = await Promise.all([
+      const [{ data: targets }, { data: mappings }] = await Promise.all([
         supabase.from('checklist_targets').select('*').order('target_code'),
-        supabase.from('checklist_target_groups').select('*').order('group_code'),
-        supabase.from('checklist_template_targets').select('id, template_id, target_id, target_group_id, target_type, override_config'),
+        supabase.from('checklist_template_targets').select('id, template_id, target_id, target_type, override_config'),
       ])
 
       setTargetRegistryData({
         targets: targets || [],
-        groups: groups || [],
         mappings: mappings || [],
       })
       setTargetRegistryLoading(false)
@@ -424,7 +422,6 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
               <TargetRegistryClient
                 currentUser={currentUser}
                 initialTargets={targetRegistryData.targets}
-                initialGroups={targetRegistryData.groups}
                 mappings={targetRegistryData.mappings}
                 embedded
               />
@@ -451,10 +448,39 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
               />
             </div>
             {activeType === 'checklist_template' && (
-              <select value={freqFilter} onChange={e => setFreqFilter(e.target.value)} style={{ width: 140, padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 18, fontSize: 14, background: '#fff', cursor: 'pointer' }}>
-                <option value="All">ทุกความถี่</option>
-                {FREQUENCIES.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  justifyContent: 'flex-end'
+                }}
+              >
+                {['All', ...FREQUENCIES].map((frequency) => {
+                  const isActive = freqFilter === frequency
+                  return (
+                    <button
+                      key={frequency}
+                      type="button"
+                      onClick={() => setFreqFilter(frequency)}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 999,
+                        border: `1px solid ${isActive ? '#2563eb' : '#dbeafe'}`,
+                        background: isActive ? '#2563eb' : '#fff',
+                        color: isActive ? '#fff' : '#1e3a8a',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        lineHeight: 1.2,
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {frequency === 'All' ? 'ทุกความถี่' : frequency}
+                    </button>
+                  )
+                })}
+              </div>
             )}
           </div>
 

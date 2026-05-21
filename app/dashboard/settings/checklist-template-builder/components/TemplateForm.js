@@ -24,7 +24,7 @@ export function TemplateForm({
   procedurePlans,
   targetTypes = [],
   targets = [],
-  targetGroups = [],
+  templates = [],
   template,
   fieldErrors,
   onChange,
@@ -41,11 +41,6 @@ export function TemplateForm({
     return targets.filter(t => t.target_type === template.target_type)
   }, [template.target_type, targets])
 
-  const availableGroups = useMemo(() => {
-    if (!template.target_type) return []
-    return targetGroups.filter(g => g.target_type === template.target_type)
-  }, [template.target_type, targetGroups])
-
   const filteredTargets = useMemo(() => {
     if (!targetSearch) return availableTargets
     return availableTargets.filter(t =>
@@ -56,7 +51,26 @@ export function TemplateForm({
 
   const selectedMappings = template.targets || []
   const selectedTargetIds = new Set(selectedMappings.map((t) => t.target_id).filter(Boolean))
-  const selectedGroupIds = new Set(selectedMappings.map((t) => t.target_group_id).filter(Boolean))
+
+  const targetCollisions = useMemo(() => {
+    const collisions = {}
+    const relevantTemplates = templates.filter(t => 
+      t.is_active && 
+      t.freq_type === template.freq_type && 
+      t.id !== template.id &&
+      t.scope_mode !== 'global'
+    )
+    for (const t of relevantTemplates) {
+      if (t.targets) {
+        for (const mapping of t.targets) {
+          if (mapping.target_id) {
+            collisions[mapping.target_id] = t
+          }
+        }
+      }
+    }
+    return collisions
+  }, [templates, template.freq_type, template.id])
 
   const toggleTarget = (targetId) => {
     const currentTargets = template.targets || []
@@ -67,21 +81,6 @@ export function TemplateForm({
     } else {
       onChange('targets', [...currentTargets, {
         target_id: targetId,
-        target_type: template.target_type,
-        override_config: null
-      }])
-    }
-  }
-
-  const toggleGroup = (groupId) => {
-    const currentTargets = template.targets || []
-    const exists = currentTargets.find(t => t.target_group_id === groupId)
-
-    if (exists) {
-      onChange('targets', currentTargets.filter(t => t.target_group_id !== groupId))
-    } else {
-      onChange('targets', [...currentTargets, {
-        target_group_id: groupId,
         target_type: template.target_type,
         override_config: null
       }])
@@ -102,10 +101,11 @@ export function TemplateForm({
     })))
   }
 
-  const updateTargetBehavior = (targetId, field, value) => {
+  const updateTargetBehavior = (mapping, field, value) => {
     const currentTargets = template.targets || []
-    const updated = currentTargets.map(t => {
-      if (t.target_id === targetId) {
+      const updated = currentTargets.map(t => {
+      const match = mapping.target_id && t.target_id === mapping.target_id
+      if (match) {
         const baseConfig = t.override_config || { ui_template_type: template.ui_template_type, template_config: { ...template.template_config } }
         return {
           ...t,
@@ -120,10 +120,11 @@ export function TemplateForm({
     onChange('targets', updated)
   }
 
-  const updateTargetConfig = (targetId, field, value) => {
+  const updateTargetConfig = (mapping, field, value) => {
     const currentTargets = template.targets || []
-    const updated = currentTargets.map(t => {
-      if (t.target_id === targetId) {
+      const updated = currentTargets.map(t => {
+      const match = mapping.target_id && t.target_id === mapping.target_id
+      if (match) {
         const baseConfig = t.override_config || { ui_template_type: template.ui_template_type, template_config: { ...template.template_config } }
         return {
           ...t,
@@ -352,7 +353,7 @@ export function TemplateForm({
             >
               <option value="global">global — ใช้กับทุกเครื่อง</option>
               <option value="per_target">per_target — ผูกรายอุปกรณ์</option>
-              <option value="per_group">per_group — ผูกเป็นกลุ่มอุปกรณ์</option>
+              <option value="per_type">per_type — ผูกรายประเภทอุปกรณ์</option>
             </select>
             <FieldHint text={fieldErrors.scope_mode?.[0]} />
           </label>
@@ -389,39 +390,33 @@ export function TemplateForm({
                 />
               </label>
 
-              {template.scope_mode === 'per_group' ? (
-                <div className="md:col-span-2 grid gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Target Groups</p>
-                  {availableGroups.length === 0 && (
-                    <p className="text-sm text-slate-500">ไม่พบกลุ่มอุปกรณ์ตาม Target type ที่เลือก</p>
-                  )}
-                  {availableGroups.map((group) => (
-                    <label key={group.id} className="template-form-toggle cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedGroupIds.has(group.id)}
-                        onChange={() => toggleGroup(group.id)}
-                      />
-                      <span className="text-sm text-slate-700">{group.name || group.group_name || group.code || group.id}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : (
+              {template.scope_mode === 'per_target' ? (
                 <div className="md:col-span-2 grid gap-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Targets</p>
                   {filteredTargets.length === 0 && (
                     <p className="text-sm text-slate-500">ไม่พบอุปกรณ์ตามเงื่อนไขที่เลือก</p>
                   )}
-                  {filteredTargets.map((target) => (
-                    <label key={target.id} className="template-form-toggle cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedTargetIds.has(target.id)}
-                        onChange={() => toggleTarget(target.id)}
-                      />
-                      <span className="text-sm text-slate-700">{target.target_code} — {target.name}</span>
-                    </label>
-                  ))}
+                  {filteredTargets.map((target) => {
+                    const collision = targetCollisions[target.id]
+                    return (
+                      <label key={target.id} className={cn("template-form-toggle cursor-pointer", collision && "opacity-60 cursor-not-allowed")}>
+                        <input
+                          type="checkbox"
+                          checked={selectedTargetIds.has(target.id)}
+                          onChange={() => !collision && toggleTarget(target.id)}
+                          disabled={Boolean(collision)}
+                        />
+                        <span className="text-sm text-slate-700">
+                          {target.target_code} — {target.name}
+                          {collision && <span className="text-rose-500 font-medium text-xs ml-2">(ใช้ใน: "{collision.item_label}")</span>}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="md:col-span-2">
+                  <p className="text-sm text-slate-600">โหมด per_type จะผูกกับอุปกรณ์ทุกตัวที่มี Target type ตรงกับค่าที่เลือก</p>
                 </div>
               )}
             </div>
@@ -431,100 +426,11 @@ export function TemplateForm({
         <FieldHint text={fieldErrors.targets?.[0]} />
       </section>
 
-      {template.scope_mode !== 'global' && selectedMappings.length > 0 && (
-        <section className="template-form-card">
-          <SectionTitle
-            eyebrow="Behavior"
-            title="Behavior override by target"
-            description="ตั้งค่าให้ทุก Target ใช้ behavior เดียวกัน หรือแยก behavior/config เป็นรายอุปกรณ์"
-          />
-
-          <label className="template-form-toggle cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isSeparateBehavior}
-              onChange={(event) => {
-                const checked = event.target.checked
-                setIsSeparateBehavior(checked)
-                if (!checked) {
-                  applyBulkBehavior()
-                }
-              }}
-            />
-            <span className="text-sm text-slate-700">
-              {isSeparateBehavior ? 'ตั้งค่าแยก Behavior ราย Target' : 'ปรับให้ทุก Target ใช้ Behavior เดียวกันหมด'}
-            </span>
-          </label>
-
-          {!isSeparateBehavior && (
-            <div className="mt-4">
-              <button
-                type="button"
-                onClick={applyBulkBehavior}
-                className="template-form-choice border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-              >
-                Apply current template behavior to all mapped targets
-              </button>
-            </div>
-          )}
-
-          {isSeparateBehavior && (
-            <div className="mt-4 grid gap-4">
-              {selectedMappings.map((mapping, index) => {
-                const target = targets.find((t) => t.id === mapping.target_id)
-                const group = targetGroups.find((g) => g.id === mapping.target_group_id)
-                const override = mapping.override_config || {}
-                const overrideConfig = override.template_config || {}
-                const rowKey = mapping.target_id || mapping.target_group_id || `row-${index}`
-                const rowLabel = target
-                  ? `${target.target_code} — ${target.name}`
-                  : group
-                    ? `${group.name || group.group_name || group.code || group.id} (Group)`
-                    : 'Mapped target'
-
-                return (
-                  <div key={rowKey} className="template-form-config-box">
-                    <p className="text-sm font-bold text-slate-800">{rowLabel}</p>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      <label className="block">
-                        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">UI Type Override</span>
-                        <select
-                          value={override.ui_template_type ?? template.ui_template_type}
-                          onChange={(event) => updateTargetBehavior(mapping.target_id, 'ui_template_type', Number(event.target.value))}
-                          className="template-form-select"
-                        >
-                          {TEMPLATE_TYPE_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="block">
-                        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Severity Override</span>
-                        <select
-                          value={overrideConfig.severity || 'medium'}
-                          onChange={(event) => updateTargetConfig(mapping.target_id, 'severity', event.target.value)}
-                          className="template-form-select"
-                        >
-                          <option value="low">low</option>
-                          <option value="medium">medium</option>
-                          <option value="high">high</option>
-                          <option value="critical">critical</option>
-                        </select>
-                      </label>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </section>
-      )}
-
       <section className="template-form-card">
         <SectionTitle
-          eyebrow="Type"
-          title="Template behavior"
-          description="เลือกชนิดของการเก็บข้อมูลและกำหนด config ตามประเภท T0-T5"
+          eyebrow="Behavior"
+          title="Behavior & Configurations"
+          description="กำหนดพฤติกรรมการตรวจเช็ค ค่าเริ่มต้น และการตั้งค่าแยกรายอุปกรณ์ (T0-T4)"
         />
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -582,11 +488,19 @@ export function TemplateForm({
             <div className="photo-evidence-stack">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-bold text-slate-700">รายการจุดตรวจเช็ค (Inspection Points)</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-700">รายการจุดตรวจเช็ค (Inspection Points)</span>
+                    <span className="text-[10px] bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full font-bold">P01 บังคับ</span>
+                  </div>
                   <button 
                     type="button" 
                     onClick={() => {
-                      const current = config.photo_points || []
+                      // Auto-ensure P01 exists before adding more
+                      const current = (() => {
+                        const pts = config.photo_points || []
+                        if (pts.length === 0) return [{ point_code: 'P01', label: 'ภาพยืนยัน' }]
+                        return pts
+                      })()
                       const nextIdx = current.length + 1
                       const newPoint = { 
                         label: '', 
@@ -601,53 +515,73 @@ export function TemplateForm({
                 </div>
                 
                 <div className="photo-points-list">
-                  {(config.photo_points || []).length === 0 && (
-                    <div className="text-center py-8 bg-white border border-dashed border-slate-200 rounded-2xl">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">ยังไม่มีการกำหนดจุดตรวจ</p>
-                      <p className="text-[10px] text-slate-300 mt-1">คลิกปุ่มด้านบนเพื่อเริ่มเพิ่มจุดถ่ายภาพหลักฐาน</p>
-                    </div>
-                  )}
-                  {(config.photo_points || []).map((p, idx) => {
-                    const point = typeof p === 'string' ? { label: p, point_code: `P${(idx + 1).toString().padStart(2, '0')}` } : p
-                    return (
-                      <div key={idx} className="photo-point-row">
-                        <div className="w-16 shrink-0">
-                          <input
-                            value={point.point_code}
-                            onChange={(e) => {
-                              const newPoints = [...config.photo_points]
-                              newPoints[idx] = { ...point, point_code: e.target.value.toUpperCase() }
+                  {/* Auto-inject P01 if list is empty (handles legacy empty templates) */}
+                  {(() => {
+                    const pts = config.photo_points || []
+                    const displayPoints = pts.length === 0
+                      ? [{ point_code: 'P01', label: 'ภาพยืนยัน' }]
+                      : pts
+                    return displayPoints.map((p, idx) => {
+                      const point = typeof p === 'string' ? { label: p, point_code: `P${(idx + 1).toString().padStart(2, '0')}` } : p
+                      const isAnchor = idx === 0  // P01 is the undeletable anchor point
+                      return (
+                        <div key={idx} className={`photo-point-row ${isAnchor ? 'ring-1 ring-blue-100 bg-blue-50/30' : ''}`}>
+                          <div className="w-16 shrink-0 relative">
+                            <input
+                              value={point.point_code}
+                              readOnly={isAnchor}
+                              onChange={(e) => {
+                                if (isAnchor) return
+                                const newPoints = [...(config.photo_points || [])]
+                                newPoints[idx] = { ...point, point_code: e.target.value.toUpperCase() }
+                                onConfigChange('photo_points', newPoints)
+                              }}
+                              placeholder="P01"
+                              className={`template-form-input !mt-0 !h-10 !text-center !font-black border-none ${isAnchor ? '!bg-blue-50 !text-blue-700 cursor-default select-none' : '!bg-slate-50'}`}
+                            />
+                            {isAnchor && (
+                              <span title="P01 คือจุดถ่ายภาพหลัก ลบไม่ได้" className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-blue-500 text-white text-[8px] rounded-full flex items-center justify-center font-black leading-none">🔒</span>
+                            )}
+                          </div>
+                          <div className="grow">
+                            <input
+                              value={point.label}
+                              onChange={(e) => {
+                                // If currently using auto-injected P01, materialize it into config first
+                                const currentPts = config.photo_points || []
+                                const newPoints = currentPts.length === 0
+                                  ? [{ point_code: 'P01', label: e.target.value }]
+                                  : [...currentPts]
+                                if (currentPts.length > 0) {
+                                  newPoints[idx] = { ...point, label: e.target.value }
+                                }
+                                onConfigChange('photo_points', newPoints)
+                              }}
+                              placeholder={isAnchor ? 'ชื่อจุดหลัก เช่น ภาพยืนยัน, ด้านหน้า' : 'ระบุชื่อจุดตรวจ เช่น ด้านข้าง, ด้านใน'}
+                              className="template-form-input !mt-0 !h-10 !font-bold"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isAnchor}
+                            title={isAnchor ? 'P01 ลบไม่ได้ — เป็นจุดถ่ายภาพบังคับ' : 'ลบจุดตรวจนี้'}
+                            onClick={() => {
+                              if (isAnchor) return
+                              const newPoints = (config.photo_points || []).filter((_, i) => i !== idx)
                               onConfigChange('photo_points', newPoints)
                             }}
-                            placeholder="P01"
-                            className="template-form-input !mt-0 !h-10 !text-center !font-black !bg-slate-50 border-none"
-                          />
+                            className={`w-10 h-10 shrink-0 flex items-center justify-center rounded-xl transition-colors ${
+                              isAnchor
+                                ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                : 'bg-rose-50 text-rose-500 hover:bg-rose-100'
+                            }`}
+                          >
+                            &times;
+                          </button>
                         </div>
-                        <div className="grow">
-                          <input
-                            value={point.label}
-                            onChange={(e) => {
-                              const newPoints = [...config.photo_points]
-                              newPoints[idx] = { ...point, label: e.target.value }
-                              onConfigChange('photo_points', newPoints)
-                            }}
-                            placeholder="ระบุชื่อจุดตรวจ เช่น หน้าตู้ CCTV"
-                            className="template-form-input !mt-0 !h-10 !font-bold"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newPoints = (config.photo_points || []).filter((_, i) => i !== idx)
-                            onConfigChange('photo_points', newPoints)
-                          }}
-                          className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 transition-colors"
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  })()}
                 </div>
                 <FieldHint text={fieldErrors.photo_points?.[0]} />
               </div>
@@ -792,32 +726,111 @@ export function TemplateForm({
             </div>
           )}
 
-          {template.ui_template_type === 5 && (
-            <div className="space-y-4">
-              <label className="block">
-                <span className="text-sm font-semibold text-slate-700">ผู้ลงนาม (1 role ต่อ 1 บรรทัด)</span>
-                <textarea
-                  value={(config.signers || []).join('\n')}
-                  onChange={(event) => onConfigChange('signers', event.target.value.split('\n'))}
-                  rows={4}
-                  placeholder={'it_staff\nadmin'}
-                  className="template-form-textarea"
-                />
-                <FieldHint text={fieldErrors.signers?.[0]} />
-              </label>
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="template-form-toggle">
-                  <input type="checkbox" checked={Boolean(config.require_order)} onChange={(event) => onConfigChange('require_order', event.target.checked)} />
-                  <span className="text-sm text-slate-700">บังคับลำดับการลงนาม</span>
-                </label>
-                <label className="template-form-toggle">
-                  <input type="checkbox" checked={Boolean(config.pin_required)} onChange={(event) => onConfigChange('pin_required', event.target.checked)} />
-                  <span className="text-sm text-slate-700">ต้องยืนยัน PIN</span>
-                </label>
-              </div>
-            </div>
-          )}
+
         </div>
+
+        {template.scope_mode !== 'global' && selectedMappings.length > 0 && (
+          <div className="border-t border-slate-100 mt-6 pt-6">
+            <div className="mb-4">
+              <h4 className="text-sm font-bold text-slate-800">Target Behavior Overrides</h4>
+              <p className="text-xs text-slate-500 mt-0.5">
+                ตั้งค่าความเบี่ยงเบนหรือปรับเปลี่ยนประเภทพฤติกรรมเฉพาะสำหรับอุปกรณ์บางชิ้น
+              </p>
+            </div>
+
+            <label className="template-form-toggle cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isSeparateBehavior}
+                onChange={(event) => {
+                  const checked = event.target.checked
+                  setIsSeparateBehavior(checked)
+                  if (!checked) {
+                    applyBulkBehavior()
+                  }
+                }}
+              />
+              <span className="text-sm text-slate-700">
+                {isSeparateBehavior ? 'ตั้งค่าแยก Behavior ราย Target' : 'ปรับให้ทุก Target ใช้ Behavior เดียวกันหมด'}
+              </span>
+            </label>
+
+            {!isSeparateBehavior && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={applyBulkBehavior}
+                  className="template-form-choice border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                >
+                  Apply current template behavior to all mapped targets
+                </button>
+              </div>
+            )}
+
+            {isSeparateBehavior && (
+              <div className="mt-4 grid gap-4">
+                {selectedMappings.map((mapping, index) => {
+                  const target = targets.find((t) => t.id === mapping.target_id)
+                  const override = mapping.override_config || {}
+                  const overrideConfig = override.template_config || {}
+                  const rowKey = mapping.target_id || `row-${index}`
+                  const rowLabel = target
+                    ? `${target.target_code} — ${target.name}`
+                    : 'Mapped target'
+
+                  const effectiveUiType = override.ui_template_type ?? template.ui_template_type
+
+                  return (
+                    <div key={rowKey} className="template-form-config-box">
+                      <p className="text-sm font-bold text-slate-800">{rowLabel}</p>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <label className="block">
+                          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">UI Type Override</span>
+                          <select
+                            value={override.ui_template_type ?? template.ui_template_type}
+                            onChange={(event) => updateTargetBehavior(mapping, 'ui_template_type', Number(event.target.value))}
+                            className="template-form-select"
+                          >
+                            {TEMPLATE_TYPE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block">
+                          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Severity Override</span>
+                          <select
+                            value={overrideConfig.severity || 'medium'}
+                            onChange={(event) => updateTargetConfig(mapping, 'severity', event.target.value)}
+                            className="template-form-select"
+                          >
+                            <option value="low">low</option>
+                            <option value="medium">medium</option>
+                            <option value="high">high</option>
+                            <option value="critical">critical</option>
+                          </select>
+                        </label>
+                        {effectiveUiType === 4 && (
+                          <div className="md:col-span-2 mt-2">
+                            <label className="block">
+                              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">URL Override</span>
+                              <input
+                                type="text"
+                                value={overrideConfig.url || ''}
+                                onChange={(event) => updateTargetConfig(mapping, 'url', event.target.value)}
+                                placeholder="https://device.local/health (เฉพาะอุปกรณ์นี้)"
+                                className="template-form-input !mt-2"
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </section>
     </div>
   )

@@ -1,6 +1,6 @@
 'use client'
 import { startTransition, useDeferredValue, useMemo, useState } from 'react'
-import { saveChecklistTarget, saveChecklistTargetGroup } from '@/app/actions/target'
+import { saveChecklistTarget } from '@/app/actions/target'
 import { cn } from '@/lib/cn'
 
 const EMPTY_TARGET = {
@@ -18,14 +18,6 @@ const EMPTY_TARGET = {
   vendor: '',
   _original_qr_value: '',
   is_active: true,
-}
-
-const EMPTY_GROUP = {
-  id: null,
-  group_code: '',
-  group_name: '',
-  target_type: 'cctv_terminal_box',
-  description: '',
 }
 
 function metadataToText(metadata) {
@@ -84,10 +76,9 @@ function composeMetadataFromDraft(draft) {
   return next
 }
 
-function getTargetTypeOptions(targets, groups) {
+function getTargetTypeOptions(targets) {
   const types = new Set(['cctv_terminal_box', 'ups', 'nvr', 'switch'])
   targets.forEach((target) => target.target_type && types.add(target.target_type))
-  groups.forEach((group) => group.target_type && types.add(group.target_type))
   return Array.from(types).sort()
 }
 
@@ -457,94 +448,11 @@ function TargetForm({
   )
 }
 
-function GroupForm({ draft, fieldErrors, saving, targetTypeOptions, onChange, onSave, onNew }) {
-  return (
-    <section style={S.card}>
-      {/* Header */}
-      <div style={S.cardHeader}>
-        <div>
-          <p style={S.eyebrow('#7c3aed')}>Target Group</p>
-          <h2 style={S.h2}>{draft.id ? 'Edit Group' : 'Create Group'}</h2>
-          <p style={S.subtitle}>จัดกลุ่ม asset เพื่อเตรียมผูก template แบบ per_group</p>
-        </div>
-        <button type="button" onClick={onNew} style={S.newBtn}>+ New Group</button>
-      </div>
-
-      {/* Fields */}
-      <div style={S.cardBody}>
-        <div style={S.formGrid}>
-
-          <div style={S.fieldGroup}>
-            <label style={S.label}>Group Code</label>
-            <input
-              value={draft.group_code}
-              onChange={(e) => onChange('group_code', e.target.value)}
-              style={S.input('#7c3aed')}
-            />
-            {fieldErrors.group_code && <span style={S.errMsg}>{fieldErrors.group_code}</span>}
-          </div>
-
-          <div style={S.fieldGroup}>
-            <label style={S.label}>Target Type</label>
-            <input
-              list="group-target-type-options"
-              value={draft.target_type}
-              onChange={(e) => onChange('target_type', e.target.value)}
-              style={S.input('#7c3aed')}
-            />
-            <datalist id="group-target-type-options">
-              {targetTypeOptions.map((type) => <option key={type} value={type} />)}
-            </datalist>
-            {fieldErrors.target_type && <span style={S.errMsg}>{fieldErrors.target_type}</span>}
-          </div>
-
-          <div style={{ ...S.fieldGroup, gridColumn: 'span 2' }}>
-            <label style={S.label}>Group Name</label>
-            <input
-              value={draft.group_name}
-              onChange={(e) => onChange('group_name', e.target.value)}
-              style={S.input('#7c3aed')}
-            />
-            {fieldErrors.group_name && <span style={S.errMsg}>{fieldErrors.group_name}</span>}
-          </div>
-
-          <div style={{ ...S.fieldGroup, gridColumn: 'span 2' }}>
-            <label style={S.label}>Description</label>
-            <textarea
-              value={draft.description}
-              onChange={(e) => onChange('description', e.target.value)}
-              rows={4}
-              style={{ ...S.textarea, fontFamily: 'inherit' }}
-            />
-          </div>
-
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div style={S.cardFooter}>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={onSave}
-          style={{ ...S.saveBtn('#7c3aed', '0 4px 12px rgba(124,58,237,0.25)'), opacity: saving ? 0.5 : 1 }}
-        >
-          {saving ? 'Saving...' : 'Save Group'}
-        </button>
-      </div>
-    </section>
-  )
-}
-
-export function TargetRegistryClient({ currentUser, initialTargets, initialGroups, mappings, embedded = false }) {
+export function TargetRegistryClient({ currentUser, initialTargets, mappings, embedded = false }) {
   const [targets, setTargets] = useState(initialTargets)
-  const [groups, setGroups] = useState(initialGroups)
-  const [activeTab, setActiveTab] = useState('targets')
   const [search, setSearch] = useState('')
   const [targetDraft, setTargetDraft] = useState(EMPTY_TARGET)
-  const [groupDraft, setGroupDraft] = useState(EMPTY_GROUP)
   const [targetErrors, setTargetErrors] = useState({})
-  const [groupErrors, setGroupErrors] = useState({})
   const [status, setStatus] = useState({ type: '', text: '' })
   const [saving, setSaving] = useState(false)
   const [qrBaseOverride, setQrBaseOverride] = useState('')
@@ -566,7 +474,7 @@ export function TargetRegistryClient({ currentUser, initialTargets, initialGroup
     return 'Development'
   }, [])
 
-  const targetTypeOptions = useMemo(() => getTargetTypeOptions(targets, groups), [targets, groups])
+  const targetTypeOptions = useMemo(() => getTargetTypeOptions(targets), [targets])
   const activeTargets = targets.filter((target) => target.is_active !== false).length
   const mappedTargets = new Set((mappings || []).map((mapping) => mapping.target_id).filter(Boolean)).size
 
@@ -574,12 +482,6 @@ export function TargetRegistryClient({ currentUser, initialTargets, initialGroup
     const needle = deferredSearch.trim().toLowerCase()
     if (!needle) return true
     return `${target.target_code} ${target.target_type} ${target.name} ${target.location}`.toLowerCase().includes(needle)
-  })
-
-  const filteredGroups = groups.filter((group) => {
-    const needle = deferredSearch.trim().toLowerCase()
-    if (!needle) return true
-    return `${group.group_code} ${group.group_name} ${group.target_type} ${group.description || ''}`.toLowerCase().includes(needle)
   })
 
   function updateTargetDraft(field, value) {
@@ -616,30 +518,6 @@ export function TargetRegistryClient({ currentUser, initialTargets, initialGroup
         if (index === -1) return [...current, result.target]
         const next = [...current]
         next[index] = result.target
-        return next
-      })
-    })
-  }
-
-  function saveGroup() {
-    setSaving(true)
-    setStatus({ type: '', text: '' })
-    startTransition(async () => {
-      const result = await saveChecklistTargetGroup(groupDraft)
-      setSaving(false)
-      if (!result.success) {
-        setGroupErrors(result.fieldErrors || {})
-        setStatus({ type: 'error', text: result.error || 'ไม่สามารถบันทึก Target Group ได้' })
-        return
-      }
-      setGroupErrors({})
-      setStatus({ type: 'success', text: result.message })
-      setGroupDraft(result.group)
-      setGroups((current) => {
-        const index = current.findIndex((group) => group.id === result.group.id)
-        if (index === -1) return [...current, result.group]
-        const next = [...current]
-        next[index] = result.group
         return next
       })
     })
@@ -708,42 +586,18 @@ export function TargetRegistryClient({ currentUser, initialTargets, initialGroup
 
           {/* Sidebar */}
           <aside style={{ ...S.card, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Tab switcher */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, background: '#f1f5f9', borderRadius: 12, padding: 4 }}>
-              <button
-                type="button"
-                onClick={() => setActiveTab('targets')}
-                style={{
-                  padding: '8px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
-                  background: activeTab === 'targets' ? '#fff' : 'transparent',
-                  color: activeTab === 'targets' ? '#1d4ed8' : '#64748b',
-                  boxShadow: activeTab === 'targets' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                }}
-              >Targets</button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('groups')}
-                style={{
-                  padding: '8px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
-                  background: activeTab === 'groups' ? '#fff' : 'transparent',
-                  color: activeTab === 'groups' ? '#7c3aed' : '#64748b',
-                  boxShadow: activeTab === 'groups' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                }}
-              >Groups</button>
-            </div>
-
             {/* Search */}
             <input
               className="tr-input"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder={activeTab === 'targets' ? 'ค้นหา Target...' : 'ค้นหา Group...'}
+              placeholder="ค้นหา Target..."
               style={{ ...S.input(), padding: '10px 14px', borderRadius: 10 }}
             />
 
             {/* List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 520, overflowY: 'auto', paddingRight: 2 }}>
-              {activeTab === 'targets' ? filteredTargets.map((target) => (
+              {filteredTargets.map((target) => (
                 <button
                   key={target.id}
                   type="button"
@@ -764,32 +618,11 @@ export function TargetRegistryClient({ currentUser, initialTargets, initialGroup
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 2 }}>{target.name}</div>
                   <div style={{ fontSize: 12, color: '#94a3b8' }}>{target.target_type} · {target.location || 'No location'}</div>
                 </button>
-              )) : filteredGroups.map((group) => (
-                <button
-                  key={group.id}
-                  type="button"
-                  onClick={() => setGroupDraft(group)}
-                  className={cn('tr-list-btn', groupDraft.id === group.id ? 'tr-list-btn-active-violet' : '')}
-                  style={{
-                    width: '100%', textAlign: 'left', padding: '12px 14px', borderRadius: 12, border: '1px solid #e2e8f0',
-                    background: groupDraft.id === group.id ? '#f5f3ff' : '#fff', cursor: 'pointer', transition: 'all 0.15s',
-                    borderColor: groupDraft.id === group.id ? '#ddd6fe' : '#e2e8f0',
-                  }}
-                >
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 3 }}>{group.group_code}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 2 }}>{group.group_name}</div>
-                  <div style={{ fontSize: 12, color: '#94a3b8' }}>{group.target_type}</div>
-                </button>
               ))}
 
-              {activeTab === 'targets' && filteredTargets.length === 0 && (
+              {filteredTargets.length === 0 && (
                 <div style={{ padding: '20px 16px', textAlign: 'center', fontSize: 13, color: '#94a3b8', border: '1px dashed #cbd5e1', borderRadius: 12, background: '#f8fafc' }}>
                   ไม่พบ Target ตามคำค้นหา
-                </div>
-              )}
-              {activeTab === 'groups' && filteredGroups.length === 0 && (
-                <div style={{ padding: '20px 16px', textAlign: 'center', fontSize: 13, color: '#94a3b8', border: '1px dashed #cbd5e1', borderRadius: 12, background: '#f8fafc' }}>
-                  ไม่พบ Group ตามคำค้นหา
                 </div>
               )}
             </div>
@@ -797,32 +630,20 @@ export function TargetRegistryClient({ currentUser, initialTargets, initialGroup
 
           {/* Form */}
           <main>
-            {activeTab === 'targets' ? (
-              <TargetForm
-                draft={targetDraft}
-                fieldErrors={targetErrors}
-                saving={saving}
-                targetTypeOptions={targetTypeOptions}
-                qrBaseDefault={qrBaseDefault}
-                qrEnvLabel={qrEnvLabel}
-                qrBaseOverride={qrBaseOverride}
-                onQrBaseOverrideChange={setQrBaseOverride}
-                onResetQrBaseOverride={() => setQrBaseOverride('')}
-                onChange={updateTargetDraft}
-                onSave={saveTarget}
-                onNew={() => setTargetDraft(EMPTY_TARGET)}
-              />
-            ) : (
-              <GroupForm
-                draft={groupDraft}
-                fieldErrors={groupErrors}
-                saving={saving}
-                targetTypeOptions={targetTypeOptions}
-                onChange={(field, value) => setGroupDraft((current) => ({ ...current, [field]: value }))}
-                onSave={saveGroup}
-                onNew={() => setGroupDraft(EMPTY_GROUP)}
-              />
-            )}
+            <TargetForm
+              draft={targetDraft}
+              fieldErrors={targetErrors}
+              saving={saving}
+              targetTypeOptions={targetTypeOptions}
+              qrBaseDefault={qrBaseDefault}
+              qrEnvLabel={qrEnvLabel}
+              qrBaseOverride={qrBaseOverride}
+              onQrBaseOverrideChange={setQrBaseOverride}
+              onResetQrBaseOverride={() => setQrBaseOverride('')}
+              onChange={updateTargetDraft}
+              onSave={saveTarget}
+              onNew={() => setTargetDraft(EMPTY_TARGET)}
+            />
           </main>
 
         </div>

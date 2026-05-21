@@ -19,7 +19,6 @@ export default async function TargetRegistryPage() {
     <TargetRegistryClient
       currentUser={data.currentUser}
       initialTargets={data.targets}
-      initialGroups={data.groups}
       mappings={data.mappings}
     />
   )
