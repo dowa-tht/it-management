@@ -197,13 +197,43 @@ Model Mapping (Default Policy):
     - **ห้ามเปลี่ยน RBAC Role** (`admin`, `it_staff`, `approver`, `employee`, `auditor`) หรือสิทธิ์ของแต่ละ Role โดยไม่มีคำสั่งชัดเจน
     - **ทุก Server Action ที่เกี่ยวกับ approval ต้องผ่าน `workflow.js`** ห้ามเขียน approval logic ใหม่แยกต่างหาก
 
+17. **[TAILWIND-JIT-ISSUE — SETTINGS PAGES]** ⚠️ **ปัญหาที่พบและได้รับการยืนยันแล้ว** ⚠️
+
+    **อาการ:** Tailwind class เช่น `px-8 py-7`, `gap-5`, `text-xs`, `font-semibold` ไม่มีผลบนหน้าจอจริงใน `/dashboard/settings/*` แม้จะเขียน className ถูกต้อง
+
+    **สาเหตุ:** Tailwind JIT (Just-In-Time) scan ไม่ครอบคลุมไฟล์ใน Settings module บางไฟล์ ทำให้ class ใหม่ที่เพิ่มเข้าไปไม่ถูก generate เป็น CSS
+
+    **กฎบังคับ:** เมื่อทำงานกับ `/dashboard/settings/*` ทุกหน้า **ต้องใช้ inline style แทน Tailwind class** สำหรับ spacing, padding, margin, gap, font-size, color ทุกตัว:
+
+    ```js
+    // ✅ ถูกต้อง — inline style การันตีมีผลเสมอ
+    <div style={{ padding: '24px 32px', borderRadius: 20, background: '#fff' }}>
+      <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Label</label>
+      <input style={{ width: '100%', padding: '10px 14px', border: '1px solid #e2e8f0' }} />
+    </div>
+
+    // ❌ ผิด — Tailwind class อาจไม่มีผลใน Settings pages
+    <div className="p-6 rounded-2xl bg-white">
+      <label className="text-xs font-semibold text-slate-500">Label</label>
+      <input className="px-4 py-3 border border-slate-200" />
+    </div>
+    ```
+
+    **Pattern มาตรฐาน:** ใช้ `const S = { card: {...}, cardHeader: {...}, cardBody: {...}, label: {...}, input: {...} }` เป็น shared style object และ `<style>{CSS}</style>` สำหรับ `:hover`, `:focus`, `@media`
+
+    **Reference ที่ถูกต้อง:**
+    - `app/dashboard/settings/users/page.js` — ใช้ inline style ทั้งหมด ทำงานถูกต้อง
+    - `app/dashboard/settings/target-registry/TargetRegistryClient.js` — ใช้ `const S` pattern
+
+    **เอกสารมาตรฐานฉบับเต็ม:** [INLINE_STYLE_STANDARD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INLINE_STYLE_STANDARD.md)
+
 ---
 
 # Project Agent Rules
 
 ## Stack
 - Next.js 15 App Router (ห้ามใช้ Pages Router เด็ดขาด)
-- Tailwind CSS v4
+- Tailwind CSS v4 ⚠️ **[หมายเหตุสำคัญ]** JIT อาจ scan ไม่ครอบคลุมบางไฟล์ใน `/dashboard/settings/*` — ดูกฎ **[TAILWIND-JIT-ISSUE]** และ [INLINE_STYLE_STANDARD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INLINE_STYLE_STANDARD.md)
 - Supabase (ใช้ SSR client เสมอ ห้ามใช้ browser client ใน Server Component)
 - TypeScript strict mode — ห้ามใช้ `any` โดยไม่มีเหตุผล ให้ใช้ generated types จาก `supabase_types.ts`
 

@@ -96,7 +96,7 @@ export default function DashboardLayout({ children }) {
       setSidebarOpen(false)
       if (pathname.includes('/settings/')) {
         // Expand the correct settings sub-group based on path
-        if (pathname.includes('/master-data') || pathname.includes('/incident-master-data') || pathname.includes('/checklist-master-data')) setExpandedSection('master_data')
+        if (pathname.includes('/master-data') || pathname.includes('/incident-master-data') || pathname.includes('/checklist-master-data') || pathname.includes('/target-registry')) setExpandedSection('master_data')
         else if (pathname.includes('/users')) setExpandedSection('users_access')
         else if (pathname.includes('/logs')) setExpandedSection('audit_logs')
         else if (pathname.includes('/workflow') || pathname.includes('/approvals') || pathname.includes('/substitutes')) setExpandedSection('workflow_approval')

@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ActionButton } from '@/app/dashboard/checklist/components/ActionButton'
 import { TemplatePreview } from '../checklist-template-builder/components/TemplatePreview'
+import { TargetRegistryClient } from '../target-registry/TargetRegistryClient'
 
 const MASTER_GROUPS = [
   {
@@ -19,6 +20,7 @@ const MASTER_GROUPS = [
     items: [
       { key: 'checklist_category', label: 'Checklist Category', icon: '📁' },
       { key: 'checklist_template', label: 'Checklist Master', icon: '📋' },
+      { key: 'target_registry', label: 'Target Registry', icon: '🎯' },
       { key: 'procedure_plan', label: 'Procedure Plans', icon: '📜' },
     ]
   },
@@ -154,6 +156,8 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
   const [editingGuide, setEditingGuide] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [freqFilter, setFreqFilter] = useState('All')
+  const [targetRegistryData, setTargetRegistryData] = useState({ targets: [], groups: [], mappings: [] })
+  const [targetRegistryLoading, setTargetRegistryLoading] = useState(false)
 
   const isAdmin = currentUser?.role === 'admin'
   const currentType = MASTER_GROUPS.flatMap(g => g.items).find(t => t.key === activeType)
@@ -202,6 +206,27 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
       setLoading(false)
     }
     load()
+  }, [activeType])
+
+  useEffect(() => {
+    if (activeType !== 'target_registry') return
+    const loadTargetRegistry = async () => {
+      setTargetRegistryLoading(true)
+      const [{ data: targets }, { data: groups }, { data: mappings }] = await Promise.all([
+        supabase.from('checklist_targets').select('*').order('target_code'),
+        supabase.from('checklist_target_groups').select('*').order('group_code'),
+        supabase.from('checklist_template_targets').select('id, template_id, target_id, target_group_id, target_type, override_config'),
+      ])
+
+      setTargetRegistryData({
+        targets: targets || [],
+        groups: groups || [],
+        mappings: mappings || [],
+      })
+      setTargetRegistryLoading(false)
+    }
+
+    loadTargetRegistry()
   }, [activeType])
 
   useEffect(() => {
@@ -326,12 +351,14 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
               <div className="sidebar-group-title" onClick={() => setExpandedGroup(expandedGroup === g.name ? null : g.name)} style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', padding: '10px 20px', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 {g.name} <span style={{ fontSize: 8 }}>{expandedGroup === g.name ? '▼' : '▶'}</span>
               </div>
-              {(expandedGroup === g.name || visibleGroups.length === 1) && g.items.map(t => (
-                <button key={t.key} className="sidebar-item" onClick={() => { setActiveType(t.key); setExpandedGroup(g.name); setEditingId(null) }} style={{ width: '100%', padding: '10px 20px', border: 'none', background: activeType === t.key ? '#eff6ff' : 'transparent', color: activeType === t.key ? '#2563eb' : '#475569', textAlign: 'left', cursor: 'pointer', fontWeight: activeType === t.key ? 700 : 500, fontSize: 13, borderLeft: activeType === t.key ? '4px solid #2563eb' : '4px solid transparent', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 16 }}>{t.icon}</span>
-                  <span style={{ lineHeight: 1.3 }}>{t.label}</span>
-                </button>
-              ))}
+              {(expandedGroup === g.name || visibleGroups.length === 1) && g.items.map(t => {
+                return (
+                  <button key={t.key} className="sidebar-item" onClick={() => { setActiveType(t.key); setExpandedGroup(g.name); setEditingId(null) }} style={{ width: '100%', padding: '10px 20px', border: 'none', background: activeType === t.key ? '#eff6ff' : 'transparent', color: activeType === t.key ? '#2563eb' : '#475569', textAlign: 'left', cursor: 'pointer', fontWeight: activeType === t.key ? 700 : 500, fontSize: 13, borderLeft: activeType === t.key ? '4px solid #2563eb' : '4px solid transparent', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 16 }}>{t.icon}</span>
+                    <span style={{ lineHeight: 1.3 }}>{t.label}</span>
+                  </button>
+                )
+              })}
             </div>
           ))}
         </div>
@@ -390,6 +417,20 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
 
           {msg.text && <div style={{ padding: '14px 20px', borderRadius: 14, fontSize: 13, background: msg.type === 'success' ? '#f0fdf4' : '#fef2f2', color: msg.type === 'success' ? '#166534' : '#991b1b', border: `1px solid ${msg.type === 'success' ? '#bcf0da' : '#fecaca'}` }}>{msg.text}</div>}
 
+          {activeType === 'target_registry' ? (
+            targetRegistryLoading ? (
+              <div style={{ padding: 24, borderRadius: 16, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b' }}>กำลังโหลด Target Registry...</div>
+            ) : (
+              <TargetRegistryClient
+                currentUser={currentUser}
+                initialTargets={targetRegistryData.targets}
+                initialGroups={targetRegistryData.groups}
+                mappings={targetRegistryData.mappings}
+                embedded
+              />
+            )
+          ) : (
+          <>
           {/* Search & Filter */}
           <div className="responsive-flex">
             <div style={{ position: 'relative', flex: 1 }}>
@@ -544,6 +585,8 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
               </tbody>
             </table>
           </div>
+          </>
+          )}
         </div>
       </div>
 

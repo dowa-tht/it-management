@@ -24,6 +24,7 @@ This is the central documentation hub. You MUST read this file first before star
 - [UI_UX_SETTING.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_SETTING.md) : มาตรฐานการออกแบบหน้าจอ Master Data
 - [UI_UX_SETTINGS_DESIGN_SYSTEM.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_SETTINGS_DESIGN_SYSTEM.md) : มาตรฐาน Design System ของเมนู Settings ทั้งหมด อ้างอิงหน้า Permissions และกำหนด responsive สำหรับ tablet/smartphone
 - [UI_LAYOUT_SPACING_REMEDIATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_LAYOUT_SPACING_REMEDIATION.md) : มาตรฐานการตรวจและแก้ปัญหา layout ชิดขอบ, card/object ติดกัน, spacing หาย และ Tailwind utility ไม่เสถียร
+- [INLINE_STYLE_STANDARD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INLINE_STYLE_STANDARD.md) : ⚠️ **[TAILWIND-JIT-ISSUE]** มาตรฐานบังคับ — ใช้ inline style แทน Tailwind class สำหรับ `/dashboard/settings/*` ทุกหน้า เนื่องจาก Tailwind JIT scan ไม่ครอบคลุม path นี้ (พร้อม design tokens, card anatomy และ migration guide)
 - [UI_UX_RESPONSIVE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/UI_UX_RESPONSIVE.md) : มาตรฐานหน้าจอ Multi-Device
 - [ENVIRONMENT_AND_SERVER_ACTIONS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/ENVIRONMENT_AND_SERVER_ACTIONS.md) : มาตรฐานการจัดการ Environment Variables และ Server Actions
 - [SLA_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SLA_MANAGEMENT.md) : มาตรฐานการคำนวณและบริหารจัดการ SLA (KPI)

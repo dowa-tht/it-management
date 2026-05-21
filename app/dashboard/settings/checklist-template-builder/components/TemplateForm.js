@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { cn } from '@/lib/cn'
 import { FREQUENCY_OPTIONS, TEMPLATE_TYPE_OPTIONS } from '@/lib/checklistTemplateValidation'
 
@@ -21,14 +22,16 @@ function SectionTitle({ eyebrow, title, description }) {
 export function TemplateForm({
   categories,
   procedurePlans,
+  targetTypes = [],
+  targets = [],
+  targetGroups = [],
   template,
   fieldErrors,
   onChange,
   onConfigChange,
 }) {
-    const config = template.template_config || {}
+  const config = template.template_config || {}
 
-  const [newTargetType, setNewTargetType] = useState('')
   const [targetSearch, setTargetSearch] = useState('')
   const [isSeparateBehavior, setIsSeparateBehavior] = useState(false)
 
@@ -50,6 +53,10 @@ export function TemplateForm({
       t.target_code.toLowerCase().includes(targetSearch.toLowerCase())
     )
   }, [availableTargets, targetSearch])
+
+  const selectedMappings = template.targets || []
+  const selectedTargetIds = new Set(selectedMappings.map((t) => t.target_id).filter(Boolean))
+  const selectedGroupIds = new Set(selectedMappings.map((t) => t.target_group_id).filter(Boolean))
 
   const toggleTarget = (targetId) => {
     const currentTargets = template.targets || []
@@ -327,6 +334,191 @@ export function TemplateForm({
           </label>
         </div>
       </section>
+
+      <section className="template-form-card">
+        <SectionTitle
+          eyebrow="Scope"
+          title="Target scope & mapping"
+          description="กำหนดขอบเขตการใช้งาน template และเลือกอุปกรณ์/กลุ่มอุปกรณ์ที่ผูกกับ template นี้"
+        />
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">Scope mode</span>
+            <select
+              value={template.scope_mode || 'global'}
+              onChange={(event) => onChange('scope_mode', event.target.value)}
+              className="template-form-select"
+            >
+              <option value="global">global — ใช้กับทุกเครื่อง</option>
+              <option value="per_target">per_target — ผูกรายอุปกรณ์</option>
+              <option value="per_group">per_group — ผูกเป็นกลุ่มอุปกรณ์</option>
+            </select>
+            <FieldHint text={fieldErrors.scope_mode?.[0]} />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">Target type (Master Data)</span>
+            <select
+              value={template.target_type || ''}
+              onChange={(event) => {
+                onChange('target_type', event.target.value)
+                onChange('targets', [])
+              }}
+              className="template-form-select"
+            >
+              <option value="">เลือกประเภทอุปกรณ์</option>
+              {targetTypes.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+            <FieldHint text={fieldErrors.target_type?.[0]} />
+          </label>
+        </div>
+
+        {template.scope_mode !== 'global' && (
+          <div className="template-form-config-box">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block md:col-span-2">
+                <span className="text-sm font-semibold text-slate-700">ค้นหาอุปกรณ์</span>
+                <input
+                  value={targetSearch}
+                  onChange={(event) => setTargetSearch(event.target.value)}
+                  placeholder="ค้นหาด้วยชื่อหรือรหัสอุปกรณ์"
+                  className="template-form-input"
+                />
+              </label>
+
+              {template.scope_mode === 'per_group' ? (
+                <div className="md:col-span-2 grid gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Target Groups</p>
+                  {availableGroups.length === 0 && (
+                    <p className="text-sm text-slate-500">ไม่พบกลุ่มอุปกรณ์ตาม Target type ที่เลือก</p>
+                  )}
+                  {availableGroups.map((group) => (
+                    <label key={group.id} className="template-form-toggle cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedGroupIds.has(group.id)}
+                        onChange={() => toggleGroup(group.id)}
+                      />
+                      <span className="text-sm text-slate-700">{group.name || group.group_name || group.code || group.id}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <div className="md:col-span-2 grid gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Targets</p>
+                  {filteredTargets.length === 0 && (
+                    <p className="text-sm text-slate-500">ไม่พบอุปกรณ์ตามเงื่อนไขที่เลือก</p>
+                  )}
+                  {filteredTargets.map((target) => (
+                    <label key={target.id} className="template-form-toggle cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedTargetIds.has(target.id)}
+                        onChange={() => toggleTarget(target.id)}
+                      />
+                      <span className="text-sm text-slate-700">{target.target_code} — {target.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <FieldHint text={fieldErrors.targets?.[0]} />
+      </section>
+
+      {template.scope_mode !== 'global' && selectedMappings.length > 0 && (
+        <section className="template-form-card">
+          <SectionTitle
+            eyebrow="Behavior"
+            title="Behavior override by target"
+            description="ตั้งค่าให้ทุก Target ใช้ behavior เดียวกัน หรือแยก behavior/config เป็นรายอุปกรณ์"
+          />
+
+          <label className="template-form-toggle cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isSeparateBehavior}
+              onChange={(event) => {
+                const checked = event.target.checked
+                setIsSeparateBehavior(checked)
+                if (!checked) {
+                  applyBulkBehavior()
+                }
+              }}
+            />
+            <span className="text-sm text-slate-700">
+              {isSeparateBehavior ? 'ตั้งค่าแยก Behavior ราย Target' : 'ปรับให้ทุก Target ใช้ Behavior เดียวกันหมด'}
+            </span>
+          </label>
+
+          {!isSeparateBehavior && (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={applyBulkBehavior}
+                className="template-form-choice border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+              >
+                Apply current template behavior to all mapped targets
+              </button>
+            </div>
+          )}
+
+          {isSeparateBehavior && (
+            <div className="mt-4 grid gap-4">
+              {selectedMappings.map((mapping, index) => {
+                const target = targets.find((t) => t.id === mapping.target_id)
+                const group = targetGroups.find((g) => g.id === mapping.target_group_id)
+                const override = mapping.override_config || {}
+                const overrideConfig = override.template_config || {}
+                const rowKey = mapping.target_id || mapping.target_group_id || `row-${index}`
+                const rowLabel = target
+                  ? `${target.target_code} — ${target.name}`
+                  : group
+                    ? `${group.name || group.group_name || group.code || group.id} (Group)`
+                    : 'Mapped target'
+
+                return (
+                  <div key={rowKey} className="template-form-config-box">
+                    <p className="text-sm font-bold text-slate-800">{rowLabel}</p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <label className="block">
+                        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">UI Type Override</span>
+                        <select
+                          value={override.ui_template_type ?? template.ui_template_type}
+                          onChange={(event) => updateTargetBehavior(mapping.target_id, 'ui_template_type', Number(event.target.value))}
+                          className="template-form-select"
+                        >
+                          {TEMPLATE_TYPE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Severity Override</span>
+                        <select
+                          value={overrideConfig.severity || 'medium'}
+                          onChange={(event) => updateTargetConfig(mapping.target_id, 'severity', event.target.value)}
+                          className="template-form-select"
+                        >
+                          <option value="low">low</option>
+                          <option value="medium">medium</option>
+                          <option value="high">high</option>
+                          <option value="critical">critical</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="template-form-card">
         <SectionTitle

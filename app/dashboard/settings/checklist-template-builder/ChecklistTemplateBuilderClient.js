@@ -28,6 +28,9 @@ export function ChecklistTemplateBuilderClient({
   templates,
   categories,
   procedurePlans,
+  targetTypes = [],
+  targets = [],
+  targetGroups = [],
   initialTemplateId,
   initialMode,
 }) {
@@ -549,6 +552,9 @@ export function ChecklistTemplateBuilderClient({
                 >
                   👁 Preview
                 </button>
+                <Link href="/dashboard/settings/target-registry" className="template-builder-action border border-violet-200 bg-violet-50 text-violet-700 transition hover:border-violet-300 hover:bg-violet-100">
+                  ไปหน้า Target Registry
+                </Link>
                 {isFocusedMode ? (
                   <Link href="/dashboard/settings/checklist-template-builder" className="template-builder-action border border-blue-200 bg-blue-50 text-blue-700 transition hover:border-blue-300 hover:bg-blue-100">
                     ดูรายการทั้งหมด
@@ -662,9 +668,9 @@ export function ChecklistTemplateBuilderClient({
             <TemplateForm
               categories={categories}
               procedurePlans={procedurePlans}
-              targetTypes={initialData.targetTypes || []}
-              targets={initialData.targets || []}
-              targetGroups={initialData.targetGroups || []}
+              targetTypes={targetTypes}
+              targets={targets}
+              targetGroups={targetGroups}
               template={draft}
               fieldErrors={fieldErrors}
               onChange={updateField}
