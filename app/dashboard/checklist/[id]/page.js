@@ -612,7 +612,11 @@ function requestCurrentLocation() {
 }
 
 function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
-  const points = config.photo_points || ["ภาพยืนยัน"]
+  // When photo_points is empty, the Target itself is the inspection point.
+  // Fall back to a single generic slot so the UI always has somewhere to upload.
+  const configuredPoints = Array.isArray(config.photo_points) ? config.photo_points : []
+  const points = configuredPoints.length > 0 ? configuredPoints : ["ภาพยืนยัน"]
+  const isPointlessMode = configuredPoints.length === 0  // Target = inspection point mode
   const [uploading, setUploading] = useState({})
   const [previewUrl, setPreviewUrl] = useState(null)
   const [attachLocation, setAttachLocation] = useState(false)
@@ -621,9 +625,10 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
 
   // Logic for completion
   const capturedCount = Object.keys(data.photos_by_point || {}).length || Object.keys(data.photos || {}).length
-  const totalPoints = points.length
-  const minRequired = config.min_photos || 0
-  const isComplete = capturedCount >= Math.max(totalPoints, minRequired)
+  // In pointless mode, completion is driven purely by min_photos (not point count)
+  const totalPoints = isPointlessMode ? 0 : points.length
+  const minRequired = config.min_photos || 1
+  const isComplete = capturedCount >= (isPointlessMode ? minRequired : Math.max(totalPoints, minRequired))
   const gpsCount = Object.keys(data.photos_by_point || {}).length
     ? Object.values(data.photo_meta_by_point || {}).filter(m => m?.status === 'captured').length
     : Object.values(data.photo_meta || {}).filter(m => m?.status === 'captured').length

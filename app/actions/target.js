@@ -5,7 +5,6 @@ import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import { getCurrentUserSession } from './user'
 
 const TARGET_SELECT = 'id, target_code, target_type, name, location, qr_value, metadata, is_active, created_at, updated_at'
-const GROUP_SELECT = 'id, group_code, group_name, target_type, description'
 
 function buildAssetHistoryPhotoList(items) {
   const photos = []
@@ -386,27 +385,6 @@ function validateTargetPayload(payload) {
   }
 }
 
-function validateGroupPayload(payload) {
-  const group = {
-    id: payload?.id || null,
-    group_code: normalizeText(payload?.group_code),
-    group_name: normalizeText(payload?.group_name),
-    target_type: normalizeText(payload?.target_type),
-    description: normalizeText(payload?.description),
-  }
-
-  const fieldErrors = {}
-  if (!group.group_code) fieldErrors.group_code = 'กรุณาระบุรหัสกลุ่ม'
-  if (!group.group_name) fieldErrors.group_name = 'กรุณาระบุชื่อกลุ่ม'
-  if (!group.target_type) fieldErrors.target_type = 'กรุณาระบุชนิด Target'
-
-  return {
-    success: Object.keys(fieldErrors).length === 0,
-    data: group,
-    fieldErrors,
-  }
-}
-
 function formatTarget(record) {
   return {
     id: record.id,
@@ -422,41 +400,32 @@ function formatTarget(record) {
   }
 }
 
-function formatGroup(record) {
-  return {
-    id: record.id,
-    group_code: record.group_code || '',
-    group_name: record.group_name || '',
-    target_type: record.target_type || '',
-    description: record.description || '',
-  }
-}
-
 export async function getTargetRegistryPageData() {
   noStore()
 
   const { profile, adminClient } = await requireAdminProfile()
 
-  const [targetsResult, groupsResult, templatesResult] = await Promise.all([
+  const [targetsResult, templatesResult, targetTypesResult] = await Promise.all([
     adminClient
       .from('checklist_targets')
       .select(TARGET_SELECT)
       .order('target_type')
       .order('target_code'),
     adminClient
-      .from('checklist_target_groups')
-      .select(GROUP_SELECT)
-      .order('target_type')
-      .order('group_code'),
-    adminClient
       .from('checklist_template_targets')
-      .select('id, template_id, target_id, target_group_id, target_type, is_active')
+      .select('id, template_id, target_id, target_type, is_active')
       .eq('is_active', true),
+    adminClient
+      .from('master_data')
+      .select('id, value')
+      .eq('type', 'target_type')
+      .eq('is_active', true)
+      .order('sort_order'),
   ])
 
   if (targetsResult.error) throw new Error(targetsResult.error.message)
-  if (groupsResult.error) throw new Error(groupsResult.error.message)
   if (templatesResult.error) throw new Error(templatesResult.error.message)
+  if (targetTypesResult.error) throw new Error(targetTypesResult.error.message)
 
   return {
     currentUser: {
@@ -465,8 +434,8 @@ export async function getTargetRegistryPageData() {
       role: profile.role,
     },
     targets: (targetsResult.data || []).map(formatTarget),
-    groups: (groupsResult.data || []).map(formatGroup),
     mappings: templatesResult.data || [],
+    targetTypes: (targetTypesResult.data || []).map(t => t.value),
   }
 }
 
@@ -536,42 +505,161 @@ export async function saveChecklistTarget(payload) {
   }
 }
 
-export async function saveChecklistTargetGroup(payload) {
+export async function deleteChecklistTarget(targetId) {
   try {
     const { adminClient } = await requireAdminProfile()
-    const validation = validateGroupPayload(payload)
 
-    if (!validation.success) {
+    // 1. Check if the target is referenced in checklist_docs
+    const { count, error: countErr } = await adminClient
+      .from('checklist_docs')
+      .select('id', { count: 'exact', head: true })
+      .eq('target_id', targetId)
+
+    if (countErr) {
+      return { success: false, error: countErr.message }
+    }
+
+    if (count && count > 0) {
       return {
         success: false,
-        error: 'Validation failed',
-        fieldErrors: validation.fieldErrors,
+        error: 'ไม่สามารถลบอุปกรณ์นี้ได้ เนื่องจากมีประวัติการตรวจบันทึกไว้ในระบบแล้ว กรุณาตั้งค่าเป็นไม่ใช้งาน (Deactivate) แทนเพื่อความปลอดภัยของข้อมูล',
       }
     }
 
-    const group = validation.data
-    const existingId = group.id || null
-    const dataToSave = {
-      group_code: group.group_code,
-      group_name: group.group_name,
-      target_type: group.target_type,
-      description: group.description || null,
+    // 2. Delete mappings first
+    const { error: deleteMappingsErr } = await adminClient
+      .from('checklist_template_targets')
+      .delete()
+      .eq('target_id', targetId)
+
+    if (deleteMappingsErr) {
+      return { success: false, error: deleteMappingsErr.message }
     }
 
-    const query = existingId
-      ? adminClient.from('checklist_target_groups').update(dataToSave).eq('id', existingId).select(GROUP_SELECT).single()
-      : adminClient.from('checklist_target_groups').insert([dataToSave]).select(GROUP_SELECT).single()
+    // 3. Delete the target itself
+    const { error: deleteTargetErr } = await adminClient
+      .from('checklist_targets')
+      .delete()
+      .eq('id', targetId)
 
-    const { data, error } = await query
-    if (error) return { success: false, error: error.message }
+    if (deleteTargetErr) {
+      return { success: false, error: deleteTargetErr.message }
+    }
 
     revalidatePath('/dashboard/settings/target-registry')
+    return { success: true, message: 'ลบอุปกรณ์เรียบร้อยแล้ว' }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
 
-    return {
-      success: true,
-      group: formatGroup(data),
-      message: existingId ? 'บันทึก Target Group สำเร็จ' : 'สร้าง Target Group สำเร็จ',
+export async function addTargetType(value) {
+  try {
+    const { adminClient } = await requireAdminProfile()
+    const cleanValue = String(value || '').trim()
+
+    if (!cleanValue) {
+      return { success: false, error: 'กรุณาระบุประเภทอุปกรณ์' }
     }
+
+    // Check duplicate
+    const { data: existing, error: existErr } = await adminClient
+      .from('master_data')
+      .select('id')
+      .eq('type', 'target_type')
+      .ilike('value', cleanValue)
+      .maybeSingle()
+
+    if (existErr) {
+      return { success: false, error: existErr.message }
+    }
+
+    if (existing) {
+      return { success: false, error: 'ประเภทอุปกรณ์นี้มีอยู่แล้วในระบบ' }
+    }
+
+    // Get max sort order
+    const { data: maxObj } = await adminClient
+      .from('master_data')
+      .select('sort_order')
+      .eq('type', 'target_type')
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const sortOrder = (maxObj?.sort_order || 0) + 1
+
+    const { error: insertErr } = await adminClient
+      .from('master_data')
+      .insert([
+        {
+          type: 'target_type',
+          value: cleanValue,
+          sort_order: sortOrder,
+          is_active: true,
+        },
+      ])
+
+    if (insertErr) {
+      return { success: false, error: insertErr.message }
+    }
+
+    revalidatePath('/dashboard/settings/target-registry')
+    return { success: true, message: 'เพิ่มประเภทอุปกรณ์สำเร็จ' }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+}
+
+export async function deleteTargetType(value) {
+  try {
+    const { adminClient } = await requireAdminProfile()
+    const cleanValue = String(value || '').trim()
+
+    if (!cleanValue) {
+      return { success: false, error: 'กรุณาระบุประเภทอุปกรณ์' }
+    }
+
+    // 1. Check if used by targets
+    const { count: targetCount, error: targetCountErr } = await adminClient
+      .from('checklist_targets')
+      .select('id', { count: 'exact', head: true })
+      .eq('target_type', cleanValue)
+
+    if (targetCountErr) {
+      return { success: false, error: targetCountErr.message }
+    }
+
+    // 2. Check if used by templates (scope_mode = 'per_type')
+    const { count: templateCount, error: templateCountErr } = await adminClient
+      .from('checklist_templates')
+      .select('id', { count: 'exact', head: true })
+      .eq('target_type', cleanValue)
+
+    if (templateCountErr) {
+      return { success: false, error: templateCountErr.message }
+    }
+
+    if ((targetCount && targetCount > 0) || (templateCount && templateCount > 0)) {
+      return {
+        success: false,
+        error: 'ไม่สามารถลบได้ เนื่องจากประเภทอุปกรณ์นี้กำลังถูกใช้งานโดยอุปกรณ์หรือเทมเพลตในระบบ',
+      }
+    }
+
+    // 3. Delete from master_data
+    const { error: deleteErr } = await adminClient
+      .from('master_data')
+      .delete()
+      .eq('type', 'target_type')
+      .eq('value', cleanValue)
+
+    if (deleteErr) {
+      return { success: false, error: deleteErr.message }
+    }
+
+    revalidatePath('/dashboard/settings/target-registry')
+    return { success: true, message: 'ลบประเภทอุปกรณ์สำเร็จ' }
   } catch (error) {
     return { success: false, error: error.message }
   }

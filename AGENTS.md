@@ -139,7 +139,7 @@ Model Mapping (Default Policy):
 
 4. **[CRITICAL LOGIC CONFIRMATION]** หากพบจุดที่มีความกำกวมหรือไม่มั่นใจในเงื่อนไขสำคัญของระบบ (Critical Logic/Workflow) หรือคำสั่งจาก USER มีรายละเอียดไม่เพียงพอ (Vague Requirements) **ต้องหยุดถาม USER ทันที** พร้อมระบุป้าย `> [!IMPORTANT]` และใช้ความสามารถจาก `brainstorming` เพื่อช่วย USER ขยายความต้องการให้ชัดเจนก่อนลงมือแก้ไข
 
-5. **[SUPERPOWERS-FIRST MANDATE]** AI Agents ทุกตัวต้องใช้แนวปฏิบัติจาก [SUPERPOWERS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SUPERPOWERS.md) เป็นพื้นฐานหลักในทุก Prompt ของ USER แม้ USER จะไม่ได้สั่งโดยตรง:
+5. **[SUPERPOWERS-FIRST MANDATE]** AI Agents ทุกตัวต้องใช้แนวปฏิบัติจาก [SUPERPOWERS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SUPERPOWERS.md) เป็นแนวทางหลักในการทำงาน โดย Superpowers มี priority รองจากคำสั่งโดยตรงของ USER เสมอ:
    - ทุกคำสั่ง "ตรวจสอบ" หรือ "แก้ไข" ต้องเข้าสู่ workflow: `brainstorming` → `writing-plans` → `executing-plans` → `verification-before-completion`
    - ห้ามลงมือแก้ไขทันทีหากยังไม่มี "แผนการทำงาน" (Implementation Plan) ที่ USER อนุมัติแล้ว
    - หากไม่มั่นใจว่าคำสั่งนั้นเข้าข่าย Skill ใด ให้ใช้ `brainstorming` เพื่อจัดกลุ่มงานก่อนเสมอ
@@ -287,11 +287,7 @@ ai-tasks/
   - **Standard:** รัน tests เฉพาะ module/feature ที่ได้รับผลกระทบ และเพิ่ม lint
   - **Critical:** ต้องรันคำสั่ง `npm test` เต็มชุดและต้องผ่าน 100% หากมีข้อผิดพลาดต้องแก้ไขให้ผ่านก่อนส่งงาน
 - ใช้ Context7 ทุกครั้งที่ต้องการ docs ของ library ภายนอก
-- **[SUPERPOWERS-FIRST MANDATE]** AI Agents ทุกตัวต้องใช้แนวปฏิบัติจาก [SUPERPOWERS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SUPERPOWERS.md) เป็นพื้นฐานหลักก่อนเริ่มงานทุกครั้ง:
-  - งาน implementation หรือ refactor ต้องผ่านลำดับ `brainstorming` → `writing-plans` → `executing-plans` → `verification-before-completion`
-  - งาน debugging ต้องใช้ `systematic-debugging`
-  - งานที่มีผลกับ test scope ต้องใช้ `test-driven-development`
-  - หากไม่พบ skill ที่เกี่ยวข้อง ให้ escalate พร้อมเหตุผล
+- **[SUPERPOWERS-FIRST MANDATE]** ดูกฎฉบับเต็มในหัวข้อ Agent Mandatory Workflow ข้อที่ 5 — กฎเดียวกันมีผลบังคับใช้ที่นี่ด้วย
 - **[CLOUD SYNC FLOW]** เมื่อมีการผสานโค้ดจาก Cloud AI (เช่น Google Jules) กลับมาที่กิ่งหลัก `main` บน GitHub:
   - Agent ต้องแจ้ง USER และเสนอช่วยดึงโค้ดล่าสุดกลับลงมาอัปเดตเครื่อง Localhost ด้วยคำสั่ง `git pull origin main` ทันทีเพื่อรักษาสภาพแวดล้อมให้ตรงกัน 100%
   - ห้ามเขียนทับโค้ดบนเครื่อง Localhost ด้วยมือโดยไม่มีการทำ Git Pull หรือ Git Merge อย่างถูกต้องเด็ดขาด
@@ -299,6 +295,17 @@ ai-tasks/
   - Agent ต้องหยุดและรายงานจุดที่โค้ดชนกันแก่ USER ทันที (ห้ามเดาสุ่มเลือกเวอร์ชันใดเวอร์ชันหนึ่งหรือกดลบโค้ดของอีกฝั่งทิ้ง)
   - Agent ต้องเสนอทำหน้าที่ "ผู้ประสานรวมร่างโค้ด (Conflict Resolver)" โดยการเปิดไฟล์ที่ขัดแย้ง อ่านตรรกะทั้งสองฝั่ง (Local Dev & Cloud AI) และเขียนผสาน Logic เข้าด้วยกันอย่างลงตัวโดยไม่สูญเสียความสามารถเดิมและประสิทธิภาพใหม่
   - ต้องทำการรันคำสั่งทดสอบระบบ `npm test` เพื่อตรวจสอบการทำงานร่วมกันทุกครั้งหลังจากแก้ไขความขัดแย้งเสร็จสิ้น และห้ามรายงานว่า "สำเร็จ" จนกว่าผลการเทสจะเป็น Pass 100%
+- **[GIT PUSH TARGET POLICY — MANDATORY]** เมื่อ USER สั่งว่า "push" โดยไม่ได้ระบุปลายทางเพิ่มเติม ให้ถือเป็นการ push ไปที่ test repository **เท่านั้น**:
+  - `https://github.com/trush000/dowa-it-system.git`
+  - ห้าม push ไป production repository โดยอัตโนมัติ
+  - หาก remote ปัจจุบันไม่ตรงตาม policy ให้ตั้ง/ใช้ remote ที่ชี้ไป test repository ก่อนทุกครั้ง
+- **[MIGRATION TARGET POLICY — CODE + DB STRUCTURE]** เมื่อ USER สั่งว่า "migrate project" ให้ตีความเป็นการย้ายเฉพาะ:
+  1) Source code
+  2) Database structure / migrations
+  - **ไม่รวมข้อมูลจริง (data rows)**
+  - ปลายทาง migration repository คือ:
+    - `https://github.com/dowa-tht/it-management.git`
+  - สำหรับส่วนฐานข้อมูล ให้ย้ายเฉพาะไฟล์ schema/migration (เช่นใน `supabase/migrations/`) และห้ามย้ายไฟล์ seed data ที่เป็นข้อมูลจริงโดยไม่ได้รับอนุมัติ
 
 
 ---
@@ -326,6 +333,129 @@ ai-tasks/
 - ต้องอ่านไฟล์นอก Scope
 - ต้องแก้ schema/env/security boundary
 - เมื่อเข้าเงื่อนไข ให้หยุดและใช้ format `ESCALATE` ทันที
+
+## [ROLE CONFIRMATION — MANDATORY]
+
+เมื่อเริ่ม session ใหม่ทุกครั้ง AI ต้องรายงานตัวและรอ USER ยืนยัน Role ก่อนเสมอ:
+
+```text
+รายงานตัว (Role Confirmation)
+Model    : [ชื่อ model จริง เช่น Gemini 2.5 Pro / Claude Sonnet / GPT-4o]
+Role     : [Smart AI / Fast AI]
+เหตุผล  : [ทำไมถึงประเมินตัวเองเป็น Role นี้ เช่น "รับ Task File มาเพื่อ execute"]
+
+รอ USER พิมพ์ "ยืนยัน Role" ก่อนเริ่มทำงาน
+```
+
+กฎบังคับ:
+- ห้าม execute งานใดๆ ก่อนได้รับการยืนยัน Role จาก USER
+- หาก USER แจ้งว่า Role ผิด → หยุดทันที ไม่ทำงานต่อ แจ้งให้ USER เปลี่ยน model หรือแก้ Role
+- Superpowers เป็นแนวปฏิบัติสนับสนุนการทำงาน ไม่ใช่กฎที่ override คำสั่งโดยตรงของ USER
+
+## [SESSION SWITCH POLICY — MANDATORY]
+
+เมื่อต้องสลับ model ไม่ว่าจะด้วยเหตุใด (limit เต็ม, เปลี่ยน Role, เปลี่ยนเครื่องมือ) ให้ปฏิบัติตามลำดับนี้เสมอ:
+
+1. พิมพ์ `"สรุป handoff ด่วน"` ใน session ปัจจุบัน **ก่อน** ปิด session
+2. รับ Emergency Handoff Report จาก model ปัจจุบัน (ดู format ด้านล่าง)
+3. **เปิด session ใหม่** กับ model ใหม่เสมอ ห้ามต่องานในแชทเดิมของ model อื่น
+4. ส่งให้ model ใหม่เฉพาะ: `AGENTS.md` + `Task File` + `Handoff Report`
+   — ห้ามส่ง conversation history ของ session เก่า เพราะ context ปนกันทำให้ model สับสน
+5. รอ Role Confirmation จาก model ใหม่ก่อน execute
+
+**ห้าม** พิมพ์ `"ดำเนินการต่อ"` หรือ `"ต่อได้"` โดยไม่มี Handoff Report แนบมาด้วย
+
+## [EMERGENCY HANDOFF — MANDATORY]
+
+เมื่อ AI ใกล้ limit หรือถูกตัดกลางงาน ให้ตอบใน format นี้ทันที:
+
+```text
+EMERGENCY HANDOFF
+─────────────────────────────
+Task     : [ชื่อ Task File]
+Step     : [ทำถึง Step ที่เท่าไหร่ จาก Step ทั้งหมดกี่ Step]
+
+ทำเสร็จแล้ว:
+  - [ไฟล์ + สิ่งที่เปลี่ยนไปจริงๆ]
+
+ค้างอยู่:
+  - [ไฟล์ + บรรทัดที่หยุด + สิ่งที่ยังไม่ได้ทำ]
+
+จุดเสี่ยงที่ model ใหม่ต้องระวัง:
+  - [side effect, dependency, หรือ constraint พิเศษที่พบ]
+
+Step ถัดไปสำหรับ model ใหม่:
+  - [คำสั่งที่ชัดเจน 1-3 ข้อ ไม่ใช่แค่ "ทำต่อ"]
+─────────────────────────────
+```
+
+กฎบังคับ:
+- AI ต้องสามารถสร้าง Emergency Handoff ได้ทุกเมื่อที่ USER ขอ ไม่ว่าจะอยู่กลางงานหรือใกล้ limit
+- ห้ามตอบว่า "ไม่สามารถสรุปได้" — ให้สรุปเท่าที่ทราบและระบุส่วนที่ไม่แน่ใจชัดเจน
+
+## [TASK FILE SCOPE LOCK — MANDATORY]
+
+Smart AI ต้องระบุ section `## Scope Lock` ในทุก Task File ที่สร้าง โดย Smart AI เป็นผู้กำหนดขอบเขตจากความเข้าใจ architecture ของระบบ:
+
+```markdown
+## Scope Lock
+อ่านและแก้ได้เฉพาะ:
+  - [path ไฟล์ที่ต้องใช้จริงๆ]
+
+ห้ามแตะ:
+  - [path ไฟล์ที่อยู่ใกล้แต่ไม่ใช่ scope ของงานนี้]
+
+ถ้าต้องการไฟล์นอก list นี้ → ESCALATE ทันที ห้ามเดาสุ่มเปิดไฟล์อื่น
+```
+
+กฎบังคับ:
+- Fast AI ห้าม execute Task File ที่ไม่มี `## Scope Lock` section
+- Fast AI ห้าม scan ไฟล์นอก Scope Lock โดยไม่มี ESCALATE ก่อน
+- USER ไม่ต้องกำหนด Scope Lock เอง — เป็นหน้าที่ของ Smart AI ที่วางแผนงาน
+
+## [FUNCTION REGISTRY — MANDATORY]
+
+ก่อน Fast AI จะ scan ไฟล์ใดก็ตาม ต้องอ่าน `ai-tasks/FUNCTION_REGISTRY.md` ก่อนเสมอ
+
+กฎบังคับ:
+- ถ้าฟังก์ชันที่ต้องการ **อยู่ใน Registry** → ไปที่ไฟล์นั้นเลย ห้าม scan เพิ่ม
+- ถ้า **ไม่พบใน Registry** → ESCALATE พร้อมระบุว่าหาฟังก์ชันอะไร
+- ห้ามเดาสุ่มเปิดไฟล์อื่นโดยไม่มี Registry รองรับ
+
+## [FUNCTION REGISTRY MAINTENANCE — MANDATORY]
+
+Smart AI ต้องอัปเดต `ai-tasks/FUNCTION_REGISTRY.md` ทุกครั้งที่:
+- สร้าง function หรือ server action ใหม่
+- ย้าย function ไปไฟล์อื่น
+- ลบ function ออก
+
+โดยอัปเดตพร้อมกับ Task File ใน Step เดียวกัน ห้ามแยก commit
+
+Format มาตรฐานของ `ai-tasks/FUNCTION_REGISTRY.md`:
+
+```markdown
+
+## [FUNCTION REGISTRY — SCAN SCOPE]
+เมื่อ Smart AI สร้างหรืออัปเดต Registry ต้องสแกนครบทุก pattern นี้:
+  - app/actions/*.js          ← Server Actions ทั้งหมด
+  - app/dashboard/**/page.js  ← Page components
+  - app/dashboard/**/*Client.js  ← Client components แยกไฟล์
+  - components/**/*.js        ← Shared components
+ห้ามสแกนแค่ page.js อย่างเดียว
+
+
+# Function Registry
+<!-- อัปเดตโดย Smart AI ทุกครั้งที่มีการเปลี่ยนแปลง function -->
+
+## [module] เช่น checklist / auth / asset / incident
+| ฟังก์ชัน (ภาษาไทย) | ไฟล์ | function name จริง | หมายเหตุ |
+|---|---|---|---|
+| สร้าง checklist doc | app/dashboard/checklist/page.js | handleFinalCreate() | L700+ |
+| ตรวจสอบเอกสารซ้ำ | app/dashboard/checklist/page.js | getPeriodRange() | |
+| ตรวจสิทธิ์ admin/it_staff | app/actions/auth.js | requireAdminProfile() | throw ถ้าไม่มีสิทธิ์ |
+```
+
+หมายเหตุ: ถ้ายังไม่แน่ใจว่า function อยู่ที่ไหน ให้ระบุ `"ยังไม่ verified"` ห้ามเดา
 
 ## กฎข้อที่ 1: รายงานตัวก่อนเริ่ม workflow
 
@@ -469,11 +599,13 @@ Task   : [อธิบายสั้นๆ ว่าทำอะไร]
 | Human พิมพ์ | AI ต้องทำ |
 |------------|----------|
 | `ยืนยัน` / `confirm` / `ok` | เริ่มทำงานได้ |
+| `ยืนยัน Role` | ยืนยันว่า Role ที่ AI รายงานถูกต้อง เริ่มได้ |
 | `ต่อ` | เริ่ม Step ถัดไปได้ |
 | `หยุด` / `stop` | หยุดทันที รอคำสั่งใหม่ |
 | `ยกเลิก` / `cancel` | ยกเลิก Task ปัจจุบัน อัปเดต status เป็น Cancelled |
 | `รายงาน` | สรุปสถานะทุก Task ในรูปแบบ Session Summary |
 | `retry` | ลองทำ Task ปัจจุบันใหม่อีกครั้ง และนับ retry count |
+| `สรุป handoff ด่วน` | หยุดงาน สร้าง Emergency Handoff Report ทันที ก่อนปิด session |
 
 ## โครงสร้างไฟล์มาตรฐานสำหรับ Workflow นี้
 
