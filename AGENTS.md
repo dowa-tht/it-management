@@ -415,12 +415,20 @@ Smart AI ต้องระบุ section `## Scope Lock` ในทุก Task F
 
 ## [FUNCTION REGISTRY — MANDATORY]
 
-ก่อน Fast AI จะ scan ไฟล์ใดก็ตาม ต้องอ่าน `ai-tasks/FUNCTION_REGISTRY.md` ก่อนเสมอ
+**AI ทุกตัว ทุก Role ต้องอ่าน `ai-tasks/FUNCTION_REGISTRY.md`
+เป็นไฟล์แรกก่อนเริ่มงานทุกครั้ง**
 
-กฎบังคับ:
-- ถ้าฟังก์ชันที่ต้องการ **อยู่ใน Registry** → ไปที่ไฟล์นั้นเลย ห้าม scan เพิ่ม
-- ถ้า **ไม่พบใน Registry** → ESCALATE พร้อมระบุว่าหาฟังก์ชันอะไร
-- ห้ามเดาสุ่มเปิดไฟล์อื่นโดยไม่มี Registry รองรับ
+Fast AI ใช้เพื่อ:
+- หา function และ path ไฟล์ที่ต้องแก้ไข
+- ถ้าไม่พบ → ESCALATE ทันที ห้าม scan เพิ่ม
+
+Smart AI ใช้เพื่อ:
+- ตรวจว่างานที่วางแผนกระทบ function ใดบ้าง
+- เขียน Scope Lock ใน Task File ได้ถูกต้อง
+- ถ้าพบ function ที่ยังไม่อยู่ใน Registry → เพิ่มก่อนส่ง Task File
+
+ทั้งคู่ต้องรายงานในบรรทัด Registry ตอน Role Confirmation:
+Registry : อ่านแล้ว ✓ / ยังไม่ได้อ่าน ✗
 
 ## [FUNCTION REGISTRY MAINTENANCE — MANDATORY]
 

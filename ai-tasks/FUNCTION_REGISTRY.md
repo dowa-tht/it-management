@@ -41,6 +41,7 @@
 | หน้า Checklist Master Data | `app/dashboard/settings/checklist-master-data/page.js` | `ChecklistMasterDataPage()` | Page component, L5 |
 | หน้า Checklist Template Builder | `app/dashboard/settings/checklist-template-builder/page.js` | `ChecklistTemplateBuilderPage()` | Page component, L5 |
 | หน้า Procedure Plan Editor | `app/dashboard/settings/procedure-plan-editor/page.js` | `ProcedurePlanEditorPage()` | Page component, L5 |
+| อัปโหลด/ลบรูป checklist ผ่าน OneDrive | `components/ChecklistImageUpload.js` | `ChecklistImageUpload()` | Client component, L5 |
 
 ## asset/qr
 
@@ -126,6 +127,11 @@
 | Tab audit log approvals | `app/dashboard/approvals/page.js` | `AuditLogTab()` | page-local component, L131 |
 | หน้า My Pending | `app/dashboard/my-pending/page.js` | `MyPendingPage()` | Page component, L7 |
 | หน้า Workflow Settings | `app/dashboard/settings/workflow/page.js` | `WorkflowSettingsPage()` | Page component, L6 |
+| Modal เซ็นอนุมัติแบบรวม | `components/workflow/UnifiedApprovalModal.js` | `UnifiedApprovalModal()` | Client component, L13 |
+| Action bar ตามสถานะ workflow | `components/workflow/WorkflowActionBar.js` | `WorkflowActionBar()` | Client component, L7 |
+| Progress ย่อยของ workflow ในรายการ | `components/workflow/WorkflowMiniProgress.js` | `WorkflowMiniProgress()` | Client component, L3 |
+| Hook แจ้งเตือน workflow | `components/workflow/WorkflowNotification.js` | `useWorkflowNotification()` | Client hook/helper, L5 |
+| Progress bar workflow รายละเอียด | `components/workflow/WorkflowProgressBar.js` | `WorkflowProgressBar()` | Client component, L8 |
 
 ## auth/user-management
 
@@ -285,7 +291,15 @@
 | โหลด SLA report data | `app/actions/reports.js` | `getSLAReportData()` | Server Action, L5 |
 | บันทึก SLA settings | `app/actions/reports.js` | `saveSLASettings()` | Server Action, L195 |
 | หน้า Dashboard | `app/dashboard/page.js` | `DashboardPage()` | Page component, L5 |
+| Client หลัก Dashboard | `app/dashboard/DashboardClient.js` | `DashboardClient()` | Client component, L300 |
+| Header Dashboard พร้อมลิงก์ approvals/my pending | `components/DashboardHeader.js` | `DashboardHeader()` | Client component, L5 |
 | หน้า SLA Report | `app/dashboard/reports/sla/page.js` | `SLAReportPage()` | Page component, L30 |
+
+## shared ui/components
+
+| ชื่อฟังก์ชัน | ไฟล์ | function name จริง | หมายเหตุ |
+|---|---|---|---|
+| Toggle มุมมอง list/grid | `components/ViewToggle.js` | `ViewToggle()` | Client component, L3; ใช้ร่วมใน checklist และ incident list |
 
 ## backup/migration/misc
 
