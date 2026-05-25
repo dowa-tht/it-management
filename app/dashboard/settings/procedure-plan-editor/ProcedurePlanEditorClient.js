@@ -860,7 +860,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                       </label>
 
                       <label className="block md:col-span-2">
-                        <span className="procedure-editor-label">Instruction</span>
+                        <span className="procedure-editor-label">ขั้นตอนการดำเนินการ</span>
                         <textarea
                           value={selectedStep.instruction}
                           onChange={(event) => updateStep(activeStepIndex, 'instruction', event.target.value)}

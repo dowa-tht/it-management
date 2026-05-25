@@ -169,9 +169,34 @@ export default function WorkflowSettingsPage() {
     setSteps(reordered)
   }
 
+  // Helper: Filter users based on selected role
+  // Dynamic roles (reporter, creator) show all users
+  // System roles filter by that specific role
+  const getFilteredUsersForRole = (roleRequired) => {
+    if (!roleRequired) return users
+    const dynamicRoles = ['reporter', 'creator']
+    if (dynamicRoles.includes(roleRequired)) {
+      return users // Show all users for dynamic roles
+    }
+    return users.filter(u => u.role === roleRequired)
+  }
+
   const updateStep = (idx, field, value) => {
     const newSteps = [...steps]
     newSteps[idx][field] = value
+    
+    // When role changes, clear approver_id if it doesn't match new role
+    if (field === 'role_required') {
+      const currentApproverId = newSteps[idx].approver_id
+      if (currentApproverId) {
+        const currentApprover = users.find(u => u.id === currentApproverId)
+        const dynamicRoles = ['reporter', 'creator']
+        if (currentApprover && !dynamicRoles.includes(value) && currentApprover.role !== value) {
+          newSteps[idx].approver_id = null // Clear approver if role doesn't match
+        }
+      }
+    }
+    
     if (field === 'approver_id' && value) {
         const user = users.find(u => u.id === value)
         if (user) newSteps[idx].role_required = user.role
@@ -437,13 +462,13 @@ export default function WorkflowSettingsPage() {
                           </div>
                           <div>
                             <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase' }}>ระบุผู้อนุมัติเฉพาะเจาะจง (Optional)</label>
-                            <select 
-                              value={step.approver_id || ''} 
+                            <select
+                              value={step.approver_id || ''}
                               onChange={(e) => updateStep(idx, 'approver_id', e.target.value || null)}
                               style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 14 }}
                             >
                               <option value="">-- อนุมัติโดยใครก็ได้ที่มีสิทธิ์ข้างต้น --</option>
-                              {users.map(u => (
+                              {getFilteredUsersForRole(step.role_required).map(u => (
                                 <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
                               ))}
                             </select>
