@@ -26,17 +26,17 @@ VALUES
   ('aaaaaaaa-1111-1111-1111-111111111111', 'cctv_terminal')
 ON CONFLICT DO NOTHING;
 
--- Map CCTV Template to individual CCTV targets (per_target) with specific overrides
-INSERT INTO checklist_template_targets (template_id, target_id, target_type, override_config)
+-- Map CCTV Template to individual CCTV targets (per_target)
+INSERT INTO checklist_template_targets (template_id, target_id, target_type)
 VALUES
-  ('aaaaaaaa-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111101', 'cctv_terminal', '{"ui_template_type": 1, "template_config": {"min_photos": 2, "photo_points": [{"label": "สภาพตู้ภายนอก", "point_code": "P01"}, {"label": "สวิตช์ภายใน", "point_code": "P02"}]}}'),
-  ('aaaaaaaa-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111102', 'cctv_terminal', '{"ui_template_type": 1, "template_config": {"min_photos": 1, "photo_points": [{"label": "สภาพตู้ภายนอก", "point_code": "P01"}]}}')
+  ('aaaaaaaa-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111101', 'cctv_terminal'),
+  ('aaaaaaaa-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111102', 'cctv_terminal')
 ON CONFLICT DO NOTHING;
 
 -- Map AC Template to AC Target
-INSERT INTO checklist_template_targets (template_id, target_id, target_type, override_config)
+INSERT INTO checklist_template_targets (template_id, target_id, target_type)
 VALUES
-  ('bbbbbbbb-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222201', 'ac_server_room', '{"ui_template_type": 3, "template_config": {"unit": "°C", "min": 18, "max": 25, "fail_mode": "outside_range"}}')
+  ('bbbbbbbb-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222201', 'ac_server_room')
 ON CONFLICT DO NOTHING;
 
 
