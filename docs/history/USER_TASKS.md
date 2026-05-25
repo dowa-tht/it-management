@@ -1,10 +1,49 @@
 # 📋 รายการงาน (Task Tracker)
 
-**อัปเดตล่าสุด:** 20 พฤษภาคม 2569 (09:00 น.)
+**อัปเดตล่าสุด:** 25 พฤษภาคม 2569 (15:05 น.)
 
 ---
 
 ## ✅ งานที่เสร็จสิ้นแล้ว (Completed)
+
+### 17. Cancel Document Feature (Workflow Engine)
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 25 พฤษภาคม 2569
+- **รายละเอียด:**
+  - พัฒนา Server Action `cancelDocument()` สำหรับยกเลิกเอกสาร Checklist และ Incident พร้อมตรวจสอบสิทธิ์
+  - พัฒนา Server Action `requestIncidentCancelOTP()` สำหรับขอ OTP ยืนยันตัวตนผู้แจ้ง (Reporter)
+  - อัปเดต `WorkflowActionBar` รองรับปุ่มยกเลิกและแสดงสถานะ Cancelled
+  - สร้าง Cancel Dialog สำหรับ Checklist (ระบุเหตุผล → ยืนยันโดย Creator/Admin)
+  - สร้าง Cancel Dialog สำหรับ Incident (ระบุเหตุผล → ยืนยันด้วย PIN/OTP จาก Reporter)
+  - สร้าง Database Migration เพิ่ม columns `cancelled_at`, `cancelled_by`, `cancel_reason`
+  - อัปเดต Detail Pages ให้ซ่อนการกระทำเมื่อสถานะ Cancelled
+  - รัน `npm test` ผ่าน 100% (12/12 tests passed)
+- **ไฟล์ที่เกี่ยวข้อ:**
+  - `app/actions/workflow.js`
+  - `components/workflow/WorkflowActionBar.js`
+  - `app/dashboard/checklist/[id]/page.js`
+  - `app/dashboard/incidents/[id]/page.js`
+  - `supabase/migrations/20260525_cancel_document_support.sql`
+  - `docs/history/CHANGELOG.md`
+  - `docs/standards/SYSTEM_ARCHITECTURE_MAP.md`
+
+### 16. Workflow Settings - Filter Users by Selected Role
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 25 พฤษภาคม 2569
+- **รายละเอียด:**
+  - แก้ไข `dashboard/settings/workflow/page.js` ให้กรองรายชื่อผู้ใช้ในช่อง "ระบุผู้อนุมัติเฉพาะเจาะจง" ตาม Role ที่เลือก
+  - Dynamic Roles (reporter, creator) แสดงทุก user, System Roles กรองเฉพาะ user ที่มี role ตรงกัน
+  - เมื่อเปลี่ยน Role จะ clear approver ที่ไม่ตรงกันออกโดยอัตโนมัติ
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `app/dashboard/settings/workflow/page.js`
+
+### 15. Procedure Plan Editor - Label Change
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 25 พฤษภาคม 2569
+- **รายละเอียด:**
+  - เปลี่ยน label "Instruction" เป็น "ขั้นตอนการดำเนินการ" ใน `ProcedurePlanEditorClient.js`
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js`
 
 ### 14. Mobile Photo Verification & Image Compression Audit
 - **สถานะ:** ✅ เสร็จสมบูรณ์
