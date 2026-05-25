@@ -1041,15 +1041,45 @@ function ProcedureTemplate({ config, data, onUpdate, disabled }) {
   const [steps, setSteps] = useState([]); useEffect(() => { if (config.plan_id) supabase.from('checklist_procedure_plans').select('steps').eq('id', config.plan_id).single().then(({data}) => setSteps(Array.isArray(data?.steps?.rows) ? data.steps.rows : Array.isArray(data?.steps) ? data.steps : [])) }, [config.plan_id])
   const toggle = (i) => { if (disabled) return; const s = { ...(data.steps||{}) }; if (s[i]) delete s[i]; else s[i] = new Date().toISOString(); onUpdate({ ...data, steps: s }) }
   return (
-    <div className="space-y-2">
-      {steps.map((s, i) => (
-        <label key={i} className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${data.steps?.[i] ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-slate-100'}`}>
-          <input type="checkbox" checked={!!data.steps?.[i]} onChange={() => toggle(i)} disabled={disabled} className="w-5 h-5 rounded-lg text-emerald-500" />
-          <span className={`text-sm font-bold ${data.steps?.[i] ? 'text-emerald-700' : 'text-slate-600'}`}>
-            {typeof s === 'string' ? s : s.title || s.instruction || `Step ${i + 1}`}
-          </span>
-        </label>
-      ))}
+    <div className="space-y-3">
+      {steps.map((s, i) => {
+        const stepTitle = typeof s === 'string' ? s : s.title || s.instruction || `Step ${i + 1}`
+        const responsible = typeof s === 'object' ? s.responsible_person : ''
+        const criteria = typeof s === 'object' ? s.success_criteria : ''
+        const isChecked = !!data.steps?.[i]
+
+        return (
+          <div key={i} className={`rounded-xl border transition-all overflow-hidden ${isChecked ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'}`}>
+            {/* Main Checkbox Row */}
+            <label className={`flex items-center gap-3 p-3 cursor-pointer ${isChecked ? 'bg-emerald-50/50' : 'bg-white'}`}>
+              <input type="checkbox" checked={isChecked} onChange={() => toggle(i)} disabled={disabled} className="w-5 h-5 rounded-lg text-emerald-500 shrink-0" />
+              <span className={`text-sm font-bold ${isChecked ? 'text-emerald-700' : 'text-slate-700'}`}>
+                {stepTitle}
+              </span>
+            </label>
+
+            {/* Expanded Details */}
+            {(responsible || criteria) && (
+              <div className="px-3 pb-3 pt-0">
+                <div className="pl-8 space-y-2">
+                  {responsible && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs font-semibold text-slate-400 shrink-0">ผู้รับผิดชอบ:</span>
+                      <span className="text-xs font-medium text-slate-600">{responsible}</span>
+                    </div>
+                  )}
+                  {criteria && (
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs font-semibold text-slate-400 shrink-0">เกณฑ์สำเร็จ:</span>
+                      <span className="text-xs font-medium text-slate-600">{criteria}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

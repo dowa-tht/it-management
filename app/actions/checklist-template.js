@@ -87,7 +87,7 @@ export async function getChecklistTemplateBuilderPageData() {
 
   const { profile, adminClient } = await requireAdminProfile()
 
-  const [templatesResult, categoriesResult, procedurePlansResult, targetsResult, targetTypesResult] = await Promise.all([
+  const [templatesResult, categoriesResult, procedurePlansResult, targetsResult, targetTypesResult, planLinksResult] = await Promise.all([
     adminClient
       .from('checklist_templates')
       .select('id, item_key, category, freq_type, item_label, instruction, ui_template_type, template_config, is_active, sort_order, scope_mode, target_type')
@@ -114,6 +114,11 @@ export async function getChecklistTemplateBuilderPageData() {
       .eq('type', 'target_type')
       .eq('is_active', true)
       .order('sort_order'),
+    adminClient
+      .from('checklist_template_procedure_plans')
+      .select('template_id, plan_id, is_default, sort_order')
+      .eq('is_active', true)
+      .order('sort_order'),
   ])
 
   // Need to also fetch mappings for templates
@@ -131,15 +136,33 @@ export async function getChecklistTemplateBuilderPageData() {
   if (procedurePlansResult.error) throw new Error(procedurePlansResult.error.message)
   if (targetsResult.error) throw new Error(targetsResult.error.message)
   if (targetTypesResult.error) throw new Error(targetTypesResult.error.message)
+  if (planLinksResult.error) console.error('Failed to load plan links:', planLinksResult.error)
 
   const procedurePlans = (procedurePlansResult.data || []).map((plan) => ({
     ...plan,
     step_count: Array.isArray(plan.steps?.rows) ? plan.steps.rows.length : Array.isArray(plan.steps) ? plan.steps.length : 0,
   }))
 
+  const planLinks = planLinksResult.data || []
+
   const templates = (templatesResult.data || []).map((record) => {
     const targets = templateMappings.filter(m => m.template_id === record.id)
-    return formatBuilderTemplate({ ...record, targets }, procedurePlans)
+    const templatePlanLinks = planLinks.filter(p => p.template_id === record.id)
+
+    // Merge plan_links into template_config for T2 templates
+    let mergedConfig = record.template_config || {}
+    if (record.ui_template_type === 2 && templatePlanLinks.length > 0) {
+      mergedConfig = {
+        ...mergedConfig,
+        plan_links: templatePlanLinks.map(p => ({
+          plan_id: p.plan_id,
+          is_default: p.is_default,
+          sort_order: p.sort_order,
+        })),
+      }
+    }
+
+    return formatBuilderTemplate({ ...record, targets, template_config: mergedConfig }, procedurePlans)
   })
 
   const targets = targetsResult.data || []
@@ -299,6 +322,48 @@ export async function saveChecklistTemplate(payload) {
     } else {
       // If changed back to global, clear all mappings
       await adminClient.from('checklist_template_targets').delete().eq('template_id', savedTemplateId)
+    }
+
+    // Process procedure plan links for T2 (Procedure Table) templates
+    if (template.ui_template_type === 2) {
+      const planLinks = template.template_config?.plan_links || []
+      const legacyPlanId = template.template_config?.plan_id
+
+      // Delete existing plan links
+      await adminClient.from('checklist_template_procedure_plans').delete().eq('template_id', savedTemplateId)
+
+      // Build plan links to insert
+      const plansToInsert = []
+
+      // Add new plan_links
+      if (planLinks.length > 0) {
+        plansToInsert.push(...planLinks.map((p, idx) => ({
+          template_id: savedTemplateId,
+          plan_id: p.plan_id,
+          is_default: p.is_default || (idx === 0),
+          sort_order: typeof p.sort_order === 'number' ? p.sort_order : idx,
+          is_active: true,
+        })))
+      } else if (legacyPlanId) {
+        // Fallback to legacy plan_id
+        plansToInsert.push({
+          template_id: savedTemplateId,
+          plan_id: legacyPlanId,
+          is_default: true,
+          sort_order: 0,
+          is_active: true,
+        })
+      }
+
+      if (plansToInsert.length > 0) {
+        const { error: insertPlanError } = await adminClient.from('checklist_template_procedure_plans').insert(plansToInsert)
+        if (insertPlanError) {
+          console.error('Failed to insert procedure plan links:', insertPlanError)
+        }
+      }
+    } else {
+      // Non-T2 template: clear any existing plan links
+      await adminClient.from('checklist_template_procedure_plans').delete().eq('template_id', savedTemplateId)
     }
 
 

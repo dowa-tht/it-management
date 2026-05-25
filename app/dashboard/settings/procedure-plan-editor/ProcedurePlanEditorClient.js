@@ -11,6 +11,8 @@ function createBlankStep(stepNo) {
     step_no: stepNo,
     title: '',
     instruction: '',
+    responsible_person: '',
+    success_criteria: '',
     step_type: 'check',
     required: true,
     evidence_rule: {
@@ -374,10 +376,19 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
           align-items: start;
         }
         .procedure-step-list {
-          display: grid;
+          display: flex;
+          flex-direction: column;
           gap: 12px;
-          align-content: start;
           padding-right: 2px;
+          max-height: 520px;
+        }
+        .procedure-step-list-content {
+          flex: 1;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          max-height: 460px;
         }
         .procedure-step-list-card {
           border: 1px solid #e2e8f0;
@@ -748,55 +759,56 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
             </section>
 
             <section className="procedure-editor-card">
-              <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Step Editor</p>
-                  <h2 className="mt-2 text-2xl font-extrabold text-slate-950">Procedure Steps</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">แยก step list ออกจาก detail editor เพื่อลดการไถยาวและให้ actions อยู่ใกล้ context ที่กำลังแก้</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={addStep}
-                  className="procedure-editor-action border border-cyan-200 bg-cyan-50 text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100"
-                >
-                  + Add Step
-                </button>
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Step Editor</p>
+                <h2 className="mt-2 text-2xl font-extrabold text-slate-950">Procedure Steps</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">แยก step list ออกจาก detail editor เพื่อลดการไถยาวและให้ actions อยู่ใกล้ context ที่กำลังแก้</p>
               </div>
 
               {fieldErrors.steps?.[0] && <p className="mb-4 text-xs text-rose-600">{fieldErrors.steps[0]}</p>}
 
               <div className="procedure-step-layout">
                 <div className="procedure-step-list">
-                  {draft.steps.map((step, index) => (
-                    <button
-                      key={`${step.step_no}-${index}`}
-                      type="button"
-                      onClick={() => setActiveStepIndex(index)}
-                      className={cn(
-                        'procedure-step-list-card',
-                        activeStepIndex === index
-                          ? 'border-cyan-300 bg-cyan-50 shadow-sm'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="procedure-step-list-copy">
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Step {index + 1}</p>
-                          <p className="procedure-step-list-title">{step.title || 'ยังไม่ได้ตั้งชื่อขั้นตอน'}</p>
-                          <p className="procedure-step-list-meta">{step.step_type} • {step.required ? 'required' : 'optional'}</p>
+                  <div className="procedure-step-list-content">
+                    {draft.steps.map((step, index) => (
+                      <button
+                        key={`${step.step_no}-${index}`}
+                        type="button"
+                        onClick={() => setActiveStepIndex(index)}
+                        className={cn(
+                          'procedure-step-list-card relative',
+                          activeStepIndex === index
+                            ? 'border-cyan-500 bg-cyan-50 shadow-md ring-2 ring-cyan-200'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="procedure-step-list-copy">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Step {index + 1}</p>
+                            <p className="procedure-step-list-title">{step.title || 'ยังไม่ได้ตั้งชื่อขั้นตอน'}</p>
+                            <p className="procedure-step-list-meta">{step.step_type} • {step.required ? 'required' : 'optional'}</p>
+                          </div>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                            {index + 1}
+                          </span>
                         </div>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                          {index + 1}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    ))}
 
-                  {draft.steps.length === 0 && (
-                    <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                      ยังไม่มีขั้นตอนในแผนนี้ กด `Add Step` เพื่อเริ่มสร้าง SOP
-                    </div>
-                  )}
+                    {draft.steps.length === 0 && (
+                      <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                        ยังไม่มีขั้นตอนในแผนนี้ กด `Add Step` เพื่อเริ่มสร้าง SOP
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={addStep}
+                    className="procedure-editor-action w-full justify-center border border-cyan-200 bg-cyan-50 text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 shrink-0"
+                  >
+                    + Add Step
+                  </button>
                 </div>
 
                 {selectedStep && (
@@ -854,6 +866,27 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                           onChange={(event) => updateStep(activeStepIndex, 'instruction', event.target.value)}
                           rows={4}
                           placeholder="คำอธิบายหรือเงื่อนไขสำหรับผู้ตรวจ"
+                          className="procedure-editor-textarea"
+                        />
+                      </label>
+
+                      <label className="block md:col-span-2">
+                        <span className="procedure-editor-label">ผู้รับผิดชอบ</span>
+                        <input
+                          value={selectedStep.responsible_person}
+                          onChange={(event) => updateStep(activeStepIndex, 'responsible_person', event.target.value)}
+                          placeholder="เช่น IT Support, หัวหน้างาน IT"
+                          className="procedure-editor-input"
+                        />
+                      </label>
+
+                      <label className="block md:col-span-2">
+                        <span className="procedure-editor-label">เกณฑ์วัดผลการซ้อม</span>
+                        <textarea
+                          value={selectedStep.success_criteria}
+                          onChange={(event) => updateStep(activeStepIndex, 'success_criteria', event.target.value)}
+                          rows={3}
+                          placeholder="ระบุเกณฑ์ที่ใช้วัดว่าการซ้อมสำเร็จ เช่น ทำครบทุกขั้นตอน, ไม่เกิดข้อผิดพลาด"
                           className="procedure-editor-textarea"
                         />
                       </label>
