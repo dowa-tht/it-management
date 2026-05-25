@@ -7,7 +7,7 @@ import { verifyEmployeePIN } from '@/app/actions/users'
 import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { calculateNetBusinessMinutes } from '@/lib/slaUtils'
-import { getPotentialWorkflowSteps, recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow, syncDynamicWorkflowApprovers, diagnoseApprovalPin } from '@/app/actions/workflow'
+import { getPotentialWorkflowSteps, recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow, syncDynamicWorkflowApprovers, diagnoseApprovalPin, cancelDocument, requestIncidentCancelOTP } from '@/app/actions/workflow'
 import { acknowledgeIncident } from '@/app/actions/incidents'
 import { isSubstituteOf } from '@/lib/workflow'
 import { WorkflowProgressBar } from '@/components/workflow/WorkflowProgressBar'
@@ -179,6 +179,13 @@ export default function IncidentDetailPage() {
   const [showResolveDialog, setShowResolveDialog] = useState(false)
   const [showReopenDialog, setShowReopenDialog] = useState(false)
   const [showAcknowledgeDialog, setShowAcknowledgeDialog] = useState(false)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelLoading, setCancelLoading] = useState(false)
+  const [cancelPin, setCancelPin] = useState('')
+  const [cancelOtp, setCancelOtp] = useState('')
+  const [cancelStep, setCancelStep] = useState('reason') // 'reason' | 'verify' | 'otp'
+  const [isRequestingOtp, setIsRequestingOtp] = useState(false)
 
   const [workingHours, setWorkingHours] = useState(null)
   const [holidays, setHoneydays] = useState([])
@@ -418,6 +425,182 @@ export default function IncidentDetailPage() {
     setSaving(false)
   }
 
+  // Cancel Incident Handlers
+  const handleCancel = async () => {
+    setShowCancelDialog(true)
+    setCancelStep('reason')
+    setCancelReason('')
+    setCancelPin('')
+    setCancelOtp('')
+  }
+
+  const handleRequestCancelOTP = async () => {
+    setIsRequestingOtp(true)
+    try {
+      const res = await requestIncidentCancelOTP(id)
+      if (res.success) {
+        setCancelStep('otp')
+        showToast({ message: 'ส่ง OTP ไปยังอีเมลผู้แจ้งแล้ว', type: 'success' })
+      } else {
+        showToast({ message: res.error, type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+    setIsRequestingOtp(false)
+  }
+
+  const handleConfirmCancel = async () => {
+    if (!cancelReason.trim()) {
+      showToast({ message: 'กรุณาระบุเหตุผลในการยกเลิก', type: 'error' })
+      return
+    }
+
+    // If not verified yet, go to verification step
+    if (cancelStep === 'reason') {
+      setCancelStep('verify')
+      return
+    }
+
+    // Verify and cancel
+    setCancelLoading(true)
+    try {
+      const verification = {}
+      if (cancelPin) verification.pin = cancelPin
+      if (cancelOtp) verification.otp = cancelOtp
+
+      const res = await cancelDocument(id, 'incident', cancelReason, verification)
+      if (res.success) {
+        setShowCancelDialog(false)
+        setCancelReason('')
+        setCancelPin('')
+        setCancelOtp('')
+        setCancelStep('reason')
+        await fetchData()
+        showModal({
+          title: 'ยกเลิกเคสสำเร็จ',
+          message: `เคส ${res.docNo} ถูกยกเลิกเรียบร้อยแล้ว`,
+          type: 'success'
+        })
+      } else {
+        if (res.requiresVerification) {
+          setCancelStep('verify')
+          showToast({ message: 'กรุณายืนยันตัวตนด้วย PIN หรือ OTP', type: 'warning' })
+        } else {
+          showToast({ message: res.error, type: 'error' })
+        }
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+    setCancelLoading(false)
+  }
+
+  // Cancel Dialog JSX
+  const renderCancelDialog = () => (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 450 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#dc2626', marginBottom: 8 }}>🚫 ยกเลิกเคส</div>
+
+        {cancelStep === 'reason' && (
+          <>
+            <div style={{ fontSize: 14, color: '#64748b', marginBottom: 16 }}>
+              คุณกำลังจะยกเลิกเคส <strong>{incident?.case_number}</strong><br/>
+              เมื่อยกเลิกแล้วจะไม่สามารถแก้ไขหรือดำเนินการต่อได้อีก
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>เหตุผลในการยกเลิก *</label>
+              <textarea
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                placeholder="ระบุเหตุผล..."
+                rows={3}
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setShowCancelDialog(false); setCancelReason(''); setCancelStep('reason') }}
+                style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                disabled={!cancelReason.trim()}
+                style={{ padding: '10px 24px', border: 'none', borderRadius: 8, fontSize: 13, background: cancelReason.trim() ? '#dc2626' : '#fca5a5', color: '#fff', cursor: cancelReason.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontWeight: 600 }}
+              >
+                ถัดไป
+              </button>
+            </div>
+          </>
+        )}
+
+        {(cancelStep === 'verify' || cancelStep === 'otp') && (
+          <>
+            <div style={{ fontSize: 14, color: '#64748b', marginBottom: 16 }}>
+              กรุณายืนยันตัวตน <strong>ผู้แจ้งเหตุ (Reporter)</strong> เพื่อยกเลิกเคส<br/>
+              <span style={{ fontSize: 12, color: '#dc2626' }}>* ต้องการ PIN หรือ OTP จากผู้แจ้งเท่านั้น</span>
+            </div>
+
+            {cancelStep === 'verify' && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>PIN ของผู้แจ้ง</label>
+                <input
+                  type="password"
+                  value={cancelPin}
+                  onChange={e => setCancelPin(e.target.value)}
+                  placeholder="กรอก PIN"
+                  maxLength={6}
+                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+                />
+                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>
+                  หรือ <button onClick={handleRequestCancelOTP} disabled={isRequestingOtp} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, padding: 0 }}>{isRequestingOtp ? 'กำลังส่ง...' : 'ขอรับ OTP ทางอีเมล'}</button>
+                </div>
+              </div>
+            )}
+
+            {cancelStep === 'otp' && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>OTP ที่ได้รับทางอีเมล</label>
+                <input
+                  type="text"
+                  value={cancelOtp}
+                  onChange={e => setCancelOtp(e.target.value)}
+                  placeholder="กรอก OTP"
+                  maxLength={8}
+                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
+                />
+                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>
+                  <button onClick={() => setCancelStep('verify')} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, padding: 0 }}>← กลับไปใช้ PIN</button>
+                  {' | '}
+                  <button onClick={handleRequestCancelOTP} disabled={isRequestingOtp} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, padding: 0 }}>{isRequestingOtp ? 'กำลังส่ง...' : 'ส่ง OTP อีกครั้ง'}</button>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setShowCancelDialog(false); setCancelReason(''); setCancelPin(''); setCancelOtp(''); setCancelStep('reason') }}
+                disabled={cancelLoading}
+                style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                disabled={cancelLoading || (!cancelPin && !cancelOtp)}
+                style={{ padding: '10px 24px', border: 'none', borderRadius: 8, fontSize: 13, background: (cancelPin || cancelOtp) ? '#dc2626' : '#fca5a5', color: '#fff', cursor: (cancelPin || cancelOtp) ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontWeight: 600 }}
+              >
+                {cancelLoading ? 'กำลังยกเลิก...' : 'ยืนยันการยกเลิก'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+
   if (loading) return <div style={{ padding: '100px', textAlign: 'center', color: '#94a3b8' }}>กำลังโหลดข้อมูล...</div>
   if (!incident) return <div style={{ padding: '100px', textAlign: 'center', color: '#94a3b8' }}>ไม่พบข้อมูลเคส</div>
 
@@ -495,7 +678,8 @@ export default function IncidentDetailPage() {
         />
       )}
       {showReopenDialog && <ReopenDialog onCancel={() => setShowReopenDialog(false)} onConfirm={handleReopen} loading={saving} />}
-      
+      {showCancelDialog && renderCancelDialog()}
+
       <UnifiedApprovalModal
         isOpen={showSignatureModal}
         onCancel={() => { setShowSignatureModal(false); setIsRemoteApprovalMode(false); }}
@@ -514,15 +698,16 @@ export default function IncidentDetailPage() {
         }}
       />
 
-      <WorkflowActionBar 
+      <WorkflowActionBar
         status={incident.status}
-        canEdit={canEditDetails}
-        canSubmit={canSubmitForApproval}
-        canApprove={canApprove}
-        canRemoteApprove={canRemoteApprove}
-        canReject={canApprove}
+        canEdit={canEditDetails && incident.status !== 'Cancelled'}
+        canSubmit={canSubmitForApproval && incident.status !== 'Cancelled'}
+        canApprove={canApprove && incident.status !== 'Cancelled'}
+        canRemoteApprove={canRemoteApprove && incident.status !== 'Cancelled'}
+        canReject={canApprove && incident.status !== 'Cancelled'}
         canReopen={hasFullAccess && (incident.status === 'Closed' || incident.status === 'Pending Approval')}
-        canAcknowledge={canAcknowledgeIncident}
+        canAcknowledge={canAcknowledgeIncident && incident.status !== 'Cancelled'}
+        canCancel={incident.status !== 'Cancelled' && incident.status !== 'Closed' && (hasFullAccess || isCreator)}
         acknowledgeLabel={acknowledgeActionLabel}
         onSave={handleSave}
         onAcknowledge={() => setShowAcknowledgeDialog(true)}
@@ -531,6 +716,7 @@ export default function IncidentDetailPage() {
         onRemoteApprove={() => { setIsRemoteApprovalMode(true); setShowSignatureModal(true); }}
         onReject={handleRejectIncident}
         onReopen={() => setShowReopenDialog(true)}
+        onCancel={handleCancel}
         onEdit={() => setEditing(true)}
         isEditing={editing}
         onCancelEdit={() => { setEditing(false); setForm(incident) }}
@@ -551,9 +737,10 @@ export default function IncidentDetailPage() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                 <h1 className="header-title" style={{ fontSize: '28px', fontWeight: 900, color: '#1e293b', margin: 0 }}>{incident.case_number}</h1>
-                <span style={{ 
-                  padding: '4px 12px', borderRadius: '20px', fontSize: '10px', fontWeight: 900, 
-                  background: '#eff6ff', color: '#1d4ed8', textTransform: 'uppercase' 
+                <span style={{
+                  padding: '4px 12px', borderRadius: '20px', fontSize: '10px', fontWeight: 900,
+                  background: incident.status === 'Cancelled' ? '#fee2e2' : incident.status === 'Closed' ? '#d1fae5' : '#eff6ff',
+                  color: incident.status === 'Cancelled' ? '#dc2626' : incident.status === 'Closed' ? '#065f46' : '#1d4ed8', textTransform: 'uppercase'
                 }}>{incident.status}</span>
               </div>
               <p style={{ fontSize: '16px', color: '#64748b', fontWeight: 500, margin: 0 }}>{incident.title}</p>
