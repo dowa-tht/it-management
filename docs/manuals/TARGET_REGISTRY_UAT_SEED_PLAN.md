@@ -11,10 +11,11 @@
 ครอบคลุมการเตรียมข้อมูลตัวอย่างสำหรับ:
 
 1. `checklist_targets`
-2. `checklist_target_groups`
-3. `checklist_template_targets`
-4. QR lookup flow
-5. Asset History timeline verification
+2. `checklist_template_targets` (many-to-many: template_id ↔ target_id or target_type)
+3. QR lookup flow
+4. Asset History timeline verification
+
+> **Note:** `checklist_target_groups` และ `scope_mode: 'per_group'` ถูกลบออกจาก schema แล้ว (21-May-2026) ใช้ `scope_mode: 'per_type'` แทน
 
 ---
 
@@ -57,19 +58,12 @@
 
 ---
 
-## Proposed Target Groups
+## Template Mapping Strategy (Updated)
 
-### Group A: CCTV Terminal Boxes
-- `group_code`: `GRP-CCTV-TERM`
-- `group_name`: `CCTV Terminal Boxes`
-- `target_type`: `cctv_terminal`
-- `description`: `ใช้สำหรับ checklist งานตรวจตู้ CCTV รายจุด`
-
-### Group B: Network Edge Devices
-- `group_code`: `GRP-NET-EDGE`
-- `group_name`: `Network Edge Devices`
-- `target_type`: `network_switch`
-- `description`: `ใช้สำหรับ checklist งานตรวจ network edge / switch`
+### Scope Modes ที่รองรับ
+- `global`: Template ใช้กับทุก target
+- `per_type`: Template ผูกกับ `target_type` (เช่น `cctv_terminal`) ใช้กับทุก target ที่มี type นั้น
+- `per_target`: Template ผูกกับ `target_id` เฉพาะรายตัว พร้อมรองรับ `override_config`
 
 ---
 
@@ -112,8 +106,8 @@
 
 ### Phase 2 — Mapping Review
 - ตรวจว่า template ที่ใช้กับ `cctv_terminal` ครบตาม use case
-- ตรวจว่า group mapping ไม่ซ้ำซ้อนกับ direct target mapping โดยไม่จำเป็น
-- ตรวจว่า template ที่เลือกไม่ขัดกับ `scope_mode`
+- ตรวจว่า `per_type` mapping ไม่ซ้ำซ้อนกับ `per_target` mapping โดยไม่จำเป็น
+- ตรวจว่า template ที่เลือกไม่ขัดกับ `scope_mode` (global, per_type, per_target)
 
 ### Phase 3 — QR / History Review
 - scan QR แล้ว resolve ไป target ได้ถูกตัว
@@ -125,12 +119,11 @@
 
 ## Recommended Non-Production Rollout Order
 
-1. สร้าง target groups ก่อน
-2. สร้าง targets
-3. ผูก template mappings
-4. สร้าง checklist docs ทดลอง 1-2 รอบต่อ target
-5. ตรวจ QR lookup
-6. ตรวจ Asset History timeline และ photo gallery
+1. สร้าง targets
+2. ผูก template mappings (per_type และ per_target)
+3. สร้าง checklist docs ทดลอง 1-2 รอบต่อ target
+4. ตรวจ QR lookup
+5. ตรวจ Asset History timeline และ photo gallery
 
 ---
 
@@ -150,7 +143,7 @@
 5. ตรวจว่าค่า `qr_value` ทั้งหมดใน seed ยังไม่ชนกับ record เดิม
 6. ตรวจว่า template IDs ที่จะใช้ mapping ถูกต้องจริงก่อนแทนค่า placeholder ใน [`scripts/seed_target_registry_uat.sql`](scripts/seed_target_registry_uat.sql)
 7. เตรียม rollback script [`scripts/rollback_seed_target_registry_uat.sql`](scripts/rollback_seed_target_registry_uat.sql) ไว้พร้อมใช้งานก่อน execute
-8. หลัง execute ต้อง query ตรวจผลทันทีทั้ง target groups, targets, mappings และ QR lookup
+8. หลัง execute ต้อง query ตรวจผลทันทีทั้ง targets, template mappings และ QR lookup
 
 ---
 
@@ -159,13 +152,13 @@
 หากผล UAT ไม่ถูกต้อง หรือมีข้อมูลตัวอย่างไม่ต้องการแล้ว ให้ใช้ [`scripts/rollback_seed_target_registry_uat.sql`](scripts/rollback_seed_target_registry_uat.sql)
 
 ลำดับ rollback:
-1. ลบ `checklist_template_targets` ที่ชี้มายัง UAT targets / groups
+1. ลบ `checklist_template_targets` ที่ชี้มายัง UAT targets
 2. ลบ UAT targets ที่ mark `metadata.uat_seed = true`
-3. ลบ UAT target groups ที่สร้างจาก script นี้
 
 หมายเหตุ:
 - rollback script นี้ไม่แตะข้อมูล production record อื่นนอกเหนือจากรายการที่กำหนดไว้ชัดเจน
 - หากมีการสร้าง checklist docs จริงผูกกับ target เหล่านี้ภายหลัง ต้องประเมิน impact เพิ่มเติมก่อน rollback
+- `checklist_target_groups` ถูกลบออกจาก schema แล้ว ไม่ต้อง rollback groups
 
 ---
 
@@ -173,6 +166,6 @@
 
 - ห้ามใช้ข้อมูล production จริงใน UAT seed ชุดแรก
 - แนะนำให้เริ่มจาก `cctv_terminal` ก่อน เพราะเป็น use case หลักของ phase นี้
-- หากจะ insert จริงในรอบถัดไป ให้ใช้ SQL script [`scripts/seed_target_registry_uat.sql`](scripts/seed_target_registry_uat.sql) และ review template mapping placeholders ก่อน execute
+- หากจะ insert จริงในรอบถัดไป ให้ใช้ SQL script [`scripts/seed_target_registry_uat_with_mappings.sql`](scripts/seed_target_registry_uat_with_mappings.sql) และ review template mapping placeholders ก่อน execute
 - หากต้อง revert ให้ใช้ [`scripts/rollback_seed_target_registry_uat.sql`](scripts/rollback_seed_target_registry_uat.sql)
 - หลัง insert จริง ต้องอัปเดต [`docs/history/CHANGELOG.md`](docs/history/CHANGELOG.md) และ [`docs/history/USER_TASKS.md`](docs/history/USER_TASKS.md) ทุกครั้ง
