@@ -4,31 +4,34 @@
  * 🛠️ WorkflowActionBar (Unified Component)
  * Smart action bar that displays context-aware buttons based on user role and workflow state.
  */
-export function WorkflowActionBar({ 
-  status, 
+export function WorkflowActionBar({
+  status,
   canEdit = true,
-  canSubmit, 
+  canSubmit,
   canApprove,
   canRemoteApprove,
-  canReject, 
+  canReject,
   canReopen,
+  canCancel,
   canAcknowledge = false,
   acknowledgeLabel = '⚡ รับเรื่อง (Accept)',
-  onSave, 
-  onSubmit, 
+  onSave,
+  onSubmit,
   onApprove,
   onRemoteApprove,
-  onReject, 
+  onReject,
   onReopen,
+  onCancel,
   onEdit,
   isEditing,
   onCancelEdit,
   onAcknowledge,
-  loading 
+  loading
 }) {
   const isDraft = status === 'Open' || status === 'In Progress'
   const isPending = status === 'Pending Approval'
   const isClosed = status === 'Closed'
+  const isCancelled = status === 'Cancelled'
 
   return (
     <>
@@ -69,9 +72,9 @@ export function WorkflowActionBar({
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
           {/* Left Side: Status Info */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ 
-              width: '10px', height: '10px', borderRadius: '50%', 
-              background: isClosed ? '#10b981' : isPending ? '#f59e0b' : '#3b82f6' 
+            <div style={{
+              width: '10px', height: '10px', borderRadius: '50%',
+              background: isClosed ? '#10b981' : isCancelled ? '#ef4444' : isPending ? '#f59e0b' : '#3b82f6'
             }} />
             <span className="workflow-status-text" style={{ fontSize: '13px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               สถานะ: {status}
@@ -109,6 +112,15 @@ export function WorkflowActionBar({
                         style={{ padding: '8px 24px', borderRadius: '10px', background: 'linear-gradient(to right, #6366f1, #4f46e5)', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.2)', fontFamily: 'inherit', fontSize: '13px', marginRight: '8px' }}
                       >
                         {acknowledgeLabel}
+                      </button>
+                    )}
+                    {canCancel && (
+                      <button
+                        onClick={onCancel}
+                        disabled={loading}
+                        style={{ padding: '8px 20px', borderRadius: '10px', border: '1px solid #e5e7eb', background: '#f9fafb', color: '#6b7280', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}
+                      >
+                        🚫 ยกเลิก
                       </button>
                     )}
                     {canEdit && (

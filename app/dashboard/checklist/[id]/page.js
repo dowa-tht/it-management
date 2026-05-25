@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { CHECKLIST_TEMPLATES } from '@/lib/checklistItems'
 import { isSubstituteOf } from '@/lib/workflow'
-import { recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow } from '@/app/actions/workflow'
+import { recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow, cancelDocument } from '@/app/actions/workflow'
 import { WorkflowProgressBar } from '@/components/workflow/WorkflowProgressBar'
 import { UnifiedApprovalModal } from '@/components/workflow/UnifiedApprovalModal'
 import { WorkflowActionBar } from '@/components/workflow/WorkflowActionBar'
@@ -143,6 +143,9 @@ export default function ChecklistDetailPage() {
   const [approvalLoading, setApprovalLoading] = useState(false)
   const [workflowSteps, setWorkflowSteps] = useState([])
   const [isEditing, setIsEditing] = useState(false)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelLoading, setCancelLoading] = useState(false)
 
   const { NotificationComponent, showToast, showModal } = useWorkflowNotification()
 
@@ -316,6 +319,75 @@ export default function ChecklistDetailPage() {
     await fetchData()
   }
 
+  const handleCancel = async () => {
+    setShowCancelDialog(true)
+  }
+
+  const handleConfirmCancel = async () => {
+    if (!cancelReason.trim()) {
+      showToast({ message: 'กรุณาระบุเหตุผลในการยกเลิก', type: 'error' })
+      return
+    }
+    setCancelLoading(true)
+    try {
+      const res = await cancelDocument(id, 'checklist', cancelReason)
+      if (res.success) {
+        setShowCancelDialog(false)
+        setCancelReason('')
+        await fetchData()
+        showModal({
+          title: 'ยกเลิกเอกสารสำเร็จ',
+          message: `เอกสาร ${res.docNo} ถูกยกเลิกเรียบร้อยแล้ว`,
+          type: 'success'
+        })
+      } else {
+        showToast({ message: res.error, type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+    setCancelLoading(false)
+  }
+
+  // Cancel Dialog JSX
+  const renderCancelDialog = () => (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 450 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#dc2626', marginBottom: 8 }}>🚫 ยกเลิกเอกสาร</div>
+        <div style={{ fontSize: 14, color: '#64748b', marginBottom: 16 }}>
+          คุณกำลังจะยกเลิกเอกสาร <strong>{doc?.doc_no}</strong><br/>
+          เมื่อยกเลิกแล้วจะไม่สามารถแก้ไขหรือส่งขออนุมัติได้อีก
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>เหตุผลในการยกเลิก *</label>
+          <textarea
+            value={cancelReason}
+            onChange={e => setCancelReason(e.target.value)}
+            placeholder="ระบุเหตุผล..."
+            rows={3}
+            style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button
+            onClick={() => { setShowCancelDialog(false); setCancelReason('') }}
+            disabled={cancelLoading}
+            style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            ยกเลิก
+          </button>
+          <button
+            onClick={handleConfirmCancel}
+            disabled={cancelLoading || !cancelReason.trim()}
+            style={{ padding: '10px 24px', border: 'none', borderRadius: 8, fontSize: 13, background: cancelReason.trim() ? '#dc2626' : '#fca5a5', color: '#fff', cursor: cancelReason.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontWeight: 600 }}
+          >
+            {cancelLoading ? 'กำลังยกเลิก...' : 'ยืนยันการยกเลิก'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
   if (loading) return <div className="p-20 text-center text-slate-400 animate-pulse">กำลังโหลดข้อมูล...</div>
   if (!doc) return <div className="p-20 text-center text-slate-400">ไม่พบเอกสารนี้</div>
 
@@ -330,6 +402,7 @@ export default function ChecklistDetailPage() {
       
       {activeNgItem && <NgDialog item={activeNgItem} onConfirm={handleNgConfirm} onCancel={() => setActiveNgItem(null)} />}
       {activeInstruction && <InstructionDialog item={activeInstruction} onCancel={() => setActiveInstruction(null)} />}
+      {showCancelDialog && renderCancelDialog()}
       
       <UnifiedApprovalModal
         isOpen={showSignatureModal}
@@ -342,21 +415,23 @@ export default function ChecklistDetailPage() {
         isCreator={currentUser?.id === doc?.created_by_id}
       />
 
-      <WorkflowActionBar 
+      <WorkflowActionBar
         status={doc.status}
-        canEdit={!isClosed && !isAuditor}
+        canEdit={!isClosed && !isAuditor && doc.status !== 'Cancelled'}
         isEditing={isEditing}
         onEdit={() => setIsEditing(true)}
         onCancelEdit={handleCancelEdit}
         onSave={handleSaveEdit}
-        canSubmit={!isClosed && doc.workflow_status !== 'pending' && progress === 100 && !isEditing}
-        canApprove={canApprove}
-        canReject={canApprove}
+        canSubmit={!isClosed && doc.workflow_status !== 'pending' && progress === 100 && !isEditing && doc.status !== 'Cancelled'}
+        canApprove={canApprove && doc.status !== 'Cancelled'}
+        canReject={canApprove && doc.status !== 'Cancelled'}
         canReopen={(currentUser?.role === 'admin' || currentUser?.role === 'it_staff') && isClosed}
+        canCancel={doc.status !== 'Cancelled' && doc.status !== 'Closed' && (currentUser?.role === 'admin' || currentUser?.id === doc?.created_by_id)}
         onSubmit={handleSubmitApproval}
         onApprove={() => setShowSignatureModal(true)}
         onReject={handleReject}
         onReopen={handleReopen}
+        onCancel={handleCancel}
         loading={saving || approvalLoading}
       />
 
@@ -374,9 +449,10 @@ export default function ChecklistDetailPage() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                 <h1 className="header-title" style={{ fontSize: '28px', fontWeight: 900, color: '#1e293b', margin: 0 }}>{doc.doc_no}</h1>
-                <span style={{ 
-                  padding: '4px 12px', borderRadius: '20px', fontSize: '10px', fontWeight: 900, 
-                  background: isClosed ? '#d1fae5' : '#eff6ff', color: isClosed ? '#065f46' : '#1d4ed8', textTransform: 'uppercase' 
+                <span style={{
+                  padding: '4px 12px', borderRadius: '20px', fontSize: '10px', fontWeight: 900,
+                  background: isClosed ? '#d1fae5' : doc.status === 'Cancelled' ? '#fee2e2' : '#eff6ff',
+                  color: isClosed ? '#065f46' : doc.status === 'Cancelled' ? '#dc2626' : '#1d4ed8', textTransform: 'uppercase'
                 }}>{doc.status}</span>
               </div>
               <p style={{ fontSize: '16px', color: '#64748b', fontWeight: 500, margin: 0 }}>{doc.freq_type} Checklist — {formatDate(doc.period_date)}</p>

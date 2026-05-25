@@ -1138,6 +1138,153 @@ export async function rejectDocumentWorkflow(docId, docType, reason) {
   }
 }
 
+/**
+ * 🚫 Cancel Document (ยกเลิกเอกสาร)
+ * - Checklist: Creator/Admin can cancel
+ * - Incident: Requires PIN/OTP verification from Reporter
+ */
+export async function cancelDocument(docId, docType, reason, verification = null) {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return { error: 'Unauthorized' }
+
+    const supabaseAdmin = getAdminClient()
+    const reg = WORKFLOW_DOC_REGISTRY[docType.toLowerCase()]
+    if (!reg) return { error: 'Invalid document type' }
+
+    // 1. Get document info to check permissions
+    const { data: doc, error: docErr } = await supabaseAdmin
+      .from(reg.table)
+      .select(`*, reported_by_id, created_by_id, ${reg.no_field}`)
+      .eq('id', docId)
+      .single()
+
+    if (docErr) throw docErr
+    if (!doc) return { error: 'Document not found' }
+
+    // 2. Check if already cancelled or closed
+    if (doc[reg.status_field] === 'Cancelled') return { error: 'เอกสารนี้ถูกยกเลิกไปแล้ว' }
+    if (doc[reg.status_field] === 'Closed') return { error: 'ไม่สามารถยกเลิกเอกสารที่ปิดสำเร็จแล้ว' }
+
+    // 3. Permission & Verification Check
+    const currentUserId = session.user.id
+    const { data: currentUser } = await supabaseAdmin
+      .from('user_profiles')
+      .select('role')
+      .eq('id', currentUserId)
+      .single()
+
+    const isAdmin = currentUser?.role === 'admin'
+    const isCreator = doc.created_by_id === currentUserId
+
+    if (docType.toLowerCase() === 'incident') {
+      // Incident: Requires PIN or OTP from Reporter
+      const reporterId = doc.reported_by_id || doc.created_by_id
+
+      if (!isAdmin && currentUserId !== reporterId) {
+        return { error: 'เฉพาะผู้แจ้งเหตุ (Reporter) หรือ Admin เท่านั้นที่สามารถยกเลิก Incident ได้' }
+      }
+
+      // Verification required for Incident cancellation
+      if (!verification || (!verification.pin && !verification.otp)) {
+        return { error: 'การยกเลิก Incident ต้องมีการยืนยันตัวตนด้วย PIN หรือ OTP', requiresVerification: true }
+      }
+
+      // Verify PIN
+      if (verification.pin) {
+        const { verifyEmployeePIN } = await import('./users')
+        const pinCheck = await verifyEmployeePIN(reporterId, verification.pin)
+        if (!pinCheck.success) return { error: pinCheck.error || 'รหัส PIN ไม่ถูกต้อง' }
+      }
+
+      // Verify OTP
+      if (verification.otp) {
+        const { verifyEmployeeSignatureOTP } = await import('./users')
+        const otpCheck = await verifyEmployeeSignatureOTP(reporterId, verification.otp)
+        if (!otpCheck.success) return { error: otpCheck.error || 'รหัส OTP ไม่ถูกต้อง' }
+      }
+    } else if (docType.toLowerCase() === 'checklist') {
+      // Checklist: Creator or Admin can cancel
+      if (!isAdmin && !isCreator) {
+        return { error: 'เฉพาะผู้สร้างเอกสารหรือ Admin เท่านั้นที่สามารถยกเลิก Checklist ได้' }
+      }
+    }
+
+    // 4. Update main table to Cancelled status
+    const { error: updateErr } = await supabaseAdmin
+      .from(reg.table)
+      .update({
+        [reg.workflow_status_field]: null,
+        [reg.status_field]: 'Cancelled',
+        assigned_approver_id: null,
+        cancelled_at: new Date().toISOString(),
+        cancelled_by: session.user.email,
+        cancel_reason: reason
+      })
+      .eq('id', docId)
+
+    if (updateErr) throw updateErr
+
+    // 5. Cancel all pending workflow steps
+    await supabaseAdmin
+      .from('document_approvals')
+      .update({ status: 'cancelled', comment: `Cancelled: ${reason}` })
+      .eq('doc_id', docId)
+      .in('status', ['pending', 'waiting'])
+
+    // 6. Record Log
+    const docNo = doc[reg.no_field] || docId
+    await recordLog(docId, docType.toLowerCase(), 'Cancelled', `ยกเลิกเอกสาร ${docNo} | เหตุผล: ${reason}`, session.user.email)
+
+    // 7. For Checklist: Recreate option notification (2.1 requirement)
+    if (docType.toLowerCase() === 'checklist') {
+      // Log information about recreation availability
+      await recordLog(docId, 'checklist', 'Info', 'เอกสารถูกยกเลิก สามารถสร้างใหม่ได้จากเมนูตรวจสอบและความถี่', session.user.email)
+    }
+
+    return { success: true, docNo }
+  } catch (err) {
+    console.error('cancelDocument Error:', err)
+    return { error: err.message }
+  }
+}
+
+/**
+ * 📧 Request OTP for Incident Cancellation
+ */
+export async function requestIncidentCancelOTP(docId) {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return { error: 'Unauthorized' }
+
+    const supabaseAdmin = getAdminClient()
+
+    // Get incident reporter
+    const { data: incident, error: incErr } = await supabaseAdmin
+      .from('incidents')
+      .select('reported_by_id, created_by_id, case_number')
+      .eq('id', docId)
+      .single()
+
+    if (incErr) throw incErr
+
+    const reporterId = incident.reported_by_id || incident.created_by_id
+
+    // Request OTP for reporter
+    const { requestEmployeeSignatureOTP } = await import('./users')
+    const result = await requestEmployeeSignatureOTP(reporterId)
+
+    if (result.success) {
+      return { success: true, message: `ส่ง OTP ไปยังอีเมลของผู้แจ้งแล้ว (Case: ${incident.case_number})` }
+    }
+
+    return result
+  } catch (err) {
+    console.error('requestIncidentCancelOTP Error:', err)
+    return { error: err.message }
+  }
+}
+
 export async function submitApprovalStep(docId, docType, stepId, signatureData, comment = '', pin = null, overrideApproverId = null) {
   try {
     const session = await getCurrentUserSession()
