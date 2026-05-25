@@ -176,7 +176,6 @@ CREATE TABLE IF NOT EXISTS public.checklist_template_targets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   template_id UUID,
   target_id UUID,
-  target_group_id UUID,
   target_type TEXT,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
