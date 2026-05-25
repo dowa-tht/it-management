@@ -1,6 +1,13 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Change Logs)
 
 ## 25 พฤษภาคม 2569 (25-May-2026)
+- **15:10 +07:00 | MODULE: IT Checklist - Detail UI Redesign & Time Tracking:**
+  - สร้าง Database Migration `20260525_checklist_time_tracking.sql` เพิ่ม columns สำหรับ time tracking และ evaluation
+  - เพิ่มส่วน "ข้อมูลเวลาการดำเนินการ" ใน Checklist Detail: เวลาเริ่มต้น (input), เวลาสิ้นสุด (คำนวณอัตโนมัติ), ระยะเวลารวม
+  - ออกแบบ UI ใหม่สำหรับแต่ละรายการตรวจสอบ: ขั้นตอนการดำเนินการ, ผู้รับผิดชอบ, เกณฑ์วัดผลการซ้อม, เวลาดำเนินการ (HH:mm), ผลการประเมิน (OK/NG)
+  - พัฒนา functions สำหรับคำนวณเวลาสิ้นสุดอัตโนมัติจากเวลาเริ่ม + ผลรวมเวลาแต่ละรายการ
+  - รองรับรูปแบบเวลา DD/MMM/YYYY HH:mm (24H) สำหรับเวลาเริ่มต้น
+  - รันการทดสอบระบบ (`npm test`) ผ่าน 100% (12/12 tests passed)
 - **15:05 +07:00 | MODULE: Workflow Engine - Cancel Document Feature:**
   - เพิ่ม Server Action `cancelDocument()` ใน `app/actions/workflow.js` สำหรับยกเลิกเอกสาร Checklist และ Incident
   - เพิ่ม Server Action `requestIncidentCancelOTP()` สำหรับขอ OTP ยืนยันการยกเลิก Incident

@@ -6,6 +6,25 @@
 
 ## ✅ งานที่เสร็จสิ้นแล้ว (Completed)
 
+### 18. Checklist Detail UI Redesign & Time Tracking
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 25 พฤษภาคม 2569
+- **รายละเอียด:**
+  - สร้าง Database Migration เพิ่ม columns สำหรับ time tracking และ evaluation (checklist_items, checklist_docs)
+  - พัฒนา Time Tracking Section: เวลาเริ่มต้น (DD/MMM/YYYY HH:mm), เวลาสิ้นสุด (คำนวณอัตโนมัติ), ระยะเวลารวม
+  - ออกแบบ UI ใหม่สำหรับแต่ละรายการตรวจสอบ:
+    - ขั้นตอนการดำเนินการ (แสดงจาก instruction)
+    - ผู้รับผิดชอบ (input field)
+    - เกณฑ์วัดผลการซ้อม (input field)
+    - เวลาดำเนินการ (HH:mm input ต่อรายการ)
+    - ผลการประเมิน (OK/NG buttons)
+  - พัฒนา auto-calculation สำหรับเวลาสิ้นสุดจาก start_time + sum(duration_minutes)
+  - รัน `npm test` ผ่าน 100% (12/12 tests passed)
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `app/dashboard/checklist/[id]/page.js`
+  - `supabase/migrations/20260525_checklist_time_tracking.sql`
+  - `docs/history/CHANGELOG.md`
+
 ### 17. Cancel Document Feature (Workflow Engine)
 - **สถานะ:** ✅ เสร็จสมบูรณ์
 - **วันที่:** 25 พฤษภาคม 2569
