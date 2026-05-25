@@ -147,6 +147,10 @@ export default function ChecklistDetailPage() {
   const [cancelReason, setCancelReason] = useState('')
   const [cancelLoading, setCancelLoading] = useState(false)
 
+  // Time tracking states
+  const [startTime, setStartTime] = useState('')
+  const [isSavingTime, setIsSavingTime] = useState(false)
+
   const { NotificationComponent, showToast, showModal } = useWorkflowNotification()
 
   const fetchData = useCallback(async () => {
@@ -158,7 +162,17 @@ export default function ChecklistDetailPage() {
       supabase.from('checklist_templates').select('*')
     ])
 
-    if (docData) setDoc(docData)
+    if (docData) {
+      setDoc(docData)
+      // Load start_time if exists
+      if (docData.start_time) {
+        const date = new Date(docData.start_time)
+        const formatted = `${String(date.getDate()).padStart(2, '0')}/${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getMonth()]}/${date.getFullYear()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+        setStartTime(formatted)
+      } else {
+        setStartTime('')
+      }
+    }
     if (itemsData) setItems(itemsData)
     if (logsData) {
       const emails = [...new Set(logsData.map(l => l.user_email).filter(Boolean))]
@@ -276,6 +290,93 @@ export default function ChecklistDetailPage() {
     updatedItems[itemIndex].template_data = newData
     setItems(updatedItems)
     await supabase.from('checklist_items').update({ template_data: newData }).eq('id', itemId)
+  }
+
+  // Time Tracking Functions
+  const parseTimeInput = (timeStr) => {
+    // Parse HH:mm format to minutes
+    const match = timeStr?.match(/^(\d{1,2}):(\d{2})$/)
+    if (!match) return null
+    const hours = parseInt(match[1], 10)
+    const minutes = parseInt(match[2], 10)
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null
+    return hours * 60 + minutes
+  }
+
+  const formatMinutesToHHMM = (minutes) => {
+    if (!minutes || minutes <= 0) return ''
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`
+  }
+
+  const calculateEndTime = () => {
+    if (!doc?.start_time) return null
+    const startDate = new Date(doc.start_time)
+    const totalMinutes = items.reduce((sum, item) => sum + (item.duration_minutes || 0), 0)
+    if (totalMinutes <= 0) return null
+    const endDate = new Date(startDate.getTime() + totalMinutes * 60000)
+    return `${String(endDate.getDate()).padStart(2, '0')}/${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][endDate.getMonth()]}/${endDate.getFullYear()} ${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`
+  }
+
+  const saveStartTime = async (value) => {
+    // Parse DD/MMM/YYYY HH:mm format
+    const match = value?.match(/^(\d{2})\/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\/(\d{4}) (\d{2}):(\d{2})$/)
+    if (!match) {
+      showToast({ message: 'รูปแบบเวลาไม่ถูกต้อง (DD/MMM/YYYY HH:mm)', type: 'error' })
+      return
+    }
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const monthIndex = monthNames.indexOf(match[2])
+    const date = new Date(parseInt(match[3]), monthIndex, parseInt(match[1]), parseInt(match[4]), parseInt(match[5]))
+
+    setIsSavingTime(true)
+    try {
+      await supabase.from('checklist_docs').update({ start_time: date.toISOString() }).eq('id', id)
+      setDoc(prev => ({ ...prev, start_time: date.toISOString() }))
+      showToast({ message: 'บันทึกเวลาเริ่มต้นเรียบร้อย', type: 'success' })
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+    setIsSavingTime(false)
+  }
+
+  const updateItemDuration = async (itemId, durationValue) => {
+    if (isLocked) return
+    const minutes = parseTimeInput(durationValue)
+    if (durationValue && minutes === null) {
+      showToast({ message: 'รูปแบบเวลาไม่ถูกต้อง (HH:mm)', type: 'error' })
+      return
+    }
+
+    const updatedItems = items.map(item =>
+      item.id === itemId ? { ...item, duration_minutes: minutes } : item
+    )
+    setItems(updatedItems)
+
+    // Calculate and update total duration
+    const totalMinutes = updatedItems.reduce((sum, item) => sum + (item.duration_minutes || 0), 0)
+
+    try {
+      await supabase.from('checklist_items').update({ duration_minutes: minutes }).eq('id', itemId)
+      await supabase.from('checklist_docs').update({ total_duration_minutes: totalMinutes }).eq('id', id)
+      setDoc(prev => ({ ...prev, total_duration_minutes: totalMinutes }))
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+  }
+
+  const updateItemEvaluation = async (itemId, evaluation) => {
+    if (isLocked) return
+    const updatedItems = items.map(item =>
+      item.id === itemId ? { ...item, evaluation_result: evaluation } : item
+    )
+    setItems(updatedItems)
+    try {
+      await supabase.from('checklist_items').update({ evaluation_result: evaluation }).eq('id', itemId)
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
   }
 
   const handleStatusClick = async (index, newStatus) => {
@@ -477,6 +578,77 @@ export default function ChecklistDetailPage() {
           <WorkflowProgressBar currentStatus={doc.status} steps={workflowSteps} />
         </div>
 
+        {/* Time Tracking Section */}
+        <div className="premium-card" style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '12px', fontWeight: 800, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>⏱️ ข้อมูลเวลาการดำเนินการ</h2>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+            {/* Start Time Input */}
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>เวลาเริ่มต้น</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  onBlur={() => saveStartTime(startTime)}
+                  placeholder="DD/MMM/YYYY HH:mm"
+                  disabled={isLocked || isSavingTime}
+                  style={{
+                    flex: 1,
+                    padding: '10px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    background: isLocked ? '#f3f4f6' : '#fff'
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>รูปแบบ: 25/May/2026 14:30</div>
+            </div>
+
+            {/* Calculated End Time */}
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>เวลาสิ้นสุด (คำนวณ)</label>
+              <div style={{
+                padding: '10px 12px',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 600,
+                color: calculateEndTime() ? '#059669' : '#94a3b8',
+                background: '#f8fafc'
+              }}>
+                {calculateEndTime() || '—'}
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                คำนวณจาก: เริ่ม + ผลรวมเวลาแต่ละรายการ
+              </div>
+            </div>
+
+            {/* Total Duration */}
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>ระยะเวลารวม</label>
+              <div style={{
+                padding: '10px 12px',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 600,
+                color: doc?.total_duration_minutes ? '#2563eb' : '#94a3b8',
+                background: '#f8fafc'
+              }}>
+                {doc?.total_duration_minutes ? formatMinutesToHHMM(doc.total_duration_minutes) : '—'}
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                ผลรวมเวลาทุกรายการ
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Main Grid */}
         <div className="checklist-grid">
           {/* Left Column: Checklist Items */}
@@ -498,64 +670,133 @@ export default function ChecklistDetailPage() {
                   const instruction = snapshot.instruction ?? dbTemplate?.instruction ?? staticTemplate?.instruction
 
                   return (
-                    <div key={item.id} style={{ padding: '32px', borderBottom: '1px solid #f1f5f9', background: item.status === 'NG' ? '#fff1f2' : 'transparent' }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1, minWidth: '300px' }}>
-                          <div style={{ fontSize: '10px', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>{category}</div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                            <span style={{ fontSize: '16px', fontWeight: 700, color: '#1e293b' }}>{item.item_label}</span>
-                            <button 
-                              onClick={() => setActiveInstruction({ ...item, category, instruction })} 
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: 0 }}
-                              title="ดูคำแนะนำ"
-                            >📄</button>
+                    <div key={item.id} style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', background: item.status === 'NG' ? '#fff1f2' : 'transparent' }}>
+                      {/* Header: Category and Item Label */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '1px' }}>{category}</span>
+                        <span style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{item.item_label}</span>
+                      </div>
+
+                      {/* New Grid Layout for Checklist Item Details */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                        {/* 1. Procedure Step (ขั้นตอนการดำเนินการ) */}
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>ขั้นตอนการดำเนินการ</label>
+                          <div style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5, background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                            {instruction || 'ไม่มีขั้นตอนการดำเนินการ'}
                           </div>
-                          
-                          <TemplateRenderer item={item} template={dbTemplate} onUpdate={(data) => updateItemData(item.id, data)} isClosed={isLocked} isAuditor={isAuditor} />
-                          
-                          {item.status === 'NG' && (
-                            <div style={{ marginTop: '20px', padding: '16px', borderRadius: '12px', background: '#fff', border: '1px solid #fecaca', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                              <div style={{ fontSize: '13px', fontWeight: 700, color: '#dc2626', marginBottom: '8px' }}>⚠️ พบปัญหา: {item.notes}</div>
-                              {incidents.find(inc => inc.ref_id === item.id) ? (
-                                <Link href={`/dashboard/incidents/${incidents.find(inc => inc.ref_id === item.id).id}`} style={{ fontSize: '11px', fontWeight: 800, color: '#d97706', textDecoration: 'underline' }}>
-                                  เปิดเคสแล้ว: {incidents.find(inc => inc.ref_id === item.id).case_number}
-                                </Link>
-                              ) : !isAuditor && (
-                                <Link href={`/dashboard/incidents/new?ref_type=checklist&ref_id=${item.id}&doc_no=${doc.doc_no}`} style={{ fontSize: '11px', fontWeight: 800, color: '#dc2626', textDecoration: 'underline' }}>
-                                  🚨 เปิด Incident Case
-                                </Link>
-                              )}
-                            </div>
-                          )}
                         </div>
-                        
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button 
-                            onClick={() => handleStatusClick(index, 'OK')} 
-                            disabled={isLocked} 
-                            style={{ 
-                              padding: '10px 24px', borderRadius: '12px', border: 'none', fontWeight: 900, fontSize: '12px', cursor: 'pointer',
-                              background: item.status === 'OK' ? '#10b981' : '#f1f5f9', 
-                              color: item.status === 'OK' ? '#fff' : '#94a3b8',
-                              transition: 'all 0.2s',
-                              opacity: isLocked ? 0.6 : 1,
-                              boxShadow: item.status === 'OK' ? '0 4px 12px rgba(16, 185, 129, 0.2)' : 'none'
+
+                        {/* 2. Responsible Person (ผู้รับผิดชอบ) */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>ผู้รับผิดชอบ</label>
+                          <input
+                            type="text"
+                            value={item.responsible_person || ''}
+                            onChange={(e) => {
+                              const updatedItems = items.map(i => i.id === item.id ? { ...i, responsible_person: e.target.value } : i)
+                              setItems(updatedItems)
                             }}
-                          >OK</button>
-                          <button 
-                            onClick={() => handleStatusClick(index, 'NG')} 
-                            disabled={isLocked} 
-                            style={{ 
-                              padding: '10px 24px', borderRadius: '12px', border: 'none', fontWeight: 900, fontSize: '12px', cursor: 'pointer',
-                              background: item.status === 'NG' ? '#dc2626' : '#f1f5f9', 
-                              color: item.status === 'NG' ? '#fff' : '#94a3b8',
-                              transition: 'all 0.2s',
-                              opacity: isLocked ? 0.6 : 1,
-                              boxShadow: item.status === 'NG' ? '0 4px 12px rgba(220, 38, 38, 0.2)' : 'none'
+                            onBlur={async () => {
+                              await supabase.from('checklist_items').update({ responsible_person: item.responsible_person }).eq('id', item.id)
                             }}
-                          >NG</button>
+                            placeholder="ชื่อผู้รับผิดชอบ"
+                            disabled={isLocked}
+                            style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', background: isLocked ? '#f3f4f6' : '#fff' }}
+                          />
+                        </div>
+
+                        {/* 3. Evaluation Criteria (เกณฑ์วัดผลการซ้อม) */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>เกณฑ์วัดผลการซ้อม</label>
+                          <input
+                            type="text"
+                            value={item.evaluation_criteria || ''}
+                            onChange={(e) => {
+                              const updatedItems = items.map(i => i.id === item.id ? { ...i, evaluation_criteria: e.target.value } : i)
+                              setItems(updatedItems)
+                            }}
+                            onBlur={async () => {
+                              await supabase.from('checklist_items').update({ evaluation_criteria: item.evaluation_criteria }).eq('id', item.id)
+                            }}
+                            placeholder="เกณฑ์การประเมิน"
+                            disabled={isLocked}
+                            style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', background: isLocked ? '#f3f4f6' : '#fff' }}
+                          />
+                        </div>
+
+                        {/* 4. Duration Input (เวลาดำเนินการ HH:mm) */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>เวลาดำเนินการ</label>
+                          <input
+                            type="text"
+                            value={formatMinutesToHHMM(item.duration_minutes)}
+                            onChange={(e) => updateItemDuration(item.id, e.target.value)}
+                            placeholder="HH:mm"
+                            disabled={isLocked}
+                            style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', background: isLocked ? '#f3f4f6' : '#fff' }}
+                          />
+                          <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>รูปแบบ: 01:30</div>
+                        </div>
+
+                        {/* 5. Evaluation Result (ผลการประเมิน OK/NG) */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>ผลการประเมิน</label>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              onClick={() => updateItemEvaluation(item.id, 'OK')}
+                              disabled={isLocked}
+                              style={{
+                                flex: 1,
+                                padding: '8px 12px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                fontWeight: 700,
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                background: item.evaluation_result === 'OK' ? '#10b981' : '#f1f5f9',
+                                color: item.evaluation_result === 'OK' ? '#fff' : '#64748b',
+                                opacity: isLocked ? 0.6 : 1
+                              }}
+                            >OK</button>
+                            <button
+                              onClick={() => updateItemEvaluation(item.id, 'NG')}
+                              disabled={isLocked}
+                              style={{
+                                flex: 1,
+                                padding: '8px 12px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                fontWeight: 700,
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                background: item.evaluation_result === 'NG' ? '#dc2626' : '#f1f5f9',
+                                color: item.evaluation_result === 'NG' ? '#fff' : '#64748b',
+                                opacity: isLocked ? 0.6 : 1
+                              }}
+                            >NG</button>
+                          </div>
                         </div>
                       </div>
+
+                      {/* Template Renderer (Existing Photo/Verification UI) */}
+                      <TemplateRenderer item={item} template={dbTemplate} onUpdate={(data) => updateItemData(item.id, data)} isClosed={isLocked} isAuditor={isAuditor} />
+
+                      {/* NG Status Incident Link */}
+                      {item.status === 'NG' && (
+                        <div style={{ marginTop: '16px', padding: '12px 16px', borderRadius: '8px', background: '#fff', border: '1px solid #fecaca' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: '#dc2626', marginBottom: '4px' }}>⚠️ พบปัญหา: {item.notes}</div>
+                          {incidents.find(inc => inc.ref_id === item.id) ? (
+                            <Link href={`/dashboard/incidents/${incidents.find(inc => inc.ref_id === item.id).id}`} style={{ fontSize: '11px', fontWeight: 800, color: '#d97706', textDecoration: 'underline' }}>
+                              เปิดเคสแล้ว: {incidents.find(inc => inc.ref_id === item.id).case_number}
+                            </Link>
+                          ) : !isAuditor && (
+                            <Link href={`/dashboard/incidents/new?ref_type=checklist&ref_id=${item.id}&doc_no=${doc.doc_no}`} style={{ fontSize: '11px', fontWeight: 800, color: '#dc2626', textDecoration: 'underline' }}>
+                              🚨 เปิด Incident Case
+                            </Link>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
