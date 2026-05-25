@@ -454,6 +454,30 @@ export async function saveChecklistTarget(payload) {
 
     const target = validation.data
     const existingId = target.id || null
+
+    // Check target_code duplicate
+    const codeQuery = adminClient
+      .from('checklist_targets')
+      .select('id')
+      .eq('target_code', target.target_code)
+
+    const { data: codeConflict, error: codeConflictError } = existingId
+      ? await codeQuery.neq('id', existingId).maybeSingle()
+      : await codeQuery.maybeSingle()
+
+    if (codeConflictError) {
+      return { success: false, error: codeConflictError.message }
+    }
+
+    if (codeConflict) {
+      return {
+        success: false,
+        error: 'Target Code นี้ถูกใช้งานแล้ว กรุณาใช้รหัสอื่น',
+        fieldErrors: { target_code: 'Target Code นี้ถูกใช้งานแล้ว' },
+      }
+    }
+
+    // Check qr_value duplicate
     const duplicateQuery = adminClient
       .from('checklist_targets')
       .select('id')
