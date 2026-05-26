@@ -18,12 +18,14 @@ export function UnifiedApprovalModal({
   loading,
   userEmail,
   approverEmail,
-  requirePin = true,
+  requirePin,          // ถ้าไม่ระบุ จะ default ตาม isRemote
   title = "ยืนยันการอนุมัติเอกสาร",
   isCreator = false,
   isRemote = false,
   onTestPin = null
 }) {
+  // Login Approve (isRemote=false) ไม่ต้อง PIN, Remote Approve ต้อง PIN
+  const needPin = requirePin !== undefined ? requirePin : isRemote
   const [pin, setPin] = useState('')
   const [comment, setComment] = useState('')
   const [error, setError] = useState('')
@@ -61,7 +63,7 @@ export function UnifiedApprovalModal({
       return
     }
 
-    if (requirePin && pin.length !== PIN_LENGTH) {
+    if (needPin && pin.length !== PIN_LENGTH) {
       setError('กรุณากรอกรหัส PIN ให้ครบ 6 หลัก')
       return
     }
@@ -73,7 +75,7 @@ export function UnifiedApprovalModal({
 
     const signatureData = sigPad.current ? sigPad.current.toDataURL() : null
     onConfirm({
-      pin: requirePin ? pin : null,
+      pin: needPin ? pin : null,
       signatureData,
       comment
     })
@@ -95,8 +97,9 @@ export function UnifiedApprovalModal({
   }
 
   // Determine if confirm button should be enabled
-  const canConfirm = isCreator ? true : (!requirePin || pin.length === PIN_LENGTH) && hasSigned
-  const identityLabel = isRemote ? 'ต้องการลายเซ็น / PIN ของ' : 'ผู้อนุมัติ'
+  // Login Approve (isRemote=false, !isCreator): ไม่ต้อง sign และไม่ต้อง PIN — confirm ได้เลย
+  const canConfirm = isCreator ? true : isRemote ? (!needPin || pin.length === PIN_LENGTH) && hasSigned : true
+  const identityLabel = isRemote ? 'ต้องการลายเซ็น / PIN ของ' : 'ผู้อนุมัติ (Login)'
   const displayName = approverName || 'ไม่พบชื่อผู้อนุมัติ'
   const displayEmail = approverEmail || userEmail || 'ไม่พบอีเมลผู้อนุมัติ'
 
@@ -144,8 +147,8 @@ export function UnifiedApprovalModal({
         </div>
   
         <div className="flex flex-col gap-4" style={{ padding: '24px' }}>
-          {/* 1. Signature Pad — only for non-creator */}
-          {!isCreator && (
+          {/* 1. Signature Pad — Remote Approve และไม่ใช่ Creator */}
+          {!isCreator && isRemote && (
             <section className="flex flex-col gap-2">
               <div className="flex justify-between items-end gap-4 px-2">
                 <label className="text-[11px] font-black text-slate-800 uppercase tracking-widest">
@@ -192,8 +195,8 @@ export function UnifiedApprovalModal({
             />
           </section>
 
-          {/* 3. PIN Verification — only for non-creator */}
-          {!isCreator && requirePin && (
+          {/* 3. PIN Verification — Remote Approve เท่านั้น */}
+          {!isCreator && needPin && (
             <section className="flex flex-col gap-2">
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 px-2">
                 <div>

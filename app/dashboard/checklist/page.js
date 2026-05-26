@@ -88,7 +88,7 @@ function ChecklistCard({ doc, steps = [] }) {
            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '8px', color: '#64748b', fontWeight: 600 }}>
             <span>Approval Progress</span>
             <span style={{ 
-              color: doc.displayStatus === 'Closed' ? '#10b981' : (doc.displayStatus === 'Pending Approval' ? '#f59e0b' : '#3b82f6'),
+              color: doc.displayStatus === 'Closed' ? '#10b981' : doc.displayStatus === 'Cancelled' ? '#dc2626' : (doc.displayStatus === 'Pending Approval' ? '#f59e0b' : '#3b82f6'),
               fontWeight: 700
             }}>
               {doc.displayStatus}
@@ -460,6 +460,7 @@ function ChecklistListForm() {
             <option value="In Progress">In Progress</option>
             <option value="Pending Approval">Pending Approval</option>
             <option value="Closed">Closed</option>
+            <option value="Cancelled">Cancelled</option>
           </select>
         </div>
 
@@ -534,9 +535,9 @@ function ChecklistListForm() {
                     </td>
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       <span style={{ 
-                        background: doc.displayStatus === 'In Progress' ? '#eff6ff' : doc.displayStatus === 'Pending Approval' ? '#ffedd5' : doc.displayStatus === 'Open' ? '#f3f4f6' : '#ecfdf5', 
-                        color: doc.displayStatus === 'In Progress' ? '#1d4ed8' : doc.displayStatus === 'Pending Approval' ? '#9a3412' : doc.displayStatus === 'Open' ? '#4b5563' : '#059669', 
-                        border: `1px solid ${doc.displayStatus === 'In Progress' ? '#bfdbfe' : doc.displayStatus === 'Pending Approval' ? '#fed7aa' : doc.displayStatus === 'Open' ? '#e5e7eb' : '#a7f3d0'}`,
+                        background: doc.displayStatus === 'Cancelled' ? '#fee2e2' : doc.displayStatus === 'In Progress' ? '#eff6ff' : doc.displayStatus === 'Pending Approval' ? '#ffedd5' : doc.displayStatus === 'Open' ? '#f3f4f6' : '#ecfdf5', 
+                        color: doc.displayStatus === 'Cancelled' ? '#dc2626' : doc.displayStatus === 'In Progress' ? '#1d4ed8' : doc.displayStatus === 'Pending Approval' ? '#9a3412' : doc.displayStatus === 'Open' ? '#4b5563' : '#059669', 
+                        border: `1px solid ${doc.displayStatus === 'Cancelled' ? '#fca5a5' : doc.displayStatus === 'In Progress' ? '#bfdbfe' : doc.displayStatus === 'Pending Approval' ? '#fed7aa' : doc.displayStatus === 'Open' ? '#e5e7eb' : '#a7f3d0'}`,
                         padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500 
                       }}>
                         {doc.displayStatus}

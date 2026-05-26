@@ -171,11 +171,13 @@ export default function IncidentDetailPage() {
   const [currentUser, setCurrentUser] = useState(null)
   const [logs, setLogs] = useState([])
   const [workflowSteps, setWorkflowSteps] = useState([])
+  const [isSubstitute, setIsSubstitute] = useState(false)
 
   const { NotificationComponent, showToast, showModal } = useWorkflowNotification()
   
   const [showSignatureModal, setShowSignatureModal] = useState(false)
   const [approvalLoading, setApprovalLoading] = useState(false)
+  const [isRemoteApprovalMode, setIsRemoteApprovalMode] = useState(false)
   const [showResolveDialog, setShowResolveDialog] = useState(false)
   const [showReopenDialog, setShowReopenDialog] = useState(false)
   const [showAcknowledgeDialog, setShowAcknowledgeDialog] = useState(false)
@@ -202,6 +204,20 @@ export default function IncidentDetailPage() {
     }
     init()
   }, [id])
+
+  // Resolve isSubstituteOf แบบ async — รันเมื่อ currentUser หรือ workflowSteps เปลี่ยน
+  useEffect(() => {
+    const checkSubstitute = async () => {
+      const pendingStep = workflowSteps.find(s => s.status === 'pending')
+      if (!currentUser?.id || !pendingStep?.approver_id) {
+        setIsSubstitute(false)
+        return
+      }
+      const result = await isSubstituteOf(currentUser.id, pendingStep.approver_id)
+      setIsSubstitute(!!result)
+    }
+    checkSubstitute()
+  }, [currentUser, workflowSteps])
 
   const fetchData = async () => {
     setLoading(true)
@@ -343,8 +359,6 @@ export default function IncidentDetailPage() {
     }
     setSaving(false)
   }
-
-  const [isRemoteApprovalMode, setIsRemoteApprovalMode] = useState(false)
 
   const handleApprove = async ({ pin, signatureData, comment }) => {
     setApprovalLoading(true)
@@ -613,16 +627,17 @@ export default function IncidentDetailPage() {
   const latestRejectedLog = logs.find(log => log.action === 'Rejected')
   const rejectReason = latestRejectedStep?.comment?.replace(/^Rejected:\s*/i, '') || latestRejectedLog?.details?.split('เหตุผล:').pop()?.trim() || ''
   const wasRejected = Boolean(latestRejectedStep || latestRejectedLog)
-  const canApprove = currentStep && (
-    currentStep.approver_id === currentUser?.id || 
-    (currentStep.role_required === currentUser?.role && !currentStep.approver_id) ||
-    isSubstituteOf(currentUser?.role, currentStep.role_required) ||
+  const canApprove = !!(currentStep && (
+    currentStep.approver_id === currentUser?.id ||
+    (!currentStep.approver_id && currentStep.role_required === currentUser?.role) ||
+    isSubstitute ||
     (currentStep.role_required === 'reporter' && isCreator)
-  )
+  ))
 
   const canEditDetails = !isLocked && (hasFullAccess || incident.reported_by_id === currentUser?.id)
   const canSubmitForApproval = incident.status === 'In Progress' && hasFullAccess
-  const canRemoteApprove = hasFullAccess && incident.status === 'Pending Approval' && !canApprove
+  // canRemoteApprove: เฉพาะ Sender (created_by_id) ที่ไม่ใช่ผู้อนุมัติจริง
+  const canRemoteApprove = !!(incident.status === 'Pending Approval' && !canApprove && currentUser?.id === incident?.created_by_id)
   const canAcknowledgeIncident = incident.status === 'Open' && ['admin', 'it_staff'].includes(currentUser?.role)
   const acknowledgeActionLabel = currentUser?.role === 'admin' ? '📌 มอบหมายงาน (Dispatch)' : '⚡ รับเรื่อง (Accept)'
 
@@ -680,16 +695,29 @@ export default function IncidentDetailPage() {
       {showReopenDialog && <ReopenDialog onCancel={() => setShowReopenDialog(false)} onConfirm={handleReopen} loading={saving} />}
       {showCancelDialog && renderCancelDialog()}
 
+      {/* Login Approve Modal — ไม่ต้อง PIN */}
       <UnifiedApprovalModal
-        isOpen={showSignatureModal}
+        isOpen={showSignatureModal && !isRemoteApprovalMode}
+        onCancel={() => setShowSignatureModal(false)}
+        onConfirm={handleApprove}
+        approverName={currentUser?.full_name}
+        approverEmail={currentUser?.email}
+        userEmail={currentUser?.email}
+        loading={approvalLoading}
+        isRemote={false}
+        title="ยืนยันการอนุมัติเอกสาร"
+      />
+      {/* Remote Approve Modal — ต้อง PIN ของ Approver จริง */}
+      <UnifiedApprovalModal
+        isOpen={showSignatureModal && isRemoteApprovalMode}
         onCancel={() => { setShowSignatureModal(false); setIsRemoteApprovalMode(false); }}
         onConfirm={handleApprove}
-        approverName={currentStep?.user_profiles?.full_name || (isRemoteApprovalMode && incident?.reporter?.full_name) || currentStep?.role_required || currentUser?.full_name}
-        approverEmail={currentStep?.user_profiles?.email || (isRemoteApprovalMode && incident?.reporter?.email) || currentUser?.email}
-        userEmail={currentStep?.user_profiles?.email || (isRemoteApprovalMode && incident?.reporter?.email) || currentUser?.email}
+        approverName={currentStep?.user_profiles?.full_name || currentStep?.role_required}
+        approverEmail={currentStep?.user_profiles?.email}
+        userEmail={currentStep?.user_profiles?.email}
         loading={approvalLoading}
-        isCreator={currentUser?.id === incident?.reported_by_id}
-        isRemote={isRemoteApprovalMode}
+        isRemote={true}
+        title="อนุมัติแทน (Remote Approve)"
         onTestPin={async (pin) => {
           const pendingStep = workflowSteps.find(s => s.status === 'pending')
           const res = await diagnoseApprovalPin(id, 'incident', pendingStep.id, pin)

@@ -135,6 +135,7 @@ export default function ChecklistDetailPage() {
   const [incidents, setIncidents] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [hasIncompleteT2, setHasIncompleteT2] = useState(false)
   const [activeNgItem, setActiveNgItem] = useState(null)
   const [activeInstruction, setActiveInstruction] = useState(null)
   const [templates, setTemplates] = useState([]) 
@@ -150,6 +151,10 @@ export default function ChecklistDetailPage() {
   // Time tracking states
   const [startTime, setStartTime] = useState('')
   const [isSavingTime, setIsSavingTime] = useState(false)
+
+  // Substitute check state (isSubstituteOf is async — must resolve separately)
+  const [isSubstitute, setIsSubstitute] = useState(false)
+  const [showRemoteModal, setShowRemoteModal] = useState(false)
 
   const { NotificationComponent, showToast, showModal } = useWorkflowNotification()
 
@@ -205,6 +210,20 @@ export default function ChecklistDetailPage() {
     load()
   }, [fetchData])
 
+  // Resolve isSubstituteOf แบบ async — รัน เมื่อ currentUser หรือ workflowSteps เปลี่ยน
+  useEffect(() => {
+    const checkSubstitute = async () => {
+      const pendingStep = workflowSteps.find(s => s.status === 'pending')
+      if (!currentUser?.id || !pendingStep?.approver_id) {
+        setIsSubstitute(false)
+        return
+      }
+      const result = await isSubstituteOf(currentUser.id, pendingStep.approver_id)
+      setIsSubstitute(!!result)
+    }
+    checkSubstitute()
+  }, [currentUser, workflowSteps])
+
   const isAuditor = currentUser?.role === 'auditor'
   const isClosed = doc?.status === 'Closed'
   const isLocked = isClosed || isAuditor || !isEditing
@@ -242,6 +261,26 @@ export default function ChecklistDetailPage() {
         await fetchData()
         router.refresh()
         showToast({ message: '✅ อนุมัติรายการเรียบร้อยแล้ว', type: 'success' })
+      } else {
+        showToast({ message: res.error, type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+    setApprovalLoading(false)
+  }
+
+  const handleRemoteApprove = async ({ pin, signatureData, comment }) => {
+    setApprovalLoading(true)
+    try {
+      const currentStep = workflowSteps.find(s => s.status === 'pending')
+      if (!currentStep) throw new Error('No pending step found')
+      const res = await submitApprovalStep(id, 'checklist', currentStep.id, signatureData, comment, pin, currentStep.approver_id || null)
+      if (res.success) {
+        setShowRemoteModal(false)
+        await fetchData()
+        router.refresh()
+        showToast({ message: '✅ อนุมัติแทน (Remote) เรียบร้อยแล้ว', type: 'success' })
       } else {
         showToast({ message: res.error, type: 'error' })
       }
@@ -313,7 +352,14 @@ export default function ChecklistDetailPage() {
   const calculateEndTime = () => {
     if (!doc?.start_time) return null
     const startDate = new Date(doc.start_time)
-    const totalMinutes = items.reduce((sum, item) => sum + (item.duration_minutes || 0), 0)
+    const totalMinutes = items.reduce((sum, item) => {
+      const uiType = item.template_data?._snapshot?.ui_template_type ?? 0
+      if (uiType === 2) {
+        // T2: ใช้ total_sub_duration_minutes ที่คำนวณจาก sub-steps
+        return sum + (item.template_data?.total_sub_duration_minutes || 0)
+      }
+      return sum + (item.duration_minutes || 0)
+    }, 0)
     if (totalMinutes <= 0) return null
     const endDate = new Date(startDate.getTime() + totalMinutes * 60000)
     return `${String(endDate.getDate()).padStart(2, '0')}/${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][endDate.getMonth()]}/${endDate.getFullYear()} ${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`
@@ -407,7 +453,61 @@ export default function ChecklistDetailPage() {
     setActiveNgItem(null)
   }
 
+  const handleDocEvaluation = async (result) => {
+    if (isLocked) return
+    try {
+      await supabase.from('checklist_docs').update({ evaluation_result: result }).eq('id', id)
+      setDoc(prev => ({ ...prev, evaluation_result: result }))
+      showToast({ message: `บันทึกผลการประเมินเอกสารเป็น ${result} เรียบร้อยค่ะ/ครับ`, type: 'success' })
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+  }
+
+  const handleDocRemarkChange = async (remarkValue) => {
+    if (isLocked) return
+    try {
+      await supabase.from('checklist_docs').update({ evaluation_remark: remarkValue }).eq('id', id)
+      setDoc(prev => ({ ...prev, evaluation_remark: remarkValue }))
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+  }
+
+
+  const handleT2ItemComplete = async (itemId, status, totalSubMinutes, incomplete) => {
+    if (isLocked) return
+    // track incomplete state สำหรับ block save
+    setHasIncompleteT2(!!incomplete)
+    const newStatus = status || null
+    const updatedItems = items.map(item =>
+      item.id === itemId ? { ...item, status: newStatus } : item
+    )
+    setItems(updatedItems)
+    try {
+      await supabase.from('checklist_items').update({ status: newStatus }).eq('id', itemId)
+      if (typeof totalSubMinutes === 'number' && totalSubMinutes >= 0) {
+        await supabase.from('checklist_docs').update({ total_duration_minutes: totalSubMinutes }).eq('id', id)
+        setDoc(prev => ({ ...prev, total_duration_minutes: totalSubMinutes }))
+      }
+      if (!newStatus && doc.evaluation_result) {
+        await supabase.from('checklist_docs').update({ evaluation_result: null, evaluation_remark: null }).eq('id', id)
+        setDoc(prev => ({ ...prev, evaluation_result: null, evaluation_remark: null }))
+      }
+      if (newStatus && doc.status === 'Open') {
+        await supabase.from('checklist_docs').update({ status: 'In Progress' }).eq('id', id)
+        setDoc(prev => ({ ...prev, status: 'In Progress' }))
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+  }
+
   const handleSaveEdit = async () => {
+    if (hasIncompleteT2) {
+      showToast({ message: '⚠️ ยังมี Step ที่ยังไม่สมบูรณ์ — กรุณาระบุผลการประเมิน (OK/NG) และระยะเวลาที่ใช้ให้ครบก่อนบันทึก', type: 'error' })
+      return
+    }
     setSaving(true)
     setTimeout(() => {
       setIsEditing(false)
@@ -492,10 +592,30 @@ export default function ChecklistDetailPage() {
   if (loading) return <div className="p-20 text-center text-slate-400 animate-pulse">กำลังโหลดข้อมูล...</div>
   if (!doc) return <div className="p-20 text-center text-slate-400">ไม่พบเอกสารนี้</div>
 
-  const doneCount = items.filter(i => i.status).length
+  // คำนวณ progress โดยรองรับ T2 (Procedure Plan) — นับจาก sub-steps ที่ checked
+  const getItemProgress = (item) => {
+    const uiType = item.template_data?._snapshot?.ui_template_type ?? 0
+    if (uiType === 2) {
+      // T2: complete เมื่อ item.status = 'OK' หรือ 'NG' (set โดย handleT2StepCompletion)
+      // fallback: ถ้า steps ทุก step ถูก check แล้วก็ถือว่า done
+      return !!item.status
+    }
+    return !!item.status
+  }
+  const doneCount = items.filter(i => getItemProgress(i)).length
   const progress = items.length ? Math.round((doneCount / items.length) * 100) : 0
   const currentStep = workflowSteps.find(s => s.status === 'pending')
-  const canApprove = currentStep && (currentStep.approver_id === currentUser?.id || (currentStep.role_required === currentUser?.role && !currentStep.approver_id) || isSubstituteOf(currentUser?.role, currentStep.role_required))
+  // canApprove: เงื่อนไข 3 ข้อ
+  // 1. มี approver_id ตรงกับ user ปัจจุบัน (specific person)
+  // 2. step ไม่ได้ระบุ approver_id และ role_required ตรงกับ user role
+  // 3. user เป็น substitute ที่ได้รับการแต่งตั้งให้แทน approver
+  const canApprove = !!(currentStep && (
+    currentStep.approver_id === currentUser?.id ||
+    (!currentStep.approver_id && currentStep.role_required === currentUser?.role) ||
+    isSubstitute
+  ))
+  // canRemoteApprove: เฉพาะ Sender (คนที่สร้างเอกสาร) เท่านั้น และต้องไม่ใช่ผู้อนุมัติจริง
+  const canRemoteApprove = !!(doc.status === 'Pending Approval' && !canApprove && currentUser?.id === doc?.created_by_id)
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', paddingBottom: '120px' }}>
@@ -505,15 +625,29 @@ export default function ChecklistDetailPage() {
       {activeInstruction && <InstructionDialog item={activeInstruction} onCancel={() => setActiveInstruction(null)} />}
       {showCancelDialog && renderCancelDialog()}
       
+      {/* Login Approve Modal — ไม่ต้อง PIN */}
       <UnifiedApprovalModal
         isOpen={showSignatureModal}
         onCancel={() => setShowSignatureModal(false)}
         onConfirm={handleApprove}
-        approverName={currentStep?.user_profiles?.full_name || currentStep?.role_required || currentUser?.full_name}
-        approverEmail={currentStep?.user_profiles?.email || currentUser?.email}
-        userEmail={currentStep?.user_profiles?.email || currentUser?.email}
+        approverName={currentUser?.full_name}
+        approverEmail={currentUser?.email}
+        userEmail={currentUser?.email}
         loading={approvalLoading}
-        isCreator={currentUser?.id === doc?.created_by_id}
+        isRemote={false}
+        title="ยืนยันการอนุมัติเอกสาร"
+      />
+      {/* Remote Approve Modal — ต้อง PIN ของ Approver จริง */}
+      <UnifiedApprovalModal
+        isOpen={showRemoteModal}
+        onCancel={() => setShowRemoteModal(false)}
+        onConfirm={handleRemoteApprove}
+        approverName={currentStep?.user_profiles?.full_name || currentStep?.role_required}
+        approverEmail={currentStep?.user_profiles?.email}
+        userEmail={currentStep?.user_profiles?.email}
+        loading={approvalLoading}
+        isRemote={true}
+        title="อนุมัติแทน (Remote Approve)"
       />
 
       <WorkflowActionBar
@@ -523,13 +657,15 @@ export default function ChecklistDetailPage() {
         onEdit={() => setIsEditing(true)}
         onCancelEdit={handleCancelEdit}
         onSave={handleSaveEdit}
-        canSubmit={!isClosed && doc.workflow_status !== 'pending' && progress === 100 && !isEditing && doc.status !== 'Cancelled'}
+        canSubmit={!isClosed && doc.workflow_status !== 'pending' && progress === 100 && (doc.evaluation_result === 'OK' || (doc.evaluation_result === 'NG' && doc.evaluation_remark && doc.evaluation_remark.trim().length > 0)) && !isEditing && doc.status !== 'Cancelled'}
         canApprove={canApprove && doc.status !== 'Cancelled'}
         canReject={canApprove && doc.status !== 'Cancelled'}
+        canRemoteApprove={canRemoteApprove}
         canReopen={(currentUser?.role === 'admin' || currentUser?.role === 'it_staff') && isClosed}
         canCancel={doc.status !== 'Cancelled' && doc.status !== 'Closed' && (currentUser?.role === 'admin' || currentUser?.id === doc?.created_by_id)}
         onSubmit={handleSubmitApproval}
         onApprove={() => setShowSignatureModal(true)}
+        onRemoteApprove={() => setShowRemoteModal(true)}
         onReject={handleReject}
         onReopen={handleReopen}
         onCancel={handleCancel}
@@ -576,6 +712,26 @@ export default function ChecklistDetailPage() {
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>{workflowSteps.filter(s => s.status === 'approved').length} / {workflowSteps.length} Steps Completed</div>
           </div>
           <WorkflowProgressBar currentStatus={doc.status} steps={workflowSteps} />
+          {(() => {
+            const rejectedStep = workflowSteps.find(s => s.status === 'rejected')
+            const rejectReason = rejectedStep?.comment?.replace(/^Rejected:\s*/i, '')
+            if (!rejectedStep || !rejectReason) return null
+            return (
+              <div style={{ marginTop: '16px', padding: '14px 16px', borderRadius: '12px', background: '#fff1f2', border: '1px solid #fecaca', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                <div style={{ fontSize: '18px', lineHeight: 1 }}>↩️</div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#dc2626', textTransform: 'uppercase', marginBottom: '4px' }}>เหตุผลที่ตีกลับ (Rejected)</div>
+                  <div style={{ fontSize: '13px', color: '#7f1d1d', lineHeight: 1.5 }}>{rejectReason}</div>
+                  {rejectedStep.action_at && (
+                    <div style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px' }}>
+                      {new Date(rejectedStep.action_at).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })}
+                      {rejectedStep.user_profiles?.full_name && ` — โดย ${rejectedStep.user_profiles.full_name}`}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Time Tracking Section */}
@@ -652,7 +808,7 @@ export default function ChecklistDetailPage() {
         {/* Main Grid */}
         <div className="checklist-grid">
           {/* Left Column: Checklist Items */}
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div className="premium-card" style={{ padding: 0, overflow: 'hidden' }}>
               <div style={{ borderBottom: '1px solid #f1f5f9', background: '#f8fafc', padding: '20px 32px' }}>
                 <h3 style={{ fontSize: '14px', fontWeight: 900, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -668,6 +824,8 @@ export default function ChecklistDetailPage() {
                   const snapshot = item.template_data?._snapshot || {}
                   const category = snapshot.category ?? dbTemplate?.category ?? staticTemplate?.category ?? 'General'
                   const instruction = snapshot.instruction ?? dbTemplate?.instruction ?? staticTemplate?.instruction
+                  const uiType = snapshot.ui_template_type ?? dbTemplate?.ui_template_type ?? 0
+                  const isT2 = uiType === 2
 
                   return (
                     <div key={item.id} style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', background: item.status === 'NG' ? '#fff1f2' : 'transparent' }}>
@@ -675,112 +833,105 @@ export default function ChecklistDetailPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                         <span style={{ fontSize: '10px', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '1px' }}>{category}</span>
                         <span style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{item.item_label}</span>
+                        {isT2 && (
+                          <span style={{ fontSize: '10px', fontWeight: 800, color: '#7c3aed', background: '#ede9fe', padding: '2px 8px', borderRadius: '999px', border: '1px solid #c4b5fd' }}>Procedure Plan</span>
+                        )}
                       </div>
 
-                      {/* New Grid Layout for Checklist Item Details */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
-                        {/* 1. Procedure Step (ขั้นตอนการดำเนินการ) */}
-                        <div style={{ gridColumn: '1 / -1' }}>
-                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>ขั้นตอนการดำเนินการ</label>
-                          <div style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5, background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                            {instruction || 'ไม่มีขั้นตอนการดำเนินการ'}
+                      {/* Fields: ซ่อนสำหรับ T2 เพราะ sub-steps ของ Procedure Plan มี metadata ของตัวเอง */}
+                      {!isT2 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                          {/* 1. Procedure Step (ขั้นตอนการดำเนินการ) */}
+                          <div style={{ gridColumn: '1 / -1' }}>
+                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>ขั้นตอนการดำเนินการ</label>
+                            <div style={{ fontSize: '13px', color: '#374151', lineHeight: 1.5, background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                              {instruction || 'ไม่มีขั้นตอนการดำเนินการ'}
+                            </div>
+                          </div>
+
+                          {/* 2. Responsible Person (ผู้รับผิดชอบ) */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>ผู้รับผิดชอบ</label>
+                            <input
+                              type="text"
+                              value={item.responsible_person || ''}
+                              onChange={(e) => {
+                                const updatedItems = items.map(i => i.id === item.id ? { ...i, responsible_person: e.target.value } : i)
+                                setItems(updatedItems)
+                              }}
+                              onBlur={async () => {
+                                await supabase.from('checklist_items').update({ responsible_person: item.responsible_person }).eq('id', item.id)
+                              }}
+                              placeholder="ชื่อผู้รับผิดชอบ"
+                              disabled={isLocked}
+                              style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', background: isLocked ? '#f3f4f6' : '#fff' }}
+                            />
+                          </div>
+
+                          {/* 3. Evaluation Criteria (เกณฑ์วัดผลการซ้อม) */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>เกณฑ์วัดผลการซ้อม</label>
+                            <input
+                              type="text"
+                              value={item.evaluation_criteria || ''}
+                              onChange={(e) => {
+                                const updatedItems = items.map(i => i.id === item.id ? { ...i, evaluation_criteria: e.target.value } : i)
+                                setItems(updatedItems)
+                              }}
+                              onBlur={async () => {
+                                await supabase.from('checklist_items').update({ evaluation_criteria: item.evaluation_criteria }).eq('id', item.id)
+                              }}
+                              placeholder="เกณฑ์การประเมิน"
+                              disabled={isLocked}
+                              style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', background: isLocked ? '#f3f4f6' : '#fff' }}
+                            />
+                          </div>
+
+                          {/* 4. Duration Input (เวลาดำเนินการ HH:mm) */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>เวลาดำเนินการ</label>
+                            <input
+                              type="text"
+                              value={formatMinutesToHHMM(item.duration_minutes)}
+                              onChange={(e) => updateItemDuration(item.id, e.target.value)}
+                              placeholder="HH:mm"
+                              disabled={isLocked}
+                              style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', background: isLocked ? '#f3f4f6' : '#fff' }}
+                            />
+                            <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>รูปแบบ: 01:30</div>
+                          </div>
+
+                          {/* 5. Evaluation Result (ผลการประเมิน OK/NG) */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>ผลการประเมิน</label>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                onClick={() => updateItemEvaluation(item.id, 'OK')}
+                                disabled={isLocked}
+                                style={{
+                                  flex: 1, padding: '8px 12px', borderRadius: '6px', border: 'none', fontWeight: 700, fontSize: '12px', cursor: isLocked ? 'not-allowed' : 'pointer',
+                                  background: item.evaluation_result === 'OK' ? '#10b981' : '#f1f5f9',
+                                  color: item.evaluation_result === 'OK' ? '#fff' : '#64748b',
+                                  opacity: isLocked ? 0.6 : 1
+                                }}
+                              >OK</button>
+                              <button
+                                onClick={() => updateItemEvaluation(item.id, 'NG')}
+                                disabled={isLocked}
+                                style={{
+                                  flex: 1, padding: '8px 12px', borderRadius: '6px', border: 'none', fontWeight: 700, fontSize: '12px', cursor: isLocked ? 'not-allowed' : 'pointer',
+                                  background: item.evaluation_result === 'NG' ? '#dc2626' : '#f1f5f9',
+                                  color: item.evaluation_result === 'NG' ? '#fff' : '#64748b',
+                                  opacity: isLocked ? 0.6 : 1
+                                }}
+                              >NG</button>
+                            </div>
                           </div>
                         </div>
-
-                        {/* 2. Responsible Person (ผู้รับผิดชอบ) */}
-                        <div>
-                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>ผู้รับผิดชอบ</label>
-                          <input
-                            type="text"
-                            value={item.responsible_person || ''}
-                            onChange={(e) => {
-                              const updatedItems = items.map(i => i.id === item.id ? { ...i, responsible_person: e.target.value } : i)
-                              setItems(updatedItems)
-                            }}
-                            onBlur={async () => {
-                              await supabase.from('checklist_items').update({ responsible_person: item.responsible_person }).eq('id', item.id)
-                            }}
-                            placeholder="ชื่อผู้รับผิดชอบ"
-                            disabled={isLocked}
-                            style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', background: isLocked ? '#f3f4f6' : '#fff' }}
-                          />
-                        </div>
-
-                        {/* 3. Evaluation Criteria (เกณฑ์วัดผลการซ้อม) */}
-                        <div>
-                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>เกณฑ์วัดผลการซ้อม</label>
-                          <input
-                            type="text"
-                            value={item.evaluation_criteria || ''}
-                            onChange={(e) => {
-                              const updatedItems = items.map(i => i.id === item.id ? { ...i, evaluation_criteria: e.target.value } : i)
-                              setItems(updatedItems)
-                            }}
-                            onBlur={async () => {
-                              await supabase.from('checklist_items').update({ evaluation_criteria: item.evaluation_criteria }).eq('id', item.id)
-                            }}
-                            placeholder="เกณฑ์การประเมิน"
-                            disabled={isLocked}
-                            style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', background: isLocked ? '#f3f4f6' : '#fff' }}
-                          />
-                        </div>
-
-                        {/* 4. Duration Input (เวลาดำเนินการ HH:mm) */}
-                        <div>
-                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>เวลาดำเนินการ</label>
-                          <input
-                            type="text"
-                            value={formatMinutesToHHMM(item.duration_minutes)}
-                            onChange={(e) => updateItemDuration(item.id, e.target.value)}
-                            placeholder="HH:mm"
-                            disabled={isLocked}
-                            style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', background: isLocked ? '#f3f4f6' : '#fff' }}
-                          />
-                          <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>รูปแบบ: 01:30</div>
-                        </div>
-
-                        {/* 5. Evaluation Result (ผลการประเมิน OK/NG) */}
-                        <div>
-                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>ผลการประเมิน</label>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            <button
-                              onClick={() => updateItemEvaluation(item.id, 'OK')}
-                              disabled={isLocked}
-                              style={{
-                                flex: 1,
-                                padding: '8px 12px',
-                                borderRadius: '6px',
-                                border: 'none',
-                                fontWeight: 700,
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                background: item.evaluation_result === 'OK' ? '#10b981' : '#f1f5f9',
-                                color: item.evaluation_result === 'OK' ? '#fff' : '#64748b',
-                                opacity: isLocked ? 0.6 : 1
-                              }}
-                            >OK</button>
-                            <button
-                              onClick={() => updateItemEvaluation(item.id, 'NG')}
-                              disabled={isLocked}
-                              style={{
-                                flex: 1,
-                                padding: '8px 12px',
-                                borderRadius: '6px',
-                                border: 'none',
-                                fontWeight: 700,
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                background: item.evaluation_result === 'NG' ? '#dc2626' : '#f1f5f9',
-                                color: item.evaluation_result === 'NG' ? '#fff' : '#64748b',
-                                opacity: isLocked ? 0.6 : 1
-                              }}
-                            >NG</button>
-                          </div>
-                        </div>
-                      </div>
+                      )}
 
                       {/* Template Renderer (Existing Photo/Verification UI) */}
-                      <TemplateRenderer item={item} template={dbTemplate} onUpdate={(data) => updateItemData(item.id, data)} isClosed={isLocked} isAuditor={isAuditor} />
+                      <TemplateRenderer item={item} template={dbTemplate} onUpdate={(data) => updateItemData(item.id, data)} isClosed={isLocked} isAuditor={isAuditor} onT2Complete={(status, totalSubMinutes, incomplete) => handleT2ItemComplete(item.id, status, totalSubMinutes, incomplete)} />
 
                       {/* NG Status Incident Link */}
                       {item.status === 'NG' && (
@@ -802,6 +953,95 @@ export default function ChecklistDetailPage() {
                 })}
               </div>
             </div>
+
+            {/* Document-level Evaluation Card (when progress is 100%) */}
+            {progress === 100 && (
+              <div className="premium-card" style={{ padding: '24px', border: '1px solid #e2e8f0', borderRadius: '16px', background: '#fff', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 900, color: '#1e293b', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ width: '4px', height: '16px', background: '#2563eb', borderRadius: '2px' }} />
+                  📋 ประเมินผลระดับเอกสารภาพรวม (Final Document Evaluation)
+                </h3>
+                <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
+                  เมื่อตรวจสอบข้อมูลทุกรายการเสร็จสิ้นแล้ว กรุณาประเมินผลการตรวจสอบในภาพรวมของเอกสารฉบับนี้เพื่อส่งอนุมัติตามขั้นตอนถัดไป
+                </p>
+                
+                <div style={{ display: 'flex', gap: '12px', marginBottom: doc.evaluation_result === 'NG' ? '16px' : '0' }}>
+                  <button
+                    onClick={() => handleDocEvaluation('OK')}
+                    disabled={isLocked}
+                    style={{
+                      flex: 1,
+                      padding: '12px 24px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      fontWeight: 800,
+                      fontSize: '14px',
+                      cursor: isLocked ? 'not-allowed' : 'pointer',
+                      background: doc.evaluation_result === 'OK' ? '#10b981' : '#f1f5f9',
+                      color: doc.evaluation_result === 'OK' ? '#fff' : '#64748b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s',
+                      boxShadow: doc.evaluation_result === 'OK' ? '0 4px 12px rgba(16, 185, 129, 0.2)' : 'none'
+                    }}
+                  >
+                    <span>✔️</span> OK - ผ่านการประเมิน
+                  </button>
+                  <button
+                    onClick={() => handleDocEvaluation('NG')}
+                    disabled={isLocked}
+                    style={{
+                      flex: 1,
+                      padding: '12px 24px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      fontWeight: 800,
+                      fontSize: '14px',
+                      cursor: isLocked ? 'not-allowed' : 'pointer',
+                      background: doc.evaluation_result === 'NG' ? '#dc2626' : '#f1f5f9',
+                      color: doc.evaluation_result === 'NG' ? '#fff' : '#64748b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s',
+                      boxShadow: doc.evaluation_result === 'NG' ? '0 4px 12px rgba(220, 38, 38, 0.2)' : 'none'
+                    }}
+                  >
+                    <span>❌</span> NG - ไม่ผ่านการประเมิน
+                  </button>
+                </div>
+
+                {doc.evaluation_result === 'NG' && (
+                  <div style={{ marginTop: '16px', borderTop: '1px solid #fecaca', paddingTop: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#dc2626', marginBottom: '8px' }}>
+                      ระบุเหตุผล/ข้อบกพร่องที่ประเมินไม่ผ่าน (บังคับ) *
+                    </label>
+                    <textarea
+                      value={doc.evaluation_remark || ''}
+                      onChange={(e) => handleDocRemarkChange(e.target.value)}
+                      placeholder="กรุณาระบุรายละเอียดข้อบกพร่องในภาพรวม..."
+                      disabled={isLocked}
+                      rows={3}
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        borderRadius: '12px',
+                        border: '1px solid #fecaca',
+                        background: '#fff',
+                        fontSize: '13px',
+                        fontFamily: 'inherit',
+                        color: '#0f172a',
+                        outline: 'none',
+                        resize: 'vertical'
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Right Column: History & Metadata */}
@@ -864,12 +1104,12 @@ export default function ChecklistDetailPage() {
   )
 }
 
-function TemplateRenderer({ item, template, onUpdate, isClosed, isAuditor }) {
+function TemplateRenderer({ item, template, onUpdate, isClosed, isAuditor, onT2Complete }) {
   const snapshot = item.template_data?._snapshot || {}; const type = snapshot.ui_template_type ?? template?.ui_template_type ?? 0
   const config = snapshot.config ?? template?.template_config ?? {}; const data = item.template_data || {}
   switch (type) {
     case 1: return <PhotoTemplate item={item} config={config} data={data} onUpdate={onUpdate} disabled={isClosed || isAuditor} />
-    case 2: return <ProcedureTemplate item={item} config={config} data={data} onUpdate={onUpdate} disabled={isClosed || isAuditor} />
+    case 2: return <ProcedureTemplate item={item} config={config} data={data} onUpdate={onUpdate} disabled={isClosed || isAuditor} onComplete={onT2Complete} />
     case 3: return <MeasureTemplate item={item} config={config} data={data} onUpdate={onUpdate} disabled={isClosed || isAuditor} />
     case 4: return <LinkTemplate item={item} config={config} data={data} onUpdate={onUpdate} disabled={isClosed || isAuditor} />
     case 5: return <SignoffTemplate item={item} config={config} data={data} onUpdate={onUpdate} disabled={isClosed || isAuditor} />
@@ -1354,49 +1594,349 @@ function PhotoTemplate({ item, config, data, onUpdate, disabled }) {
   )
 }
 
-function ProcedureTemplate({ config, data, onUpdate, disabled }) {
-  const [steps, setSteps] = useState([]); useEffect(() => { if (config.plan_id) supabase.from('checklist_procedure_plans').select('steps').eq('id', config.plan_id).single().then(({data}) => setSteps(Array.isArray(data?.steps?.rows) ? data.steps.rows : Array.isArray(data?.steps) ? data.steps : [])) }, [config.plan_id])
-  const toggle = (i) => { if (disabled) return; const s = { ...(data.steps||{}) }; if (s[i]) delete s[i]; else s[i] = new Date().toISOString(); onUpdate({ ...data, steps: s }) }
+function ProcedureTemplate({ config, data, onUpdate, disabled, onComplete }) {
+  const [steps, setSteps] = useState([])
+  const [loadError, setLoadError] = useState(null)
+  const [ngOpenIdx, setNgOpenIdx] = useState(null)
+  const [ngDraft, setNgDraft] = useState('')
+  const [rawDuration, setRawDuration] = useState({})
+
+  useEffect(() => {
+    const planId = config.plan_id || config.procedure_plan_id
+    if (!planId) { setLoadError('ไม่พบ Plan ID ใน snapshot'); return }
+    supabase.from('checklist_procedure_plans').select('steps').eq('id', planId).single()
+      .then(({ data: planData, error }) => {
+        if (error) { setLoadError(`โหลด Procedure Plan ล้มเหลว: ${error.message}`); return }
+        const raw = planData?.steps
+        const rows = Array.isArray(raw?.rows) ? raw.rows : Array.isArray(raw) ? raw : []
+        setSteps(rows)
+      })
+  }, [config.plan_id, config.procedure_plan_id])
+
+  // Helper: normalize step data (backward compat — เก่าเก็บเป็น timestamp string)
+  const getStepData = (i) => {
+    const raw = data.steps?.[i]
+    if (!raw) return { checked: false, evaluation: null, notes: '', duration_minutes: null }
+    if (typeof raw === 'string') return { checked: true, evaluation: null, notes: '', duration_minutes: null }
+    return { checked: !!raw.checked, evaluation: raw.evaluation || null, notes: raw.notes || '', duration_minutes: raw.duration_minutes || null }
+  }
+
+  // Step สมบูรณ์ = checked + มี evaluation + มี duration
+  const isStepComplete = (i) => {
+    const sd = getStepData(i)
+    return sd.checked && !!sd.evaluation && !!sd.duration_minutes
+  }
+
+  // Step ที่ checked แต่ยังไม่สมบูรณ์ (ขาด eval หรือขาด duration)
+  const incompleteCheckedIdx = steps.findIndex((_, i) => {
+    const sd = getStepData(i)
+    return sd.checked && (!sd.evaluation || !sd.duration_minutes)
+  })
+  const hasIncompleteStep = incompleteCheckedIdx !== -1
+
+  const updateStep = (i, patch) => {
+    if (disabled) return
+    const current = getStepData(i)
+    const updated = { ...current, ...patch }
+    const newSteps = { ...(data.steps || {}), [i]: updated }
+
+    // คำนวณ total duration จาก sub-steps ทั้งหมด
+    const totalMinutes = Object.values(newSteps).reduce((sum, v) => {
+      const mins = typeof v === 'object' ? (v.duration_minutes || 0) : 0
+      return sum + mins
+    }, 0)
+
+    const newData = { ...data, steps: newSteps, total_sub_duration_minutes: totalMinutes }
+    onUpdate(newData)
+
+    // นับจำนวน step ที่สมบูรณ์ (checked + eval + duration)
+    const completeCount = Object.entries(newSteps).filter(([k, v]) => {
+      if (typeof v === 'string') return false // legacy — ถือว่าไม่สมบูรณ์
+      return v.checked && v.evaluation && v.duration_minutes
+    }).length
+
+    const allDone = completeCount >= steps.length
+    // ส่ง hasIncomplete ออกไปด้วยเพื่อ block save
+    const newIncomplete = Object.values(newSteps).some(v =>
+      typeof v === 'object' && v.checked && (!v.evaluation || !v.duration_minutes)
+    )
+    if (onComplete) onComplete(allDone ? 'OK' : null, totalMinutes, newIncomplete)
+  }
+
+  const toggleCheck = (i) => {
+    if (disabled) return
+    const current = getStepData(i)
+    if (current.checked) {
+      // Uncheck → clear evaluation และ notes ด้วย
+      updateStep(i, { checked: false, evaluation: null, notes: '', duration_minutes: null })
+    } else {
+      // ตรวจสอบว่ามี step อื่นที่ checked แต่ยังไม่สมบูรณ์อยู่ก่อน
+      if (hasIncompleteStep && incompleteCheckedIdx !== i) {
+        alert(`⚠️ กรุณาทำ Step ${incompleteCheckedIdx + 1} ให้สมบูรณ์ก่อน\n(ต้องมีผลการประเมิน OK/NG และระยะเวลาที่ใช้)`)
+        return
+      }
+      updateStep(i, { checked: true })
+    }
+  }
+
+  const setEvaluation = (i, evaluation) => {
+    if (evaluation === 'NG') {
+      setNgOpenIdx(i)
+      setNgDraft(getStepData(i).notes || '')
+    } else {
+      updateStep(i, { evaluation, notes: '' })
+      setNgOpenIdx(null)
+    }
+  }
+
+  const confirmNg = (i) => {
+    updateStep(i, { evaluation: 'NG', notes: ngDraft })
+    setNgOpenIdx(null)
+    setNgDraft('')
+  }
+
+  // Auto-format HH:mm จาก 4 digits
+  const formatDurationInput = (raw) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 4)
+    if (digits.length <= 2) return digits
+    return `${digits.slice(0, 2)}:${digits.slice(2)}`
+  }
+
+  const parseDurationToMinutes = (str) => {
+    const match = str?.match(/^(\d{1,2}):(\d{2})$/)
+    if (!match) return null
+    const h = parseInt(match[1], 10)
+    const m = parseInt(match[2], 10)
+    if (m > 59) return null
+    return h * 60 + m
+  }
+
+  const formatMinutes = (mins) => {
+    if (!mins) return ''
+    return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ padding: '12px 16px', borderRadius: '8px', background: '#fff7ed', border: '1px solid #fed7aa', fontSize: '13px', color: '#c2410c', fontWeight: 600 }}>
+        ⚠️ {loadError}
+      </div>
+    )
+  }
+
+  if (steps.length === 0) {
+    return (
+      <div style={{ padding: '12px 16px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '13px', color: '#94a3b8' }}>
+        กำลังโหลดขั้นตอน...
+      </div>
+    )
+  }
+
+  const checkedWithEval = steps.filter((_, i) => {
+    const d = getStepData(i)
+    if (typeof data.steps?.[i] === 'string') return true
+    return d.checked && d.evaluation
+  }).length
+  const allDone = checkedWithEval >= steps.length
+  const totalSubMinutes = Object.values(data.steps || {}).reduce((sum, v) => {
+    return sum + (typeof v === 'object' ? (v.duration_minutes || 0) : 0)
+  }, 0)
+
   return (
-    <div className="space-y-3">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0px' }}>
+      {/* Progress bar */}
+      <div style={{ marginBottom: '12px', padding: '12px 16px', borderRadius: '10px', background: '#f8fafc', border: `1px solid ${hasIncompleteStep ? '#fbbf24' : '#e2e8f0'}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ความคืบหน้าขั้นตอนย่อย</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 900, color: allDone ? '#059669' : '#2563eb' }}>{checkedWithEval} / {steps.length}</span>
+            {totalSubMinutes > 0 && (
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>⏱ รวม {formatMinutes(totalSubMinutes)}</span>
+            )}
+          </div>
+        </div>
+        <div style={{ height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+          <div style={{ width: `${steps.length > 0 ? Math.round((checkedWithEval / steps.length) * 100) : 0}%`, height: '100%', background: allDone ? '#10b981' : '#3b82f6', transition: 'width 0.3s ease', borderRadius: '3px' }} />
+        </div>
+        {/* Warning: step ที่ checked แต่ยังไม่ครบ */}
+        {hasIncompleteStep && (
+          <div style={{ marginTop: '10px', padding: '8px 12px', borderRadius: '6px', background: '#fffbeb', border: '1px solid #fcd34d', fontSize: '12px', fontWeight: 700, color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            ⚠️ Step {incompleteCheckedIdx + 1} ยังไม่สมบูรณ์ — ต้องระบุ <span style={{ fontWeight: 900, color: '#b45309' }}>ผลการประเมิน (OK/NG)</span> และ <span style={{ fontWeight: 900, color: '#b45309' }}>ระยะเวลาที่ใช้</span> ก่อนบันทึกเอกสาร
+          </div>
+        )}
+      </div>
+
       {steps.map((s, i) => {
         const stepTitle = typeof s === 'string' ? s : s.title || s.instruction || `Step ${i + 1}`
-        const responsible = typeof s === 'object' ? s.responsible_person : ''
-        const criteria = typeof s === 'object' ? s.success_criteria : ''
-        const isChecked = !!data.steps?.[i]
+        const responsible = typeof s === 'object' ? (s.responsible_person || '') : ''
+        const criteria = typeof s === 'object' ? (s.success_criteria || '') : ''
+        const sd = getStepData(i)
+        const isChecked = sd.checked
+        const isNG = sd.evaluation === 'NG'
+        const isOK = sd.evaluation === 'OK'
+        const isIncomplete = isChecked && (!sd.evaluation || !sd.duration_minutes)
+        const borderColor = isIncomplete ? '#fbbf24' : isNG ? '#fecaca' : isOK ? '#a7f3d0' : isChecked ? '#bfdbfe' : '#e2e8f0'
+        const bgColor = isIncomplete ? '#fffbeb' : isNG ? '#fff1f2' : isOK ? '#f0fdf4' : isChecked ? '#eff6ff' : '#fff'
 
         return (
-          <div key={i} className={`rounded-xl border transition-all overflow-hidden ${isChecked ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'}`}>
-            {/* Main Checkbox Row */}
-            <label className={`flex items-center gap-3 p-3 cursor-pointer ${isChecked ? 'bg-emerald-50/50' : 'bg-white'}`}>
-              <input type="checkbox" checked={isChecked} onChange={() => toggle(i)} disabled={disabled} className="w-5 h-5 rounded-lg text-emerald-500 shrink-0" />
-              <span className={`text-sm font-bold ${isChecked ? 'text-emerald-700' : 'text-slate-700'}`}>
+          <div
+            key={i}
+            style={{ borderRadius: '10px', border: `1px solid ${borderColor}`, overflow: 'hidden', marginBottom: '8px', background: bgColor, transition: 'all 0.2s' }}
+          >
+            {/* Row 1: Checkbox + Title + Duration */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px 16px' }}>
+              <input
+                type="checkbox"
+                checked={isChecked}
+                onChange={() => toggleCheck(i)}
+                disabled={disabled}
+                style={{ width: '18px', height: '18px', marginTop: '3px', accentColor: '#10b981', flexShrink: 0, cursor: disabled ? 'not-allowed' : 'pointer' }}
+              />
+              <span style={{ flex: 1, fontSize: '14px', fontWeight: 700, color: isOK ? '#065f46' : isNG ? '#991b1b' : isChecked ? '#1e40af' : '#334155', lineHeight: 1.5 }}>
                 {stepTitle}
               </span>
-            </label>
 
-            {/* Expanded Details */}
+              {/* Duration input HH:mm — 4-digit auto-format */}
+              <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                <label style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>เวลา (HH:mm)</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={rawDuration[i] !== undefined ? rawDuration[i] : formatMinutes(sd.duration_minutes)}
+                  disabled={disabled}
+                  onFocus={() => {
+                    setRawDuration(p => ({ ...p, [i]: formatMinutes(sd.duration_minutes) || '' }))
+                  }}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, 4)
+                    const display = digits.length <= 2 ? digits : `${digits.slice(0, 2)}:${digits.slice(2)}`
+                    setRawDuration(p => ({ ...p, [i]: display }))
+                  }}
+                  onBlur={() => {
+                    const raw = rawDuration[i] || ''
+                    const mins = parseDurationToMinutes(raw)
+                    updateStep(i, { duration_minutes: mins })
+                    setRawDuration(p => { const n = { ...p }; delete n[i]; return n })
+                  }}
+                  placeholder="00:00"
+                  style={{
+                    width: '72px', padding: '5px 8px', border: `1px solid ${sd.duration_minutes ? '#93c5fd' : '#e2e8f0'}`,
+                    borderRadius: '6px', fontSize: '13px', fontFamily: 'monospace', fontWeight: 700,
+                    textAlign: 'center', background: disabled ? '#f3f4f6' : '#fff',
+                    color: sd.duration_minutes ? '#1d4ed8' : '#94a3b8',
+                    cursor: disabled ? 'not-allowed' : 'text', outline: 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Row 2: Metadata (responsible, criteria) — คนละบรรทัด */}
             {(responsible || criteria) && (
-              <div className="px-3 pb-3 pt-0">
-                <div className="pl-8 space-y-2">
-                  {responsible && (
-                    <div className="flex items-start gap-2">
-                      <span className="text-xs font-semibold text-slate-400 shrink-0">ผู้รับผิดชอบ:</span>
-                      <span className="text-xs font-medium text-slate-600">{responsible}</span>
-                    </div>
+              <div style={{ padding: '0 16px 8px 46px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {responsible && (
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', flexShrink: 0, paddingTop: '1px' }}>ผู้รับผิดชอบ:</span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#334155' }}>{responsible}</span>
+                  </div>
+                )}
+                {criteria && (
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', flexShrink: 0, paddingTop: '1px' }}>เกณฑ์สำเร็จ:</span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#334155' }}>{criteria}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Row 3: OK/NG buttons (แสดงเมื่อ checked) */}
+            {isChecked && (
+              <div style={{ padding: '0 16px 12px 46px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', marginRight: '4px' }}>ผลการประเมิน:</span>
+                  <button
+                    onClick={() => !disabled && setEvaluation(i, 'OK')}
+                    disabled={disabled}
+                    style={{
+                      padding: '4px 16px', borderRadius: '6px', border: 'none', fontWeight: 800, fontSize: '12px',
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                      background: isOK ? '#10b981' : '#f1f5f9',
+                      color: isOK ? '#fff' : '#64748b',
+                      boxShadow: isOK ? '0 2px 8px rgba(16,185,129,0.25)' : 'none',
+                      transition: 'all 0.15s'
+                    }}
+                  >✔ OK</button>
+                  <button
+                    onClick={() => !disabled && setEvaluation(i, 'NG')}
+                    disabled={disabled}
+                    style={{
+                      padding: '4px 16px', borderRadius: '6px', border: 'none', fontWeight: 800, fontSize: '12px',
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                      background: isNG ? '#dc2626' : '#f1f5f9',
+                      color: isNG ? '#fff' : '#64748b',
+                      boxShadow: isNG ? '0 2px 8px rgba(220,38,38,0.25)' : 'none',
+                      transition: 'all 0.15s'
+                    }}
+                  >✘ NG</button>
+                  {sd.evaluation && (
+                    <span style={{
+                      marginLeft: '4px', fontSize: '10px', fontWeight: 900,
+                      color: isOK ? '#059669' : '#dc2626',
+                      background: isOK ? '#d1fae5' : '#fee2e2',
+                      padding: '2px 8px', borderRadius: '999px',
+                      border: `1px solid ${isOK ? '#6ee7b7' : '#fca5a5'}`
+                    }}>{isOK ? '✓ ผ่าน' : '✗ ไม่ผ่าน'}</span>
                   )}
-                  {criteria && (
-                    <div className="flex items-start gap-2">
-                      <span className="text-xs font-semibold text-slate-400 shrink-0">เกณฑ์สำเร็จ:</span>
-                      <span className="text-xs font-medium text-slate-600">{criteria}</span>
-                    </div>
-                  )}
+                </div>
+
+                {/* NG notes (แสดงเมื่อประเมิน NG แล้ว) */}
+                {isNG && sd.notes && ngOpenIdx !== i && (
+                  <div style={{ marginTop: '8px', padding: '8px 12px', borderRadius: '6px', background: '#fff', border: '1px solid #fecaca', fontSize: '12px', color: '#991b1b', fontWeight: 600 }}>
+                    ⚠️ {sd.notes}
+                    {!disabled && (
+                      <button
+                        onClick={() => { setNgOpenIdx(i); setNgDraft(sd.notes) }}
+                        style={{ marginLeft: '8px', fontSize: '11px', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }}
+                      >แก้ไข</button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* NG Dialog inline */}
+            {ngOpenIdx === i && (
+              <div style={{ margin: '0 16px 12px 46px', padding: '12px', borderRadius: '8px', background: '#fff7ed', border: '1px solid #fed7aa' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#c2410c', marginBottom: '8px' }}>ระบุเหตุผล NG *</div>
+                <textarea
+                  value={ngDraft}
+                  onChange={e => setNgDraft(e.target.value)}
+                  rows={2}
+                  autoFocus
+                  placeholder="เช่น: ไม่สามารถดำเนินการได้ ต้องให้ Vendor ตรวจสอบ..."
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #fed7aa', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', marginBottom: '8px' }}
+                />
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => { setNgOpenIdx(null); setNgDraft('') }}
+                    style={{ padding: '5px 14px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '12px', background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >ยกเลิก</button>
+                  <button
+                    onClick={() => confirmNg(i)}
+                    disabled={!ngDraft.trim()}
+                    style={{ padding: '5px 14px', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 700, background: ngDraft.trim() ? '#dc2626' : '#fca5a5', color: '#fff', cursor: ngDraft.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
+                  >บันทึก NG</button>
                 </div>
               </div>
             )}
           </div>
         )
       })}
+
+      {allDone && (
+        <div style={{ marginTop: '4px', padding: '10px 16px', borderRadius: '10px', background: '#d1fae5', border: '1px solid #6ee7b7', fontSize: '13px', fontWeight: 800, color: '#065f46', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>✅</span> ดำเนินการครบทุกขั้นตอนแล้ว
+        </div>
+      )}
     </div>
   )
 }
