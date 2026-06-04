@@ -2,7 +2,7 @@
 
 ## 4 มิถุนายน 2569 (04-Jun-2026)
 
-- **[ตอนนี้] Fix Dashboard False Positive: Alignment of MY SENT PENDING to assigned_to_id**
+- **[15:30] Fix Dashboard False Positive: Alignment of MY SENT PENDING to assigned_to_id**
   - แก้ไขปัญหา Badge และ รายการ "My Sent Pending" บน Dashboard แสดงข้อมูลไม่ตรงกับความหมายจริง (False Positive)
   - ปรับ `app/actions/dashboard.js` (`getDashboardData`) ให้ดึงจำนวนเคสรออนุมัติของฉันโดยอิงจาก `assigned_to_id` (เจ้าหน้าที่ไอทีที่รับผิดชอบและส่งงานขออนุมัติ) แทน `reported_by_id` (ผู้แจ้ง)
   - ปรับ `app/actions/workflow.js` (`getMySentPendingItems`) ให้ดึงรายการเคสรออนุมัติของฉันตาม `assigned_to_id` เช่นเดียวกัน เพื่อให้ข้อมูลหน้า UI และ Dashboard สอดคล้องกันตามจริง
