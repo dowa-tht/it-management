@@ -4,8 +4,220 @@ import { getCurrentUserSession } from './user'
 import { verifyEmployeePIN } from './users'
 import { WORKFLOW_DOC_REGISTRY, getMappedWorkflowValue } from '@/lib/workflowRegistry'
 import { sendEmail } from '@/lib/resend'
+import { normalizeRole } from '@/lib/auth'
+import { deriveIncidentCancelVerificationPolicy } from '@/lib/incidentCancelVerificationPolicy'
 
 const getAdminClient = getSupabaseAdmin
+const INCIDENT_EMAIL_OTP_TTL_MINUTES = 30
+const INCIDENT_EMAIL_OTP_COOLDOWN_SECONDS = 60
+
+const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
+
+function maskEmail(email) {
+  const value = normalizeEmail(email)
+  const [local, domain] = value.split('@')
+  if (!local || !domain) return value
+  if (local.length <= 2) return `${local[0] || '*'}*@${domain}`
+  return `${local.slice(0, 2)}***@${domain}`
+}
+
+async function requestIncidentEmailOtp(supabaseAdmin, reporterEmail, reporterName = 'ผู้แจ้ง', purpose = 'cancel') {
+  const email = normalizeEmail(reporterEmail)
+  if (!email) return { success: false, error: 'ไม่พบอีเมลผู้แจ้งสำหรับส่ง OTP' }
+
+  const now = new Date()
+  const cooldownBound = new Date(now.getTime() - INCIDENT_EMAIL_OTP_COOLDOWN_SECONDS * 1000).toISOString()
+  const { data: existing } = await supabaseAdmin
+    .from('email_otps')
+    .select('created_at')
+    .eq('email', email)
+    .maybeSingle()
+
+  if (existing?.created_at && new Date(existing.created_at).toISOString() > cooldownBound) {
+    return { success: false, error: `กรุณารอ ${INCIDENT_EMAIL_OTP_COOLDOWN_SECONDS} วินาทีก่อนขอ OTP ใหม่` }
+  }
+
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString()
+  const expiresAt = new Date(now.getTime() + INCIDENT_EMAIL_OTP_TTL_MINUTES * 60 * 1000).toISOString()
+
+  const { error: upsertErr } = await supabaseAdmin
+    .from('email_otps')
+    .upsert({
+      email,
+      otp_code: otpCode,
+      expires_at: expiresAt,
+      attempts: 0,
+      created_at: now.toISOString(),
+    }, { onConflict: 'email' })
+
+  if (upsertErr) return { success: false, error: upsertErr.message }
+
+  const isApprovalPurpose = purpose === 'approval'
+  const mailSubject = isApprovalPurpose
+    ? '[DOWA IT] รหัส OTP สำหรับยืนยัน Remote Approve Incident'
+    : '[DOWA IT] รหัส OTP สำหรับยืนยันการยกเลิก Incident'
+  const mailTitle = isApprovalPurpose ? 'ยืนยัน Remote Approve Incident' : 'ยืนยันการยกเลิก Incident'
+  const mailDescription = isApprovalPurpose
+    ? 'กรุณาใช้รหัส OTP ด้านล่างเพื่อยืนยันการอนุมัติแทน:'
+    : 'กรุณาใช้รหัส OTP ด้านล่างเพื่อยืนยัน:'
+
+  const mailResult = await sendEmail({
+    to: email,
+    subject: mailSubject,
+    html: `
+      <div style="font-family: sans-serif; padding: 24px; background: #f8fafc;">
+        <div style="max-width: 520px; margin: 0 auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
+          <h3 style="margin-top: 0; color: #0f172a;">${mailTitle}</h3>
+          <p style="font-size: 14px; color: #334155;">สวัสดีคุณ <strong>${reporterName}</strong></p>
+          <p style="font-size: 14px; color: #334155;">${mailDescription}</p>
+          <div style="text-align:center; margin: 20px 0; padding: 16px; background: #eff6ff; border-radius: 10px;">
+            <span style="font-size: 32px; letter-spacing: 6px; font-weight: 800; color: #1d4ed8;">${otpCode}</span>
+          </div>
+          <p style="font-size: 12px; color: #64748b;">รหัสนี้มีอายุ ${INCIDENT_EMAIL_OTP_TTL_MINUTES} นาที</p>
+        </div>
+      </div>
+    `,
+  })
+
+  if (mailResult?.error) return { success: false, error: 'ไม่สามารถส่ง OTP ไปยังอีเมลผู้แจ้งได้' }
+  return { success: true, email, maskedEmail: maskEmail(email) }
+}
+
+async function verifyIncidentEmailOtp(supabaseAdmin, reporterEmail, otp) {
+  const email = normalizeEmail(reporterEmail)
+  const code = String(otp || '').trim()
+  if (!email) return { success: false, error: 'ไม่พบอีเมลผู้แจ้งสำหรับตรวจสอบ OTP' }
+  if (!code) return { success: false, error: 'กรุณากรอกรหัส OTP' }
+
+  const { data: row } = await supabaseAdmin
+    .from('email_otps')
+    .select('email, otp_code, expires_at, attempts')
+    .eq('email', email)
+    .maybeSingle()
+
+  if (!row) return { success: false, error: 'ไม่พบคำขอ OTP สำหรับอีเมลนี้' }
+  if ((row.attempts || 0) >= 5) return { success: false, error: 'กรอกรหัสผิดเกินกำหนด กรุณาขอ OTP ใหม่' }
+  if (!row.otp_code || row.otp_code !== code) {
+    await supabaseAdmin.from('email_otps').update({ attempts: (row.attempts || 0) + 1 }).eq('email', email)
+    return { success: false, error: 'รหัส OTP ไม่ถูกต้อง' }
+  }
+  if (new Date(row.expires_at) < new Date()) return { success: false, error: 'รหัส OTP หมดอายุแล้ว' }
+
+  await supabaseAdmin.from('email_otps').update({ otp_code: null, attempts: 0 }).eq('email', email)
+  return { success: true, email }
+}
+
+async function getPendingApprovalPauseReasonId(supabaseAdmin) {
+  const { data: existing, error: fetchErr } = await supabaseAdmin
+    .from('master_data')
+    .select('id')
+    .eq('type', 'sla_exclusion_reason')
+    .ilike('value', 'Pending Approval')
+    .limit(1)
+    .maybeSingle()
+
+  if (fetchErr) throw fetchErr
+  if (existing?.id) return existing.id
+
+  const { data: maxRow, error: maxErr } = await supabaseAdmin
+    .from('master_data')
+    .select('sort_order')
+    .eq('type', 'sla_exclusion_reason')
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (maxErr) throw maxErr
+
+  const { data: inserted, error: insertErr } = await supabaseAdmin
+    .from('master_data')
+    .insert({
+      type: 'sla_exclusion_reason',
+      value: 'Pending Approval',
+      is_active: true,
+      sort_order: (maxRow?.sort_order || 0) + 1,
+    })
+    .select('id')
+    .single()
+
+  if (insertErr) throw insertErr
+  return inserted?.id || null
+}
+
+async function openIncidentSlaPauseWindow(supabaseAdmin, incidentId) {
+  if (!incidentId) return
+
+  const { data: active, error: activeErr } = await supabaseAdmin
+    .from('incident_exclusions')
+    .select('id')
+    .eq('incident_id', incidentId)
+    .is('end_time', null)
+    .limit(1)
+    .maybeSingle()
+
+  if (activeErr) throw activeErr
+  if (active?.id) return
+
+  const reasonId = await getPendingApprovalPauseReasonId(supabaseAdmin)
+
+  const { error: insertErr } = await supabaseAdmin.from('incident_exclusions').insert({
+    incident_id: incidentId,
+    reason_id: reasonId,
+    start_time: new Date().toISOString(),
+    end_time: null,
+    notes: 'System pause: Pending Approval',
+  })
+
+  if (insertErr) throw insertErr
+}
+
+async function transitionIncidentPauseToPendingApproval(supabaseAdmin, incidentId) {
+  if (!incidentId) return { closedCount: 0, opened: false, at: null }
+
+  const nowIso = new Date().toISOString()
+  const reasonId = await getPendingApprovalPauseReasonId(supabaseAdmin)
+
+  const { data: activeRows, error: activeErr } = await supabaseAdmin
+    .from('incident_exclusions')
+    .select('id')
+    .eq('incident_id', incidentId)
+    .is('end_time', null)
+
+  if (activeErr) throw activeErr
+
+  let closedCount = 0
+  if (activeRows && activeRows.length > 0) {
+    const { error: closeErr } = await supabaseAdmin
+      .from('incident_exclusions')
+      .update({ end_time: nowIso })
+      .eq('incident_id', incidentId)
+      .is('end_time', null)
+    if (closeErr) throw closeErr
+    closedCount = activeRows.length
+  }
+
+  const { error: openErr } = await supabaseAdmin.from('incident_exclusions').insert({
+    incident_id: incidentId,
+    reason_id: reasonId,
+    start_time: nowIso,
+    end_time: null,
+    notes: 'System pause: Pending Approval',
+  })
+  if (openErr) throw openErr
+
+  return { closedCount, opened: true, at: nowIso }
+}
+
+async function closeIncidentSlaPauseWindow(supabaseAdmin, incidentId) {
+  if (!incidentId) return
+  const { error: closeErr } = await supabaseAdmin
+    .from('incident_exclusions')
+    .update({ end_time: new Date().toISOString() })
+    .eq('incident_id', incidentId)
+    .is('end_time', null)
+
+  if (closeErr) throw closeErr
+}
 
 /**
  * 🔗 Cross-Module Sync & Final Actions
@@ -57,8 +269,14 @@ export async function recordLog(docId, type, action, details, userEmail) {
 }
 
 async function resolveDynamicWorkflowApproverId(step, doc) {
+  const docType = String(step?.doc_type || '').toLowerCase()
   if (step.role_required === 'reporter') {
-    // 🕵️ Support both incidents (reported_by_id) and checklists (created_by_id)
+    // Incident standard: reporter must map from reported_by_id only.
+    // If external reporter (no account), approver_id must stay null and use OTP in remote approve.
+    if (docType === 'incident') {
+      return doc?.reported_by_id || null
+    }
+    // Checklist/backward-compat fallback
     return doc?.reported_by_id || doc?.created_by_id || null
   }
   if (step.role_required === 'creator') {
@@ -93,13 +311,28 @@ export async function syncDynamicWorkflowApprovers(docId, docType) {
     if (stepsErr) throw stepsErr
 
     for (const step of steps || []) {
-      const resolvedApproverId = await resolveDynamicWorkflowApproverId(step, doc)
+      const resolvedApproverId = await resolveDynamicWorkflowApproverId({ ...step, doc_type: docType.toLowerCase() }, doc)
+      if (docType.toLowerCase() === 'incident' && step.role_required === 'reporter' && !doc?.reported_by_id && step.approver_id) {
+        await recordLog(
+          docId,
+          'incident',
+          'Workflow Reporter Guard',
+          `ระบบรีเซ็ต approver_id ของ Reporter step จาก ${step.approver_id} เป็น null (External Reporter)` ,
+          'system@workflow.internal'
+        )
+      }
       if (resolvedApproverId && resolvedApproverId !== step.approver_id) {
         const { error: updateErr } = await supabaseAdmin
           .from('document_approvals')
           .update({ approver_id: resolvedApproverId })
           .eq('id', step.id)
         if (updateErr) throw updateErr
+      } else if (!resolvedApproverId && step.approver_id && step.role_required === 'reporter' && docType.toLowerCase() === 'incident' && !doc?.reported_by_id) {
+        const { error: clearErr } = await supabaseAdmin
+          .from('document_approvals')
+          .update({ approver_id: null })
+          .eq('id', step.id)
+        if (clearErr) throw clearErr
       }
     }
 
@@ -864,6 +1097,32 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail, in
     
     if (error) throw error
 
+    if (targetType === 'incident') {
+      if (autoApproved) {
+        await closeIncidentSlaPauseWindow(supabaseAdmin, docId)
+      } else {
+        const pauseTransition = await transitionIncidentPauseToPendingApproval(supabaseAdmin, docId)
+        if (pauseTransition.closedCount > 0) {
+          await recordLog(
+            docId,
+            'incident',
+            'Auto-close Manual SLA Exclusion on Submit',
+            `ระบบปิดช่วงหยุด SLA ที่เปิดค้างอยู่ ${pauseTransition.closedCount} ช่วง ก่อนเข้า Pending Approval`,
+            userEmail
+          )
+        }
+        if (pauseTransition.opened) {
+          await recordLog(
+            docId,
+            'incident',
+            'System pause: Pending Approval started',
+            `ระบบเริ่มช่วงหยุด SLA อัตโนมัติสำหรับ Pending Approval ที่ ${pauseTransition.at}`,
+            userEmail
+          )
+        }
+      }
+    }
+
     await recordLog(docId, targetType, autoApproved ? 'Auto-Approved' : 'Submitted', autoApproved 
       ? 'ระบบอนุมัติงานให้อัตโนมัติตามการตั้งค่า (No approval steps required)' 
       : `ส่งเอกสารเพื่อขออนุมัติ (ผู้อนุมัติหลัก: ${approverName})`, userEmail)
@@ -884,6 +1143,7 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail, in
           .from('incidents')
           .update({ status: 'Closed', workflow_status: 'approved' })
           .eq('id', docId)
+        await closeIncidentSlaPauseWindow(supabaseAdmin, docId)
         await recordLog(docId, 'incident', 'Auto-Closed', 'ปิดเคสอัตโนมัติ — ลายเซ็นครบทุกขั้นตอน (Resolve)', userEmail)
         await onDocumentFinalApproval(docId, 'incident')
         return { success: true, autoApproved: true, allSigned: true }
@@ -988,7 +1248,11 @@ export async function generateWorkflowSteps(docId, targetType, configKey, trigge
           // Resolve IDs asynchronously and map to steps
           stepsToInsert = await Promise.all(stepsToInsert.map(async s => {
             if (['reporter', 'creator'].includes(s.role_required)) {
-              const dynamicId = await resolveDynamicWorkflowApproverId({ role_required: s.role_required }, doc)
+              const dynamicId = await resolveDynamicWorkflowApproverId({ role_required: s.role_required, doc_type: targetType }, doc)
+              // Hard guard: incident + external reporter => reporter step must stay null
+              if (targetType?.toLowerCase() === 'incident' && s.role_required === 'reporter' && !doc?.reported_by_id) {
+                return { ...s, approver_id: null }
+              }
               return { ...s, approver_id: dynamicId }
             }
             return s
@@ -1106,20 +1370,52 @@ export async function rejectDocumentWorkflow(docId, docType, reason) {
     if (!session) return { error: 'Unauthorized' }
 
     const supabaseAdmin = getAdminClient()
-    const reg = WORKFLOW_DOC_REGISTRY[docType.toLowerCase()]
+    const normalizedDocType = docType.toLowerCase()
+    const reg = WORKFLOW_DOC_REGISTRY[normalizedDocType]
     if (!reg) return { error: 'Invalid document type' }
+
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, role')
+      .eq('id', session.user.id)
+      .maybeSingle()
+    if (profileErr) throw profileErr
+    if (!profile) return { error: 'Profile not found' }
+
+    const { data: currentStep, error: stepErr } = await supabaseAdmin
+      .from('document_approvals')
+      .select('id, approver_id, role_required, step_order')
+      .eq('doc_id', docId)
+      .eq('doc_type', normalizedDocType)
+      .eq('status', 'pending')
+      .order('step_order', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (stepErr) throw stepErr
+    if (!currentStep) return { error: 'No pending approval step found' }
+
+    const isAdmin = normalizeRole(profile.role) === 'admin'
+    const isStepApprover = currentStep.approver_id === profile.id
+    const isRolePoolApprover = !currentStep.approver_id && currentStep.role_required === profile.role
+    if (!isAdmin && !isStepApprover && !isRolePoolApprover) {
+      return { error: 'Access Denied: You do not have permission to reject this document.' }
+    }
 
     // 1. Update Main Table
     const { error: updateErr } = await supabaseAdmin
       .from(reg.table)
       .update({
         [reg.workflow_status_field]: 'draft',
-        [reg.status_field]: docType.toLowerCase() === 'incident' ? 'In Progress' : 'Open', // Return to editing state
+        [reg.status_field]: normalizedDocType === 'incident' ? 'In Progress' : 'Open', // Return to editing state
         assigned_approver_id: null
       })
       .eq('id', docId)
 
     if (updateErr) throw updateErr
+
+    if (normalizedDocType === 'incident') {
+      await closeIncidentSlaPauseWindow(supabaseAdmin, docId)
+    }
 
     // 2. Mark current pending steps as rejected
     await supabaseAdmin
@@ -1155,7 +1451,7 @@ export async function cancelDocument(docId, docType, reason, verification = null
     // 1. Get document info to check permissions
     const { data: doc, error: docErr } = await supabaseAdmin
       .from(reg.table)
-      .select(`*, reported_by_id, created_by_id, ${reg.no_field}`)
+      .select(`*, reported_by_id, reporter_email, reported_by, created_by_id, ${reg.no_field}`)
       .eq('id', docId)
       .single()
 
@@ -1174,34 +1470,58 @@ export async function cancelDocument(docId, docType, reason, verification = null
       .eq('id', currentUserId)
       .single()
 
-    const isAdmin = currentUser?.role === 'admin'
+    const isAdmin = normalizeRole(currentUser?.role) === 'admin'
     const isCreator = doc.created_by_id === currentUserId
 
     if (docType.toLowerCase() === 'incident') {
-      // Incident: Requires PIN or OTP from Reporter
-      const reporterId = doc.reported_by_id || doc.created_by_id
-
-      if (!isAdmin && currentUserId !== reporterId) {
-        return { error: 'เฉพาะผู้แจ้งเหตุ (Reporter) หรือ Admin เท่านั้นที่สามารถยกเลิก Incident ได้' }
-      }
+      // Incident: Uses unified verification policy (admin/reporter/it_staff-assignee)
+      const reporterId = doc.reported_by_id || null
+      const hasReporterAccount = Boolean(reporterId)
+      const externalReporterEmail = normalizeEmail(doc.reporter_email)
+      const policy = deriveIncidentCancelVerificationPolicy({
+        actorRole: currentUser?.role,
+        actorId: currentUserId,
+        incident: doc,
+      })
+      if (!policy.allowed) return { error: 'เฉพาะ Admin, Reporter, หรือ IT Staff/Assignee เท่านั้นที่สามารถยกเลิกการอนุมัติได้' }
 
       // Verification required for Incident cancellation
       if (!verification || (!verification.pin && !verification.otp)) {
         return { error: 'การยกเลิก Incident ต้องมีการยืนยันตัวตนด้วย PIN หรือ OTP', requiresVerification: true }
       }
 
-      // Verify PIN
-      if (verification.pin) {
-        const { verifyEmployeePIN } = await import('./users')
-        const pinCheck = await verifyEmployeePIN(reporterId, verification.pin)
-        if (!pinCheck.success) return { error: pinCheck.error || 'รหัส PIN ไม่ถูกต้อง' }
-      }
-
-      // Verify OTP
-      if (verification.otp) {
-        const { verifyEmployeeSignatureOTP } = await import('./users')
-        const otpCheck = await verifyEmployeeSignatureOTP(reporterId, verification.otp)
+      if (policy.mode === 'admin_pin') {
+        if (!verification.pin) return { error: 'Administrator ต้องยืนยันด้วย PIN ของตนเองก่อนยกเลิกเอกสาร' }
+        const adminPinCheck = await verifyEmployeePIN(currentUserId, verification.pin)
+        if (!adminPinCheck.success) return { error: adminPinCheck.error || 'รหัส PIN ของ Administrator ไม่ถูกต้อง' }
+      } else if (policy.mode === 'reporter_pin') {
+        if (!verification.pin) return { error: 'ผู้แจ้งต้องยืนยันด้วย PIN ของตนเองก่อนยกเลิกเอกสาร' }
+        const reporterPinCheck = await verifyEmployeePIN(reporterId, verification.pin)
+        if (!reporterPinCheck.success) return { error: reporterPinCheck.error || 'รหัส PIN ของผู้แจ้งไม่ถูกต้อง' }
+      } else if (policy.mode === 'reporter_pin_or_otp') {
+        if (verification.pin) {
+          const pinCheck = await verifyEmployeePIN(reporterId, verification.pin)
+          if (!pinCheck.success) return { error: pinCheck.error || 'รหัส PIN ของผู้แจ้งไม่ถูกต้อง' }
+        } else if (verification.otp) {
+          const { verifyEmployeeSignatureOTP } = await import('./users')
+          const otpCheck = await verifyEmployeeSignatureOTP(reporterId, verification.otp)
+          if (!otpCheck.success) return { error: otpCheck.error || 'รหัส OTP ของผู้แจ้งไม่ถูกต้อง' }
+        } else {
+          return { error: 'ต้องยืนยันด้วย PIN หรือ OTP ของผู้แจ้ง', requiresVerification: true }
+        }
+      } else if (policy.mode === 'external_reporter_otp') {
+        if (!verification.otp) return { error: 'ผู้แจ้งภายนอกต้องยืนยันด้วย OTP ทางอีเมล', requiresVerification: true }
+        const otpCheck = await verifyIncidentEmailOtp(supabaseAdmin, externalReporterEmail, verification.otp)
         if (!otpCheck.success) return { error: otpCheck.error || 'รหัส OTP ไม่ถูกต้อง' }
+        await recordLog(
+          docId,
+          'incident',
+          'OTP Verified',
+          `ยืนยัน OTP สำหรับผู้แจ้งภายนอก (${externalReporterEmail}) เพื่อยกเลิกเอกสาร`,
+          session.user.email
+        )
+      } else {
+        return { error: 'รูปแบบการยืนยันตัวตนไม่รองรับ' }
       }
     } else if (docType.toLowerCase() === 'checklist') {
       // Checklist: Creator or Admin can cancel
@@ -1210,17 +1530,30 @@ export async function cancelDocument(docId, docType, reason, verification = null
       }
     }
 
-    // 4. Update main table to Cancelled status
+    const normalizedDocType = docType.toLowerCase()
+    const isIncidentDoc = normalizedDocType === 'incident'
+
+    // 4. Update main table status
+    // Incident uses "Cancel Approve" behavior: return to editable flow instead of hard-cancel status.
+    const nextWorkflowStatus = isIncidentDoc ? 'draft' : null
+    const nextMainStatus = isIncidentDoc ? 'In Progress' : 'Cancelled'
+    const baseUpdate = {
+      [reg.workflow_status_field]: nextWorkflowStatus,
+      [reg.status_field]: nextMainStatus,
+      assigned_approver_id: null
+    }
+
+    const cancelAuditUpdate = isIncidentDoc
+      ? {}
+      : {
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: session.user.email,
+          cancel_reason: reason
+        }
+
     const { error: updateErr } = await supabaseAdmin
       .from(reg.table)
-      .update({
-        [reg.workflow_status_field]: null,
-        [reg.status_field]: 'Cancelled',
-        assigned_approver_id: null,
-        cancelled_at: new Date().toISOString(),
-        cancelled_by: session.user.email,
-        cancel_reason: reason
-      })
+      .update({ ...baseUpdate, ...cancelAuditUpdate })
       .eq('id', docId)
 
     if (updateErr) throw updateErr
@@ -1234,10 +1567,14 @@ export async function cancelDocument(docId, docType, reason, verification = null
 
     // 6. Record Log
     const docNo = doc[reg.no_field] || docId
-    await recordLog(docId, docType.toLowerCase(), 'Cancelled', `ยกเลิกเอกสาร ${docNo} | เหตุผล: ${reason}`, session.user.email)
+    const actionLabel = isIncidentDoc ? 'Approval Cancelled' : 'Cancelled'
+    const actionDetail = isIncidentDoc
+      ? `ยกเลิกการส่งอนุมัติเอกสาร ${docNo} | เหตุผล: ${reason}`
+      : `ยกเลิกเอกสาร ${docNo} | เหตุผล: ${reason}`
+    await recordLog(docId, normalizedDocType, actionLabel, actionDetail, session.user.email)
 
     // 7. For Checklist: Recreate option notification (2.1 requirement)
-    if (docType.toLowerCase() === 'checklist') {
+    if (normalizedDocType === 'checklist') {
       // Log information about recreation availability
       await recordLog(docId, 'checklist', 'Info', 'เอกสารถูกยกเลิก สามารถสร้างใหม่ได้จากเมนูตรวจสอบและความถี่', session.user.email)
     }
@@ -1262,30 +1599,375 @@ export async function requestIncidentCancelOTP(docId) {
     // Get incident reporter
     const { data: incident, error: incErr } = await supabaseAdmin
       .from('incidents')
-      .select('reported_by_id, created_by_id, case_number')
+      .select('reported_by_id, created_by_id, reporter_email, reported_by, case_number')
       .eq('id', docId)
       .single()
 
     if (incErr) throw incErr
 
-    const reporterId = incident.reported_by_id || incident.created_by_id
-
-    // Request OTP for reporter
-    const { requestEmployeeSignatureOTP } = await import('./users')
-    const result = await requestEmployeeSignatureOTP(reporterId)
-
-    if (result.success) {
-      return { success: true, message: `ส่ง OTP ไปยังอีเมลของผู้แจ้งแล้ว (Case: ${incident.case_number})` }
+    const reporterId = incident.reported_by_id || null
+    const hasReporterAccount = Boolean(reporterId)
+    const { data: currentUser } = await supabaseAdmin
+      .from('user_profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .maybeSingle()
+    const policy = deriveIncidentCancelVerificationPolicy({
+      actorRole: currentUser?.role,
+      actorId: session.user.id,
+      incident
+    })
+    if (!policy.allowed || !policy.allowOtp) {
+      return { error: 'สิทธิ์ของคุณไม่รองรับการขอ OTP สำหรับยกเลิกการอนุมัติ' }
     }
 
-    return result
+    if (hasReporterAccount) {
+      const { requestEmployeeSignatureOTP } = await import('./users')
+      const result = await requestEmployeeSignatureOTP(reporterId)
+      if (result.success) {
+        return { success: true, message: `ส่ง OTP ไปยังอีเมลของผู้แจ้งแล้ว (Case: ${incident.case_number})` }
+      }
+      return result
+    }
+
+    const result = await requestIncidentEmailOtp(
+      supabaseAdmin,
+      incident.reporter_email,
+      incident.reported_by || 'ผู้แจ้ง',
+      'cancel'
+    )
+
+    if (!result.success) return { error: result.error || 'ไม่สามารถส่ง OTP ได้' }
+
+    await recordLog(
+      docId,
+      'incident',
+      'OTP Requested',
+      `ขอ OTP ไปยังอีเมลผู้แจ้งภายนอก ${result.maskedEmail || incident.reporter_email}`,
+      session.user.email
+    )
+
+    return { success: true, message: `ส่ง OTP ไปยังอีเมลผู้แจ้งแล้ว (Case: ${incident.case_number})` }
   } catch (err) {
     console.error('requestIncidentCancelOTP Error:', err)
     return { error: err.message }
   }
 }
 
-export async function submitApprovalStep(docId, docType, stepId, signatureData, comment = '', pin = null, overrideApproverId = null) {
+export async function requestIncidentApprovalOTP(docId, stepId = null) {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return { error: 'Unauthorized' }
+
+    const supabaseAdmin = getAdminClient()
+    const { data: incident, error: incErr } = await supabaseAdmin
+      .from('incidents')
+      .select('reported_by_id, reporter_email, reported_by, case_number')
+      .eq('id', docId)
+      .single()
+    if (incErr) throw incErr
+
+    const { data: pendingStep, error: stepErr } = await supabaseAdmin
+      .from('document_approvals')
+      .select('id, approver_id, role_required, status')
+      .eq('doc_id', docId)
+      .eq('doc_type', 'incident')
+      .in('status', ['pending'])
+      .order('step_order', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (stepErr) throw stepErr
+
+    const targetApproverId = stepId ? (
+      (await supabaseAdmin
+        .from('document_approvals')
+        .select('id, approver_id, role_required, status')
+        .eq('id', stepId)
+        .eq('doc_id', docId)
+        .eq('doc_type', 'incident')
+        .in('status', ['pending'])
+        .maybeSingle()
+      ).data?.approver_id || null
+    ) : (pendingStep?.approver_id || null)
+
+    if (targetApproverId) {
+      const { requestEmployeeSignatureOTP } = await import('./users')
+      const result = await requestEmployeeSignatureOTP(targetApproverId)
+      if (!result.success) return result
+      return { success: true, message: `ส่ง OTP ไปยังอีเมลผู้อนุมัติแล้ว (Case: ${incident.case_number})` }
+    }
+
+    const result = await requestIncidentEmailOtp(
+      supabaseAdmin,
+      incident.reporter_email,
+      incident.reported_by || 'ผู้แจ้ง',
+      'approval'
+    )
+    if (!result.success) return { error: result.error || 'ไม่สามารถส่ง OTP ได้' }
+
+    await recordLog(
+      docId,
+      'incident',
+      'OTP Requested',
+      `ขอ OTP เพื่ออนุมัติแทนไปยังอีเมลผู้แจ้งภายนอก ${result.maskedEmail || incident.reporter_email}`,
+      session.user.email
+    )
+
+    return { success: true, message: `ส่ง OTP ไปยังอีเมลผู้แจ้งแล้ว (Case: ${incident.case_number})` }
+  } catch (err) {
+    console.error('requestIncidentApprovalOTP Error:', err)
+    return { error: err.message }
+  }
+}
+
+export async function verifyIncidentApprovalOTP(docId, otp, stepId = null) {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return { success: false, error: 'Unauthorized' }
+
+    const supabaseAdmin = getAdminClient()
+    const { data: incident, error: incErr } = await supabaseAdmin
+      .from('incidents')
+      .select('reported_by_id, reporter_email, case_number')
+      .eq('id', docId)
+      .single()
+    if (incErr) throw incErr
+
+    const stepQuery = supabaseAdmin
+      .from('document_approvals')
+      .select('id, approver_id, role_required, status')
+      .eq('doc_id', docId)
+      .eq('doc_type', 'incident')
+      .in('status', ['pending'])
+      .order('step_order', { ascending: true })
+      .limit(1)
+
+    const { data: pendingRow, error: pendingErr } = await (stepId
+      ? supabaseAdmin
+          .from('document_approvals')
+          .select('id, approver_id, role_required, status')
+          .eq('id', stepId)
+          .eq('doc_id', docId)
+          .eq('doc_type', 'incident')
+          .in('status', ['pending'])
+          .maybeSingle()
+      : stepQuery.maybeSingle())
+    if (pendingErr) throw pendingErr
+
+    const pendingStep = pendingRow || null
+    if (pendingStep?.approver_id) {
+      const { verifyEmployeeSignatureOTP } = await import('./users')
+      const otpCheck = await verifyEmployeeSignatureOTP(pendingStep.approver_id, otp)
+      if (!otpCheck.success) {
+        return { success: false, error: otpCheck.error || 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' }
+      }
+      return { success: true, message: `ยืนยัน OTP สำเร็จ (Case: ${incident.case_number})` }
+    }
+
+    const otpCheck = await verifyIncidentEmailOtp(supabaseAdmin, incident?.reporter_email, otp)
+    if (!otpCheck.success) {
+      return { success: false, error: otpCheck.error || 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' }
+    }
+
+    return { success: true, message: `ยืนยัน OTP สำเร็จ (Case: ${incident.case_number})` }
+  } catch (err) {
+    console.error('verifyIncidentApprovalOTP Error:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+export async function diagnoseIncidentApprovalOTP(docId, otp, stepId = null) {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session) return { success: false, error: 'Unauthorized' }
+
+    const supabaseAdmin = getAdminClient()
+    const { data: incident, error: incErr } = await supabaseAdmin
+      .from('incidents')
+      .select('reporter_email, case_number')
+      .eq('id', docId)
+      .single()
+    if (incErr) throw incErr
+
+    const { data: pendingStep, error: stepErr } = await (stepId
+      ? supabaseAdmin
+          .from('document_approvals')
+          .select('id, approver_id, status')
+          .eq('id', stepId)
+          .eq('doc_id', docId)
+          .eq('doc_type', 'incident')
+          .in('status', ['pending'])
+          .maybeSingle()
+      : supabaseAdmin
+          .from('document_approvals')
+          .select('id, approver_id, status')
+          .eq('doc_id', docId)
+          .eq('doc_type', 'incident')
+          .in('status', ['pending'])
+          .order('step_order', { ascending: true })
+          .limit(1)
+          .maybeSingle())
+    if (stepErr) throw stepErr
+
+    if (pendingStep?.approver_id) {
+      const { data: user, error: userErr } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, otp_code, otp_expires_at, otp_attempts')
+        .eq('id', pendingStep.approver_id)
+        .maybeSingle()
+      if (userErr) throw userErr
+      if (!user) return { success: false, error: 'ไม่พบข้อมูลผู้อนุมัติสำหรับตรวจสอบ OTP' }
+      if ((user.otp_attempts || 0) >= 5) return { success: false, error: 'คุณกรอกรหัสผิดเกินจำนวนครั้งที่กำหนด กรุณาขอรหัสใหม่' }
+      if (!user.otp_code || user.otp_code !== String(otp || '').trim()) {
+        await supabaseAdmin.from('user_profiles').update({ otp_attempts: (user.otp_attempts || 0) + 1 }).eq('id', user.id)
+        return { success: false, error: 'รหัส OTP ไม่ถูกต้อง' }
+      }
+      if (!user.otp_expires_at || new Date(user.otp_expires_at) < new Date()) {
+        return { success: false, error: 'รหัส OTP หมดอายุแล้ว กรุณาขอรหัสใหม่' }
+      }
+      return { success: true, message: `ยืนยัน OTP สำเร็จ (Case: ${incident.case_number})` }
+    }
+
+    const email = normalizeEmail(incident?.reporter_email)
+    const code = String(otp || '').trim()
+    const { data: row, error: rowErr } = await supabaseAdmin
+      .from('email_otps')
+      .select('email, otp_code, expires_at, attempts')
+      .eq('email', email)
+      .maybeSingle()
+    if (rowErr) throw rowErr
+    if (!row) return { success: false, error: 'ไม่พบคำขอ OTP สำหรับอีเมลนี้' }
+    if ((row.attempts || 0) >= 5) return { success: false, error: 'กรอกรหัสผิดเกินกำหนด กรุณาขอ OTP ใหม่' }
+    if (!row.otp_code || row.otp_code !== code) {
+      await supabaseAdmin.from('email_otps').update({ attempts: (row.attempts || 0) + 1 }).eq('email', email)
+      return { success: false, error: 'รหัส OTP ไม่ถูกต้อง' }
+    }
+    if (!row.expires_at || new Date(row.expires_at) < new Date()) {
+      return { success: false, error: 'รหัส OTP หมดอายุแล้ว' }
+    }
+    return { success: true, message: `ยืนยัน OTP สำเร็จ (Case: ${incident.case_number})` }
+  } catch (err) {
+    console.error('diagnoseIncidentApprovalOTP Error:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+async function verifyApprovalIdentity({
+  supabaseAdmin,
+  session,
+  docId,
+  docType,
+  currentStep,
+  docData,
+  pin,
+  otp,
+  actualApproverId,
+  isDirectApproval,
+  isExternalReporterStep
+}) {
+  const normalizedDocType = String(docType || '').toLowerCase()
+
+  if (isExternalReporterStep) {
+    const otpCheck = await verifyIncidentEmailOtp(supabaseAdmin, docData?.reporter_email, otp)
+    if (!otpCheck.success) {
+      return {
+        success: false,
+        error: otpCheck.error || 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ',
+        verificationType: 'OTP',
+        verificationResult: 'failed',
+      }
+    }
+
+    await recordAuditLog({
+      docId,
+      docType: normalizedDocType,
+      action: 'Remote Verify Passed',
+      details: 'ยืนยันตัวตนด้วย OTP สำเร็จสำหรับ Reporter External',
+      userEmail: session.user.email,
+      metadata: {
+        actor_user_id: session.user.id,
+        actor_role: session.type === 'external' ? (session.user.role || 'external') : 'internal',
+        target_approver_id: actualApproverId || null,
+        target_role_required: currentStep?.role_required || null,
+        verification_type: 'OTP',
+        verification_result: 'success',
+        is_remote: true,
+        step_id: currentStep?.id || null,
+        step_order: currentStep?.step_order || null,
+      }
+    })
+
+    return { success: true, verificationType: 'OTP', verificationResult: 'success' }
+  }
+
+  if (!isDirectApproval) {
+    if (!pin && !otp) {
+      return {
+        success: false,
+        error: 'การอนุมัติแทนจำเป็นต้องระบุรหัส PIN หรือ OTP ของผู้อนุมัติ',
+        verificationType: 'NONE',
+        verificationResult: 'failed',
+      }
+    }
+
+    if (otp) {
+      const { verifyEmployeeSignatureOTP } = await import('./users')
+      const otpCheck = await verifyEmployeeSignatureOTP(actualApproverId, otp)
+      if (!otpCheck.success) {
+        return {
+          success: false,
+          error: otpCheck.error || 'รหัส OTP ของผู้อนุมัติไม่ถูกต้อง',
+          verificationType: 'OTP',
+          verificationResult: 'failed',
+        }
+      }
+      return { success: true, verificationType: 'OTP', verificationResult: 'success' }
+    }
+
+    const pinCheck = await verifyEmployeePIN(actualApproverId, pin)
+    if (!pinCheck.success) {
+      return {
+        success: false,
+        error: pinCheck.error || 'รหัส PIN ของผู้อนุมัติไม่ถูกต้อง',
+        verificationType: 'PIN',
+        verificationResult: 'failed',
+      }
+    }
+
+    return { success: true, verificationType: 'PIN', verificationResult: 'success' }
+  }
+
+  if (otp) {
+    const { verifyEmployeeSignatureOTP } = await import('./users')
+    const otpCheck = await verifyEmployeeSignatureOTP(actualApproverId, otp)
+    if (!otpCheck.success) {
+      return {
+        success: false,
+        error: otpCheck.error || 'รหัส OTP ไม่ถูกต้อง',
+        verificationType: 'OTP',
+        verificationResult: 'failed',
+      }
+    }
+    return { success: true, verificationType: 'OTP', verificationResult: 'success' }
+  }
+
+  if (pin) {
+    const pinCheck = await verifyEmployeePIN(actualApproverId, pin)
+    if (!pinCheck.success) {
+      return {
+        success: false,
+        error: pinCheck.error || 'รหัส PIN ไม่ถูกต้อง',
+        verificationType: 'PIN',
+        verificationResult: 'failed',
+      }
+    }
+    return { success: true, verificationType: 'PIN', verificationResult: 'success' }
+  }
+
+  return { success: true, verificationType: 'NONE', verificationResult: 'skipped' }
+}
+
+export async function submitApprovalStep(docId, docType, stepId, signatureData, comment = '', pin = null, overrideApproverId = null, otp = null) {
   try {
     const session = await getCurrentUserSession()
     if (!session) return { error: 'Unauthorized' }
@@ -1304,21 +1986,33 @@ export async function submitApprovalStep(docId, docType, stepId, signatureData, 
 
     if (!currentStep || currentStep.status !== 'pending') return { error: 'Step not ready for approval' }
 
-    // 🛡️ SECURITY: PIN Verification Enforcement
+    const reg = WORKFLOW_DOC_REGISTRY[docType.toLowerCase()]
+    const { data: docData } = reg
+      ? await supabaseAdmin.from(reg.table).select('reported_by_id, reporter_email').eq('id', docId).maybeSingle()
+      : { data: null }
+
+    const isIncidentReporterStep = docType.toLowerCase() === 'incident' && currentStep.role_required === 'reporter'
+    const isExternalReporterStep = Boolean(isIncidentReporterStep && !docData?.reported_by_id)
+
+    // 🛡️ SECURITY: PIN/OTP Verification Enforcement
     const actualApproverId = currentStep.approver_id || overrideApproverId || session.user.id
     const isDirectApproval = actualApproverId === session.user.id
 
-    // หากไม่ใช่เจ้าตัวเซ็นเอง (Remote Approval) "ต้อง" มี PIN และต้องตรวจผ่านเสมอ
-    if (!isDirectApproval) {
-      if (!pin) return { error: 'การอนุมัติแทนจำเป็นต้องระบุรหัส PIN ของผู้อนุมัติ' }
-      const pinCheck = await verifyEmployeePIN(actualApproverId, pin)
-      if (!pinCheck.success) return { error: pinCheck.error || 'รหัส PIN ของผู้อนุมัติไม่ถูกต้อง' }
-    } else {
-      // กรณีเซ็นเอง หากมี PIN ส่งมาก็ตรวจ (เพื่อความปลอดภัยเสริม) 
-      if (pin) {
-        const pinCheck = await verifyEmployeePIN(actualApproverId, pin)
-        if (!pinCheck.success) return { error: pinCheck.error || 'รหัส PIN ไม่ถูกต้อง' }
-      }
+    const verifyResult = await verifyApprovalIdentity({
+      supabaseAdmin,
+      session,
+      docId,
+      docType,
+      currentStep,
+      docData,
+      pin,
+      otp,
+      actualApproverId,
+      isDirectApproval,
+      isExternalReporterStep
+    })
+    if (!verifyResult.success) {
+      return { error: verifyResult.error }
     }
 
     // 2. Execute Transactional Approval via RPC
@@ -1327,7 +2021,10 @@ export async function submitApprovalStep(docId, docType, stepId, signatureData, 
     const email = profile?.email || session.user.email
     
     const isRemote = !isDirectApproval
-    const logDetails = `อนุมัติโดย: ${fullName} (${email})${isRemote ? ' [Verify by PIN]' : ''}${comment ? ` | Note: ${comment}` : ''}`
+    const verifyTag = isRemote
+      ? (verifyResult.verificationType === 'OTP' ? ' [Verify by OTP]' : ' [Verify by PIN]')
+      : (verifyResult.verificationType === 'PIN' ? ' [Verify by PIN]' : '')
+    const logDetails = `อนุมัติโดย: ${fullName} (${email})${verifyTag}${comment ? ` | Note: ${comment}` : ''}`
 
     const { data: rpcRes, error: rpcErr } = await supabaseAdmin.rpc('handle_approval_step', {
       p_doc_id: docId,
@@ -1344,8 +2041,33 @@ export async function submitApprovalStep(docId, docType, stepId, signatureData, 
     if (rpcErr) throw rpcErr
     if (!rpcRes.success) return { error: rpcRes.error }
 
+    if (isRemote || verifyResult.verificationType !== 'NONE') {
+      await recordAuditLog({
+        docId,
+        docType: docType.toLowerCase(),
+        action: 'Approval Verification Audit',
+        details: `actor=${session.user.email} | target=${email} | verify=${verifyResult.verificationType} | result=${verifyResult.verificationResult}`,
+        userEmail: session.user.email,
+        metadata: {
+          actor_user_id: session.user.id,
+          actor_role: session.type === 'external' ? (session.user.role || 'external') : 'internal',
+          target_approver_id: actualApproverId || null,
+          target_approver_email: email || null,
+          target_role_required: currentStep?.role_required || null,
+          verification_type: verifyResult.verificationType,
+          verification_result: verifyResult.verificationResult,
+          is_remote: isRemote,
+          step_id: currentStep?.id || null,
+          step_order: currentStep?.step_order || null,
+        }
+      })
+    }
+
     // 3. Cross-module sync if final
     if (rpcRes.is_final) {
+      if (docType.toLowerCase() === 'incident') {
+        await closeIncidentSlaPauseWindow(supabaseAdmin, docId)
+      }
       await onDocumentFinalApproval(docId, docType)
     } else {
       // 📧 [Phase 2] Notify Next Approver
@@ -1467,16 +2189,79 @@ export async function runWorkflowMigration() {
   }
 }
 
-export async function resetDocumentWorkflow(docId, docType) {
+export async function resetDocumentWorkflow(docId, docType, reason = '', options = {}) {
   try {
+    const normalizedDocType = String(docType || '').toLowerCase()
+    const reg = WORKFLOW_DOC_REGISTRY[normalizedDocType]
+    if (!reg) return { error: 'Invalid document type' }
+
+    const skipAuth = options?.skipAuth === true
+    const session = skipAuth ? null : await getCurrentUserSession()
+    if (!skipAuth && (!session || session.type !== 'internal')) return { error: 'Unauthorized' }
+
     const supabaseAdmin = getAdminClient()
+    const actorEmail = options?.actorEmail || session?.user?.email || 'system@internal'
+    const actorName = options?.actorName || actorEmail
+    const reopenReason = String(reason || '').trim()
+
+    const currentDocSelect = normalizedDocType === 'incident'
+      ? 'id, status, workflow_status, acknowledged_at, assigned_at, assigned_to_id, assigned_to'
+      : 'id, status, workflow_status'
+
+    const { data: currentDoc, error: currentErr } = await supabaseAdmin
+      .from(reg.table)
+      .select(currentDocSelect)
+      .eq('id', docId)
+      .maybeSingle()
+    if (currentErr) throw currentErr
+    if (!currentDoc) return { error: 'Document not found' }
+
+    const shouldReturnToInProgress = normalizedDocType === 'incident' && Boolean(
+      currentDoc?.acknowledged_at ||
+      currentDoc?.assigned_at ||
+      currentDoc?.assigned_to_id ||
+      currentDoc?.assigned_to
+    )
+    const reopenStatus = shouldReturnToInProgress ? 'In Progress' : 'Open'
+
+    const updateData = {
+      [reg.status_field]: reopenStatus,
+      [reg.workflow_status_field]: normalizedDocType === 'incident' ? 'rejected' : null,
+      assigned_approver_id: null,
+    }
+    if (normalizedDocType === 'checklist') {
+      updateData.approved_by = null
+      updateData.approved_at = null
+    }
+
+    const { error: updateErr } = await supabaseAdmin
+      .from(reg.table)
+      .update(updateData)
+      .eq('id', docId)
+    if (updateErr) throw updateErr
+
     const { error } = await supabaseAdmin
       .from('document_approvals')
       .delete()
       .eq('doc_id', docId)
-      .eq('doc_type', docType.toLowerCase())
+      .eq('doc_type', normalizedDocType)
     
     if (error) throw error
+
+    if (normalizedDocType === 'incident') {
+      await closeIncidentSlaPauseWindow(supabaseAdmin, docId)
+    }
+
+    const statusTransition = `สถานะเอกสาร: ${currentDoc.status || '-'} -> ${reopenStatus} | workflow_status: ${currentDoc.workflow_status || '-'} -> ${normalizedDocType === 'incident' ? 'rejected' : 'null'}`
+    const reasonText = reopenReason ? ` | เหตุผล: ${reopenReason}` : ''
+    await recordLog(
+      docId,
+      normalizedDocType,
+      'Reopen Case',
+      `${statusTransition}${reasonText} | ผู้ดำเนินการ: ${actorName}`,
+      actorEmail
+    )
+
     return { success: true }
   } catch (err) {
     console.error('resetDocumentWorkflow Error:', err)
@@ -1517,8 +2302,10 @@ export async function adminResetWorkflow(docId, docType, password) {
       [reg.workflow_status_field]: null,
       [reg.status_field]: 'Open',
       assigned_approver_id: null,
-      approved_by: null,
-      approved_at: null
+    }
+    if (docType.toLowerCase() === 'checklist') {
+      updateData.approved_by = null
+      updateData.approved_at = null
     }
 
     const { error: resetError } = await supabaseAdmin
@@ -1529,7 +2316,11 @@ export async function adminResetWorkflow(docId, docType, password) {
     if (resetError) throw resetError
 
     // 4. Reset document_approvals table
-    await resetDocumentWorkflow(docId, docType)
+    await resetDocumentWorkflow(docId, docType, `Admin Override ผ่าน Approval Logs`, {
+      skipAuth: true,
+      actorEmail: session.user.email,
+      actorName: profile.full_name,
+    })
 
     // 5. Record Log
     await recordLog(docId, docType.toLowerCase(), 'Admin Override', `ยกเลิกการอนุมัติ (Workflow Reset) โดย ${profile.full_name} ผ่านหน้าจอ Approval Logs`, session.user.email)

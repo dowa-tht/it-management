@@ -59,6 +59,45 @@ export async function getCurrentUserSession() {
   return null
 }
 
+export async function getCurrentActorProfile() {
+  const session = await getCurrentUserSession()
+  if (!session?.user) return null
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const adminClient = createClient(supabaseUrl, serviceKey)
+
+  if (session.type === 'external') {
+    const { data: ext } = await adminClient
+      .from('external_users')
+      .select('id, email, full_name, role')
+      .eq('id', session.user.id)
+      .maybeSingle()
+
+    return {
+      id: ext?.id || session.user.id,
+      email: ext?.email || session.user.email || null,
+      full_name: ext?.full_name || session.user.name || session.user.email || 'External User',
+      role: ext?.role || session.user.role || 'auditor',
+      session_type: 'external',
+    }
+  }
+
+  const { data: profile } = await adminClient
+    .from('user_profiles')
+    .select('id, email, full_name, role')
+    .eq('id', session.user.id)
+    .maybeSingle()
+
+  return {
+    id: profile?.id || session.user.id,
+    email: profile?.email || session.user.email || null,
+    full_name: profile?.full_name || session.user.email || 'User',
+    role: profile?.role || null,
+    session_type: 'internal',
+  }
+}
+
 export async function changeExternalPIN({ currentPIN, newPIN }) {
   try {
     const session = await getCurrentUserSession()
