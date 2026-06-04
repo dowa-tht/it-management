@@ -1076,7 +1076,8 @@ export default function IncidentDetailPage() {
   const isLocked = incident.status === 'Pending Approval' || incident.status === 'Closed' || (incident.status === 'In Progress' && !hasFullAccess)
   const isAuditor = currentUser?.role === 'auditor'
   const currentStep = workflowSteps.find(s => s.status === 'pending')
-  const isCreator = currentUser?.id === incident?.reported_by_id
+  const isCreator = currentUser?.id === incident?.created_by_id
+  const isReporter = currentUser?.id === incident?.reported_by_id
   const latestRejectedStep = workflowSteps.find(s => s.status === 'rejected')
   const latestRejectedLog = logs.find(log => log.action === 'Rejected')
   const latestSubmittedLog = logs.find(log => log.action === 'Submitted')
@@ -1086,7 +1087,7 @@ export default function IncidentDetailPage() {
     currentStep.approver_id === currentUser?.id ||
     (!currentStep.approver_id && currentStep.role_required === currentUser?.role) ||
     isSubstitute ||
-    (currentStep.role_required === 'reporter' && isCreator)
+    (currentStep.role_required === 'reporter' && isReporter)
   ))
   const canReject = !!(
     incident.status === 'Pending Approval' &&

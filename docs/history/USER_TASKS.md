@@ -12,6 +12,23 @@
 
 ## ✅ งานที่เสร็จสิ้นแล้ว (Completed)
 
+### 24. Fix Dashboard "My Sent Pending" False Positive & Align isCreator Logic
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 4 มิถุนายน 2569
+- **รายละเอียด:**
+  - แก้ปัญหาที่ Dashboard แสดงจำนวน `MY SENT PENDING` เป็น 1 สำหรับเคสที่ user เป็น Reporter แต่ไม่ใช่ Sender (False Positive)
+  - ปรับปรุง query ใน `app/actions/dashboard.js` (`getDashboardData`) ให้เทียบ `created_by_id` (ผู้สร้าง/ผู้ส่งเรื่องจริง) แทน `reported_by_id` (ผู้แจ้ง)
+  - ปรับปรุง query ใน `app/actions/workflow.js` (`getMySentPendingItems`) ให้สอดคล้องกันเพื่อให้ดึงข้อมูลในหน้ารายการ /dashboard/my-pending ถูกต้อง
+  - ปรับปรุง Incident Detail Page (`app/dashboard/incidents/[id]/page.js`):
+    - แยกแยะ `isCreator` (เทียบ `created_by_id`) และ `isReporter` (เทียบ `reported_by_id`) ออกจากกันอย่างถูกต้อง
+    - อัปเดต `canApprove` ของ reporter step ให้ใช้ `isReporter`
+    - รักษาปุ่ม `canCancel` ให้ขึ้นจำกัดเฉพาะผู้ส่งเรื่อง `isCreator` เท่านั้น
+  - ยืนยันว่ารัน `npm run build` สำเร็จ 100% ไม่มีข้อผิดพลาด
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `app/actions/dashboard.js`
+  - `app/actions/workflow.js`
+  - `app/dashboard/incidents/[id]/page.js`
+
 ### P1. ทดสอบ Reopen เอกสาร Incident หลังปรับ Logic SLA-safe
 - **สถานะ:** ✅ ทดสอบผ่านแล้ว
 - **วันที่บันทึก:** 29 พฤษภาคม 2569

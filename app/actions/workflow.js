@@ -775,7 +775,7 @@ export async function getUnifiedMyPendingItems() {
       .from('incidents')
       .select(`id, case_number, title, status, created_at, reported_by, reported_by_id, assigned_to`)
       .ilike('status', 'Pending Approval')
-      .eq('reported_by_id', profile.id)
+      .eq('created_by_id', profile.id)
 
     // 4. Transform into Unified Format
     const unified = [

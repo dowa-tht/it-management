@@ -2,6 +2,16 @@
 
 ## 4 มิถุนายน 2569 (04-Jun-2026)
 
+- **[ตอนนี้] Fix Dashboard False Positive: Alignment of MY SENT PENDING to created_by_id**
+  - แก้ไขปัญหา Badge และ รายการ "My Sent Pending" บน Dashboard แสดงข้อมูลไม่ตรงกับความหมายจริง (False Positive)
+  - ปรับ `app/actions/dashboard.js` (`getDashboardData`) ให้ดึงจำนวนเคสรออนุมัติของฉันโดยอิงจาก `created_by_id` (ผู้สร้าง/ผู้ส่งเรื่อง) แทน `reported_by_id` (ผู้แจ้ง)
+  - ปรับ `app/actions/workflow.js` (`getMySentPendingItems`) ให้ดึงรายการเคสรออนุมัติของฉันตาม `created_by_id` เช่นเดียวกัน เพื่อให้ข้อมูลหน้า UI และ Dashboard สอดคล้องกัน
+  - ปรับปรุงสิทธิ์ควบคุมในหน้า Incident Detail (`app/dashboard/incidents/[id]/page.js`):
+    - แยกแยะระหว่าง `isCreator` (เทียบกับ `created_by_id`) และ `isReporter` (เทียบกับ `reported_by_id`) ออกจากกันอย่างถูกต้อง
+    - อัปเดตเงื่อนไขปุ่มอนุมัติ `canApprove` ของบทบาท `reporter` ให้ตรวจสอบเงื่อนไข `isReporter` อย่างถูกต้อง
+    - รักษาความปลอดภัยของปุ่ม `canCancel` ให้ขึ้นเฉพาะกับผู้ส่ง/ผู้สร้างจริง (`isCreator`) เท่านั้น
+  - รัน `npm run build` ผ่านสมบูรณ์ 100%
+
 - **[ตอนนี้] Verify Reopen Incident SLA-safe Logic: Test Passed**
   - ทดสอบการกด Reopen บนเอกสาร Incident ที่เคยผ่าน Acknowledge/Assign แล้ว
   - ✅ ยืนยันว่าเคสกลับไป `In Progress` (ไม่ใช่ `Open`) เมื่อมี context เดิมของงาน

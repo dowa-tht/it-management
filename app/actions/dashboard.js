@@ -70,7 +70,7 @@ export async function getDashboardData(timezoneOffset = -420) {
       // Fetch My Sent Pending Items (For Sender Tracking) — UUID-based lookup
       userProfile ? supabaseAdmin.from('checklist_docs').select('id', { count: 'exact', head: true }).in('workflow_status', ['pending', 'PENDING', 'Pending Approval']).eq('created_by_id', userProfile.id) : Promise.resolve({ count: 0 }),
       userProfile ? supabaseAdmin.from('incidents').select('id', { count: 'exact', head: true }).ilike('status', 'Pending Approval')
-          .eq('reported_by_id', userProfile.id) : Promise.resolve({ count: 0 })
+          .eq('created_by_id', userProfile.id) : Promise.resolve({ count: 0 })
     ])
 
     const [
