@@ -1,6 +1,6 @@
 # 🚨 Incident Management Standard
 
-**Version**: 1.0 (2026-05-09)  
+**Version**: 1.1 (2026-05-28)  
 **Status**: Mandatory Standard  
 **Scope**: IT Service Desk & Technical Support Workflow
 
@@ -11,8 +11,8 @@
 
 | สถานะ (Status) | คำอธิบาย (Description) | พฤติกรรมระบบ (System Behavior) |
 | :--- | :--- | :--- |
-| **⚪ Open** | แจ้งเรื่องใหม่ ยังไม่มีเจ้าหน้าที่รับงาน | เริ่มนับ Response SLA / **ต้องแสดงในกล่อง "รอรับเรื่อง" บน Dashboard IT** |
-| **⏳ In Progress** | เจ้าหน้าที่กดรับงานหรือมอบหมายงานแล้ว | หยุดนับ Response SLA / เริ่มนับ Resolution SLA / **Lock ข้อมูลห้ามผู้แจ้งแก้ไข** |
+| **⚪ Open** | แจ้งเรื่องใหม่ ยังไม่มีเจ้าหน้าที่รับงาน | เริ่มนับ Response SLA (`created_at -> acknowledged_at`) / **ต้องแสดงในกล่อง "รอรับเรื่อง" บน Dashboard IT** |
+| **⏳ In Progress** | เจ้าหน้าที่กดรับงานหรือมอบหมายงานแล้ว | Response SLA ถูกสรุปเมื่อ acknowledged แล้ว / เริ่มนับ Resolution SLA (`acknowledged_at/assigned_at -> resolved_at`) / **Lock ข้อมูลห้ามผู้แจ้งแก้ไข** |
 | **✍️ Pending Approval** | แก้ไขเสร็จสิ้น อยู่ระหว่างรอผู้แจ้งเซ็นรับทราบ | หยุดนับ Resolution SLA (Clock Stopped) |
 | **✅ Closed** | ผู้แจ้งเซ็นรับทราบและปิดงานสมบูรณ์ | บันทึกสถิติ SLA ลงในรายงาน |
 
@@ -37,11 +37,13 @@
 
 ---
 
-## 4. Real-time SLA Monitoring (Strict Mode)
-ระบบต้องประเมินประสิทธิภาพแบบ Real-time เพื่อให้ Dashboard สะท้อนสถานะวิกฤตที่แท้จริง:
+## 4. SLA Evaluation & Reporting Rules
+การคำนวณ KPI ใช้มาตรฐานรวมศูนย์เดียวกับ `SLA_MANAGEMENT.md`:
 
-*   **Late Detection**: เคสที่ยังอยู่ในสถานะ `Open` หรือ `In Progress` แต่เวลาปัจจุบันเกินเป้าหมาย (SLA Target) แล้ว **ต้องถูกแสดงผลเป็นสีแดง (FAIL)** ทันที
-*   **Rate Calculation**: เคสที่ "สาย (Late)" แบบ Real-time ต้องถูกนำไปหักลบในอัตราส่วน % ความสำเร็จ (Compliance Rate) โดยไม่ต้องรอให้ปิดงานก่อน
+*   **N/A Rule**: เคสที่ยังไม่ acknowledged ต้องแสดง Response เป็น `N/A` และยังไม่ถูก evaluate
+*   **Closed-only Scoring**: Compliance score คิดเฉพาะเคส `Closed`
+*   **Cancelled Exclusion**: เคส `Cancelled` ถูกตัดออกจากตัวหาร KPI
+*   **Pending Approval Pause**: ขณะ `Pending Approval` ให้หยุดนับ Resolution SLA ด้วย `incident_exclusions`
 
 ---
 

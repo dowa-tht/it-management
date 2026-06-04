@@ -1,6 +1,6 @@
 'use server'
 import { createClient } from '@supabase/supabase-js'
-import { calculateNetBusinessMinutes, SLA_LIMITS, calculateSLARates } from '@/lib/slaUtils'
+import { SLA_LIMITS, calculateSLARates, calculateIncidentSlaSnapshot } from '@/lib/slaUtils'
 
 export async function getSLAReportData(startDate, endDate, page = 0) {
   try {
@@ -52,108 +52,29 @@ export async function getSLAReportData(startDate, endDate, page = 0) {
     // SLA Limits fallback
     const dynamicSlaLimits = slaLimitsRes.data?.value || SLA_LIMITS
     
-    // Extract limits with deep fallback to the new standard
-    const responseLimits = dynamicSlaLimits.Response || { 
-      High: dynamicSlaLimits.High_Response || 60, 
-      Medium: dynamicSlaLimits.Medium_Response || 120, 
-      Low: dynamicSlaLimits.Low_Response || 360 
-    }
-    const resolutionLimits = dynamicSlaLimits.Resolution || {
-      High: dynamicSlaLimits.High || 240,
-      Medium: dynamicSlaLimits.Medium || 480,
-      Low: dynamicSlaLimits.Low || 1620
+    const exclusionsMap = new Map()
+    for (const exclusion of allExclusions) {
+      if (!exclusionsMap.has(exclusion.incident_id)) exclusionsMap.set(exclusion.incident_id, [])
+      exclusionsMap.get(exclusion.incident_id).push(exclusion)
     }
 
-    const reportData = (incidents || []).map(inc => {
-      const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
-      
-      const resLimit = resolutionLimits[inc.severity] || resolutionLimits.Medium
-      const respLimit = responseLimits[inc.severity] || responseLimits.Medium
+    const buildSnapshot = (inc) =>
+      calculateIncidentSlaSnapshot(inc, {
+        workingHours: wh,
+        holidays,
+        exclusions: exclusionsMap.get(inc.id) || [],
+        slaLimits: dynamicSlaLimits,
+      })
 
-      let responseMin = null
-      const respTime = inc.acknowledged_at || inc.assigned_at
-      if (respTime) {
-        responseMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, [])
-      }
+    const reportData = (incidents || []).map((inc) => ({
+      ...inc,
+      ...buildSnapshot(inc),
+    }))
 
-      let resolveMin = null
-      if (inc.resolved_at) {
-        resolveMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions)
-      }
-
-      // --- Strict Mode Logic ---
-      // For Response: If not yet responded, check current time against limit
-      let isResponseOK = null
-      if (responseMin !== null) {
-        isResponseOK = responseMin <= respLimit
-      } else {
-        const currentMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, [])
-        isResponseOK = currentMin > respLimit ? false : null
-      }
-
-      // For Resolution: If not yet resolved, check current time against limit
-      let isResolveOK = null
-      if (resolveMin !== null) {
-        isResolveOK = resolveMin <= resLimit
-      } else {
-        const currentResMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, incExclusions)
-        isResolveOK = (inc.status !== 'Closed') ? (currentResMin > resLimit ? false : null) : false
-      }
-
-      const isSlaPassed = (isResponseOK !== false) && (isResolveOK !== false)
-
-      return {
-        ...inc,
-        responseMin,
-        resolveMin,
-        responseLimit: respLimit,
-        resolveLimit: resLimit,
-        isResponseOK,
-        isResolveOK,
-        isSlaPassed
-      }
-    })
-
-    const processedAllIncidents = (allIncidentsForSummary || []).map(inc => {
-      const incExclusions = allExclusions.filter(e => e.incident_id === inc.id)
-      
-      const resLimit = resolutionLimits[inc.severity] || resolutionLimits.Medium
-      const respLimit = responseLimits[inc.severity] || responseLimits.Medium
-
-      let responseMin = null
-      const respTime = inc.acknowledged_at || inc.assigned_at
-      if (respTime) {
-        responseMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, [])
-      }
-
-      let resolveMin = null
-      if (inc.resolved_at) {
-        resolveMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions)
-      }
-      
-      // --- Strict Mode Logic (Summary) ---
-      let isResponseOK = null
-      if (responseMin !== null) {
-        isResponseOK = responseMin <= respLimit
-      } else {
-        const currentMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, [])
-        isResponseOK = currentMin > respLimit ? false : null
-      }
-
-      let isResolveOK = null
-      if (resolveMin !== null) {
-        isResolveOK = resolveMin <= resLimit
-      } else {
-        const currentResMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, incExclusions)
-        isResolveOK = (inc.status !== 'Closed') ? (currentResMin > resLimit ? false : null) : false
-      }
-
-      return {
-        ...inc,
-        isResponseOK,
-        isResolveOK
-      }
-    })
+    const processedAllIncidents = (allIncidentsForSummary || []).map((inc) => ({
+      ...inc,
+      ...buildSnapshot(inc),
+    }))
 
     const { 
       responseRate, 
@@ -162,10 +83,11 @@ export async function getSLAReportData(startDate, endDate, page = 0) {
       acknowledgedCount: acknowledged, 
       resolvedCount: resolved,
       responsePassedCount,
-      resolutionPassedCount 
+      resolutionPassedCount,
+      evaluatedCount,
     } = calculateSLARates(processedAllIncidents);
 
-    const total = (allIncidentsForSummary || []).length;
+    const total = evaluatedCount;
 
     return {
       success: true,

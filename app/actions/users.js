@@ -28,6 +28,7 @@ export async function searchUsers(query) {
 
 export async function quickAddUser({ fullName, email, role = 'employee' }) {
   try {
+    return { error: 'Quick Add แบบสร้างบัญชีถาวรถูกปิดใช้งานแล้ว' }
     const session = await getCurrentUserSession()
     if (!session) return { error: 'Unauthorized' }
 

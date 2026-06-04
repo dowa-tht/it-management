@@ -23,19 +23,19 @@
 
 ```mermaid
 graph LR
-    A["1. วางแผน (Antigravity)"] -->|สร้าง Task File| B["ai-tasks/tasks/"]
+    A["1. วางแผน (Antigravity)"] -->|สร้าง Task File| B["docs/history/"]
     B -->|Git Push| C["2. เขียนโค้ด (Jules)"]
     C -->|Git Push Branch| D["3. ตรวจสอบ & รวมโค้ด (Antigravity)"]
 ```
 
 ### 1. ขั้นตอนที่ 1: วางแผนและสร้างคำสั่ง (Planning Phase) — ทำโดย **Antigravity**
 *   **สิ่งที่ต้องทำ:** เมื่อคุณมีโจทย์ใหม่หรือต้องการแก้ไขระบบขนาดใหญ่ ให้คุยกับ **Antigravity** เพื่อให้วิเคราะห์โครงสร้างโค้ดและสร้างแผนงาน
-*   **ผลลัพธ์:** Antigravity จะเขียนไฟล์ `.md` แผนงานเทคนิคละเอียดถึงระดับ Pseudocode ไว้ที่โฟลเดอร์ `ai-tasks/tasks/` จากนั้นจะทำการ Push ขึ้น GitHub
+*   **ผลลัพธ์:** Antigravity จะเขียนไฟล์ `.md` แผนงานเทคนิคละเอียดถึงระดับ Pseudocode ไว้ที่โฟลเดอร์ `docs/history/` จากนั้นจะทำการ Push ขึ้น GitHub
 
 ### 2. ขั้นตอนที่ 2: รันโค้ดบนคลาวด์ (Execution Phase) — ทำโดย **Google Jules**
 *   **สิ่งที่ต้องทำ:** คุณสั่งรันไฟล์คำสั่งผ่าน Jules บนคลาวด์:
     ```bash
-    jules run ai-tasks/tasks/ชื่องาน_00X.md
+    jules run docs/history/ชื่องาน_00X.md
     ```
 *   **ผลลัพธ์:** Jules จะสแกนโค้ดและดำเนินการสร้าง/แก้ไขโค้ดจริงทั้งหมดบนกิ่งสาขา (Branch) ใหม่บน GitHub เมื่อเสร็จแล้ว Jules จะทำการทดสอบและสร้างรายงานความสำเร็จ
 
@@ -49,7 +49,7 @@ graph LR
 
 | ประเภทงาน (Task Type) | ควรใช้ใคร? (Who to use?) | ขั้นตอนที่แนะนำ (Recommended Steps) |
 |---|---|---|
-| **ออกแบบ Database หรือวางแผนระบบใหม่** | **Antigravity** | คุยกับ Antigravity เพื่อให้ออกแบบ Schema และเขียนแผนงานลง `ai-tasks/tasks/` |
+| **ออกแบบ Database หรือวางแผนระบบใหม่** | **Antigravity** | คุยกับ Antigravity เพื่อให้ออกแบบ Schema และเขียนแผนงานลง `docs/history/` |
 | **สร้างหน้าจอ (UI/UX) / API Endpoint ใหม่ยกชุด** | **Google Jules** | ส่งต่อแผนงานให้ Jules รันโค้ดบนคลาวด์ เพื่อความรวดเร็วและไม่กระทบ localhost ระหว่างทำ |
 | **แก้ Bug ซับซ้อน หรือระบบขัดข้องที่หาสาเหตุไม่ได้** | **Antigravity** | ใช้ Antigravity ตรวจสอบ logs และวิเคราะห์โค้ดจริงใน localhost |
 | **อัปเกรดเวอร์ชันของ Library (เช่น Next.js 16)** | **Google Jules** | ใช้พลังประมวลผลของ Jules บนคลาวด์เพื่อตรวจหาจุด Breaking Changes ทั้งระบบในคราวเดียว |

@@ -1,6 +1,6 @@
 'use server'
 import { createClient } from '@supabase/supabase-js'
-import { calculateNetBusinessMinutes, SLA_LIMITS, calculateSLARates } from '@/lib/slaUtils'
+import { SLA_LIMITS, calculateSLARates, calculateIncidentSlaSnapshot } from '@/lib/slaUtils'
 import { getCurrentUserSession } from './user'
 
 export async function getDashboardData(timezoneOffset = -420) {
@@ -39,7 +39,7 @@ export async function getDashboardData(timezoneOffset = -420) {
     // timezoneOffset is used to calculate "today" correctly for the user's local time if needed
     // Defaults to -420 for UTC+7 (Bangkok)
     const start = new Date()
-    start.setMonth(start.getMonth() - 1)
+    start.setDate(start.getDate() - 30)
     const startIso = start.toISOString()
 
     // Safety: ensure timezoneOffset is a valid number
@@ -52,15 +52,13 @@ export async function getDashboardData(timezoneOffset = -420) {
     streakStart.setDate(streakStart.getDate() - 35)
     const streakStartStr = isNaN(streakStart.getTime()) ? todayStr : streakStart.toISOString().split('T')[0]
 
-    const ytdStartIso = `${todayStr.substring(0, 4)}-01-01T00:00:00`
-
     const results = await Promise.all([
       supabaseAdmin.from('incidents').select('id, case_number, title, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system, reported_by, reported_by_id, assigned_to').gte('created_at', startIso).order('created_at', { ascending: false }),
       supabaseAdmin.from('backup_logs').select('id, log_date, system_name, status, notes').gte('log_date', startIso.split('T')[0]).order('log_date', { ascending: false }),
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, item_key, status)').gte('period_date', streakStartStr),
       supabaseAdmin.from('holidays').select('holiday_date').gte('holiday_date', streakStartStr),
       supabaseAdmin.from('system_settings').select('value').eq('key', 'working_hours').maybeSingle(),
-      supabaseAdmin.from('incident_exclusions').select('*').gte('start_time', startIso),
+      supabaseAdmin.from('incident_exclusions').select('*'),
       supabaseAdmin.from('system_settings').select('value').eq('key', 'sla_limits').maybeSingle(),
       supabaseAdmin.from('checklist_docs').select('id, status, freq_type, period_date, checklist_items(id, item_key, status)').eq('freq_type', 'Yearly').gte('period_date', `${todayStr.substring(0, 4)}-01-01`),
       supabaseAdmin.from('checklist_templates').select('freq_type, item_key').eq('is_active', true),
@@ -72,13 +70,12 @@ export async function getDashboardData(timezoneOffset = -420) {
       // Fetch My Sent Pending Items (For Sender Tracking) — UUID-based lookup
       userProfile ? supabaseAdmin.from('checklist_docs').select('id', { count: 'exact', head: true }).in('workflow_status', ['pending', 'PENDING', 'Pending Approval']).eq('created_by_id', userProfile.id) : Promise.resolve({ count: 0 }),
       userProfile ? supabaseAdmin.from('incidents').select('id', { count: 'exact', head: true }).ilike('status', 'Pending Approval')
-          .eq('reported_by_id', userProfile.id) : Promise.resolve({ count: 0 }),
-      supabaseAdmin.from('incidents').select('id, severity, status, created_at, acknowledged_at, assigned_at, resolved_at, affected_system, reported_by, reported_by_id, assigned_to').gte('created_at', ytdStartIso)
+          .eq('reported_by_id', userProfile.id) : Promise.resolve({ count: 0 })
     ])
 
     const [
       incRes, bakRes, chkRes, holidayRes, settingsRes, exclusionsRes, slaLimitsRes, 
-      yearlyRes, templatesRes, pendingApprovalsRes, myPendingChkRes, myPendingIncRes, ytdIncRes
+      yearlyRes, templatesRes, pendingApprovalsRes, myPendingChkRes, myPendingIncRes
     ] = results;
 
     if (chkRes.error) console.error('Checklists Fetch Error:', chkRes.error)
@@ -250,63 +247,24 @@ export async function getDashboardData(timezoneOffset = -420) {
 
     const dynamicSlaLimits = slaLimitsRes.data?.value || SLA_LIMITS
     
-    // Extract limits with deep fallback to the new standard
-    const responseLimits = dynamicSlaLimits.Response || { 
-      High: dynamicSlaLimits.High_Response || 60, 
-      Medium: dynamicSlaLimits.Medium_Response || 120, 
-      Low: dynamicSlaLimits.Low_Response || 360 
-    }
-    const resolutionLimits = dynamicSlaLimits.Resolution || {
-      High: dynamicSlaLimits.High || 240,
-      Medium: dynamicSlaLimits.Medium || 480,
-      Low: dynamicSlaLimits.Low || 1620
-    }
-
-    // Helper to calculate SLA compliance
     const calculateSlaForIncident = (inc) => {
-      const incExclusions = exclusionsMap.get(inc.id) || [];
-      const resLimit = resolutionLimits[inc.severity] || resolutionLimits.Medium;
-      const respLimit = responseLimits[inc.severity] || responseLimits.Medium;
-      
-      let respMin = null;
-      const respTime = inc.acknowledged_at || inc.assigned_at;
-      if (respTime) respMin = calculateNetBusinessMinutes(inc.created_at, respTime, wh, holidays, []);
-      
-      let resMin = null;
-      if (inc.resolved_at) {
-        resMin = calculateNetBusinessMinutes(inc.created_at, inc.resolved_at, wh, holidays, incExclusions);
-      }
-
-      let isResponseOK = null;
-      if (respMin !== null) {
-        isResponseOK = respMin <= respLimit;
-      } else {
-        const currentMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, []);
-        isResponseOK = currentMin > respLimit ? false : null;
-      }
-
-      let isResolveOK = null;
-      if (resMin !== null) {
-        isResolveOK = resMin <= resLimit;
-      } else {
-        const currentResMin = calculateNetBusinessMinutes(inc.created_at, null, wh, holidays, incExclusions);
-        isResolveOK = (inc.status !== 'Closed') ? (currentResMin > resLimit ? false : null) : false;
-      }
-
+      const snapshot = calculateIncidentSlaSnapshot(inc, {
+        workingHours: wh,
+        holidays,
+        exclusions: exclusionsMap.get(inc.id) || [],
+        slaLimits: dynamicSlaLimits,
+      })
       return {
         ...inc,
-        isResponseOK,
-        isResolveOK
+        ...snapshot,
       };
     };
 
     const reportData = incidents.map(calculateSlaForIncident)
     const { complianceRate: slaComplianceRate } = calculateSLARates(reportData)
 
-    // YTD Calculation
-    const ytdIncidents = ytdIncRes.data || []
-    const ytdReportData = ytdIncidents.map(calculateSlaForIncident)
-    const { complianceRate: slaComplianceRateYTD } = calculateSLARates(ytdReportData)
+    // 30-day calculation for top dashboard SLA card
+    const { complianceRate: slaComplianceRate30d } = calculateSLARates(reportData)
 
     // Incident 7 days chart data
     const chartMap = {}
@@ -341,11 +299,11 @@ export async function getDashboardData(timezoneOffset = -420) {
         openIncidents,
         backupSuccessRate,
         slaComplianceRate,
-        slaComplianceRateYTD
+        slaComplianceRate30d
       },
       incidentByDay,
       severityData,
-      recentIncidents: incidents.slice(0, 5),
+      recentIncidents: incidents.slice(0, 5).map(inc => ({ ...inc, _exclusions: exclusionsMap.get(inc.id) || [] })),
       myRecentIncidents: myIncidents.slice(0, 5),
       recentBackups: backups.slice(0, 5),
       checklists,
@@ -358,16 +316,16 @@ export async function getDashboardData(timezoneOffset = -420) {
       
       // --- Employee Specific Data (For Redesigned Dashboard) ---
       employeeStats: (userProfile?.role === 'employee') ? {
-        total: ytdIncidents.filter(isMyIncident).length,
+        total: incidents.filter(isMyIncident).length,
         open: incidents.filter(i => isMyIncident(i) && i.status === 'Open').length,
         inProgress: incidents.filter(i => isMyIncident(i) && i.status === 'In Progress').length,
         pendingConfirm: incidents.filter(i => isMyIncident(i) && i.status === 'Pending Approval').length,
-        closed: ytdIncidents.filter(i => isMyIncident(i) && i.status === 'Closed').length,
+        closed: incidents.filter(i => isMyIncident(i) && i.status === 'Closed').length,
         
         // Trend Data (Last 6 Months from YTD)
         trend: (() => {
           const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-          const myYtd = ytdIncidents.filter(isMyIncident);
+          const myRecent = incidents.filter(isMyIncident);
           const map = {};
           
           // Initialize last 6 months
@@ -378,7 +336,7 @@ export async function getDashboardData(timezoneOffset = -420) {
             map[m] = 0;
           }
           
-          myYtd.forEach(i => {
+          myRecent.forEach(i => {
             const m = months[new Date(i.created_at).getMonth()];
             if (map[m] !== undefined) map[m]++;
           });
@@ -388,9 +346,9 @@ export async function getDashboardData(timezoneOffset = -420) {
         
         // Category Breakdown (Top Systems)
         categories: (() => {
-          const myYtd = ytdIncidents.filter(isMyIncident);
+          const myRecent = incidents.filter(isMyIncident);
           const map = {};
-          myYtd.forEach(i => {
+          myRecent.forEach(i => {
             const s = i.affected_system || 'อื่นๆ (Other)';
             map[s] = (map[s] || 0) + 1;
           });

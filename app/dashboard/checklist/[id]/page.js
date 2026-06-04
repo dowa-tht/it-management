@@ -6,11 +6,12 @@ import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { CHECKLIST_TEMPLATES } from '@/lib/checklistItems'
 import { isSubstituteOf } from '@/lib/workflow'
-import { recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow, cancelDocument } from '@/app/actions/workflow'
+import { recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow, cancelDocument, diagnoseApprovalPin } from '@/app/actions/workflow'
 import { WorkflowProgressBar } from '@/components/workflow/WorkflowProgressBar'
 import { UnifiedApprovalModal } from '@/components/workflow/UnifiedApprovalModal'
 import { WorkflowActionBar } from '@/components/workflow/WorkflowActionBar'
 import { useWorkflowNotification } from '@/components/workflow/WorkflowNotification'
+import { getCurrentActorProfile } from '@/app/actions/user'
 
 // Local CSS for Media Queries and Layout
 const PageStyles = () => (
@@ -200,11 +201,8 @@ export default function ChecklistDetailPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.auth.getSession()
-      if (data.session?.user) {
-        const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', data.session.user.id).single()
-        setCurrentUser(profile)
-      }
+      const actor = await getCurrentActorProfile()
+      if (actor) setCurrentUser(actor)
       await fetchData()
     }
     load()
@@ -258,9 +256,15 @@ export default function ChecklistDetailPage() {
       const res = await submitApprovalStep(id, 'checklist', currentStep.id, signatureData, comment, pin, currentStep.approver_id || null)
       if (res.success) {
         setShowSignatureModal(false)
-        await fetchData()
-        router.refresh()
-        showToast({ message: '✅ อนุมัติรายการเรียบร้อยแล้ว', type: 'success' })
+        showModal({
+          title: 'อนุมัติสำเร็จ',
+          message: `อนุมัติเอกสารเลขที่ ${doc?.doc_no || id} แล้ว`,
+          type: 'success',
+          onClose: async () => {
+            await fetchData()
+            router.refresh()
+          }
+        })
       } else {
         showToast({ message: res.error, type: 'error' })
       }
@@ -278,9 +282,15 @@ export default function ChecklistDetailPage() {
       const res = await submitApprovalStep(id, 'checklist', currentStep.id, signatureData, comment, pin, currentStep.approver_id || null)
       if (res.success) {
         setShowRemoteModal(false)
-        await fetchData()
-        router.refresh()
-        showToast({ message: '✅ อนุมัติแทน (Remote) เรียบร้อยแล้ว', type: 'success' })
+        showModal({
+          title: 'อนุมัติสำเร็จ',
+          message: `อนุมัติเอกสารเลขที่ ${doc?.doc_no || id} แล้ว`,
+          type: 'success',
+          onClose: async () => {
+            await fetchData()
+            router.refresh()
+          }
+        })
       } else {
         showToast({ message: res.error, type: 'error' })
       }
@@ -309,10 +319,11 @@ export default function ChecklistDetailPage() {
 
   const handleReopen = async () => {
     if (!confirm('ต้องการ Reopen เอกสารนี้ใช่หรือไม่? ลายเซ็นเดิมจะถูกลบออกทั้งหมด')) return
+    const reason = prompt('กรุณาระบุเหตุผลในการ Reopen (ไม่บังคับ):') || ''
     setSaving(true)
     try {
-      await resetDocumentWorkflow(id, 'checklist')
-      await supabase.from('checklist_docs').update({ status: 'Open', workflow_status: null, approved_at: null, approved_by: null }).eq('id', id)
+      const res = await resetDocumentWorkflow(id, 'checklist', reason)
+      if (!res?.success) throw new Error(res?.error || 'ไม่สามารถ Reopen เอกสารได้')
       await fetchData()
       router.refresh()
       showToast({ message: '🔓 เปิดเอกสารใหม่เรียบร้อย', type: 'success' })
@@ -614,8 +625,13 @@ export default function ChecklistDetailPage() {
     (!currentStep.approver_id && currentStep.role_required === currentUser?.role) ||
     isSubstitute
   ))
-  // canRemoteApprove: เฉพาะ Sender (คนที่สร้างเอกสาร) เท่านั้น และต้องไม่ใช่ผู้อนุมัติจริง
-  const canRemoteApprove = !!(doc.status === 'Pending Approval' && !canApprove && currentUser?.id === doc?.created_by_id)
+  const normalizedRole = String(currentUser?.role || '').toLowerCase() === 'administrator' ? 'admin' : currentUser?.role
+  // Phase D policy: Remote Approve สำหรับ Checklist จำกัดเฉพาะ admin / it_staff
+  const canRemoteApprove = !!(
+    doc.status === 'Pending Approval' &&
+    !canApprove &&
+    ['admin', 'it_staff'].includes(normalizedRole)
+  )
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', paddingBottom: '120px' }}>
@@ -645,9 +661,18 @@ export default function ChecklistDetailPage() {
         approverName={currentStep?.user_profiles?.full_name || currentStep?.role_required}
         approverEmail={currentStep?.user_profiles?.email}
         userEmail={currentStep?.user_profiles?.email}
+        identityHint={!currentStep?.approver_id ? `Role ${String(currentStep?.role_required || '').replace('_', ' ')} ทั้งหมด` : ''}
         loading={approvalLoading}
         isRemote={true}
         title="อนุมัติแทน (Remote Approve)"
+        onVerifyCode={async ({ mode, code }) => {
+          if (mode === 'otp') return { success: false, message: 'Checklist ใช้ PIN เท่านั้น' }
+          const pendingStep = workflowSteps.find(s => s.status === 'pending')
+          if (!pendingStep) return { success: false, message: 'ไม่พบขั้นตอนอนุมัติที่รอดำเนินการ' }
+          const res = await diagnoseApprovalPin(id, 'checklist', pendingStep.id, code)
+          if (res.success) return { success: true, message: `PIN ถูกต้องสำหรับ ${res.approver?.full_name || res.approver?.email || 'ผู้อนุมัติ'}` }
+          return { success: false, message: res.error || 'PIN ไม่ถูกต้อง' }
+        }}
       />
 
       <WorkflowActionBar

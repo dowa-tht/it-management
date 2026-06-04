@@ -5,7 +5,7 @@
  * Standardized progress bar for both Incident and Checklist modules.
  * Fixed for stability and consistent layout.
  */
-export function WorkflowProgressBar({ currentStatus, steps = [] }) {
+export function WorkflowProgressBar({ currentStatus, steps = [], senderName = '', senderEmail = '' }) {
   const STATUS_MAP = {
     'Open': 0,
     'In Progress': 33,
@@ -21,6 +21,16 @@ export function WorkflowProgressBar({ currentStatus, steps = [] }) {
     { label: 'รออนุมัติ', status: 'Pending Approval' },
     { label: 'ปิดงาน', status: 'Closed' }
   ]
+
+  const getRoleFallbackName = (roleRequired) => {
+    const role = (roleRequired || '').toLowerCase()
+    if (role === 'admin') return 'กลุ่ม Admin (รอรับคิว)'
+    if (role === 'approver') return 'กลุ่ม Approver (รอรับคิว)'
+    if (role === 'it_staff') return 'กลุ่ม IT Staff (รอรับคิว)'
+    if (role === 'reporter') return 'ผู้แจ้งเคส'
+    if (role === 'creator') return 'ผู้สร้างเอกสาร'
+    return 'ผู้มีสิทธิ์ตามบทบาท (รอรับคิว)'
+  }
 
   return (
     <div style={{ width: '100%', padding: '20px 0' }}>
@@ -88,12 +98,19 @@ export function WorkflowProgressBar({ currentStatus, steps = [] }) {
               <span style={{ fontSize: '10px', background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>พรีวิว</span>
             )}
           </div>
+          {(senderName || senderEmail) && (
+            <div style={{ marginBottom: '12px', padding: '10px 12px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Sender</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>{senderName || '-'}</div>
+              {senderEmail ? <div style={{ fontSize: '11px', color: '#64748b' }}>{senderEmail}</div> : null}
+            </div>
+          )}
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {steps.map((step, idx) => {
               const isApproved = step.status === 'approved'
               const isPending = step.status === 'pending'
-              const name = step.user_profiles?.full_name || 'ใครก็ได้ที่มีสิทธิ์'
+              const name = step.user_profiles?.full_name || getRoleFallbackName(step.role_required)
               const roleLabel = step.role_required?.replace('_', ' ').toUpperCase()
               
               return (
@@ -122,6 +139,11 @@ export function WorkflowProgressBar({ currentStatus, steps = [] }) {
                       <div style={{ fontSize: '13px', fontWeight: 700, color: isApproved ? '#166534' : (isPending ? '#1e40af' : '#1e293b') }}>
                         {name}
                       </div>
+                      {step.user_profiles?.email ? (
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>
+                          {step.user_profiles.email}
+                        </div>
+                      ) : null}
                       <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
                         {roleLabel}
                       </div>

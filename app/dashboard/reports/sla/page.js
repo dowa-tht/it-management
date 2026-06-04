@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { getSLAReportData, saveSLASettings } from '@/app/actions/reports'
+import { getSLAReportData } from '@/app/actions/reports'
 import { formatDate, formatDateNumeric } from '@/lib/dateFormat'
 import { formatDurationThai } from '@/lib/slaUtils'
 
@@ -31,9 +31,6 @@ export default function SLAReportPage() {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState(null)
   const [showHelp, setShowHelp] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
-  const [currentUser, setCurrentUser] = useState(null)
-  const [editedSettings, setEditedSettings] = useState(null)
   const [activeFilter, setActiveFilter] = useState('30days')
   const [reportCache, setReportCache] = useState({}) // 👈 Cache object for SWR
   const [page, setPage] = useState(0)
@@ -47,19 +44,6 @@ export default function SLAReportPage() {
   useEffect(() => {
     setPage(0)
     fetchData(dateRange.start, dateRange.end, 0, false)
-    const getUser = async () => {
-      try {
-        const { supabase } = await import('@/lib/supabase')
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', user.id).single()
-          setCurrentUser(profile)
-        }
-      } catch (err) {
-        console.error('User fetch error:', err)
-      }
-    }
-    getUser()
   }, [])
 
   const loadMore = () => {
@@ -149,52 +133,24 @@ export default function SLAReportPage() {
     } catch (e) { return 0 }
   }
 
-  // Help Modal Component
+  // SLA Guide Modal — read-only, edit settings ที่ /dashboard/settings/sla
   const SLAGuideModal = () => {
-    const settings = editedSettings || data?.settings || {
+    const settings = data?.settings || {
       working_hours: { start: '08:30', end: '17:30' },
-      sla_limits: { High: 240, Medium: 480, Low: 1620, Response: { High: 15, Medium: 60, Low: 240 } }
+      sla_limits: { High: 240, Medium: 480, Low: 1620, Response: { High: 60, Medium: 120, Low: 360 } }
     }
-    
-    // Ensure Response settings exist in fallbacks
     if (!settings.sla_limits.Response) {
-      settings.sla_limits.Response = { High: 15, Medium: 60, Low: 240 }
-    }
-
-    const handleSave = async () => {
-      setLoading(true)
-      const res = await saveSLASettings(settings.working_hours, settings.sla_limits)
-      if (res.success) {
-        await fetchData()
-        setIsEditing(false)
-        setEditedSettings(null)
-      } else {
-        alert('เกิดข้อผิดพลาดในการบันทึก: ' + res.error)
-      }
-      setLoading(false)
+      settings.sla_limits.Response = { High: 60, Medium: 120, Low: 360 }
     }
 
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
         <div style={{ background: '#fff', borderRadius: 16, maxWidth: 650, width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
           <div style={{ padding: '24px 30px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: 0 }}>📊 เกณฑ์การคำนวณ SLA Compliance</h2>
-              {currentUser?.role === 'admin' && !isEditing && (
-                <button 
-                  onClick={() => {
-                    setEditedSettings(JSON.parse(JSON.stringify(settings)))
-                    setIsEditing(true)
-                  }}
-                  style={{ padding: '4px 12px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 11, cursor: 'pointer', color: '#374151', fontWeight: 600, fontFamily: 'inherit' }}
-                >
-                  ⚙️ แก้ไขเกณฑ์
-                </button>
-              )}
-            </div>
-            <button onClick={() => { setShowHelp(false); setIsEditing(false); }} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#9ca3af' }}>&times;</button>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: 0 }}>📊 เกณฑ์การคำนวณ SLA Compliance</h2>
+            <button onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#9ca3af' }}>&times;</button>
           </div>
-          
+
           <div style={{ padding: 30 }}>
             <section style={{ marginBottom: 24 }}>
               <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1d4ed8', marginBottom: 12 }}>1. เรานับเวลาอย่างไร? (Working Hours)</h3>
@@ -204,19 +160,7 @@ export default function SLAReportPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
                 <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, fontSize: 12 }}>
                   <strong>🕒 เวลาทำการ:</strong><br />
-                  {isEditing ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                      <input type="text" value={settings.working_hours.start} 
-                        onChange={e => setEditedSettings({...settings, working_hours: {...settings.working_hours, start: e.target.value}})}
-                        style={{ width: 60, padding: 4, border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'center' }} />
-                      <span>-</span>
-                      <input type="text" value={settings.working_hours.end} 
-                        onChange={e => setEditedSettings({...settings, working_hours: {...settings.working_hours, end: e.target.value}})}
-                        style={{ width: 60, padding: 4, border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'center' }} />
-                    </div>
-                  ) : (
-                    `${settings.working_hours.start} - ${settings.working_hours.end} น. (จันทร์ - ศุกร์)`
-                  )}
+                  {`${settings.working_hours.start} - ${settings.working_hours.end} น. (จันทร์ - ศุกร์)`}
                 </div>
                 <div style={{ background: '#fef2f2', padding: 12, borderRadius: 8, fontSize: 12 }}>
                   <strong>🚫 ข้ามการนับเวลา:</strong><br />วันเสาร์-อาทิตย์ และวันหยุดนักขัตฤกษ์
@@ -230,8 +174,8 @@ export default function SLAReportPage() {
                 <thead>
                   <tr style={{ textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>
                     <th style={{ padding: '8px 0' }}>Severity</th>
-                    <th style={{ padding: '8px 0' }}>Response (นาที)</th>
-                    <th style={{ padding: '8px 0' }}>Resolution (นาที)</th>
+                    <th style={{ padding: '8px 0' }}>Response</th>
+                    <th style={{ padding: '8px 0' }}>Resolution</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -239,102 +183,37 @@ export default function SLAReportPage() {
                     { key: 'High', label: '🔴 High', color: '#dc2626' },
                     { key: 'Medium', label: '🟡 Medium', color: '#d97706' },
                     { key: 'Low', label: '🟢 Low', color: '#059669' }
-                  ].map(item => {
-                    const respTotal = settings.sla_limits.Response?.[item.key] || 0;
-                    const resTotal = settings.sla_limits[item.key] || 0;
-                    
-                    return (
-                      <tr key={item.key} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                        <td style={{ padding: '10px 0' }}><span style={{ color: item.color, fontWeight: 600 }}>{item.label}</span></td>
-                        <td style={{ padding: '10px 0' }}>
-                          {isEditing ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <input type="number" value={Math.floor(respTotal / 60)} 
-                                  onChange={e => {
-                                    const h = parseInt(e.target.value) || 0;
-                                    const m = respTotal % 60;
-                                    const newResp = { ...(settings.sla_limits.Response || {}), [item.key]: (h * 60) + m };
-                                    setEditedSettings({...settings, sla_limits: {...settings.sla_limits, Response: newResp}});
-                                  }}
-                                  style={{ width: 45, padding: '4px', border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'center' }} />
-                                <span style={{ fontSize: 10, color: '#6b7280' }}>ชม.</span>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <input type="number" value={respTotal % 60} 
-                                  onChange={e => {
-                                    const h = Math.floor(respTotal / 60);
-                                    const m = parseInt(e.target.value) || 0;
-                                    const newResp = { ...(settings.sla_limits.Response || {}), [item.key]: (h * 60) + m };
-                                    setEditedSettings({...settings, sla_limits: {...settings.sla_limits, Response: newResp}});
-                                  }}
-                                  style={{ width: 45, padding: '4px', border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'center' }} />
-                                <span style={{ fontSize: 10, color: '#6b7280' }}>น.</span>
-                              </div>
-                            </div>
-                          ) : (
-                            formatDurationThai(respTotal)
-                          )}
-                        </td>
-                        <td style={{ padding: '10px 0' }}>
-                          {isEditing ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <input type="number" value={Math.floor(resTotal / 60)} 
-                                  onChange={e => {
-                                    const h = parseInt(e.target.value) || 0;
-                                    const m = resTotal % 60;
-                                    setEditedSettings({...settings, sla_limits: {...settings.sla_limits, [item.key]: (h * 60) + m}});
-                                  }}
-                                  style={{ width: 45, padding: '4px', border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'center' }} />
-                                <span style={{ fontSize: 10, color: '#6b7280' }}>ชม.</span>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <input type="number" value={resTotal % 60} 
-                                  onChange={e => {
-                                    const h = Math.floor(resTotal / 60);
-                                    const m = parseInt(e.target.value) || 0;
-                                    setEditedSettings({...settings, sla_limits: {...settings.sla_limits, [item.key]: (h * 60) + m}});
-                                  }}
-                                  style={{ width: 45, padding: '4px', border: '1px solid #d1d5db', borderRadius: 4, textAlign: 'center' }} />
-                                <span style={{ fontSize: 10, color: '#6b7280' }}>น.</span>
-                              </div>
-                            </div>
-                          ) : (
-                            formatDurationThai(resTotal)
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  ].map(item => (
+                    <tr key={item.key} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '10px 0' }}><span style={{ color: item.color, fontWeight: 600 }}>{item.label}</span></td>
+                      <td style={{ padding: '10px 0', fontWeight: 600, color: '#0f172a' }}>{formatDurationThai(settings.sla_limits.Response?.[item.key] || 0)}</td>
+                      <td style={{ padding: '10px 0', fontWeight: 600, color: '#0f172a' }}>{formatDurationThai(settings.sla_limits[item.key] || 0)}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </section>
 
-            {!isEditing && (
-              <section style={{ background: '#eff6ff', padding: 20, borderRadius: 12, border: '1px solid #bfdbfe' }}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e40af', marginBottom: 10 }}>💡 ตัวอย่างการคำนวณแบบแยกดัชนี</h3>
-                <div style={{ fontSize: 12, color: '#1e3a8a', lineHeight: 1.6 }}>
-                  <div>• <strong>Response:</strong> นับจากเวลาเปิดเคส จนถึงเวลาที่ IT กด "รับเรื่อง"</div>
-                  <div>• <strong>Resolution:</strong> นับจากเวลาเปิดเคส จนถึงเวลาที่แก้ไขเสร็จ (หักช่วงเวลา Exclusion)</div>
-                  <div style={{ marginTop: 8, padding: 8, background: '#fff', borderRadius: 6, fontSize: 11 }}>
-                    <strong>Dashboard Score:</strong> (Response % + Resolution %) / 2
-                  </div>
+            <section style={{ background: '#eff6ff', padding: 20, borderRadius: 12, border: '1px solid #bfdbfe', marginBottom: 24 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e40af', marginBottom: 10 }}>💡 ตัวอย่างการคำนวณแบบแยกดัชนี</h3>
+              <div style={{ fontSize: 12, color: '#1e3a8a', lineHeight: 1.6 }}>
+                <div>• <strong>Response:</strong> นับจากเวลาเปิดเคส จนถึงเวลาที่ IT กด "รับเรื่อง"</div>
+                <div>• <strong>Resolution:</strong> นับจากเวลาเปิดเคส จนถึงเวลาที่แก้ไขเสร็จ (หักช่วงเวลา Exclusion)</div>
+                <div style={{ marginTop: 8, padding: 8, background: '#fff', borderRadius: 6, fontSize: 11 }}>
+                  <strong>Dashboard Score:</strong> (Response % + Resolution %) / 2
                 </div>
-              </section>
-            )}
-            
-            <div style={{ marginTop: 24, textAlign: 'center', display: 'flex', justifyContent: 'center', gap: 12 }}>
-              {isEditing ? (
-                <>
-                  <button onClick={handleSave} disabled={loading} style={{ padding: '10px 24px', background: '#059669', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    {loading ? 'กำลังบันทึก...' : '💾 บันทึกการเปลี่ยนแปลง'}
-                  </button>
-                  <button onClick={() => { setIsEditing(false); setEditedSettings(null); }} style={{ padding: '10px 24px', background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
-                </>
-              ) : (
-                <button onClick={() => setShowHelp(false)} style={{ padding: '10px 30px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>เข้าใจแล้ว</button>
-              )}
+              </div>
+            </section>
+
+            <div style={{ marginTop: 8, textAlign: 'center', display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <Link
+                href="/dashboard/settings/sla"
+                onClick={() => setShowHelp(false)}
+                style={{ padding: '10px 20px', background: '#f8fafc', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 8, fontWeight: 700, fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                ⚙️ ไปที่ SLA Settings
+              </Link>
+              <button onClick={() => setShowHelp(false)} style={{ padding: '10px 30px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>เข้าใจแล้ว</button>
             </div>
           </div>
         </div>
@@ -555,7 +434,7 @@ export default function SLAReportPage() {
                             </div>
                             <div style={{ fontSize: 9, color: '#9ca3af', fontWeight: 500, marginTop: 2 }}>Target: {formatDurationThai(inc.responseLimit)}</div>
                           </div>
-                        ) : <span style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: 11 }}>ยังไม่รับเรื่อง</span>}
+                        ) : <span style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: 11 }}>N/A</span>}
                       </td>
                       <td style={{ whiteSpace: 'nowrap' }}>
                         {inc.resolveMin !== null ? (
@@ -574,11 +453,7 @@ export default function SLAReportPage() {
                             </div>
                             <div style={{ fontSize: 9, color: '#9ca3af', fontWeight: 500, marginTop: 2 }}>Target: {formatDurationThai(inc.resolveLimit)}</div>
                           </div>
-                        ) : (
-                          <div style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
-                            {inc.status === 'Closed' ? 'ปิดงาน (ไม่มีเวลาบันทึก)' : 'ยังไม่ปิดงาน'}
-                          </div>
-                        )}
+                        ) : <span style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: 11 }}>N/A</span>}
                       </td>
                       <td className="action-cell">
                         <Link href={`/dashboard/incidents/${inc.id}`} style={{ 

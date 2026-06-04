@@ -1,14 +1,12 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { searchUsers, quickAddUser } from '@/app/actions/users'
+import { searchUsers } from '@/app/actions/users'
 
 export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ์เพื่อค้นหาชื่อผู้แจ้ง...', disabled = false }) {
   const [query, setQuery] = useState(typeof value === 'string' ? value : (value?.full_name || ''))
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
-  const [showQuickAdd, setShowQuickAdd] = useState(false)
-  const [newUserInfo, setNewUserInfo] = useState({ fullName: '', email: '' })
   const containerRef = useRef(null)
 
   useEffect(() => {
@@ -51,20 +49,6 @@ export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ�
     setIsOpen(false)
   }
 
-  const handleQuickAdd = async () => {
-    if (!newUserInfo.fullName) return
-    setLoading(true)
-    const res = await quickAddUser(newUserInfo)
-    if (res.error) {
-      alert(res.error)
-    } else {
-      handleSelect(res.data)
-      setShowQuickAdd(false)
-      setNewUserInfo({ fullName: '', email: '' })
-    }
-    setLoading(false)
-  }
-
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <input
@@ -98,46 +82,6 @@ export function UserAutocomplete({ value, onChange, placeholder = 'พิมพ�
             </div>
           ))}
 
-          {!loading && (
-            <div onClick={() => setShowQuickAdd(true)} style={{ padding: '10px 12px', cursor: 'pointer', color: '#1d4ed8', fontSize: 13, fontWeight: 600, background: '#eff6ff' }}>
-              + เพิ่มผู้ใช้ใหม่ "{query}"
-            </div>
-          )}
-        </div>
-      )}
-
-      {showQuickAdd && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 20, width: '100%', maxWidth: 360 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>เพิ่มผู้แจ้งใหม่แบบด่วน</h3>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>ชื่อ-นามสกุล</label>
-              <input value={newUserInfo.fullName} onChange={e => setNewUserInfo({...newUserInfo, fullName: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }} />
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>อีเมล (ถ้ามี)</label>
-              <input value={newUserInfo.email} onChange={e => setNewUserInfo({...newUserInfo, email: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }} />
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowQuickAdd(false)} className="btn-premium" style={{ padding: '7px 14px', background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}>ยกเลิก</button>
-              <button 
-                onClick={handleQuickAdd} 
-                disabled={loading} 
-                className="btn-premium"
-                style={{ 
-                  padding: '7px 20px', 
-                  background: loading ? '#93c5fd' : '#1d4ed8', 
-                  color: '#fff', 
-                  border: 'none', 
-                  borderRadius: 6, 
-                  fontSize: 13, 
-                  fontWeight: 600,
-                }}
-              >
-                {loading ? 'กำลังบันทึก...' : 'บันทึก'}
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

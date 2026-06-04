@@ -1,0 +1,76 @@
+# 🕒 ประวัติการเปลี่ยนแปลง (Change Logs) - 22 พฤษภาคม 2569 (22-May-2026)
+
+## 22 พฤษภาคม 2569 (22-May-2026)
+- **17:29 +07:00 | MODULE: IT Checklist - Checklist Template Scope Clarification:**
+  - เพิ่มแผนงาน [`IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_SCOPE_LABELS_AND_OPTIONAL_TARGETS.md`](docs/history/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_SCOPE_LABELS_AND_OPTIONAL_TARGETS.md) เพื่อกำหนดแนวทางปรับความหมาย `scope_mode` และการรองรับ template แบบไม่ผูก Target
+  - ปรับ [`TemplateForm()`](app/dashboard/settings/checklist-template-builder/components/TemplateForm.js:341) ให้เปลี่ยนคำบนหน้าจอเป็น `ทั่วไป`, `ผูกรายอุปกรณ์`, และ `ผูกตามประเภทอุปกรณ์`
+  - ซ่อน field `Target type` ใน [`TemplateForm()`](app/dashboard/settings/checklist-template-builder/components/TemplateForm.js:362) เมื่อ template อยู่ในโหมด `ทั่วไป` พร้อมเพิ่ม helper text อธิบาย use case ของ checklist แบบไม่ผูกอุปกรณ์
+  - ปรับ [`createEmptyTemplate()`](app/dashboard/settings/checklist-template-builder/ChecklistTemplateBuilderClient.js:12) และ [`updateField()`](app/dashboard/settings/checklist-template-builder/ChecklistTemplateBuilderClient.js:159) ให้ default เป็น `global` และ reset `target_type`/`targets` อัตโนมัติเมื่อสลับกลับเป็นโหมด `ทั่วไป`
+  - เพิ่ม business validation ใน [`validateChecklistTemplate()`](lib/checklistTemplateValidation.js:331) ให้บังคับ `target_type` ตาม `scope_mode` และกันข้อมูลผูกอุปกรณ์ไม่สมบูรณ์
+  - ปรับ [`fetchAvailableItems()`](app/dashboard/checklist/page.js:652) ให้ modal สร้างเอกสารทั่วไปดึงเฉพาะ template ที่เป็น `global` เพื่อลดการปะปนกับ template แบบผูกอุปกรณ์
+  - อัปเดตมาตรฐาน [`TARGET_REGISTRY.md`](docs/standards/TARGET_REGISTRY.md) ให้ระบุความหมายของ `global/per_target/per_type` ตามคำภาษาไทยที่ใช้จริงบนหน้าจอ
+  - รัน [`npm test`](package.json) ผ่าน 100% (14/14 passed)
+- **16:33 +07:00 | MODULE: IT Checklist - T2 Procedure Plan Execution Timing UI:**
+  - เพิ่มแผนงาน [`IMPLEMENTATION_PLAN_T2_PROCEDURE_PLAN_EXECUTION.md`](docs/history/IMPLEMENTATION_PLAN_T2_PROCEDURE_PLAN_EXECUTION.md) เพื่อกำหนด contract สำหรับการจับเวลา T2 execution และการถอด field เวลาออกจาก master setup
+  - ปรับ [`ProcedureTemplate()`](app/dashboard/checklist/[id]/page.js:1090) ให้มีช่อง `วันที่และเวลาเริ่มจับเวลา`, input `เวลาการดำเนินการ (ชั่วโมง:นาที)` ราย step, ปุ่ม `OK/NG` รายบรรทัด และสรุป `เวลารวม` + `เสร็จสิ้นตอน`
+  - ปรับการแสดงผล step ใน [`ProcedureTemplate()`](app/dashboard/checklist/[id]/page.js:1174) ให้แสดงชื่อขั้นตอน, `Instruction`, ผู้รับผิดชอบ, เกณฑ์วัดผลการซ้อม ครบทุกบรรทัด แม้บาง field ว่างจะแสดง `—`
+  - ถอดช่อง `เวลาการดำเนินการ (ชั่วโมง:นาที)` ออกจากหน้า setup และ preview ใน [`app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js) เพื่อให้เวลาจริงถูกกรอกจาก execution screen เท่านั้น
+  - เพิ่ม test ใน [`tests/target-registry.test.js`](tests/target-registry.test.js) สำหรับ metadata ของ T2 และ backward compatibility ของ procedure plan เก่า
+  - รัน [`npm test`](package.json) ผ่าน 100% เฉพาะ pattern `ProcedurePlan|normalizeProcedurePlanSteps` (14/14 passed)
+  - รัน lint เฉพาะไฟล์ที่แก้ไขผ่านโดยไม่มี error ใหม่ เหลือเพียง warning เดิมเรื่อง `<img>` ใน [`app/dashboard/checklist/[id]/page.js`](app/dashboard/checklist/[id]/page.js)
+- **15:27 +07:00 | MODULE: IT Checklist - Target Registry Outer Spacing Remediation:**
+  - เพิ่ม outer page shell ใน [`app/dashboard/settings/target-registry/TargetRegistryClient.js`](app/dashboard/settings/target-registry/TargetRegistryClient.js) สำหรับ standalone mode ให้มี `padding`, `max-width`, และ centered layout แบบเดียวกับหน้า Edit Checklist Template
+  - เพิ่ม responsive `--page-padding` เพื่อให้ Target Registry ไม่ชิดขอบจอทั้ง desktop และ mobile เมื่อเปิดเป็นหน้า standalone
+- **15:22 +07:00 | MODULE: IT Checklist - Target Registry Return Flow from Template Builder:**
+  - ปรับ [`app/dashboard/settings/checklist-template-builder/ChecklistTemplateBuilderClient.js`](app/dashboard/settings/checklist-template-builder/ChecklistTemplateBuilderClient.js) ให้ลิงก์ `ไปหน้า Target Registry` ส่ง `returnTo`, `returnMode`, และ `returnTemplateId` เช่นเดียวกับหน้า Procedure Plan Editor
+  - ปรับ [`app/dashboard/settings/target-registry/page.js`](app/dashboard/settings/target-registry/page.js) ให้รับ `searchParams` และส่ง return context เข้า [`TargetRegistryClient()`](app/dashboard/settings/target-registry/TargetRegistryClient.js)
+  - ปรับ header ของ [`app/dashboard/settings/target-registry/TargetRegistryClient.js`](app/dashboard/settings/target-registry/TargetRegistryClient.js) ให้มีปุ่ม `← กลับหน้าก่อนหน้า` และยกระดับ visual ให้สอดคล้องกับมาตรฐาน settings standalone page มากขึ้น
+- **15:04 +07:00 | MODULE: IT Checklist - Floating Save Plan Button:**
+  - ปรับปุ่ม `Save Plan` ใน [`app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js) ให้ลอยค้างที่มุมขวาล่างของ viewport ด้วย `position: fixed`
+  - ถอดปุ่ม save เดิมออกจาก card `Plan Name` เพื่อไม่ให้มี action ซ้ำ และคงการกดบันทึกจากปุ่มลอยเพียงจุดเดียว
+- **15:01 +07:00 | MODULE: IT Checklist - Procedure Step Owner Carry-Forward:**
+  - ปรับ [`createBlankStep()`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js) และ [`addStep()`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js) ให้ step ใหม่คงค่า `owner_name` จาก step ล่าสุดอัตโนมัติ
+  - ผู้ใช้ยังสามารถแก้ไขค่า `ผู้รับผิดชอบ` ของ step ใหม่ได้ตามปกติหลังระบบ carry forward ค่าเดิมมาให้
+- **14:57 +07:00 | MODULE: IT Checklist - Procedure Step Add Flow UX:**
+  - ย้ายปุ่ม `Add Step` ใน [`app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js) ไปไว้ท้ายรายการ `Step List` เพื่อให้ตำแหน่งปุ่มขยับตามจำนวน step จริง
+  - เพิ่ม auto-scroll หลังสร้าง step ใหม่ โดยใช้ `ref` + `scrollIntoView()` เพื่อพา viewport ไปยังพื้นที่ `Editing Step` อัตโนมัติทันทีเมื่อกดเพิ่ม step
+- **14:41 +07:00 | MODULE: IT Checklist - Procedure Step List Active State Polish:**
+  - ปรับ active state ของรายการใน `Step List` ภายใน [`app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js) แบบ minimal โดยเพิ่มกรอบฟ้าอ่อน, เงาเบา, และยกการ์ดขึ้นเล็กน้อยเมื่อเลือกอยู่
+  - ปรับ badge หมายเลข step ของรายการที่ active ให้เปลี่ยนเป็นสีน้ำเงินเข้มเพื่อให้สังเกตตำแหน่ง step ที่เลือกได้ชัดขึ้นโดยไม่เปลี่ยนโครงสร้างเดิม
+- **14:37 +07:00 | MODULE: IT Checklist - Procedure Step Field Expansion:**
+  - ขยาย schema ใน [`lib/procedurePlanValidation.js`](lib/procedurePlanValidation.js) ให้รองรับ `owner_name`, `success_criteria`, `duration_minutes`, `evaluation_mode`, และ `evaluation_config`
+  - เพิ่ม conditional validation สำหรับ `numeric_range` โดยตรวจ `min/max` และรองรับ backward compatibility ของข้อมูล step เก่า
+  - ปรับ [`app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js) ให้เพิ่มช่อง `ผู้รับผิดชอบ`, `เกณฑ์วัดผลการซ้อม`, `เวลาการดำเนินการ`, `วิธีประเมินผล`, และช่อง `min/max` ตาม mode
+  - ขยาย preview ของ Procedure Plan ให้แสดงข้อมูล execution-ready เพิ่มเติม เช่น ผู้รับผิดชอบ, เกณฑ์วัดผล, เวลา, และเกณฑ์ตัวเลข
+  - รัน [`npm test`](package.json) ผ่าน 100% (12/12 tests passed)
+- **14:13 +07:00 | MODULE: IT Checklist - Procedure Plan Editor Step Layout Remediation:**
+  - ปรับโครงสร้าง `Step Editor` ใน [`app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js) ให้เป็น card anatomy แบบ header/body ตามมาตรฐาน settings
+  - เพิ่ม shared inline style object `S` สำหรับ section header, workspace columns, detail hero, empty state, และ evidence grid เพื่อหลีกเลี่ยง Tailwind JIT issue ตามมาตรฐาน [`INLINE_STYLE_STANDARD.md`](docs/standards/INLINE_STYLE_STANDARD.md)
+  - แยกพื้นที่ `Step List`, `Editing Step`, และ `Evidence Rules` ให้ชัดเจนขึ้น เพื่อลดปัญหา layout เบียดกันและทำให้ empty state อ่านง่ายขึ้น
+  - รัน [`npm test`](package.json) ผ่าน 100% (12/12 tests passed)
+- **14:02 +07:00 | MODULE: IT Checklist - Template Builder / Procedure Plan Handoff:**
+  - เพิ่มปุ่ม `ไปหน้า Procedure Plan Editor` ใน [`app/dashboard/settings/checklist-template-builder/ChecklistTemplateBuilderClient.js`](app/dashboard/settings/checklist-template-builder/ChecklistTemplateBuilderClient.js) สำหรับหน้า Create/Edit Checklist Template
+  - ส่งพารามิเตอร์ `returnTo`, `returnMode`, และ `returnTemplateId` จาก [`app/dashboard/settings/procedure-plan-editor/page.js`](app/dashboard/settings/procedure-plan-editor/page.js) ไปยัง [`ProcedurePlanEditorClient`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js)
+  - ปรับ [`app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js`](app/dashboard/settings/procedure-plan-editor/ProcedurePlanEditorClient.js) ให้กด Save แล้วกลับไปหน้า Checklist Template Builder เดิมอัตโนมัติ พร้อม restore `mode`/`templateId`
+  - เพิ่ม info banner ในหน้า builder เมื่อเลือก `T2 Procedure Table` แต่ยังไม่ได้ผูก procedure plan เพื่อให้เข้า flow สร้างแผนได้ทันที
+  - รัน [`npm test`](package.json) ผ่าน 100% (12/12 tests passed)
+- **13:27 +07:00 | MODULE: IT Checklist - Target Registry QR Preview Studio:**
+  - เปลี่ยนปุ่ม `Download QR Code` เป็น `Preview QR Code` ใน [`app/dashboard/settings/target-registry/TargetRegistryClient.js`](app/dashboard/settings/target-registry/TargetRegistryClient.js)
+  - เพิ่ม modal preview สำหรับตกแต่ง QR ก่อนดาวน์โหลด โดยมี frame preset 5 แบบ, เลือก primary caption ได้ 1 field, และใส่ custom caption เพิ่มได้
+  - เพิ่ม live preview card และปุ่ม download image จาก preview ที่ตกแต่งแล้วใน modal
+  - รัน lint เฉพาะไฟล์ที่แก้ไขแล้วผ่าน โดยยังคงมี warning เรื่อง `<img>` ใน QR preview สองจุดของไฟล์เดิม
+- **13:06 +07:00 | MODULE: IT Checklist - Target Registry Manual QR Refresh:**
+  - เพิ่มปุ่ม `Update QR` ในช่อง [`QR Value`](app/dashboard/settings/target-registry/TargetRegistryClient.js:554) ของหน้า Target Registry
+  - ปุ่มนี้ generate ค่าใหม่ตาม logic เดียวกับ [`buildQrValue()`](app/actions/target.js:354) ในฝั่ง client ผ่าน helper ที่ mirror format เดิม
+  - ก่อน set ค่าใหม่ ระบบแสดง warning/confirm ชัดเจนว่า history เดิมไม่หาย แต่ QR/Link เดิมจะสแกนไม่ได้อีกและต้องพิมพ์ใหม่
+  - การเปลี่ยนค่าเป็น manual only และยังต้องกด Save เองอีกครั้งก่อนบันทึกจริงลงฐานข้อมูล
+  - รัน lint เฉพาะไฟล์ที่แก้ไขแล้วผ่าน โดยยังคงมี warning เดิมเรื่อง `<img>` ในไฟล์เดิม
+- **11:41 +07:00 | MODULE: IT Checklist - Target Registry Searchable Target Type:**
+  - เปลี่ยนช่อง `Target Type` ใน [`app/dashboard/settings/target-registry/TargetRegistryClient.js`](app/dashboard/settings/target-registry/TargetRegistryClient.js) จาก native dropdown เป็น custom searchable dropdown
+  - เพิ่ม search input ภายใน dropdown เพื่อ filter รายการ `target_type` แบบพิมพ์บางส่วนแล้วเห็นผลทันที
+  - เพิ่มปุ่ม `+` สำหรับเพิ่ม `Target Type` ใหม่เมื่อค้นหาแล้วไม่พบ โดยมี confirm ก่อนเรียก [`addTargetType()`](app/actions/target.js:556) และเลือกค่าที่เพิ่มใหม่ให้อัตโนมัติ
+  - รัน lint เฉพาะไฟล์ที่แก้ไขแล้วผ่าน โดยยังคงมี warning เดิมเรื่อง `<img>` ในไฟล์เดิม
+- **11:17 +07:00 | MODULE: IT Checklist - Target Registry Create Target UI:**
+  - ปรับค่าเริ่มต้นของ `Target Type` ใน [`app/dashboard/settings/target-registry/TargetRegistryClient.js`](app/dashboard/settings/target-registry/TargetRegistryClient.js) ให้เป็นค่าว่างสำหรับฟอร์มสร้าง Target ใหม่
+  - เปลี่ยนช่อง `Target Type` จาก `input + datalist` เป็น dropdown แบบ [`select`](app/dashboard/settings/target-registry/TargetRegistryClient.js:305) ปกติ พร้อม placeholder `Select target type`
+  - รัน lint เฉพาะไฟล์ที่แก้ไขแล้ว ไม่พบ error ใหม่จากการเปลี่ยนแปลงนี้ (ยังคงมี warning เดิมเรื่อง `<img>` ในไฟล์เดียวกัน)

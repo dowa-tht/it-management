@@ -49,3 +49,27 @@ schema-private.csv
 /.playwright-mcp/
 /scripts/agent-health-check.js
 *.log
+
+# Repo analysis / export artifacts
+/repomix-output.md
+/REPOMIX_SETUP_TASK.md
+/repomix.config.json
+
+# AI scratch / local analysis
+/brain/
+/ai-tasks/archive/
+/doc/FUNCTION_REGISTRY.md
+/docs/handoff/
+/.task_history/
+/.me/
+
+# Local backup snapshots and exported data
+/backups/
+
+# Archived non-canonical planning / summary docs
+/docs/history/archive/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY.md
+/docs/history/archive/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_NEXT_STEPS.md
+/docs/history/archive/IMPLEMENTATION_PLAN_CHECKLIST_TEMPLATE_MASTER_ASSET_HISTORY_TODO.md
+/docs/history/archive/PROJECT_SCAN_SUMMARY.md
+/docs/history/archive/project_summary.md
+/docs/history/archive/STATUS_REPORT.md

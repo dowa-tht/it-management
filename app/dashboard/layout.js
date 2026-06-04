@@ -100,7 +100,7 @@ export default function DashboardLayout({ children }) {
         else if (pathname.includes('/users')) setExpandedSection('users_access')
         else if (pathname.includes('/logs')) setExpandedSection('audit_logs')
         else if (pathname.includes('/workflow') || pathname.includes('/approvals') || pathname.includes('/substitutes')) setExpandedSection('workflow_approval')
-        else if (pathname.includes('/working-hours') || pathname.includes('/no-series') || pathname.includes('/holidays')) setExpandedSection('system_setup')
+        else if (pathname.includes('/working-hours') || pathname.includes('/no-series') || pathname.includes('/holidays') || pathname.includes('/sla')) setExpandedSection('system_setup')
         else setExpandedSection('settings') // fallback
       } else if (pathname.startsWith('/dashboard/incidents') || pathname === '/dashboard' || pathname.includes('/backup') || pathname.includes('/checklist')) {
         setExpandedSection('operations')
@@ -134,6 +134,7 @@ export default function DashboardLayout({ children }) {
         { href: '/dashboard/settings/no-series', label: 'No. Series', feature: 'settings' },
         { href: '/dashboard/settings/working-hours', label: 'Working Hours', feature: 'settings' },
         { href: '/dashboard/settings/holidays', label: 'Holidays', feature: 'settings' },
+        { href: '/dashboard/settings/sla', label: 'SLA Settings', feature: 'settings' },
       ],
     },
     {

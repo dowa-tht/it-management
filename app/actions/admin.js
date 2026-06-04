@@ -28,6 +28,32 @@ async function recordAdminAction(targetUserId, action, details = {}) {
   }
 }
 
+async function autoLinkIncidentsByReporterEmail(userId, email, actorEmail = 'system@internal') {
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+  if (!userId || !normalizedEmail) return { linkedCount: 0 }
+
+  const adminClient = getSupabaseAdmin()
+  const { data: linkedRows, error: linkErr } = await adminClient
+    .from('incidents')
+    .update({ reported_by_id: userId })
+    .eq('reporter_email', normalizedEmail)
+    .is('reported_by_id', null)
+    .select('id, case_number')
+
+  if (linkErr) throw linkErr
+
+  const linkedCount = linkedRows?.length || 0
+  await recordAdminAction(userId, 'AUTO_LINK_INCIDENTS_BY_EMAIL', {
+    email: normalizedEmail,
+    linked_count: linkedCount,
+    incident_ids: (linkedRows || []).map((r) => r.id),
+    incident_case_numbers: (linkedRows || []).map((r) => r.case_number).filter(Boolean),
+    actor_email: actorEmail,
+  })
+
+  return { linkedCount }
+}
+
 /**
  * 🚀 ยกระดับการสร้าง User เป็นระบบ Unified Auth (Supabase Auth 100%)
  */
@@ -97,6 +123,9 @@ export async function createAdminUser({ email, password, full_name, role, can_be
       console.error('Profile Error:', profileError)
       throw new Error(`Profile Error: ${profileError.message}`)
     }
+
+    const actorSession = await getCurrentUserSession()
+    await autoLinkIncidentsByReporterEmail(userId, email, actorSession?.user?.email || 'system@internal')
 
     // 🛡️ บันทึก Audit Log
     await recordAdminAction(userId, 'CREATE_USER', { 

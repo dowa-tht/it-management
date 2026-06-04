@@ -1,7 +1,8 @@
 # Function Registry
 <!-- อัปเดตโดย Smart AI ทุกครั้งที่มีการเปลี่ยนแปลง function -->
 
-สร้างจากการอ่าน `docs/INDEX.md`, `docs/history/USER_TASKS.md`, `app/actions/*` และ `app/dashboard/**/page.js` ณ วันที่ 22 พฤษภาคม 2569
+สร้างจากการอ่าน `docs/INDEX.md`, `docs/history/USER_TASKS.md`, `app/actions/*` และ `app/dashboard/**/page.js` ณ วันที่ 29 พฤษภาคม 2569
+อัปเดตล่าสุด: 29 พฤษภาคม 2569 — เพิ่ม external reporter follow-up token flow, public follow-up route และปรับ incident reporter mapping ใน workflow
 
 หมายเหตุ:
 - Registry นี้บันทึกเฉพาะฟังก์ชัน/คอมโพเนนต์ที่พบจริงจาก source path ที่ USER ระบุ
@@ -28,6 +29,7 @@
 | Card เอกสาร Checklist | `app/dashboard/checklist/page.js` | `ChecklistCard()` | page-local component, L24 |
 | Modal สร้าง Checklist | `app/dashboard/checklist/page.js` | `CreateChecklistModal()` | page-local component, L597 |
 | หน้า Checklist detail | `app/dashboard/checklist/[id]/page.js` | `ChecklistDetailPage()` | Page component, L129 |
+| อนุมัติแทน (Remote Approve) checklist | `app/dashboard/checklist/[id]/page.js` | `handleRemoteApprove()` | page-local handler, L273; เรียก submitApprovalStep พร้อม PIN |
 | Dialog instruction | `app/dashboard/checklist/[id]/page.js` | `InstructionDialog()` | page-local component, L82 |
 | Dialog NG item | `app/dashboard/checklist/[id]/page.js` | `NgDialog()` | page-local component, L106 |
 | Render template ตามชนิด checklist item | `app/dashboard/checklist/[id]/page.js` | `TemplateRenderer()` | page-local component, L550 |
@@ -78,25 +80,37 @@
 | สร้าง Incident | `app/actions/incidents.js` | `createIncident()` | Server Action, L20 |
 | รับเรื่อง/มอบหมาย Incident | `app/actions/incidents.js` | `acknowledgeIncident()` | Server Action, L118 |
 | สร้าง Supabase admin client ใน incident action | `app/actions/incidents.js` | `getAdminClient()` | internal helper, L9 |
+| ออก token ติดตามเคสสำหรับ external reporter | `app/actions/incidents.js` | `issueIncidentFollowupToken()` | internal helper; hash token + 7-day TTL + ส่งอีเมล |
+| ส่งลิงก์ติดตามเคสใหม่ | `app/actions/incidents.js` | `resendIncidentFollowupLink()` | Server Action; admin/it_staff only + cooldown + audit log |
+| สร้าง base URL สำหรับลิงก์ public follow-up | `app/actions/incidents.js` | `buildPublicBaseUrl()` | internal helper; รองรับ env fallback |
 | หน้า Incident list | `app/dashboard/incidents/page.js` | `IncidentsPage()` | Page component, L494 |
 | Content หลักหน้า Incident list | `app/dashboard/incidents/page.js` | `IncidentsContent()` | page-local component, L128 |
 | Card Incident | `app/dashboard/incidents/page.js` | `IncidentCard()` | page-local component, L32 |
 | หน้า New Incident | `app/dashboard/incidents/new/page.js` | `NewIncidentPage()` | Page component, L368 |
 | ฟอร์ม New Incident | `app/dashboard/incidents/new/page.js` | `NewIncidentForm()` | page-local component, L11 |
-| หน้า Incident detail | `app/dashboard/incidents/[id]/page.js` | `IncidentDetailPage()` | Page component, L163 |
+| โหลดข้อมูลอ้างอิง Checklist ใน New Incident | `app/dashboard/incidents/new/page.js` | `handleChecklistRef()` | page-local callback, L47 |
+| โหลดผู้ใช้ปัจจุบันและ reporter_email ใน New Incident | `app/dashboard/incidents/new/page.js` | `loadCurrentUser()` | page-local callback, L68 |
+| โหลด master data Incident | `app/dashboard/incidents/new/page.js` | `loadMasterData()` | page-local callback, L88 |
+| โหลดเลขที่ Incident ถัดไป | `app/dashboard/incidents/new/page.js` | `loadNoSeries()` | page-local callback, L101 |
+| หน้า Incident detail | `app/dashboard/incidents/[id]/page.js` | `IncidentDetailPage()` | Page component, L163; state isRemoteApprovalMode (L180) แยก Login vs Remote modal |
 | CSS local Incident detail | `app/dashboard/incidents/[id]/page.js` | `PageStyles()` | page-local component, L32 |
 | Format elapsed time | `app/dashboard/incidents/[id]/page.js` | `formatElapsed()` | page-local helper, L102 |
 | SLA widget ใน Incident detail | `app/dashboard/incidents/[id]/page.js` | `SLAWidget()` | page-local component, L110 |
 | Dialog resolve incident | `app/dashboard/incidents/[id]/page.js` | `ResolveDialog()` | page-local component, L739 |
 | Dialog reopen incident | `app/dashboard/incidents/[id]/page.js` | `ReopenDialog()` | page-local component, L835 |
 | Dialog acknowledge incident | `app/dashboard/incidents/[id]/page.js` | `AcknowledgeDialog()` | page-local component, L854 |
+| หน้า Public Incident Follow-up | `app/public/incidents/followup/[id]/page.js` | `PublicIncidentFollowupPage()` | Public page component; read-only tracking via token |
 | หน้า Incident Master Data | `app/dashboard/settings/incident-master-data/page.js` | `IncidentMasterDataPage()` | Page component, L5 |
+| Autocomplete เลือก/เพิ่ม Reporter (พร้อม Quick-Add OTP flow) | `app/dashboard/incidents/components/UserAutocomplete.js` | `UserAutocomplete()` | Client component, L5 |
 
 ## workflow/approval
 
 | ชื่อฟังก์ชัน | ไฟล์ | function name จริง | หมายเหตุ |
 |---|---|---|---|
 | Final approval hook | `app/actions/workflow.js` | `onDocumentFinalApproval()` | internal helper, L13 |
+| หา/สร้าง reason สำหรับ System pause | `app/actions/workflow.js` | `getPendingApprovalPauseReasonId()` | internal helper |
+| เปิด SLA pause window ของ incident | `app/actions/workflow.js` | `openIncidentSlaPauseWindow()` | internal helper |
+| ปิด SLA pause window ของ incident | `app/actions/workflow.js` | `closeIncidentSlaPauseWindow()` | internal helper |
 | บันทึก log workflow legacy wrapper | `app/actions/workflow.js` | `recordLog()` | Server Action, L55 |
 | Resolve dynamic approver | `app/actions/workflow.js` | `resolveDynamicWorkflowApproverId()` | internal helper, L59 |
 | Sync dynamic workflow approvers | `app/actions/workflow.js` | `syncDynamicWorkflowApprovers()` | Server Action, L72 |
@@ -119,6 +133,10 @@
 | Reset document workflow | `app/actions/workflow.js` | `resetDocumentWorkflow()` | Server Action, L1323 |
 | Admin reset workflow | `app/actions/workflow.js` | `adminResetWorkflow()` | Server Action, L1340 |
 | Update approval config | `app/actions/workflow.js` | `updateApprovalConfig()` | Server Action, L1401 |
+| ยกเลิกเอกสาร (Checklist/Incident) | `app/actions/workflow.js` | `cancelDocument()` | Server Action; Incident ใช้ policy กลางตาม role (admin PIN, reporter PIN, assignee/it_staff ใช้ reporter PIN/OTP, external reporter OTP เท่านั้น) |
+| ขอ OTP ยืนยันการยกเลิก Incident | `app/actions/workflow.js` | `requestIncidentCancelOTP()` | Server Action; อนุญาตเฉพาะ role ที่ policy กลางอนุญาต OTP |
+| ขอ OTP ยืนยันการอนุมัติ Incident | `app/actions/workflow.js` | `requestIncidentApprovalOTP()` | Server Action; ส่ง OTP ให้ Reporter email ก่อน submitApprovalStep |
+| Policy กลางสำหรับ Cancel Approve (Incident) | `lib/incidentCancelVerificationPolicy.js` | `deriveIncidentCancelVerificationPolicy()` | helper; matrix admin PIN / reporter PIN / assignee-it_staff reporter PIN-OTP / external reporter OTP |
 | หน้า Approvals | `app/dashboard/approvals/page.js` | `ApprovalsPage()` | Page component, L274 |
 | Badge สถานะ approvals | `app/dashboard/approvals/page.js` | `StatusBadge()` | page-local component, L23 |
 | Badge category approvals | `app/dashboard/approvals/page.js` | `CategoryBadge()` | page-local component, L37 |
@@ -132,6 +150,12 @@
 | Progress ย่อยของ workflow ในรายการ | `components/workflow/WorkflowMiniProgress.js` | `WorkflowMiniProgress()` | Client component, L3 |
 | Hook แจ้งเตือน workflow | `components/workflow/WorkflowNotification.js` | `useWorkflowNotification()` | Client hook/helper, L5 |
 | Progress bar workflow รายละเอียด | `components/workflow/WorkflowProgressBar.js` | `WorkflowProgressBar()` | Client component, L8 |
+
+## public/api routes
+
+| ชื่อฟังก์ชัน | ไฟล์ | function name จริง | หมายเหตุ |
+|---|---|---|---|
+| อ่านข้อมูลติดตามเคสแบบไม่ล็อกอิน | `app/api/incidents/followup/route.js` | `GET()` | Route Handler; validate token hash + expiry + revoke + return read-only incident payload |
 
 ## auth/user-management
 
@@ -171,6 +195,7 @@
 |---|---|---|---|
 | Record admin action | `app/actions/admin.js` | `recordAdminAction()` | internal helper, L12 |
 | Create admin user | `app/actions/admin.js` | `createAdminUser()` | Server Action, L34 |
+| ผูก incident เดิมเข้ากับ user ใหม่อัตโนมัติจาก reporter email | `app/actions/admin.js` | `autoLinkIncidentsByReporterEmail()` | internal helper; update `reported_by_id` for legacy external incidents |
 | Get admin users | `app/actions/admin.js` | `getAdminUsers()` | Server Action, L178 |
 | Update admin user | `app/actions/admin.js` | `updateAdminUser()` | Server Action, L203 |
 | Update admin user password | `app/actions/admin.js` | `updateAdminUserPassword()` | Server Action, L238 |
@@ -179,6 +204,13 @@
 | Get user identities | `app/actions/admin.js` | `getUserIdentities()` | Server Action, L296 |
 | Update admin user PIN | `app/actions/admin.js` | `updateAdminUserPin()` | Server Action, L313 |
 | Unlock user PIN | `app/actions/admin.js` | `unlockUserPin()` | Server Action, L340 |
+| โหลดข้อมูลหน้า SLA Settings | `app/actions/sla-settings.js` | `getSLASettingsPageData()` | Server Action |
+| บันทึก SLA targets | `app/actions/sla-settings.js` | `saveSLATargets()` | Server Action |
+| บันทึก/สลับสถานะ SLA exclusion reason | `app/actions/sla-settings.js` | `saveSLAExclusionReason()` | Server Action |
+| normalize SLA limits | `lib/slaUtils.js` | `normalizeSlaLimits()` | helper |
+| resolve SLA limits by severity | `lib/slaUtils.js` | `getIncidentSlaLimits()` | helper |
+| คำนวณคะแนน SLA ต่อ incident | `lib/slaUtils.js` | `calculateSlaScoreFromSnapshot()` | helper |
+| คำนวณ snapshot SLA กลาง | `lib/slaUtils.js` | `calculateIncidentSlaSnapshot()` | helper |
 | สร้าง Supabase admin client สำหรับ No Series | `app/actions/noSeries.js` | `getAdminClient()` | internal helper, L6 |
 | Get verified next no | `app/actions/noSeries.js` | `getVerifiedNextNo()` | Server Action, L17 |
 | หน้า Holidays settings | `app/dashboard/settings/holidays/page.js` | `HolidaysPage()` | Page component, L179 |
@@ -289,7 +321,7 @@
 |---|---|---|---|
 | โหลดข้อมูล Dashboard | `app/actions/dashboard.js` | `getDashboardData()` | Server Action, L6 |
 | โหลด SLA report data | `app/actions/reports.js` | `getSLAReportData()` | Server Action, L5 |
-| บันทึก SLA settings | `app/actions/reports.js` | `saveSLASettings()` | Server Action, L195 |
+| บันทึก SLA settings (legacy path) | `app/actions/reports.js` | `saveSLASettings()` | Server Action, L117; ควรใช้ `app/actions/sla-settings.js` เป็นเส้นทางหลัก |
 | หน้า Dashboard | `app/dashboard/page.js` | `DashboardPage()` | Page component, L5 |
 | Client หลัก Dashboard | `app/dashboard/DashboardClient.js` | `DashboardClient()` | Client component, L300 |
 | Header Dashboard พร้อมลิงก์ approvals/my pending | `components/DashboardHeader.js` | `DashboardHeader()` | Client component, L5 |
@@ -309,6 +341,12 @@
 | Month picker หน้า Backup | `app/dashboard/backup/page.js` | `MonthPicker()` | page-local component, L23 |
 | หน้า Migrate | `app/dashboard/migrate/page.js` | `MigratePage()` | Page component, L5 |
 | หน้า Test Route | `app/dashboard/test-route/page.js` | `TestPage()` | Page component, L1 |
+
+## scripts/admin-tools
+
+| ชื่อฟังก์ชัน | ไฟล์ | function name จริง | หมายเหตุ |
+|---|---|---|---|
+| ยกเลิก Checklist เฉพาะเจาะจงโดย Admin | `scripts/cancel_checklist_admin.js` | `cancelChecklist()` | Node.js script รัน standalone; ใช้ Service Role Key; แก้ค่า DOC_NO บรรทัดบน |
 
 ## ยังไม่ verified
 

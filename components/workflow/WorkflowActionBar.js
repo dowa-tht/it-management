@@ -13,6 +13,8 @@ export function WorkflowActionBar({
   canReject,
   canReopen,
   canCancel,
+  showCancelInPendingOnly = false,
+  cancelLabel = '🚫 ยกเลิก',
   canAcknowledge = false,
   acknowledgeLabel = '⚡ รับเรื่อง (Accept)',
   onSave,
@@ -32,6 +34,17 @@ export function WorkflowActionBar({
   const isPending = status === 'Pending Approval'
   const isClosed = status === 'Closed'
   const isCancelled = status === 'Cancelled'
+  const cancelButtonStyle = {
+    padding: '8px 20px',
+    borderRadius: '10px',
+    border: '1px solid #fecaca',
+    background: '#fff1f2',
+    color: '#e11d48',
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: '13px'
+  }
 
   return (
     <>
@@ -114,13 +127,13 @@ export function WorkflowActionBar({
                         {acknowledgeLabel}
                       </button>
                     )}
-                    {canCancel && (
+                    {canCancel && !showCancelInPendingOnly && (
                       <button
                         onClick={onCancel}
                         disabled={loading}
-                        style={{ padding: '8px 20px', borderRadius: '10px', border: '1px solid #e5e7eb', background: '#f9fafb', color: '#6b7280', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}
+                        style={cancelButtonStyle}
                       >
-                        🚫 ยกเลิก
+                        {cancelLabel}
                       </button>
                     )}
                     {canEdit && (
@@ -172,6 +185,15 @@ export function WorkflowActionBar({
                         style={{ padding: '8px 20px', borderRadius: '10px', background: '#475569', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(71, 85, 105, 0.2)', fontFamily: 'inherit', fontSize: '13px' }}
                       >
                         🔏 อนุมัติแทน (Remote)
+                      </button>
+                    )}
+                    {canCancel && showCancelInPendingOnly && (
+                      <button
+                        onClick={onCancel}
+                        disabled={loading}
+                        style={cancelButtonStyle}
+                      >
+                        {cancelLabel}
                       </button>
                     )}
                   </>

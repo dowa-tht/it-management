@@ -73,7 +73,7 @@ flowchart TD
 
 ### การทำงานร่วมกับ Google Jules (Cloud Coding Agent)
 การประสานพลังกับ Google Jules:
-1. **Antigravity (Local Smart AI)** จะรันกระบวนการ **Brainstorming & Writing Plans** เพื่อเขียนแผนงานที่สมบูรณ์แบบปราศจาก Placeholders ไว้ในโฟลเดอร์ [ai-tasks/tasks/](file:///c:/Users/Lenovo/dowa-it-system/ai-tasks/tasks/)
+1. **Antigravity (Local Smart AI)** จะรันกระบวนการ **Brainstorming & Writing Plans** เพื่อเขียนแผนงานที่สมบูรณ์แบบปราศจาก Placeholders ไว้ในโฟลเดอร์ [docs/history/](file:///c:/Users/Lenovo/dowa-it-system/docs/history/)
 2. แผนงานดังกล่าวจะระบุการรัน **Test Driven Development (TDD)** ในทุกขั้นตอนย่อย
 3. **Google Jules (Cloud Fast AI)** จะทำการดึงแผนงานนั้นและดำเนินงานทีละขั้นอย่างเคร่งครัด รัน `npm test` และส่ง Commit กลับขึ้น GitHub
 4. **Antigravity** ทำหน้าที่ตรวจรับงานตามกระบวนการ **Verification Before Completion**

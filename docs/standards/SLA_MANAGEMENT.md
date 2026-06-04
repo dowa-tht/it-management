@@ -1,6 +1,6 @@
 # SLA Management Standard
 
-**Version**: 1.0 (2026-05-09)
+**Version**: 1.1 (2026-05-28)
 **Status**: Mandatory Standard
 **Scope**: Incident Management & SLA Reporting
 
@@ -33,6 +33,7 @@
 - **Waiting for Vendor**: อยู่ระหว่างรอการสนับสนุนจากผู้ผลิตหรือผู้ให้บริการภายนอก
 - **Waiting for spare parts**: อยู่ระหว่างรออะไหล่หรืออุปกรณ์ทดแทน
 - **External events**: เหตุสุดวิสัยภายนอก (ไฟฟ้าดับทั้งนิคม, ISP ล่ม, ภัยธรรมชาติ)
+- **System pause: Pending Approval**: pause อัตโนมัติเมื่อ Incident เข้า `Pending Approval`
 
 ---
 
@@ -45,20 +46,29 @@
 3.  นับเฉพาะเวลาในช่วง 08:30 - 17:30
 4.  หักลบเวลาที่อยู่ในช่วง **Exclusions** (เช่น การรอข้อมูลจากผู้ใช้ หรือการพักเบรคตามตาราง `sla_exclusions`)
 
-### 3.3 Mathematical Formulas (Reporting)
-เพื่อให้ตัวเลขสะท้อนความเป็นจริงและประสิทธิภาพการทำงานแบบ Real-time ระบบใช้สูตรดังนี้:
+### 3.3 Unified Evaluation Contract (Reporting)
+ใช้มาตรฐานเดียวสำหรับ Dashboard / SLA Report / Incident Detail:
 
-1.  **Response Rate (%)**: `(Passed Responses / (Passed + Failed Responses)) * 100`
-    - **PASS**: เคสที่ตอบสนองแล้ว (Acknowledged/Assigned) และใช้เวลาภายในเกณฑ์
-    - **FAIL**:
-        - เคสที่ตอบสนองแล้วแต่ใช้เวลาเกินเกณฑ์
-        - **[Strict Mode]**: เคสที่ยังไม่ตอบสนอง (`Open`) แต่เวลาปัจจุบัน (Business Minutes) เกินเกณฑ์แล้ว
-2.  **Resolution Rate (%)**: `(Passed Resolutions / (Passed + Failed Resolutions)) * 100`
-    - **PASS**: เคสที่ปิดงานแล้ว (`Closed`) และใช้เวลาภายในเกณฑ์
-    - **FAIL**:
-        - เคสที่ปิดงานแล้วแต่ใช้เวลาเกินเกณฑ์
-        - **[Strict Mode]**: เคสที่ยังไม่ปิดงาน แต่เวลาปัจจุบัน (Business Minutes) เกินเกณฑ์แล้ว
-3.  **Overall Compliance (%)**: `(Response Rate + Resolution Rate) / 2`
+1. **Response SLA**
+   - start = `created_at`
+   - end = `acknowledged_at` เท่านั้น
+   - ยังไม่ acknowledged = `N/A` (not evaluated)
+   - ไม่ใช้ pause กับ Response
+
+2. **Resolution SLA**
+   - start = `acknowledged_at || assigned_at`
+   - end = `resolved_at`
+   - หักเวลาจาก `incident_exclusions` (รวม `Pending Approval`)
+
+3. **Compliance Score per Incident**
+   - evaluate เฉพาะ `status = Closed`
+   - `Cancelled` = excluded
+   - ผ่านทั้ง Response + Resolution = `1.0`
+   - ผ่านเพียงด้านเดียว = `0.5`
+   - ไม่ผ่านทั้งสองด้าน = `0.0`
+
+4. **Overall Compliance (%)**
+   - `sum(score) / evaluatedCount * 100`
 
 ---
 
@@ -70,4 +80,4 @@
 - **Real-time Tracking**: หน้า Incident Detail ต้องแสดงนาฬิกานับถอยหลังหรือนับเวลาที่ใช้ไปแบบ Real-time โดยใช้ `SLAWidget` component
 
 ---
-*จัดทำมาตรฐานโดย AI Agent (Antigravity)*
+*จัดทำมาตรฐานโดย AI Agent (Antigravity), อัปเดตสัญญาคำนวณรวมศูนย์โดย Codex (2026-05-28)*

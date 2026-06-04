@@ -64,7 +64,7 @@ function calcElapsedMin(start, end) {
   return Math.floor((new Date(end) - new Date(start)) / 60000)
 }
 
-function getSLAStatus(incident, settings, holidays) {
+function getSLAStatus(incident, settings, holidays, exclusions) {
   const sla = SLA_MINUTES[incident.severity] || SLA_MINUTES['Medium']
   const now = new Date()
 
@@ -72,6 +72,7 @@ function getSLAStatus(incident, settings, holidays) {
 
   const wh = settings || { start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] }
   const hols = holidays || []
+  const excl = exclusions || []
 
   if (incident.status === 'Open') {
     const elapsed = calculateNetBusinessMinutes(incident.created_at, now, wh, hols, [])
@@ -82,7 +83,7 @@ function getSLAStatus(incident, settings, holidays) {
   }
 
   if (incident.status === 'In Progress' || incident.status === 'Pending Approval') {
-    const elapsed = calculateNetBusinessMinutes(incident.created_at, now, wh, hols, [])
+    const elapsed = calculateNetBusinessMinutes(incident.created_at, now, wh, hols, excl)
     const limit = sla.resolve
     if (elapsed > limit) return { label: '🔴 Overdue (Res)', color: '#dc2626', bg: '#fee2e2', text: `${elapsed}/${limit}m` }
     if (elapsed > limit * 0.75) return { label: '🟡 Warning', color: '#d97706', bg: '#fef3c7', text: `${elapsed}/${limit}m` }
@@ -453,9 +454,9 @@ export default function DashboardClient({ initialData }) {
 
         <Link href="/dashboard/reports/sla" style={{ textDecoration: 'none' }}>
           <div style={{
-            background: stats.slaComplianceRateYTD >= 95
+            background: stats.slaComplianceRate30d >= 95
               ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)'
-              : stats.slaComplianceRateYTD >= 90
+              : stats.slaComplianceRate30d >= 90
                 ? 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)'
                 : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
             borderRadius: 16,
@@ -465,9 +466,9 @@ export default function DashboardClient({ initialData }) {
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
-            boxShadow: stats.slaComplianceRateYTD >= 95
+            boxShadow: stats.slaComplianceRate30d >= 95
               ? '0 10px 20px rgba(16, 185, 129, 0.2)'
-              : stats.slaComplianceRateYTD >= 90
+              : stats.slaComplianceRate30d >= 90
                 ? '0 10px 20px rgba(217, 119, 6, 0.2)'
                 : '0 10px 20px rgba(220, 38, 38, 0.2)',
             position: 'relative',
@@ -475,23 +476,26 @@ export default function DashboardClient({ initialData }) {
             transition: 'transform 0.2s'
           }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
             <div style={{ position: 'absolute', right: -20, top: -20, fontSize: 100, opacity: 0.1 }}>📉</div>
-            <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>SLA Compliance Rate (YTD)</div>
+            <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>SLA Compliance Rate (30D)</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <div style={{ fontSize: 42, fontWeight: 900 }}>{stats.slaComplianceRateYTD}%</div>
+              <div style={{ fontSize: 42, fontWeight: 900 }}>{stats.slaComplianceRate30d}%</div>
               <div style={{ fontSize: 14, fontWeight: 600, opacity: 0.8 }}>/ Target 95%</div>
+            </div>
+            <div style={{ marginTop: 6, fontSize: 10, fontWeight: 600, opacity: 0.85 }}>
+              คำนวณจากข้อมูล 30 วันล่าสุด
             </div>
             <div style={{ marginTop: 20, background: 'rgba(255,255,255,0.2)', height: 8, borderRadius: 10, position: 'relative' }}>
               <div style={{
                 background: '#fff',
                 height: '100%',
                 borderRadius: 10,
-                width: `${Math.min(stats.slaComplianceRateYTD, 100)}%`,
+                width: `${Math.min(stats.slaComplianceRate30d, 100)}%`,
                 boxShadow: '0 0 10px rgba(255,255,255,0.5)'
               }} />
               <div style={{ position: 'absolute', left: '95%', top: -4, bottom: -4, width: '2px', background: 'rgba(255,255,255,0.5)', zIndex: 1 }} title="Target 95%" />
             </div>
             <div style={{ marginTop: 12, fontSize: 11, fontWeight: 600, opacity: 0.9 }}>
-              {stats.slaComplianceRateYTD >= 95 ? '✅ บรรลุเป้าหมาย (On Target)' : stats.slaComplianceRateYTD >= 90 ? '⚠️ ต่ำกว่าเป้าหมายเล็กน้อย (Warning)' : '🚨 ต่ำกว่าเกณฑ์ที่กำหนด (Below Target)'}
+              {stats.slaComplianceRate30d >= 95 ? '✅ บรรลุเป้าหมาย (On Target)' : stats.slaComplianceRate30d >= 90 ? '⚠️ ต่ำกว่าเป้าหมายเล็กน้อย (Warning)' : '🚨 ต่ำกว่าเกณฑ์ที่กำหนด (Below Target)'}
             </div>
           </div>
         </Link>
@@ -549,7 +553,7 @@ export default function DashboardClient({ initialData }) {
             </thead>
             <tbody>
               {recentIncidents.map(inc => {
-                const sla = getSLAStatus(inc, data?.wh, data?.holidays)
+                const sla = getSLAStatus(inc, data?.wh, data?.holidays, inc._exclusions)
                 return (
                   <tr key={inc.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                     <td style={{ padding: '10px 16px', color: '#6b7280', fontSize: 11 }}>{inc.case_number}</td>

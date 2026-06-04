@@ -3,6 +3,21 @@ import { cookies } from 'next/headers'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import { normalizeRole } from '@/lib/auth'
 
+async function autoLinkIncidentsByReporterEmail(adminClient, userId, email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+  if (!userId || !normalizedEmail) return { linkedCount: 0, linkedRows: [] }
+
+  const { data: linkedRows, error } = await adminClient
+    .from('incidents')
+    .update({ reported_by_id: userId })
+    .eq('reporter_email', normalizedEmail)
+    .is('reported_by_id', null)
+    .select('id, case_number')
+
+  if (error) throw error
+  return { linkedCount: linkedRows?.length || 0, linkedRows: linkedRows || [] }
+}
+
 // ตรวจสอบว่า caller เป็น administrator จาก Session
 async function requireAdmin() {
   const cookieStore = await cookies()
@@ -73,6 +88,20 @@ export async function POST(request) {
       supabase_user_id: authData.user.id,
       is_active: true,
     }, { onConflict: 'email' })
+
+    const autoLinkResult = await autoLinkIncidentsByReporterEmail(adminClient, authData.user.id, email)
+    await adminClient.from('admin_audit_logs').insert([{
+      admin_id: caller.id,
+      admin_email: caller.email,
+      target_user_id: authData.user.id,
+      action: 'AUTO_LINK_INCIDENTS_BY_EMAIL',
+      details: {
+        email: String(email || '').trim().toLowerCase(),
+        linked_count: autoLinkResult.linkedCount,
+        incident_ids: autoLinkResult.linkedRows.map((r) => r.id),
+        incident_case_numbers: autoLinkResult.linkedRows.map((r) => r.case_number).filter(Boolean),
+      },
+    }])
 
     return Response.json({ success: true, userId: authData.user.id })
   } catch (err) {
