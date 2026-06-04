@@ -55,6 +55,7 @@ set search_path = public, auth
 as $$
   select coalesce(
     public.current_user_is_admin()
+    or public.current_user_role() = 'auditor' -- 🛡️ Auditor can read all checklists for auditing
     or exists (
       select 1
       from public.permission_sets ps
@@ -149,6 +150,7 @@ $$;
 -- Enable RLS on tables that were disabled
 -- -----------------------------------------------------------------------------
 
+alter table public.backup_logs enable row level security;
 alter table public.checklist_docs enable row level security;
 alter table public.checklist_items enable row level security;
 alter table public.checklist_logs enable row level security;
@@ -617,5 +619,25 @@ for update
 to authenticated
 using (approver_id = auth.uid() or (approver_id is null and role_required = public.current_user_role()))
 with check (approver_id = auth.uid() or (approver_id is null and role_required = public.current_user_role()));
+
+-- -----------------------------------------------------------------------------
+-- Backup logs security
+-- -----------------------------------------------------------------------------
+
+drop policy if exists "admin_all_backup_logs" on public.backup_logs;
+drop policy if exists "authenticated_select_backup_logs" on public.backup_logs;
+
+create policy "admin_all_backup_logs"
+on public.backup_logs
+for all
+to authenticated
+using (public.current_user_is_admin())
+with check (public.current_user_is_admin());
+
+create policy "authenticated_select_backup_logs"
+on public.backup_logs
+for select
+to authenticated
+using (true);
 
 commit;

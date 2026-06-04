@@ -2,6 +2,12 @@
 
 ## 4 มิถุนายน 2569 (04-Jun-2026)
 
+- **[17:35] Fix Auditor RLS Permissions: Enable Backup Log & IT Checklist visibility**
+  - **ปรับปรุงสิทธิ์ RLS สำหรับบทบาทผู้ตรวจสอบ (Auditor/Guest):**
+    - ปรับปรุง `supabase/migrations/add_rls_policies.sql` เพื่อให้สิทธิ์อ่านข้อมูลแก่ Role `auditor` ตรงตามข้อกำหนดความโปร่งใส:
+      1. แก้ไขฟังก์ชัน `current_user_can_access_checklist_doc` ให้ผู้ใช้ระดับ `auditor` สามารถเข้าถึงและส่องดูข้อมูลประวัติของหน้า **IT Checklist** ได้ทุกใบ เพื่อใช้สำหรับงานตรวจสอบประวัติอย่างครอบคลุม
+      2. สั่งเปิดใช้ความปลอดภัย RLS บนตาราง `backup_logs` พร้อมเขียนนโยบายการอ่านข้อมูล `authenticated_select_backup_logs` เพื่อให้บทบาทผู้ตรวจสอบสามารถมองเห็นรายการย้อนหลังในหน้า **Backup Log** และใช้งานฟิลเตอร์ตัวกรองเวลาบนหน้าเว็บได้สมบูรณ์เป็นรายแรก
+
 - **[17:25] Suppress Hydration Warnings from Browser Extensions**
   - **ป้องกันข้อผิดพลาดการประสานข้อมูล (React Hydration Mismatch):**
     - ปรับปรุง `app/layout.js` โดยเพิ่มคีย์ `suppressHydrationWarning` ลงในแท็ก `<html>` และ `<body>` 
