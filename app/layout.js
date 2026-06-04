@@ -34,7 +34,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="th" className={`${notoSansThai.variable} ${notoSans.variable}`}>
+    <html lang="th" className={`${notoSansThai.variable} ${notoSans.variable}`} suppressHydrationWarning>
       <head>
         <Script id="supabase-token-error-guard" strategy="beforeInteractive">{`
           (function() {
@@ -71,7 +71,7 @@ export default function RootLayout({ children }) {
           })();
         `}</Script>
       </head>
-      <body className="">
+      <body className="" suppressHydrationWarning>
         <WorkingDateProvider>
           {children}
         </WorkingDateProvider>

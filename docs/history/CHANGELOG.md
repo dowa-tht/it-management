@@ -2,6 +2,11 @@
 
 ## 4 มิถุนายน 2569 (04-Jun-2026)
 
+- **[17:25] Suppress Hydration Warnings from Browser Extensions**
+  - **ป้องกันข้อผิดพลาดการประสานข้อมูล (React Hydration Mismatch):**
+    - ปรับปรุง `app/layout.js` โดยเพิ่มคีย์ `suppressHydrationWarning` ลงในแท็ก `<html>` และ `<body>` 
+    - ผลลัพธ์: ระงับการแจ้งเตือนจอแดงของ Next.js ที่เกิดจากการฝังแอตทริบิวต์พิเศษของ Browser Extensions (เช่น Grammarly, Google Translate, 1Password) บนตัวผู้ใช้ภายนอก ทำให้เทสงานบน Localhost ได้ราบรื่น สบายตา และไม่รบกวนการเตือนของหน้าเว็บส่วนหลัก
+
 - **[17:15] Fix User Creation and Onboarding Flow Robustness**
   - **แก้ไขปัญหาลิงก์ลงทะเบียนหมดอายุ/ไม่ถูกต้อง (Link Invalid / Expired):**
     - ปรับปรุง `app/actions/onboarding.js`, `app/actions/login.js` และ `app/api/onboarding/init/route.js` ให้ตรวจสอบอายุของ Onboarding Token โดยการอ้างอิงจากเวลาสร้างแถวข้อมูล `created_at` ของโปรไฟล์ผู้ใช้งาน (อายุ 24 ชั่วโมง) แทนคอลัมน์ `onboarding_token_expires` ที่ไม่มีอยู่ในฐานข้อมูลของระบบ 
