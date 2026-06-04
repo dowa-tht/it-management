@@ -37,7 +37,7 @@ export async function GET(request) {
 
   const { data: profile } = await adminClient
     .from('user_profiles')
-    .select('is_onboarded, onboarding_token, onboarding_token_expires')
+    .select('is_onboarded, onboarding_token, created_at')
     .eq('id', session.user.id)
     .single()
 

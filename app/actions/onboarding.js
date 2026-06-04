@@ -16,14 +16,15 @@ export async function validateOnboardingToken(token) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const { data, error } = await supabase
     .from('user_profiles')
-    .select('id, full_name, email, role, is_onboarded, onboarding_token_expires')
+    .select('id, full_name, email, role, is_onboarded, created_at')
     .eq('onboarding_token', token)
     .single()
 
   if (error || !data) return { error: 'Link ไม่ถูกต้องหรือหมดอายุแล้ว' }
   
-  // 🛡️ Check Expiry
-  if (data.onboarding_token_expires && new Date(data.onboarding_token_expires) < new Date()) {
+  // 🛡️ Check Expiry (Onboarding Link valid for 24 Hours from user profile creation)
+  const isExpired = data.created_at && (new Date() - new Date(data.created_at) > 24 * 60 * 60 * 1000)
+  if (isExpired) {
     return { error: 'Link หมดอายุแล้ว กรุณาติดต่อ Admin หรือเข้าสู่ระบบด้วยรหัสผ่านเพื่อขอรับ Link ใหม่' }
   }
   if (data.is_onboarded) return { error: 'บัญชีนี้ได้รับการลงทะเบียนเรียบร้อยแล้ว' }

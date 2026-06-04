@@ -93,7 +93,7 @@ export async function unifiedLogin(email, password) {
 async function checkOnboardingInternal(userId, adminClient) {
   const { data: profile } = await adminClient
     .from('user_profiles')
-    .select('is_onboarded, onboarding_token, onboarding_token_expires')
+    .select('is_onboarded, onboarding_token, created_at')
     .eq('id', userId)
     .single()
 
@@ -101,21 +101,19 @@ async function checkOnboardingInternal(userId, adminClient) {
     return { needs_onboarding: false, onboarding_token: null }
   }
 
-  // Auto-Refresh Logic
-  const isExpired = profile.onboarding_token_expires && new Date(profile.onboarding_token_expires) < new Date()
+  // Auto-Refresh Logic (Onboarding Link valid for 24 Hours from user profile creation)
+  const isExpired = profile.created_at && (new Date() - new Date(profile.created_at) > 24 * 60 * 60 * 1000)
   let finalToken = profile.onboarding_token
 
   if (!finalToken || isExpired) {
     const { randomUUID } = await import('crypto')
     finalToken = randomUUID()
-    const newExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     
     console.log(`🛡️ Gatekeeper: Refreshing token for user ${userId}...`)
     const { error: updateError } = await adminClient
       .from('user_profiles')
       .update({ 
-        onboarding_token: finalToken, 
-        onboarding_token_expires: newExpires 
+        onboarding_token: finalToken
       })
       .eq('id', userId)
 

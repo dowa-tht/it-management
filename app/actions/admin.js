@@ -61,6 +61,36 @@ export async function createAdminUser({ email, password, full_name, role, can_be
   try {
     const adminClient = getSupabaseAdmin()
 
+    // 🛡️ A. Pre-flight Check: ค้นหาใน user_profiles เพื่อตรวจสอบสถานะ Onboarding
+    const { data: existingProfile } = await adminClient
+      .from('user_profiles')
+      .select('id, is_onboarded, email')
+      .eq('email', email)
+      .maybeSingle()
+
+    if (existingProfile) {
+      if (existingProfile.is_onboarded) {
+        throw new Error('อีเมลนี้ได้ลงทะเบียนและทำ Onboarding เรียบร้อยแล้วในระบบ')
+      } else {
+        throw new Error('อีเมลนี้มีอยู่ในระบบแล้วแต่ยังทำ Onboarding ไม่สำเร็จ กรุณากดลบบัญชีผู้ใช้นี้ออกก่อนแล้วลองสร้างใหม่อีกครั้ง')
+      }
+    }
+
+    // 🛡️ B. Pre-flight Check (Self-Healing): ตรวจสอบบัญชีตกค้างฝั่ง auth.users (ไม่มี Profile)
+    const { data: { users }, error: listErr } = await adminClient.auth.admin.listUsers()
+    if (!listErr && users) {
+      const existingAuthUser = users.find(u => u.email?.trim().toLowerCase() === String(email).trim().toLowerCase())
+      if (existingAuthUser) {
+        console.log(`🛡️ Self-Healing: ตรวจพบสิทธิ์ค้างคาฝั่ง Auth (${email}) ไร้ Profile ในระบบ ดำเนินการเคลียร์ออกก่อนสร้างใหม่...`)
+        const { error: delErr } = await adminClient.auth.admin.deleteUser(existingAuthUser.id)
+        if (delErr) {
+          console.error('Failed to clean up orphaned auth user:', delErr)
+          throw new Error(`ตรวจพบข้อมูลสิทธิ์ค้างคาในระบบ Auth และไม่สามารถเคลียร์ได้อัตโนมัติ: ${delErr.message}`)
+        }
+        console.log(`🛡️ Self-Healing: เคลียร์บัญชีค้างคาฝั่ง Auth สำเร็จ`)
+      }
+    }
+
     const isInviteOnly = !password;
     const finalPassword = password || randomBytes(16).toString('hex');
 

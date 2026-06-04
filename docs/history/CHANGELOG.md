@@ -2,6 +2,16 @@
 
 ## 4 มิถุนายน 2569 (04-Jun-2026)
 
+- **[17:15] Fix User Creation and Onboarding Flow Robustness**
+  - **แก้ไขปัญหาลิงก์ลงทะเบียนหมดอายุ/ไม่ถูกต้อง (Link Invalid / Expired):**
+    - ปรับปรุง `app/actions/onboarding.js`, `app/actions/login.js` และ `app/api/onboarding/init/route.js` ให้ตรวจสอบอายุของ Onboarding Token โดยการอ้างอิงจากเวลาสร้างแถวข้อมูล `created_at` ของโปรไฟล์ผู้ใช้งาน (อายุ 24 ชั่วโมง) แทนคอลัมน์ `onboarding_token_expires` ที่ไม่มีอยู่ในฐานข้อมูลของระบบ 
+    - สิ่งนี้ช่วยรันระบบ Onboarding ได้อย่างราบรื่นทันทีโดยไม่ต้องรัน SQL เพื่อเพิ่มคอลัมน์หลังบ้านใหม่
+  - **ระบบตรวจสอบก่อนสร้างและระบบกู้คืนอัตโนมัติ (Pre-flight Checks & Self-Healing):**
+    - ปรับปรุงฟังก์ชัน `createAdminUser` ใน `app/actions/admin.js` ให้ทำการตรวจสอบความถูกต้องก่อนสมัครสมาชิกใหม่:
+      1. ตรวจสอบว่ามีอีเมลนั้นใน `user_profiles` แล้วและเปิดใช้งานเสร็จสิ้นแล้วหรือไม่ (`is_onboarded = true`) หาก onboard แล้วระบบจะแจ้งแอดมินล่วงหน้าอย่างสุภาพ
+      2. ตรวจสอบว่ามีอีเมลนั้นในระบบแต่ยังรอ Onboarding หรือไม่ (`is_onboarded = false`) หากยังไม่ onboard ระบบจะบล็อกการสร้างเพื่อป้องกันข้อมูลซ้ำซ้อน และแจ้งสเตตัสพร้อมคำแนะนำให้แอดมินส่งอีเมลลิงก์เชิญใหม่
+      3. **[Self-Healing]** หากตรวจพบว่ามีอีเมลนั้นหลงเหลืออยู่ใน `auth.users` แต่ไม่มีตัวตนฝั่ง `user_profiles` (สถานะข้อมูลตกค้าง/ Orphaned User) ระบบจะสั่งลบบัญชีค้างคานั้นฝั่ง Auth ออกโดยอัตโนมัติทันทีก่อนเริ่มการสร้างผู้ใช้ใหม่เพื่อให้การลงทะเบียนทำงานได้อย่างหมดจด ไร้ข้อผิดพลาดสิทธิ์ซ้ำซ้อนอีกต่อไป
+
 - **[15:30] Fix Dashboard False Positive: Alignment of MY SENT PENDING to assigned_to_id**
   - แก้ไขปัญหา Badge และ รายการ "My Sent Pending" บน Dashboard แสดงข้อมูลไม่ตรงกับความหมายจริง (False Positive)
   - ปรับ `app/actions/dashboard.js` (`getDashboardData`) ให้ดึงจำนวนเคสรออนุมัติของฉันโดยอิงจาก `assigned_to_id` (เจ้าหน้าที่ไอทีที่รับผิดชอบและส่งงานขออนุมัติ) แทน `reported_by_id` (ผู้แจ้ง)
