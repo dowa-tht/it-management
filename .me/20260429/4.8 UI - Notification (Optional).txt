@@ -1,5 +1,0 @@
-procedure UI_ReceiveAlert(AlertMsg: string);
-begin
-  // แสดง toast หรือ modal ตามประเภท
-  ShowAlert(AlertMsg);
-end;

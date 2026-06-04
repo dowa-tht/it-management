@@ -1,7 +1,0 @@
-procedure UI_SaveWorkingHours(WH: TWorkingHours);
-begin
-  if Service_SaveWorkingHours(WH) then
-    ShowToast('บันทึกเวลาทำงานเรียบร้อย')
-  else
-    ShowError('บันทึกไม่สำเร็จ');
-end;

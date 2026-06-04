@@ -1,20 +1,23 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import SignaturePad from 'react-signature-canvas'
 import { verifyEmployeePIN } from '@/app/actions/users'
 import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
-import { calculateNetBusinessMinutes } from '@/lib/slaUtils'
-import { getPotentialWorkflowSteps, recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow, syncDynamicWorkflowApprovers, diagnoseApprovalPin, cancelDocument, requestIncidentCancelOTP } from '@/app/actions/workflow'
-import { acknowledgeIncident } from '@/app/actions/incidents'
+import { calculateIncidentSlaSnapshot } from '@/lib/slaUtils'
+import { getPotentialWorkflowSteps, recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow, syncDynamicWorkflowApprovers, diagnoseApprovalPin, cancelDocument, requestIncidentCancelOTP, requestIncidentApprovalOTP, verifyIncidentApprovalOTP, diagnoseIncidentApprovalOTP } from '@/app/actions/workflow'
+import { acknowledgeIncident, createIncidentExclusionManual, closeIncidentExclusionManual, getIncidentMasterData, requestIncidentReporterOtp, verifyIncidentReporterOtp, resendIncidentFollowupLink, validateExternalReporterEmail } from '@/app/actions/incidents'
 import { isSubstituteOf } from '@/lib/workflow'
 import { WorkflowProgressBar } from '@/components/workflow/WorkflowProgressBar'
 import { UnifiedApprovalModal } from '@/components/workflow/UnifiedApprovalModal'
 import { WorkflowActionBar } from '@/components/workflow/WorkflowActionBar'
 import { WORKFLOW_DOC_REGISTRY } from '@/lib/workflowRegistry'
 import { useWorkflowNotification } from '@/components/workflow/WorkflowNotification'
+import { UserAutocomplete } from '../components/UserAutocomplete'
+import { deriveIncidentCancelVerificationPolicy } from '@/lib/incidentCancelVerificationPolicy'
+import { getCurrentActorProfile } from '@/app/actions/user'
 
 const SLA_LABELS = {
   High:   { response: 'ทันที (ภายใน 1 ชั่วโมง)', resolve: 'ภายใน 4 ชั่วโมง' },
@@ -107,38 +110,125 @@ function formatElapsed(minutes) {
   return m > 0 ? `${h} ชม. ${m} นาที` : `${h} ชม.`
 }
 
-function SLAWidget({ label, targetLabel, start, end, severity, type, settings, holidays, exclusions }) {
-  const [mins, setMins] = useState(null)
-  
-  useEffect(() => {
-    if (!start) return
-    const update = () => {
-      const currentEnd = end || new Date()
-      const net = calculateNetBusinessMinutes(start, currentEnd, settings, holidays, exclusions)
-      setMins(net)
-    }
-    update()
-    const timer = setInterval(update, 60000)
-    return () => clearInterval(timer)
-  }, [start, end, settings, holidays, exclusions])
+function formatDdMmmYy24h(value) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  const day = d.toLocaleString('en-GB', { day: '2-digit', timeZone: 'Asia/Bangkok' })
+  const month = d.toLocaleString('en-US', { month: 'short', timeZone: 'Asia/Bangkok' })
+  const year = d.toLocaleString('en-GB', { year: '2-digit', timeZone: 'Asia/Bangkok' })
+  const hours = d.toLocaleString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' })
+  const mins = d.toLocaleString('en-GB', { minute: '2-digit', timeZone: 'Asia/Bangkok' })
+  return `${day} / ${month} / ${year} ${hours}:${mins}`
+}
 
-  const reg = WORKFLOW_DOC_REGISTRY.incident
-  const targetMins = type === 'response' ? 
-    (reg.sla_targets[severity]?.response || 120) : 
-    (reg.sla_targets[severity]?.resolve || 480)
-  
-  const isOver = mins > targetMins
-  const isDone = !!end
+function formatLocalDateTimeValue(value) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  return formatDdMmmYy24h(d)
+}
 
-  const s = isDone ? (
-    isOver ? 
-    { icon: '❌', color: '#dc2626', bg: '#fff1f2', border: '#fecaca', text: `Over SLA (${formatElapsed(mins)})` } :
-    { icon: '✅', color: '#059669', bg: '#f0fdf4', border: '#bbf7d0', text: `Done OK (${formatElapsed(mins)})` }
-  ) : (
-    isOver ?
-    { icon: '⏰', color: '#dc2626', bg: '#fff1f2', border: '#fecaca', text: `เกิน SLA! (${formatElapsed(mins)})` } :
-    { icon: '⏳', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', text: `กำลังดำเนินการ (${formatElapsed(mins)})` }
-  )
+function parseDdMmmYy24h(input) {
+  const raw = (input || '').trim().toLowerCase()
+  const m = raw.match(/^(\d{1,2})\s*\/\s*([a-z]{3})\s*\/\s*(\d{2})\s+(\d{2}):(\d{2})$/)
+  if (!m) return null
+
+  const [, dd, mon, yy, hh, mm] = m
+  const monthMap = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 }
+  const month = monthMap[mon]
+  if (month === undefined) return null
+
+  const dayNum = Number(dd)
+  const yearNum = 2000 + Number(yy)
+  const hourNum = Number(hh)
+  const minNum = Number(mm)
+  if (dayNum < 1 || dayNum > 31 || hourNum < 0 || hourNum > 23 || minNum < 0 || minNum > 59) return null
+
+  const date = new Date(yearNum, month, dayNum, hourNum, minNum, 0, 0)
+  if (
+    date.getFullYear() !== yearNum ||
+    date.getMonth() !== month ||
+    date.getDate() !== dayNum ||
+    date.getHours() !== hourNum ||
+    date.getMinutes() !== minNum
+  ) return null
+  return date
+}
+
+function splitIsoLocal(value) {
+  if (!value) return { date: '', time: '' }
+  const raw = String(value)
+  const [d, t = ''] = raw.split('T')
+  return { date: d || '', time: t.slice(0, 5) || '' }
+}
+
+function formatDateOnlyDdMmmYy(dateValue) {
+  if (!dateValue) return ''
+  const d = new Date(`${dateValue}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return ''
+  const day = d.toLocaleString('en-GB', { day: '2-digit', timeZone: 'Asia/Bangkok' })
+  const month = d.toLocaleString('en-US', { month: 'short', timeZone: 'Asia/Bangkok' })
+  const year = d.toLocaleString('en-GB', { year: '2-digit', timeZone: 'Asia/Bangkok' })
+  return `${day} / ${month} / ${year}`
+}
+
+function buildIsoLocal(date, time) {
+  if (!date) return ''
+  return `${date}T${time || '00:00'}`
+}
+
+function localDateTimeToIso(value) {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toISOString()
+}
+
+function normalizeTime24h(input) {
+  const raw = String(input || '').trim().toLowerCase()
+  if (!raw) return ''
+
+  const ampm = raw.match(/^(\d{1,2})\s*:\s*(\d{2})\s*(am|pm)$/)
+  if (ampm) {
+    let hh = Number(ampm[1])
+    const mm = Number(ampm[2])
+    const ap = ampm[3]
+    if (hh < 1 || hh > 12 || mm < 0 || mm > 59) return ''
+    if (ap === 'am') hh = hh === 12 ? 0 : hh
+    if (ap === 'pm') hh = hh === 12 ? 12 : hh + 12
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+  }
+
+  const pure24 = raw.match(/^(\d{1,2})\s*:\s*(\d{2})$/)
+  if (!pure24) return ''
+  const hh = Number(pure24[1])
+  const mm = Number(pure24[2])
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return ''
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+}
+
+function formatTimeInputProgressive(input) {
+  const raw = String(input || '')
+  const hasColon = raw.includes(':')
+  if (hasColon) {
+    return raw.replace(/[^\d:]/g, '').slice(0, 5)
+  }
+  const digits = raw.replace(/\D/g, '').slice(0, 4)
+  if (digits.length <= 2) return digits
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`
+}
+
+function SLAWidget({ label, targetLabel, snapshot, type }) {
+  const mins = type === 'response' ? snapshot?.responseMin : snapshot?.resolveMin
+  const targetMins = type === 'response' ? snapshot?.responseLimit : snapshot?.resolveLimit
+  const status = type === 'response' ? snapshot?.responseStatus : snapshot?.resolutionStatus
+
+  const s = status === 'N/A'
+    ? { icon: 'ℹ️', color: '#475569', bg: '#f8fafc', border: '#e2e8f0', text: 'N/A (ยังไม่เข้าเงื่อนไขประเมิน)' }
+    : status === 'PASS'
+      ? { icon: '✅', color: '#059669', bg: '#f0fdf4', border: '#bbf7d0', text: `Done OK (${formatElapsed(mins)})` }
+      : { icon: '❌', color: '#dc2626', bg: '#fff1f2', border: '#fecaca', text: `Over SLA (${formatElapsed(mins)})` }
 
   return (
     <div style={{ 
@@ -156,6 +246,11 @@ function SLAWidget({ label, targetLabel, start, end, severity, type, settings, h
       </div>
       <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>เป้าหมาย: {targetLabel}</div>
       <div style={{ fontSize: '14px', fontWeight: 800, color: s.color }}>{s.text}</div>
+      {targetMins !== null && targetMins !== undefined ? (
+        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px', fontWeight: 700 }}>
+          Target: {formatElapsed(targetMins)}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -163,6 +258,9 @@ function SLAWidget({ label, targetLabel, start, end, severity, type, settings, h
 export default function IncidentDetailPage() {
   const { id } = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const followupToken = String(searchParams.get('followup') || '').trim()
+  const isExternalFollowupMode = Boolean(followupToken)
   const [incident, setIncident] = useState(null)
   const [form, setForm] = useState({})
   const [editing, setEditing] = useState(false)
@@ -192,18 +290,39 @@ export default function IncidentDetailPage() {
   const [workingHours, setWorkingHours] = useState(null)
   const [holidays, setHoneydays] = useState([])
   const [exclusions, setExclusions] = useState([])
+  const [categories, setCategories] = useState([])
+  const [systems, setSystems] = useState([])
+  const [exclusionReasons, setExclusionReasons] = useState([])
+  const [manualExclusion, setManualExclusion] = useState({ reason_id: '', start_time: '', end_time: '', notes: '' })
+  const [manualExclusionLoading, setManualExclusionLoading] = useState(false)
+  const [reporterOtpRequested, setReporterOtpRequested] = useState(false)
+  const [reporterOtpLoading, setReporterOtpLoading] = useState(false)
+  const [reporterOtpVerifying, setReporterOtpVerifying] = useState(false)
+  const [reporterOtpCode, setReporterOtpCode] = useState('')
+  const [reporterOtpVerifiedEmail, setReporterOtpVerifiedEmail] = useState('')
+  const [showReporterModal, setShowReporterModal] = useState(false)
+  const [reporterDraft, setReporterDraft] = useState({ reported_by: '', reporter_email: '', reported_by_id: null })
+  const [reporterMode, setReporterMode] = useState('existing')
+  const [resendFollowupLoading, setResendFollowupLoading] = useState(false)
+  const [followupMeta, setFollowupMeta] = useState(null)
+  const startDatePickerRef = useRef(null)
+  const endDatePickerRef = useRef(null)
+  const exclusionLowerBoundIso = incident?.acknowledged_at || incident?.assigned_at || incident?.created_at || null
+  const exclusionLowerBound = exclusionLowerBoundIso ? new Date(exclusionLowerBoundIso) : null
+  const nowBound = new Date()
+  const nowDateStr = nowBound.toISOString().slice(0, 10)
+  const activeManualExclusion = exclusions.find((ex) => ex?.start_time && !ex?.end_time) || null
 
   useEffect(() => {
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        const { data: p } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single()
-        setCurrentUser(p)
+      if (!isExternalFollowupMode) {
+        const actor = await getCurrentActorProfile()
+        if (actor) setCurrentUser(actor)
       }
-      fetchData()
+      fetchData({ followupToken: isExternalFollowupMode ? followupToken : null })
     }
     init()
-  }, [id])
+  }, [id, isExternalFollowupMode, followupToken])
 
   // Resolve isSubstituteOf แบบ async — รันเมื่อ currentUser หรือ workflowSteps เปลี่ยน
   useEffect(() => {
@@ -219,21 +338,44 @@ export default function IncidentDetailPage() {
     checkSubstitute()
   }, [currentUser, workflowSteps])
 
-  const fetchData = async () => {
+  async function fetchData(opts = {}) {
     setLoading(true)
     try {
+      if (opts.followupToken) {
+        const res = await fetch(`/api/incidents/followup?token=${encodeURIComponent(opts.followupToken)}&incidentId=${encodeURIComponent(id)}`)
+        const data = await res.json()
+        if (!res.ok) {
+          setIncident(null)
+          setWorkflowSteps([])
+          setLogs([])
+          showToast({ message: data?.error || 'ไม่สามารถเปิดลิงก์ติดตามเคสได้', type: 'error' })
+          setLoading(false)
+          return
+        }
+
+        setIncident(data.incident || null)
+        setForm(data.incident || {})
+        setWorkflowSteps(data.workflowSteps || [])
+        setFollowupMeta(data.token || null)
+        setLogs([])
+        setLoading(false)
+        return
+      }
+
       const [
         { data: inc }, 
         { data: lgs }, 
         { data: settings }, 
         { data: hols }, 
-        { data: excl }
+        { data: excl },
+        masterRes
       ] = await Promise.all([
         supabase.from('incidents').select('*, reporter:user_profiles!reported_by_id(full_name, email), creator:user_profiles!created_by_id(full_name, email)').eq('id', id).single(),
         supabase.from('system_audit_logs').select('*').eq('doc_id', id).order('created_at', { ascending: false }),
         supabase.from('system_settings').select('*').eq('key', 'working_hours').single(),
-        supabase.from('sla_holidays').select('*'),
-        supabase.from('sla_exclusions').select('*').eq('incident_id', id)
+        supabase.from('holidays').select('holiday_date'),
+        supabase.from('incident_exclusions').select('*').eq('incident_id', id),
+        getIncidentMasterData()
       ])
 
       if (inc) {
@@ -247,16 +389,24 @@ export default function IncidentDetailPage() {
         setLogs(lgs.map(l => ({ ...l, user_full_name: nameMap[l.user_email] || l.user_email })))
       }
       if (settings) setWorkingHours(settings.value)
-      if (hols) setHoneydays(hols)
+      if (hols) setHoneydays(hols.map(h => h.holiday_date))
       if (excl) setExclusions(excl)
+      if (masterRes?.success && masterRes.data) {
+        setCategories(masterRes.data.categories || [])
+        setSystems(masterRes.data.systems || [])
+        setExclusionReasons(masterRes.data.exclusionReasons || [])
+      }
 
       const { data: wfs } = await getDocumentWorkflowStatus(id)
       
       const enrichSteps = (steps) => {
-        return steps?.map(s => {
-          // 🛡️ Step 2 in Incidents is always the Reporter
-          if (s.step_order === 2 && !s.user_profiles && inc.reporter) {
+        return steps?.map((s) => {
+          // Resolve dynamic person only for dynamic-role steps.
+          if (!s.user_profiles && s.role_required === 'reporter' && inc.reporter) {
             return { ...s, user_profiles: { ...inc.reporter } }
+          }
+          if (!s.user_profiles && s.role_required === 'creator' && inc.creator) {
+            return { ...s, user_profiles: { ...inc.creator } }
           }
           return s
         })
@@ -277,7 +427,10 @@ export default function IncidentDetailPage() {
 
   const handleSave = async () => {
     setSaving(true)
-    
+    const nextReporterEmail = String(form.reporter_email || '').trim().toLowerCase()
+    const oldReporterEmail = String(incident.reporter_email || '').trim().toLowerCase()
+    const reporterEmailChanged = nextReporterEmail !== oldReporterEmail
+
     // Handle Severity Change and Workflow Sync
     if (form.severity !== incident.severity) {
       if (incident.workflow_status === 'pending') {
@@ -302,10 +455,24 @@ export default function IncidentDetailPage() {
       }
     }
 
-    const { reporter, ...updateData } = form
+    const { reporter, creator, reporter_otp_verified_email, reporter_otp_verified_at, ...updateData } = form
+    if (reporterEmailChanged && !updateData.reported_by_id && reporterOtpVerifiedEmail !== nextReporterEmail) {
+      alert('กรุณายืนยัน OTP ของอีเมลผู้แจ้งใหม่ก่อนบันทึก')
+      setSaving(false)
+      return
+    }
     const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
     if (error) alert(error.message)
     else {
+      if (reporterEmailChanged) {
+        await recordLog(
+          id,
+          'incident',
+          'Reporter Email Changed',
+          `เปลี่ยนอีเมลผู้แจ้งจาก ${oldReporterEmail || '-'} เป็น ${nextReporterEmail}`,
+          currentUser.email
+        )
+      }
       if (updateData.reported_by_id !== incident.reported_by_id && incident.workflow_status === 'pending') {
         const syncRes = await syncDynamicWorkflowApprovers(id, 'incident')
         if (!syncRes.success) {
@@ -313,14 +480,257 @@ export default function IncidentDetailPage() {
         }
       }
       setEditing(false)
+      setReporterOtpRequested(false)
+      setReporterOtpCode('')
+      setReporterOtpVerifiedEmail('')
       fetchData()
     }
     setSaving(false)
   }
 
+  const handleRequestReporterEmailOtp = async () => {
+    const reporterName = String(reporterDraft.reported_by || '').trim()
+    const reporterEmail = String(reporterDraft.reporter_email || '').trim().toLowerCase()
+    if (!reporterName || !reporterEmail) {
+      alert('กรุณาระบุชื่อและอีเมลผู้แจ้งให้ครบก่อนขอ OTP')
+      return
+    }
+    const checkRes = await validateExternalReporterEmail({ reporter_email: reporterEmail })
+    if (!checkRes.success) {
+      alert(checkRes.error || 'ไม่สามารถตรวจสอบอีเมลผู้แจ้งได้')
+      return
+    }
+    setReporterOtpLoading(true)
+    const res = await requestIncidentReporterOtp({ reported_by: reporterName, reporter_email: reporterEmail })
+    setReporterOtpLoading(false)
+    if (!res.success) {
+      alert(res.error || 'ไม่สามารถส่ง OTP ได้')
+      return
+    }
+    setReporterOtpRequested(true)
+    showToast({ message: `ส่ง OTP ไปที่ ${res.maskedEmail || reporterEmail} แล้ว`, type: 'success' })
+  }
+
+  const handleVerifyReporterEmailOtp = async () => {
+    const reporterName = String(reporterDraft.reported_by || '').trim()
+    const reporterEmail = String(reporterDraft.reporter_email || '').trim().toLowerCase()
+    if (!reporterOtpCode) {
+      alert('กรุณากรอกรหัส OTP')
+      return
+    }
+    setReporterOtpVerifying(true)
+    const res = await verifyIncidentReporterOtp({ reported_by: reporterName, reporter_email: reporterEmail, otp: reporterOtpCode })
+    setReporterOtpVerifying(false)
+    if (!res.success) {
+      alert(res.error || 'ยืนยัน OTP ไม่สำเร็จ')
+      return
+    }
+    setReporterOtpVerifiedEmail(res.verifiedReporterEmail || reporterEmail)
+    showToast({ message: 'ยืนยัน OTP อีเมลผู้แจ้งเรียบร้อย', type: 'success' })
+  }
+
+  const openReporterModal = () => {
+    const nextDraft = {
+      reported_by: form.reported_by || '',
+      reporter_email: form.reporter_email || '',
+      reported_by_id: form.reported_by_id || null
+    }
+    setReporterDraft(nextDraft)
+    setReporterMode(nextDraft.reported_by_id ? 'existing' : 'external')
+    setReporterOtpCode('')
+    setReporterOtpRequested(false)
+    setReporterOtpVerifiedEmail(String(form.reporter_otp_verified_email || '').trim().toLowerCase())
+    setShowReporterModal(true)
+  }
+
+  const closeReporterModal = (options = {}) => {
+    const { keepVerifiedEmail = false } = options
+    setShowReporterModal(false)
+    setReporterOtpCode('')
+    setReporterOtpRequested(false)
+    if (!keepVerifiedEmail) {
+      setReporterOtpVerifiedEmail(String(form.reporter_otp_verified_email || '').trim().toLowerCase())
+    }
+  }
+
+  const applyReporterDraft = async () => {
+    const nextName = String(reporterDraft.reported_by || '').trim()
+    const nextEmail = String(reporterDraft.reporter_email || '').trim().toLowerCase()
+    if (!nextName) {
+      alert('กรุณาระบุชื่อผู้แจ้ง')
+      return
+    }
+    if (reporterMode === 'external') {
+      if (!nextEmail) {
+        alert('กรุณาระบุอีเมลผู้แจ้งภายนอก')
+        return
+      }
+      const checkRes = await validateExternalReporterEmail({ reporter_email: nextEmail })
+      if (!checkRes.success) {
+        alert(checkRes.error || 'ไม่สามารถตรวจสอบอีเมลผู้แจ้งได้')
+        return
+      }
+      if (reporterOtpVerifiedEmail !== nextEmail) {
+        alert('กรุณายืนยัน OTP ของอีเมลผู้แจ้งก่อนบันทึก')
+        return
+      }
+      setForm({
+        ...form,
+        reported_by: nextName,
+        reporter_email: nextEmail,
+        reported_by_id: null,
+        reporter_otp_verified_email: nextEmail,
+        reporter_otp_verified_at: new Date().toISOString()
+      })
+    } else {
+      setForm({
+        ...form,
+        reported_by: nextName,
+        reporter_email: nextEmail,
+        reported_by_id: reporterDraft.reported_by_id || null,
+        reporter_otp_verified_email: '',
+        reporter_otp_verified_at: null
+      })
+      setReporterOtpVerifiedEmail('')
+    }
+    // Keep freshly verified OTP email from modal state.
+    // setForm is async; re-syncing from stale form here can clear verification.
+    closeReporterModal({ keepVerifiedEmail: true })
+  }
+
+  const handleAddManualExclusion = async () => {
+    if (!manualExclusion.reason_id || !manualExclusion.start_time) {
+      showToast({ message: 'กรุณาเลือกเหตุผลและเวลาเริ่มต้น', type: 'error' })
+      return
+    }
+    const parsedStart = localDateTimeToIso(manualExclusion.start_time)
+    if (!parsedStart) {
+      showToast({ message: 'กรุณาเลือกวันและเวลาเริ่มต้นให้ครบ', type: 'error' })
+      return
+    }
+    const parsedEnd = manualExclusion.end_time ? localDateTimeToIso(manualExclusion.end_time) : null
+    if (manualExclusion.end_time && !parsedEnd) {
+      showToast({ message: 'กรุณาเลือกวันและเวลาสิ้นสุดให้ครบ', type: 'error' })
+      return
+    }
+    const startDt = new Date(parsedStart)
+    const endDt = parsedEnd ? new Date(parsedEnd) : null
+    if (Number.isNaN(startDt.getTime()) || (endDt && Number.isNaN(endDt.getTime()))) {
+      showToast({ message: 'รูปแบบวันเวลาไม่ถูกต้อง', type: 'error' })
+      return
+    }
+    if (startDt > nowBound) {
+      showToast({ message: 'เวลาเริ่มต้นต้องไม่เป็นเวลาในอนาคต', type: 'error' })
+      return
+    }
+    if (endDt && endDt > nowBound) {
+      showToast({ message: 'เวลาสิ้นสุดต้องไม่เป็นเวลาในอนาคต', type: 'error' })
+      return
+    }
+    if (exclusionLowerBound && startDt < exclusionLowerBound) {
+      showToast({ message: `เวลาเริ่มต้นต้องไม่ก่อน ${formatDdMmmYy24h(exclusionLowerBoundIso)}`, type: 'error' })
+      return
+    }
+    if (endDt && exclusionLowerBound && endDt < exclusionLowerBound) {
+      showToast({ message: `เวลาสิ้นสุดต้องไม่ก่อน ${formatDdMmmYy24h(exclusionLowerBoundIso)}`, type: 'error' })
+      return
+    }
+    const overlapFound = exclusions.some((ex) => {
+      if (!ex?.start_time) return false
+      const exStart = new Date(ex.start_time)
+      const exEnd = ex.end_time ? new Date(ex.end_time) : nowBound
+      if (Number.isNaN(exStart.getTime()) || Number.isNaN(exEnd.getTime())) return false
+      const candidateEnd = endDt || nowBound
+      return startDt < exEnd && candidateEnd > exStart
+    })
+    if (overlapFound) {
+      showToast({ message: 'ช่วงเวลาซ้อนกับ SLA Exclusion เดิม กรุณาแก้ช่วงเวลาใหม่', type: 'error' })
+      return
+    }
+    setManualExclusionLoading(true)
+    try {
+      const res = await createIncidentExclusionManual({
+        incident_id: id,
+        reason_id: manualExclusion.reason_id,
+        start_time: parsedStart,
+        end_time: parsedEnd ? parsedEnd : null,
+        notes: manualExclusion.notes,
+      })
+      if (!res.success) {
+        showToast({ message: res.error || 'ไม่สามารถเพิ่ม Exclusion ได้', type: 'error' })
+      } else {
+        setManualExclusion({ reason_id: '', start_time: '', end_time: '', notes: '' })
+        await fetchData()
+        showToast({ message: 'เพิ่ม SLA Exclusion แล้ว', type: 'success' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+    setManualExclusionLoading(false)
+  }
+
+  const handleQuickStartManualExclusion = async () => {
+    if (!manualExclusion.reason_id) {
+      showToast({ message: 'กรุณาเลือกเหตุผลก่อนเริ่มหยุด SLA', type: 'error' })
+      return
+    }
+    if (activeManualExclusion) {
+      showToast({ message: 'มีช่วง SLA Exclusion ที่กำลังเปิดอยู่แล้ว', type: 'error' })
+      return
+    }
+    setManualExclusionLoading(true)
+    try {
+      const nowIso = new Date().toISOString()
+      const res = await createIncidentExclusionManual({
+        incident_id: id,
+        reason_id: manualExclusion.reason_id,
+        start_time: nowIso,
+        end_time: null,
+        notes: manualExclusion.notes,
+      })
+      if (!res.success) {
+        showToast({ message: res.error || 'ไม่สามารถเริ่มหยุด SLA ได้', type: 'error' })
+      } else {
+        setManualExclusion(prev => ({ ...prev, start_time: '', end_time: '' }))
+        await fetchData()
+        showToast({ message: 'เริ่มหยุด SLA แล้ว (เริ่มนับช่วง Exclusion ทันที)', type: 'success' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+    setManualExclusionLoading(false)
+  }
+
+  const handleQuickStopManualExclusion = async () => {
+    if (!activeManualExclusion) {
+      showToast({ message: 'ยังไม่มีช่วง SLA Exclusion ที่กำลังเปิดอยู่', type: 'error' })
+      return
+    }
+    await handleCloseManualExclusion(activeManualExclusion.id)
+  }
+
+  const handleCloseManualExclusion = async (exclusionId) => {
+    setManualExclusionLoading(true)
+    try {
+      const res = await closeIncidentExclusionManual({
+        exclusion_id: exclusionId,
+        end_time: new Date().toISOString(),
+      })
+      if (!res.success) {
+        showToast({ message: res.error || 'ไม่สามารถปิด Exclusion ได้', type: 'error' })
+      } else {
+        await fetchData()
+        showToast({ message: 'ปิด SLA Exclusion แล้ว', type: 'success' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+    setManualExclusionLoading(false)
+  }
+
   const handleResolveIncident = async (resolveData) => {
     setSaving(true)
-    const { signatures, reporter_pin, ...updateFields } = resolveData
+    const { signatures, ...updateFields } = resolveData
 
     const { error: updateErr } = await supabase.from('incidents').update({
       ...updateFields,
@@ -341,7 +751,7 @@ export default function IncidentDetailPage() {
     }
 
     try {
-      const res = await submitRequest(id, 'incident', incident.severity, currentUser.email, signaturesWithIds, reporter_pin)
+      const res = await submitRequest(id, 'incident', incident.severity, currentUser.email, signaturesWithIds, null)
       if (res.success) {
         setShowResolveDialog(false)
         await fetchData()
@@ -360,7 +770,7 @@ export default function IncidentDetailPage() {
     setSaving(false)
   }
 
-  const handleApprove = async ({ pin, signatureData, comment }) => {
+  const handleApprove = async ({ pin, otp, signatureData, comment }) => {
     setApprovalLoading(true)
     try {
       let currentStep = workflowSteps.find(s => s.status === 'pending')
@@ -370,13 +780,19 @@ export default function IncidentDetailPage() {
       const overrideApproverId = isRemoteApprovalMode
         ? (currentStep?.approver_id || incident?.reported_by_id || null)
         : (currentStep?.approver_id || null)
-      const res = await submitApprovalStep(id, 'incident', currentStep.id, signatureData, comment, pin, overrideApproverId)
+      const res = await submitApprovalStep(id, 'incident', currentStep.id, signatureData, comment, pin, overrideApproverId, otp || null)
       if (res.success) {
         setShowSignatureModal(false)
         setIsRemoteApprovalMode(false)
-        await fetchData()
-        router.refresh()
-        showToast({ message: '✅ อนุมัติรายการเรียบร้อยแล้ว', type: 'success' })
+        showModal({
+          title: 'อนุมัติสำเร็จ',
+          message: `อนุมัติเอกสารเลขที่ ${incident?.case_number || id} แล้ว`,
+          type: 'success',
+          onClose: async () => {
+            await fetchData()
+            router.refresh()
+          }
+        })
       } else {
         showToast({ message: res.error, type: 'error' })
       }
@@ -449,6 +865,15 @@ export default function IncidentDetailPage() {
   }
 
   const handleRequestCancelOTP = async () => {
+    const policy = deriveIncidentCancelVerificationPolicy({
+      actorRole: currentUser?.role,
+      actorId: currentUser?.id,
+      incident
+    })
+    if (!policy.allowOtp) {
+      showToast({ message: 'สิทธิ์นี้ไม่รองรับการยืนยันด้วย OTP', type: 'warning' })
+      return
+    }
     setIsRequestingOtp(true)
     try {
       const res = await requestIncidentCancelOTP(id)
@@ -472,7 +897,12 @@ export default function IncidentDetailPage() {
 
     // If not verified yet, go to verification step
     if (cancelStep === 'reason') {
-      setCancelStep('verify')
+      const policy = deriveIncidentCancelVerificationPolicy({
+        actorRole: currentUser?.role,
+        actorId: currentUser?.id,
+        incident
+      })
+      setCancelStep(policy.allowPin ? 'verify' : 'otp')
       return
     }
 
@@ -512,6 +942,16 @@ export default function IncidentDetailPage() {
 
   // Cancel Dialog JSX
   const renderCancelDialog = () => (
+    (() => {
+      const cancelPolicy = deriveIncidentCancelVerificationPolicy({
+        actorRole: currentUser?.role,
+        actorId: currentUser?.id,
+        incident
+      })
+      const canUsePin = cancelPolicy.allowPin
+      const canUseOtp = cancelPolicy.allowOtp
+      const isPinOnly = cancelPolicy.requirePinOnly
+      return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
       <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 450 }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: '#dc2626', marginBottom: 8 }}>🚫 ยกเลิกเคส</div>
@@ -553,13 +993,17 @@ export default function IncidentDetailPage() {
         {(cancelStep === 'verify' || cancelStep === 'otp') && (
           <>
             <div style={{ fontSize: 14, color: '#64748b', marginBottom: 16 }}>
-              กรุณายืนยันตัวตน <strong>ผู้แจ้งเหตุ (Reporter)</strong> เพื่อยกเลิกเคส<br/>
-              <span style={{ fontSize: 12, color: '#dc2626' }}>* ต้องการ PIN หรือ OTP จากผู้แจ้งเท่านั้น</span>
+              กรุณายืนยันตัวตน <strong>{cancelPolicy.actorLabel || 'ผู้แจ้งเหตุ (Reporter)'}</strong> เพื่อยกเลิกเคส<br/>
+              <span style={{ fontSize: 12, color: '#dc2626' }}>
+                {cancelPolicy.hint || '* ต้องการ PIN หรือ OTP จากผู้แจ้งเท่านั้น'}
+              </span>
             </div>
 
-            {cancelStep === 'verify' && (
+            {cancelStep === 'verify' && canUsePin && (
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>PIN ของผู้แจ้ง</label>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  {cancelPolicy.pinLabel || 'PIN ของผู้แจ้ง'}
+                </label>
                 <input
                   type="password"
                   value={cancelPin}
@@ -568,13 +1012,15 @@ export default function IncidentDetailPage() {
                   maxLength={6}
                   style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
                 />
-                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>
-                  หรือ <button onClick={handleRequestCancelOTP} disabled={isRequestingOtp} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, padding: 0 }}>{isRequestingOtp ? 'กำลังส่ง...' : 'ขอรับ OTP ทางอีเมล'}</button>
-                </div>
+                {canUseOtp && (
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>
+                    หรือ <button onClick={handleRequestCancelOTP} disabled={isRequestingOtp} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, padding: 0 }}>{isRequestingOtp ? 'กำลังส่ง...' : 'ขอรับ OTP ทางอีเมล'}</button>
+                  </div>
+                )}
               </div>
             )}
 
-            {cancelStep === 'otp' && (
+            {canUseOtp && cancelStep === 'otp' && (
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>OTP ที่ได้รับทางอีเมล</label>
                 <input
@@ -586,8 +1032,12 @@ export default function IncidentDetailPage() {
                   style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontFamily: 'inherit' }}
                 />
                 <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>
-                  <button onClick={() => setCancelStep('verify')} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, padding: 0 }}>← กลับไปใช้ PIN</button>
-                  {' | '}
+                  {canUsePin && (
+                    <>
+                      <button onClick={() => setCancelStep('verify')} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, padding: 0 }}>← กลับไปใช้ PIN</button>
+                      {' | '}
+                    </>
+                  )}
                   <button onClick={handleRequestCancelOTP} disabled={isRequestingOtp} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, padding: 0 }}>{isRequestingOtp ? 'กำลังส่ง...' : 'ส่ง OTP อีกครั้ง'}</button>
                 </div>
               </div>
@@ -603,8 +1053,8 @@ export default function IncidentDetailPage() {
               </button>
               <button
                 onClick={handleConfirmCancel}
-                disabled={cancelLoading || (!cancelPin && !cancelOtp)}
-                style={{ padding: '10px 24px', border: 'none', borderRadius: 8, fontSize: 13, background: (cancelPin || cancelOtp) ? '#dc2626' : '#fca5a5', color: '#fff', cursor: (cancelPin || cancelOtp) ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontWeight: 600 }}
+                disabled={cancelLoading || (isPinOnly ? !cancelPin : (!cancelPin && !cancelOtp))}
+                style={{ padding: '10px 24px', border: 'none', borderRadius: 8, fontSize: 13, background: (isPinOnly ? cancelPin : (cancelPin || cancelOtp)) ? '#dc2626' : '#fca5a5', color: '#fff', cursor: (isPinOnly ? cancelPin : (cancelPin || cancelOtp)) ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontWeight: 600 }}
               >
                 {cancelLoading ? 'กำลังยกเลิก...' : 'ยืนยันการยกเลิก'}
               </button>
@@ -613,18 +1063,23 @@ export default function IncidentDetailPage() {
         )}
       </div>
     </div>
+      )
+    })()
   )
 
   if (loading) return <div style={{ padding: '100px', textAlign: 'center', color: '#94a3b8' }}>กำลังโหลดข้อมูล...</div>
   if (!incident) return <div style={{ padding: '100px', textAlign: 'center', color: '#94a3b8' }}>ไม่พบข้อมูลเคส</div>
 
-  const hasFullAccess = currentUser?.role === 'admin' || currentUser?.role === 'it_staff'
+  const normalizedRole = String(currentUser?.role || '').toLowerCase() === 'administrator' ? 'admin' : currentUser?.role
+  const isAdminRole = normalizedRole === 'admin'
+  const hasFullAccess = !isExternalFollowupMode && (isAdminRole || normalizedRole === 'it_staff')
   const isLocked = incident.status === 'Pending Approval' || incident.status === 'Closed' || (incident.status === 'In Progress' && !hasFullAccess)
   const isAuditor = currentUser?.role === 'auditor'
   const currentStep = workflowSteps.find(s => s.status === 'pending')
   const isCreator = currentUser?.id === incident?.reported_by_id
   const latestRejectedStep = workflowSteps.find(s => s.status === 'rejected')
   const latestRejectedLog = logs.find(log => log.action === 'Rejected')
+  const latestSubmittedLog = logs.find(log => log.action === 'Submitted')
   const rejectReason = latestRejectedStep?.comment?.replace(/^Rejected:\s*/i, '') || latestRejectedLog?.details?.split('เหตุผล:').pop()?.trim() || ''
   const wasRejected = Boolean(latestRejectedStep || latestRejectedLog)
   const canApprove = !!(currentStep && (
@@ -633,13 +1088,44 @@ export default function IncidentDetailPage() {
     isSubstitute ||
     (currentStep.role_required === 'reporter' && isCreator)
   ))
+  const canReject = !!(
+    incident.status === 'Pending Approval' &&
+    (canApprove || isAdminRole)
+  )
 
-  const canEditDetails = !isLocked && (hasFullAccess || incident.reported_by_id === currentUser?.id)
-  const canSubmitForApproval = incident.status === 'In Progress' && hasFullAccess
-  // canRemoteApprove: เฉพาะ Sender (created_by_id) ที่ไม่ใช่ผู้อนุมัติจริง
-  const canRemoteApprove = !!(incident.status === 'Pending Approval' && !canApprove && currentUser?.id === incident?.created_by_id)
-  const canAcknowledgeIncident = incident.status === 'Open' && ['admin', 'it_staff'].includes(currentUser?.role)
-  const acknowledgeActionLabel = currentUser?.role === 'admin' ? '📌 มอบหมายงาน (Dispatch)' : '⚡ รับเรื่อง (Accept)'
+  const canEditDetails = !isExternalFollowupMode && !isLocked && (hasFullAccess || incident.reported_by_id === currentUser?.id)
+  const canSubmitForApproval = !isExternalFollowupMode && incident.status === 'In Progress' && hasFullAccess
+  // canRemoteApprove (Phase C): จำกัดเฉพาะ admin / it_staff ตาม policy ใหม่
+  const canRemoteApprove = !!(
+    incident.status === 'Pending Approval' &&
+    !canApprove &&
+    ['admin', 'it_staff'].includes(normalizedRole)
+  )
+  const isExternalReporterStep = Boolean(
+    isRemoteApprovalMode &&
+    currentStep?.role_required === 'reporter' &&
+    !incident?.reported_by_id &&
+    incident?.reporter_email
+  )
+  const canAcknowledgeIncident = !isExternalFollowupMode && incident.status === 'Open' && ['admin', 'it_staff'].includes(normalizedRole)
+  const acknowledgeActionLabel = isAdminRole ? '📌 มอบหมายงาน (Dispatch)' : '⚡ รับเรื่อง (Accept)'
+  const isExternalReporterCase = Boolean(!incident?.reported_by_id && incident?.reporter_email)
+  const canResendFollowupLink = Boolean(!isExternalFollowupMode && ['admin', 'it_staff'].includes(currentUser?.role) && isExternalReporterCase)
+
+  const handleResendFollowupLink = async () => {
+    setResendFollowupLoading(true)
+    try {
+      const res = await resendIncidentFollowupLink(id)
+      if (res?.success) {
+        showToast({ message: `ส่งลิงก์ใหม่ไปที่ ${res.maskedEmail || incident.reporter_email} แล้ว`, type: 'success' })
+      } else {
+        showToast({ message: res?.error || 'ไม่สามารถส่งลิงก์ติดตามเคสใหม่ได้', type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+    setResendFollowupLoading(false)
+  }
 
   const field = (label, name, value, options = null) => (
     <div style={{ marginBottom: '20px' }}>
@@ -668,6 +1154,12 @@ export default function IncidentDetailPage() {
     </div>
   )
 
+  const slaSnapshot = calculateIncidentSlaSnapshot(incident, {
+    workingHours: workingHours || { start: '08:30', end: '17:30', work_days: [1, 2, 3, 4, 5] },
+    holidays,
+    exclusions,
+  })
+
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', paddingBottom: '120px' }}>
       <PageStyles />
@@ -694,6 +1186,131 @@ export default function IncidentDetailPage() {
       )}
       {showReopenDialog && <ReopenDialog onCancel={() => setShowReopenDialog(false)} onConfirm={handleReopen} loading={saving} />}
       {showCancelDialog && renderCancelDialog()}
+      {showReporterModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.45)', display: 'grid', placeItems: 'center', zIndex: 70, padding: 16 }}>
+          <div style={{ width: '100%', maxWidth: 720, background: '#fff', borderRadius: 16, border: '1px solid #dbe4ef', boxShadow: '0 25px 60px rgba(15, 23, 42, 0.28)', padding: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f172a' }}>แก้ไขผู้แจ้งปัญหา</h3>
+              <button type="button" onClick={closeReporterModal} style={{ border: 'none', background: 'transparent', color: '#64748b', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>ปิด</button>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setReporterMode('existing')
+                  setReporterOtpCode('')
+                  setReporterOtpRequested(false)
+                  setReporterOtpVerifiedEmail('')
+                }}
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: 999,
+                  border: `1px solid ${reporterMode === 'existing' ? '#2563eb' : '#cbd5e1'}`,
+                  background: reporterMode === 'existing' ? '#dbeafe' : '#fff',
+                  color: reporterMode === 'existing' ? '#1e3a8a' : '#475569',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                เลือกจากในระบบ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setReporterMode('external')
+                  setReporterDraft({
+                    ...reporterDraft,
+                    reported_by_id: null
+                  })
+                }}
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: 999,
+                  border: `1px solid ${reporterMode === 'external' ? '#2563eb' : '#cbd5e1'}`,
+                  background: reporterMode === 'external' ? '#dbeafe' : '#fff',
+                  color: reporterMode === 'external' ? '#1e3a8a' : '#475569',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                เพิ่มผู้แจ้งภายนอก
+              </button>
+            </div>
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6 }}>ชื่อผู้แจ้ง / Reported By</label>
+                {reporterMode === 'existing' ? (
+                  <UserAutocomplete
+                    value={{ id: reporterDraft.reported_by_id, full_name: reporterDraft.reported_by, email: reporterDraft.reporter_email }}
+                    onChange={(u) => setReporterDraft({ reported_by: u?.full_name || '', reporter_email: u?.email || '', reported_by_id: u?.id || null })}
+                  />
+                ) : (
+                  <input
+                    value={reporterDraft.reported_by || ''}
+                    onChange={(e) => {
+                      setReporterDraft({ ...reporterDraft, reported_by: e.target.value, reported_by_id: null })
+                      setReporterOtpVerifiedEmail('')
+                    }}
+                    placeholder="ชื่อผู้แจ้ง"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontFamily: 'inherit' }}
+                  />
+                )}
+              </div>
+              {reporterMode === 'external' && (
+                <>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6 }}>อีเมลผู้แจ้ง</label>
+                    <input
+                      type="email"
+                      value={reporterDraft.reporter_email || ''}
+                      onChange={(e) => {
+                        setReporterDraft({ ...reporterDraft, reporter_email: e.target.value, reported_by_id: null })
+                        setReporterOtpVerifiedEmail('')
+                      }}
+                      placeholder="example@company.com"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, fontFamily: 'inherit' }}
+                    />
+                    <div style={{ marginTop: 6, fontSize: 11, color: '#64748b' }}>โหมดนี้จะเก็บข้อมูลเฉพาะ Incident เอกสารนี้เท่านั้น และไม่สร้าง Account ระบบ</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={handleRequestReporterEmailOtp}
+                      disabled={reporterOtpLoading}
+                      style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #1d4ed8', background: '#eff6ff', color: '#1e40af', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      {reporterOtpLoading ? 'กำลังส่ง OTP...' : 'ขอ OTP ทางอีเมล'}
+                    </button>
+                    <input
+                      value={reporterOtpCode}
+                      onChange={(e) => setReporterOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="กรอก OTP 6 หลัก"
+                      style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 12, width: '100%', maxWidth: 170, fontFamily: 'inherit' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyReporterEmailOtp}
+                      disabled={reporterOtpVerifying || !reporterOtpRequested}
+                      style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #059669', background: '#ecfdf5', color: '#065f46', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      {reporterOtpVerifying ? 'กำลังยืนยัน...' : 'ยืนยัน OTP'}
+                    </button>
+                  </div>
+                  {String(reporterDraft.reporter_email || '').trim().toLowerCase() === reporterOtpVerifiedEmail && reporterOtpVerifiedEmail && (
+                    <div style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>✓ ยืนยัน OTP แล้วสำหรับอีเมลนี้</div>
+                  )}
+                </>
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button type="button" onClick={closeReporterModal} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer' }}>ยกเลิก</button>
+              <button type="button" onClick={applyReporterDraft} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #2563eb', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>ยืนยันผู้แจ้ง</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Login Approve Modal — ไม่ต้อง PIN */}
       <UnifiedApprovalModal
@@ -715,43 +1332,80 @@ export default function IncidentDetailPage() {
         approverName={currentStep?.user_profiles?.full_name || currentStep?.role_required}
         approverEmail={currentStep?.user_profiles?.email}
         userEmail={currentStep?.user_profiles?.email}
+        identityHint={!currentStep?.approver_id ? `Role ${String(currentStep?.role_required || '').replace('_', ' ')} ทั้งหมด` : ''}
+        targetEmail={isExternalReporterStep ? incident.reporter_email : currentStep?.user_profiles?.email}
+        targetEmailLabel={isExternalReporterStep ? 'External user' : ''}
         loading={approvalLoading}
         isRemote={true}
         title="อนุมัติแทน (Remote Approve)"
+        verificationMode={isExternalReporterStep ? 'otp' : 'pin'}
+        onRequestOtp={async () => {
+          const pendingStep = workflowSteps.find(s => s.status === 'pending')
+          const res = await requestIncidentApprovalOTP(id, pendingStep?.id || null)
+          if (res?.success) {
+            showToast({ message: res?.message || 'ส่ง OTP เรียบร้อยแล้ว', type: 'success' })
+            return { success: true }
+          }
+          return { success: false, message: res?.error || 'ไม่สามารถส่ง OTP ได้' }
+        }}
         onTestPin={async (pin) => {
+          if (isExternalReporterStep) return { success: false, message: 'โหมดผู้แจ้งภายนอกใช้ OTP เท่านั้น' }
           const pendingStep = workflowSteps.find(s => s.status === 'pending')
           const res = await diagnoseApprovalPin(id, 'incident', pendingStep.id, pin)
           if (res.success) return { success: true, message: `PIN ถูกต้องสำหรับ ${res.approver?.full_name || res.approver?.email || 'ผู้อนุมัติ'}` }
           return { success: false, message: res.error || 'PIN ไม่ถูกต้อง', details: res }
         }}
+        onVerifyCode={async ({ mode, code }) => {
+          const pendingStep = workflowSteps.find(s => s.status === 'pending')
+          if (!pendingStep) return { success: false, message: 'ไม่พบขั้นตอนอนุมัติที่รอดำเนินการ' }
+
+          if (mode === 'otp') {
+            const res = await diagnoseIncidentApprovalOTP(id, code, pendingStep.id)
+            return { success: !!res?.success, message: res?.error || res?.message || 'ไม่สามารถยืนยัน OTP ได้' }
+          }
+
+          const res = await diagnoseApprovalPin(id, 'incident', pendingStep.id, code)
+          if (res.success) return { success: true, message: `PIN ถูกต้องสำหรับ ${res.approver?.full_name || res.approver?.email || 'ผู้อนุมัติ'}` }
+          return { success: false, message: res.error || 'PIN ไม่ถูกต้อง' }
+        }}
       />
 
-      <WorkflowActionBar
-        status={incident.status}
-        canEdit={canEditDetails && incident.status !== 'Cancelled'}
-        canSubmit={canSubmitForApproval && incident.status !== 'Cancelled'}
-        canApprove={canApprove && incident.status !== 'Cancelled'}
-        canRemoteApprove={canRemoteApprove && incident.status !== 'Cancelled'}
-        canReject={canApprove && incident.status !== 'Cancelled'}
-        canReopen={hasFullAccess && (incident.status === 'Closed' || incident.status === 'Pending Approval')}
-        canAcknowledge={canAcknowledgeIncident && incident.status !== 'Cancelled'}
-        canCancel={incident.status !== 'Cancelled' && incident.status !== 'Closed' && (hasFullAccess || isCreator)}
-        acknowledgeLabel={acknowledgeActionLabel}
-        onSave={handleSave}
-        onAcknowledge={() => setShowAcknowledgeDialog(true)}
-        onSubmit={() => setShowResolveDialog(true)}
-        onApprove={() => { setIsRemoteApprovalMode(false); setShowSignatureModal(true); }}
-        onRemoteApprove={() => { setIsRemoteApprovalMode(true); setShowSignatureModal(true); }}
-        onReject={handleRejectIncident}
-        onReopen={() => setShowReopenDialog(true)}
-        onCancel={handleCancel}
-        onEdit={() => setEditing(true)}
-        isEditing={editing}
-        onCancelEdit={() => { setEditing(false); setForm(incident) }}
-        loading={saving || approvalLoading}
-      />
+      {!isExternalFollowupMode && (
+        <WorkflowActionBar
+          status={incident.status}
+          canEdit={canEditDetails && incident.status !== 'Cancelled'}
+          canSubmit={canSubmitForApproval && incident.status !== 'Cancelled'}
+          canApprove={canApprove && incident.status !== 'Cancelled'}
+          canRemoteApprove={canRemoteApprove && incident.status !== 'Cancelled'}
+          canReject={canReject && incident.status !== 'Cancelled'}
+          canReopen={hasFullAccess && (incident.status === 'Closed' || incident.status === 'Pending Approval')}
+          canAcknowledge={canAcknowledgeIncident && incident.status !== 'Cancelled'}
+          canCancel={incident.status === 'Pending Approval' && (hasFullAccess || isCreator)}
+          showCancelInPendingOnly={true}
+          cancelLabel="Cancel Approve"
+          acknowledgeLabel={acknowledgeActionLabel}
+          onSave={handleSave}
+          onAcknowledge={() => setShowAcknowledgeDialog(true)}
+          onSubmit={() => setShowResolveDialog(true)}
+          onApprove={() => { setIsRemoteApprovalMode(false); setShowSignatureModal(true); }}
+          onRemoteApprove={() => { setIsRemoteApprovalMode(true); setShowSignatureModal(true); }}
+          onReject={handleRejectIncident}
+          onReopen={() => setShowReopenDialog(true)}
+          onCancel={handleCancel}
+          onEdit={() => setEditing(true)}
+          isEditing={editing}
+          onCancelEdit={() => { setEditing(false); setForm(incident) }}
+          loading={saving || approvalLoading}
+        />
+      )}
 
       <div className="incident-container">
+        {isExternalFollowupMode && (
+          <div style={{ marginBottom: 16, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1e40af', borderRadius: 12, padding: '10px 14px', fontSize: 13, fontWeight: 700 }}>
+            External Follow-up Mode: โหมดติดตามเคสแบบอ่านอย่างเดียว
+            {followupMeta?.expiresAt ? ` (ลิงก์หมดอายุ ${formatDateTime(followupMeta.expiresAt)})` : ''}
+          </div>
+        )}
         {/* Header Section */}
         <div className="incident-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', borderBottom: '1px solid #e2e8f0', paddingBottom: '32px', paddingTop: '32px' }}>
           <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -830,7 +1484,12 @@ export default function IncidentDetailPage() {
               )}
             </div>
           )}
-          <WorkflowProgressBar currentStatus={incident.status} steps={workflowSteps} />
+          <WorkflowProgressBar
+            currentStatus={incident.status}
+            steps={workflowSteps}
+            senderName={latestSubmittedLog?.user_full_name || ''}
+            senderEmail={latestSubmittedLog?.user_email || ''}
+          />
         </div>
 
         {/* Main Grid */}
@@ -844,8 +1503,8 @@ export default function IncidentDetailPage() {
                 รายละเอียดข้อมูลปัญหา
               </h3>
               <div className="field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px' }}>
-                {field('ระบบที่ได้รับผลกระทบ', 'affected_system', form.affected_system)}
-                {field('ประเภท Incident', 'category', form.category)}
+                {field('ระบบที่ได้รับผลกระทบ', 'affected_system', form.affected_system, systems)}
+                {field('ประเภท Incident', 'category', form.category, categories)}
               </div>
               <div className="field-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px' }}>
                 <div style={{ marginBottom: '20px' }}>
@@ -853,8 +1512,54 @@ export default function IncidentDetailPage() {
                   <div className="field-value" style={{ fontSize: '14px', fontWeight: 700, color: '#334155' }}>{incident.creator?.full_name || incident.created_by || <span style={{ fontStyle: 'italic', color: '#cbd5e1' }}>— ไม่ระบุ —</span>}</div>
                 </div>
                 <div style={{ marginBottom: '20px' }}>
-                  <div className="field-label" style={{ fontSize: '10px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>ผู้แจ้ง / Requester</div>
-                  <div className="field-value" style={{ fontSize: '14px', fontWeight: 700, color: '#334155' }}>{incident.reporter?.full_name || incident.reported_by || <span style={{ fontStyle: 'italic', color: '#cbd5e1' }}>— ยังไม่มีข้อมูล —</span>}</div>
+                  <div className="field-label" style={{ fontSize: '10px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>ผู้แจ้ง / Reporter</div>
+                  {editing && (currentUser?.role === 'admin' || currentUser?.role === 'it_staff') ? (
+                    <button
+                      type="button"
+                      onClick={openReporterModal}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #cbd5e1',
+                        background: '#fff',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        color: '#0f172a',
+                        fontFamily: 'inherit'
+                      }}
+                    >
+                      {form.reported_by || 'กดเพื่อเลือกผู้แจ้ง'}
+                    </button>
+                  ) : (
+                    <div>
+                      <div className="field-value" style={{ fontSize: '14px', fontWeight: 700, color: '#334155' }}>
+                        {incident.reporter?.full_name || incident.reported_by || <span style={{ fontStyle: 'italic', color: '#cbd5e1' }}>— ยังไม่มีข้อมูล —</span>}
+                      </div>
+                      {canResendFollowupLink && (
+                        <div style={{ marginTop: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={handleResendFollowupLink}
+                            disabled={resendFollowupLoading}
+                            style={{
+                              padding: '7px 11px',
+                              borderRadius: 8,
+                              border: '1px solid #93c5fd',
+                              background: resendFollowupLoading ? '#dbeafe' : '#eff6ff',
+                              color: '#1d4ed8',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: resendFollowupLoading ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            {resendFollowupLoading ? 'กำลังส่งลิงก์ใหม่...' : 'ส่งลิงก์ติดตามเคสใหม่'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div style={{ marginBottom: '20px' }}>
                   <div className="field-label" style={{ fontSize: '10px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px' }}>ผู้รับผิดชอบ / IT Assignee</div>
@@ -884,25 +1589,211 @@ export default function IncidentDetailPage() {
               <SLAWidget 
                 label="Response Time" 
                 targetLabel={SLA_LABELS[incident.severity]?.response} 
-                start={incident.created_at} 
-                end={incident.acknowledged_at || incident.assigned_at || (incident.assigned_to ? incident.created_at : null)} 
-                severity={incident.severity}
                 type="response"
-                settings={workingHours}
-                holidays={holidays}
-                exclusions={exclusions}
+                snapshot={slaSnapshot}
               />
               <SLAWidget 
                 label="Resolution Time" 
                 targetLabel={SLA_LABELS[incident.severity]?.resolve} 
-                start={incident.acknowledged_at} 
-                end={incident.resolved_at} 
-                severity={incident.severity}
                 type="resolve"
-                settings={workingHours}
-                holidays={holidays}
-                exclusions={exclusions}
+                snapshot={slaSnapshot}
               />
+            </div>
+
+            <div className="premium-card" style={{ padding: '24px' }}>
+              <h3 style={{ fontSize: '12px', fontWeight: 800, color: '#1e293b', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>SLA Exclusions (Manual)</h3>
+              {(currentUser?.role === 'admin' || currentUser?.role === 'it_staff') && (
+                <div style={{ display: 'grid', gap: '10px', marginBottom: '16px' }}>
+                  <select
+                    value={manualExclusion.reason_id}
+                    onChange={e => setManualExclusion(prev => ({ ...prev, reason_id: e.target.value }))}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'inherit' }}
+                  >
+                    <option value="">เลือกเหตุผล...</option>
+                    {exclusionReasons.map(r => <option key={r.id} value={r.id}>{r.value}</option>)}
+                  </select>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: '8px' }}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={formatDateOnlyDdMmmYy(splitIsoLocal(manualExclusion.start_time).date)}
+                      placeholder="dd / mmm / yy"
+                      onClick={() => startDatePickerRef.current?.showPicker?.()}
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}
+                    />
+                    <input
+                      ref={startDatePickerRef}
+                      type="date"
+                      value={splitIsoLocal(manualExclusion.start_time).date}
+                      min={exclusionLowerBoundIso ? splitIsoLocal(exclusionLowerBoundIso).date : undefined}
+                      max={nowDateStr}
+                      onChange={e => {
+                        const cur = splitIsoLocal(manualExclusion.start_time)
+                        setManualExclusion(prev => ({ ...prev, start_time: buildIsoLocal(e.target.value, cur.time) }))
+                      }}
+                      style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
+                      tabIndex={-1}
+                      aria-hidden="true"
+                    />
+                    <input
+                      type="text"
+                      value={splitIsoLocal(manualExclusion.start_time).time}
+                      onChange={e => {
+                        const cur = splitIsoLocal(manualExclusion.start_time)
+                        const next = formatTimeInputProgressive(e.target.value)
+                        const fallbackDate = new Date().toISOString().slice(0, 10)
+                        setManualExclusion(prev => ({ ...prev, start_time: buildIsoLocal(cur.date || fallbackDate, next) }))
+                      }}
+                      onBlur={e => {
+                        const cur = splitIsoLocal(manualExclusion.start_time)
+                        const normalized = normalizeTime24h(e.target.value)
+                        const fallbackDate = new Date().toISOString().slice(0, 10)
+                        setManualExclusion(prev => ({ ...prev, start_time: buildIsoLocal(cur.date || fallbackDate, normalized || '00:00') }))
+                      }}
+                      inputMode="text"
+                      placeholder="HH:mm"
+                      title="รูปแบบเวลา 24 ชั่วโมง (HH:mm)"
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'inherit' }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: '8px' }}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={formatDateOnlyDdMmmYy(splitIsoLocal(manualExclusion.end_time).date)}
+                      placeholder="dd / mmm / yy"
+                      onClick={() => endDatePickerRef.current?.showPicker?.()}
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}
+                    />
+                    <input
+                      ref={endDatePickerRef}
+                      type="date"
+                      value={splitIsoLocal(manualExclusion.end_time).date}
+                      min={splitIsoLocal(manualExclusion.start_time || exclusionLowerBoundIso || '').date || undefined}
+                      max={nowDateStr}
+                      onChange={e => {
+                        const cur = splitIsoLocal(manualExclusion.end_time)
+                        setManualExclusion(prev => ({ ...prev, end_time: buildIsoLocal(e.target.value, cur.time) }))
+                      }}
+                      style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
+                      tabIndex={-1}
+                      aria-hidden="true"
+                    />
+                    <input
+                      type="text"
+                      value={splitIsoLocal(manualExclusion.end_time).time}
+                      onChange={e => {
+                        const cur = splitIsoLocal(manualExclusion.end_time)
+                        const next = formatTimeInputProgressive(e.target.value)
+                        const fallbackDate = splitIsoLocal(manualExclusion.start_time).date || new Date().toISOString().slice(0, 10)
+                        setManualExclusion(prev => ({ ...prev, end_time: buildIsoLocal(cur.date || fallbackDate, next) }))
+                      }}
+                      onBlur={e => {
+                        const cur = splitIsoLocal(manualExclusion.end_time)
+                        const normalized = normalizeTime24h(e.target.value)
+                        const fallbackDate = splitIsoLocal(manualExclusion.start_time).date || new Date().toISOString().slice(0, 10)
+                        setManualExclusion(prev => ({ ...prev, end_time: buildIsoLocal(cur.date || fallbackDate, normalized || '00:00') }))
+                      }}
+                      inputMode="text"
+                      placeholder="HH:mm"
+                      title="รูปแบบเวลา 24 ชั่วโมง (HH:mm)"
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'inherit' }}
+                    />
+                  </div>
+                  {(manualExclusion.start_time || manualExclusion.end_time) && (
+                    <div style={{ fontSize: '11px', color: '#64748b', lineHeight: 1.5 }}>
+                      Preview: Start {manualExclusion.start_time ? formatDdMmmYy24h(manualExclusion.start_time) : '—'} | End {manualExclusion.end_time ? formatDdMmmYy24h(manualExclusion.end_time) : '—'}
+                    </div>
+                  )}
+                  <div style={{ fontSize: '11px', color: '#64748b', lineHeight: 1.5 }}>
+                    ช่วงหยุด SLA ต้องไม่ก่อน {formatDdMmmYy24h(exclusionLowerBoundIso)} และต้องไม่เป็นเวลาในอนาคต
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={manualExclusion.notes}
+                    onChange={e => setManualExclusion(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'inherit' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddManualExclusion}
+                    disabled={manualExclusionLoading}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: '13px', opacity: manualExclusionLoading ? 0.6 : 1, cursor: 'pointer' }}
+                  >
+                    {manualExclusionLoading ? 'กำลังบันทึก...' : 'เพิ่มช่วง SLA Exclusion'}
+                  </button>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={handleQuickStartManualExclusion}
+                      disabled={manualExclusionLoading || !manualExclusion.reason_id || !!activeManualExclusion}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid #86efac',
+                        background: '#f0fdf4',
+                        color: '#166534',
+                        fontWeight: 700,
+                        fontSize: '12px',
+                        opacity: manualExclusionLoading || !manualExclusion.reason_id || !!activeManualExclusion ? 0.5 : 1,
+                        cursor: manualExclusionLoading || !manualExclusion.reason_id || !!activeManualExclusion ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      Start SLA Stop (Now)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleQuickStopManualExclusion}
+                      disabled={manualExclusionLoading || !activeManualExclusion}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid #fca5a5',
+                        background: '#fff1f2',
+                        color: '#b91c1c',
+                        fontWeight: 700,
+                        fontSize: '12px',
+                        opacity: manualExclusionLoading || !activeManualExclusion ? 0.5 : 1,
+                        cursor: manualExclusionLoading || !activeManualExclusion ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      End SLA Stop (Now)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {exclusions.length === 0 && (
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>ยังไม่มีรายการ Exclusion</div>
+                )}
+                {exclusions.map(ex => (
+                  <div key={ex.id} style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                      {exclusionReasons.find(r => r.id === ex.reason_id)?.value || `Reason #${ex.reason_id}`}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                      Start: {formatDdMmmYy24h(ex.start_time)}{ex.end_time ? ` | End: ${formatDdMmmYy24h(ex.end_time)}` : ' | End: —'}
+                    </div>
+                    {ex.notes && (
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Notes: {ex.notes}</div>
+                    )}
+                    {!ex.end_time && (currentUser?.role === 'admin' || currentUser?.role === 'it_staff') && (
+                      <button
+                        type="button"
+                        onClick={() => handleCloseManualExclusion(ex.id)}
+                        disabled={manualExclusionLoading}
+                        style={{ marginTop: '8px', padding: '6px 10px', borderRadius: '8px', border: '1px solid #fca5a5', background: '#fff1f2', color: '#dc2626', fontWeight: 700, fontSize: '11px', cursor: 'pointer' }}
+                      >
+                        ปิดช่วงนี้ (End Now)
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Activity History */}
@@ -935,7 +1826,7 @@ export default function IncidentDetailPage() {
                       )}
                       {log.metadata?.comment && (
                         <div style={{ marginTop: '8px', fontSize: '11px', fontStyle: 'italic', color: '#64748b', padding: '8px', borderLeft: '3px solid #e2e8f0' }}>
-                          "{log.metadata.comment}"
+                          &quot;{log.metadata.comment}&quot;
                         </div>
                       )}
                     </div>
@@ -951,30 +1842,24 @@ export default function IncidentDetailPage() {
   )
 }
 
-function ResolveDialog({ onCancel, onConfirm, loading, initialData = {}, severity = 'Medium', reporterName }) {
+function ResolveDialog({ onCancel, onConfirm, loading, initialData = {}, severity = 'Medium' }) {
   const [data, setData] = useState({ 
     root_cause: initialData.root_cause || '', 
     resolution: initialData.resolution || '', 
     corrective_action: initialData.corrective_action || '' 
   })
-  const [pin, setPin] = useState('')
-  const [verifyingPin, setVerifyingPin] = useState(false)
-  
   const handleConfirm = async () => {
     if (severity === 'High' && !data.corrective_action?.trim()) {
       alert('⚠️ สำหรับเคสความรุนแรงสูง (High) จำเป็นต้องระบุ "การป้องกัน (Corrective Action)" ด้วยครับ')
       return
     }
-
-    setVerifyingPin(true)
     
     const signatures = {
       it: { sig: null, name: 'IT Officer (System Log)' },
-      reporter: { sig: null, name: 'Reporter (Face-to-face)' }
+      reporter: { sig: null, name: 'Reporter (Pending Verification)' }
     }
 
-    onConfirm({ ...data, signatures, reporter_pin: pin || null })
-    setVerifyingPin(false)
+    onConfirm({ ...data, signatures })
   }
 
   return (
@@ -1005,25 +1890,8 @@ function ResolveDialog({ onCancel, onConfirm, loading, initialData = {}, severit
             {severity === 'High' && <div style={{ fontSize: '10px', color: '#dc2626', marginTop: '4px', fontWeight: 700 }}>* จำเป็นสำหรับเคส High</div>}
           </div>
  
-          <div style={{ padding: '24px', background: '#f8fafc', borderRadius: '24px', border: '2px dashed #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <div style={{ fontSize: '20px' }}>🤝</div>
-              <div>
-                <div style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a' }}>ยืนยันโดยผู้แจ้ง (Face-to-face)</div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>ให้ผู้แจ้งใส่รหัส PIN เพื่อปิดงานทันที</div>
-              </div>
-            </div>
-            
-            <div style={{ maxWidth: '240px', margin: '0 auto' }}>
-              <input 
-                type="password" 
-                maxLength={6} 
-                value={pin} 
-                onChange={e => setPin(e.target.value.replace(/\D/g, ''))} 
-                placeholder="••••••" 
-                style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '2px solid #e2e8f0', textAlign: 'center', fontSize: '24px', letterSpacing: '8px', fontWeight: 900, background: '#fff', outline: 'none' }} 
-              />
-            </div>
+          <div style={{ padding: '16px 18px', background: '#eff6ff', borderRadius: '14px', border: '1px solid #bfdbfe', fontSize: 12, color: '#1e3a8a', fontWeight: 700 }}>
+            เมื่อส่งงานแล้ว ระบบจะรีเฟรชเอกสารและไปขั้นตอนอนุมัติ จากนั้นให้ยืนยันตัวตนผู้แจ้งในขั้นตอน Remote Approve ตามประเภทผู้แจ้ง (PIN/OTP)
           </div>
         </div>
  
@@ -1031,15 +1899,15 @@ function ResolveDialog({ onCancel, onConfirm, loading, initialData = {}, severit
           <button onClick={onCancel} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', background: '#f1f5f9', color: '#64748b', fontWeight: 900, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>ยกเลิก</button>
           <button 
             onClick={handleConfirm} 
-            disabled={loading || !data.resolution || verifyingPin} 
+            disabled={loading || !data.resolution} 
             style={{ 
               flex: 2, padding: '16px', borderRadius: '16px', border: 'none', 
               background: 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)', color: '#fff', fontWeight: 900, fontSize: '15px', cursor: 'pointer', 
-              opacity: loading || !data.resolution || verifyingPin ? 0.5 : 1, 
+              opacity: loading || !data.resolution ? 0.5 : 1, 
               fontFamily: 'inherit', boxShadow: '0 10px 15px -3px rgba(37,99,235,0.2)'
             }}
           >
-            {loading || verifyingPin ? 'กำลังบันทึก...' : '💾 บันทึกและส่งงาน'}
+            {loading ? 'กำลังบันทึก...' : '💾 บันทึกและส่งงาน'}
           </button>
         </div>
       </div>

@@ -1,8 +1,0 @@
-procedure ShowIncidentList(Filter: record
-                              Status   : (All, Open, InProgress, Resolved, Closed);
-                              Severity : (All, High, Medium, Low);
-                            end);
-begin
-  Incidents := Service_GetIncidents(Filter);
-  Render('IncidentList', Incidents);
-end;
