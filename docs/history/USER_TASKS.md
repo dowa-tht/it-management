@@ -17,8 +17,8 @@
 - **วันที่:** 4 มิถุนายน 2569
 - **รายละเอียด:**
   - แก้ปัญหาที่ Dashboard แสดงจำนวน `MY SENT PENDING` เป็น 1 สำหรับเคสที่ user เป็น Reporter แต่ไม่ใช่ Sender (False Positive)
-  - ปรับปรุง query ใน `app/actions/dashboard.js` (`getDashboardData`) ให้เทียบ `created_by_id` (ผู้สร้าง/ผู้ส่งเรื่องจริง) แทน `reported_by_id` (ผู้แจ้ง)
-  - ปรับปรุง query ใน `app/actions/workflow.js` (`getMySentPendingItems`) ให้สอดคล้องกันเพื่อให้ดึงข้อมูลในหน้ารายการ /dashboard/my-pending ถูกต้อง
+  - ปรับปรุง query ใน `app/actions/dashboard.js` (`getDashboardData`) ให้เทียบ `assigned_to_id` (เจ้าหน้าที่ไอทีที่รับผิดชอบและส่งงานขออนุมัติ) แทน `reported_by_id` (ผู้แจ้ง)
+  - ปรับปรุง query ใน `app/actions/workflow.js` (`getMySentPendingItems`) ให้สอดคล้องกันเพื่อให้ดึงข้อมูลในหน้ารายการ /dashboard/my-pending ตามเจ้าหน้าที่รับผิดชอบจริง
   - ปรับปรุง Incident Detail Page (`app/dashboard/incidents/[id]/page.js`):
     - แยกแยะ `isCreator` (เทียบ `created_by_id`) และ `isReporter` (เทียบ `reported_by_id`) ออกจากกันอย่างถูกต้อง
     - อัปเดต `canApprove` ของ reporter step ให้ใช้ `isReporter`
