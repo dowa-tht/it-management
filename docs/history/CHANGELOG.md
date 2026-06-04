@@ -2,6 +2,15 @@
 
 ## 4 มิถุนายน 2569 (04-Jun-2026)
 
+- **[ตอนนี้] Verify Reopen Incident SLA-safe Logic: Test Passed**
+  - ทดสอบการกด Reopen บนเอกสาร Incident ที่เคยผ่าน Acknowledge/Assign แล้ว
+  - ✅ ยืนยันว่าเคสกลับไป `In Progress` (ไม่ใช่ `Open`) เมื่อมี context เดิมของงาน
+  - ✅ ยืนยันว่าไม่เกิด error schema mismatch ระหว่าง Reopen
+  - ✅ ตรวจสอบว่า log `Reopen Case` ถูกบันทึกตามปกติ
+  - ✅ ตรวจสอบว่าการคำนวณ SLA ไม่เพี้ยนจากการบังคับ Acknowledge ใหม่
+  - สามารถใช้งานได้ตามต้องการแล้ว
+  - อัปเดต USER_TASKS.md ย้ายงาน P1 ไปยังส่วนงานที่เสร็จสิ้นแล้ว
+
 - **[ตอนนี้] Fix Remote Approve Modal: Display External Reporter Email Correctly**
   - แก้ปัญหาที่ Remote Approve Modal แสดง "ไม่พบอีเมลผู้อนุมัติ" สำหรับ external reporter แม้ว่า OTP จะส่งได้ถูกต้อง
   - เพิ่ม props ใหม่ `targetEmail` และ `targetEmailLabel` ใน `UnifiedApprovalModal` component
