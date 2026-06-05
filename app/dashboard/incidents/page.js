@@ -183,7 +183,7 @@ function IncidentsContent() {
       start.setDate(1)
       start.setHours(0, 0, 0, 0)
     }
-    return start.toLocaleDateString('en-CA')
+    return toYYYYMMDD(start)
   }
 
   const fetchIncidents = async (pageToFetch = 0, isLoadMore = false) => {
@@ -489,6 +489,13 @@ function IncidentsContent() {
       </div>
     </div>
   )
+}
+
+const toYYYYMMDD = (d) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const r = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${r}`
 }
 
 export default function IncidentsPage() {

@@ -90,6 +90,13 @@ function MonthPicker({ value, onChange }) {
   )
 }
 
+const toYYYYMMDD = (d) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const r = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${r}`
+}
+
 export default function BackupPage() {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -156,7 +163,7 @@ export default function BackupPage() {
       start.setDate(1)
       start.setHours(0, 0, 0, 0)
     }
-    return start.toLocaleDateString('en-CA')
+    return toYYYYMMDD(start)
   }
 
   const fetchLogs = async (pageToFetch = 0, isLoadMore = false) => {

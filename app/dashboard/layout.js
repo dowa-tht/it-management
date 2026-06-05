@@ -236,7 +236,7 @@ export default function DashboardLayout({ children }) {
             )
           })}
         </div>
-        {(role === 'admin') && (
+        {(role === 'admin' || role === 'auditor') && (
           <>
             <div className="nav-section-title" style={{ cursor: 'default' }}>
               <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>SETTINGS</span>
@@ -308,7 +308,7 @@ export default function DashboardLayout({ children }) {
                 }}
                 style={{ position: 'relative', borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(59, 130, 246, 0.05)', cursor: 'pointer', padding: '12px 16px' }}
               >
-                <input type="date" value={getFormattedDate()} onChange={(e) => e.target.value && setWorkingDate(new Date(e.target.value))} style={{ position: 'absolute', opacity: 0, inset: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 1 }} />
+                <input type="date" value={getFormattedDate()} onChange={(e) => e.target.value && setWorkingDate(new Date(e.target.value))} style={{ position: 'absolute', opacity: 0, inset: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 1, color: 'transparent', background: 'transparent' }} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#fff', opacity: 0.9 }}>📅 WORKING DATE</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#60a5fa' }}>{formatDateMMM(getFormattedDate())}</div>

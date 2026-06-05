@@ -27,6 +27,13 @@ const STATUS_COLORS = {
   Closed: { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
 }
 
+const toYYYYMMDD = (d) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const r = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${r}`
+}
+
 export default function SLAReportPage() {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState(null)
@@ -117,8 +124,8 @@ export default function SLAReportPage() {
       start.setHours(0, 0, 0, 0)
     }
     const newRange = {
-      start: start.toLocaleDateString('en-CA'),
-      end: now.toLocaleDateString('en-CA')
+      start: toYYYYMMDD(start),
+      end: toYYYYMMDD(now)
     }
     setDateRange(newRange)
     setPage(0)
@@ -286,7 +293,7 @@ export default function SLAReportPage() {
             <div style={{ position: 'relative' }}>
                 <input type="date" value={dateRange.start} onChange={e => { setActiveFilter('custom'); setDateRange({ ...dateRange, start: e.target.value }) }}
                 onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
-                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 2 }} 
+                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 2, color: 'transparent', background: 'transparent' }} 
               />
               <div style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 130, gap: 10 }}>
                 <span style={{ color: '#374151', fontWeight: 500 }}>{formatDateNumeric(dateRange.start)}</span>
@@ -297,7 +304,7 @@ export default function SLAReportPage() {
             <div style={{ position: 'relative' }}>
               <input type="date" value={dateRange.end} onChange={e => { setActiveFilter('custom'); setDateRange({ ...dateRange, end: e.target.value }) }}
                 onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
-                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 2 }} 
+                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 2, color: 'transparent', background: 'transparent' }} 
               />
               <div style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 130, gap: 10 }}>
                 <span style={{ color: '#374151', fontWeight: 500 }}>{formatDateNumeric(dateRange.end)}</span>

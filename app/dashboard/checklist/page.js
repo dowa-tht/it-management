@@ -206,8 +206,8 @@ function ChecklistListForm() {
     setActiveFilter(type)
     setFilters({
       ...filters,
-      date_from: start.toLocaleDateString('en-CA'),
-      date_to: now.toLocaleDateString('en-CA')
+      date_from: toYYYYMMDD(start),
+      date_to: toYYYYMMDD(now)
     })
   }
 
@@ -418,7 +418,7 @@ function ChecklistListForm() {
                   setFilters({...filters, date_from: e.target.value})
                   setActiveFilter('')
                 }} 
-                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} 
+                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', color: 'transparent', background: 'transparent' }} 
               />
             </div>
             <span style={{ color: '#9ca3af' }}>-</span>
@@ -435,7 +435,7 @@ function ChecklistListForm() {
                   setFilters({...filters, date_to: e.target.value})
                   setActiveFilter('')
                 }} 
-                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} 
+                style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', color: 'transparent', background: 'transparent' }} 
               />
             </div>
           </div>
@@ -812,7 +812,7 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
                     value={date} 
                     onChange={e => setDate(e.target.value)} 
                     onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
-                    style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} 
+                    style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', color: 'transparent', background: 'transparent' }} 
                   />
 
                   <button 
@@ -893,6 +893,13 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
       </div>
     </div>
   )
+}
+
+const toYYYYMMDD = (d) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const r = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${r}`
 }
 
 export default function ChecklistListPage() {
