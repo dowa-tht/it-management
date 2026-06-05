@@ -1,4 +1,11 @@
 'use client'
+
+const toYYYYMMDD = (d) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const r = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${r}`
+}
 import { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
@@ -491,12 +498,7 @@ function IncidentsContent() {
   )
 }
 
-const toYYYYMMDD = (d) => {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const r = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${r}`
-}
+
 
 export default function IncidentsPage() {
   return (

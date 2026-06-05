@@ -1,5 +1,12 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Change Logs)
 
+## 5 มิถุนายน 2569 (05-Jun-2026)
+
+- **[14:10] Fix Variable Hoisting ReferenceError for toYYYYMMDD on Incident & Checklist Pages**
+  - **แก้ปัญหาปุ่มฟิลเตอร์ค้างในหน้า Incident และ IT Checklist:**
+    - ย้ายฟังก์ชันจัดรูปแบบปฏิทินแบบปลอดภาษาภูมิภาค `toYYYYMMDD` ในไฟล์ `app/dashboard/incidents/page.js` และ `app/dashboard/checklist/page.js` จากท้ายไฟล์ขึ้นมาประกาศไว้ที่ด้านบนสุดของสคริปต์
+    - ผลลัพธ์: เคลียร์ข้อผิดพลาดตัวแปรล่องหน (Temporal Dead Zone - TDZ) `ReferenceError: Cannot access 'toYYYYMMDD' before initialization` ได้สมบูรณ์ 100% ทำให้ตัวสคริปต์หน้าหลักรันได้อย่างราบรื่น และกู้คืนความสามารถการกดปุ่มฟิลเตอร์ทั้งหมดให้กลับมามีปฏิกิริยาโต้ตอบได้สมบูรณ์แบบทันที
+
 ## 4 มิถุนายน 2569 (04-Jun-2026)
 
 - **[17:35] Fix Auditor RLS Permissions: Enable Backup Log & IT Checklist visibility**
