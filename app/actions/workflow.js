@@ -2,6 +2,7 @@
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import { getCurrentUserSession } from './user'
 import { verifyEmployeePIN } from './users'
+import { recordEntityAuditLog } from './audit'
 import { WORKFLOW_DOC_REGISTRY, getMappedWorkflowValue } from '@/lib/workflowRegistry'
 import { sendEmail } from '@/lib/resend'
 import { normalizeRole } from '@/lib/auth'
@@ -452,9 +453,10 @@ export async function recordAuditLog({ docId, docType, action, details, userEmai
   try {
     const supabaseAdmin = getAdminClient()
     const type = docType.toLowerCase()
+    const auditMetadata = { ...(metadata || {}) }
     
     // 0. Resolve doc_no if missing
-    if (!metadata?.doc_no && docId && docType) {
+    if (!auditMetadata.doc_no && docId && docType) {
       const reg = WORKFLOW_DOC_REGISTRY[type]
       if (reg) {
         const { data: doc } = await supabaseAdmin
@@ -464,30 +466,34 @@ export async function recordAuditLog({ docId, docType, action, details, userEmai
           .single()
         
         if (doc) {
-          if (!metadata) metadata = {}
           if (type === 'checklist') {
             // For checklist, generate readable ID if no_field is just ID
             const { data: c } = await supabaseAdmin.from('checklist_docs').select('freq_type, period_date').eq('id', docId).single()
-            if (c) metadata.doc_no = `CHK-${c.period_date}-${c.freq_type?.charAt(0) || '?'}`
+            if (c) auditMetadata.doc_no = `CHK-${c.period_date}-${c.freq_type?.charAt(0) || '?'}`
           } else {
-            metadata.doc_no = doc[reg.no_field]
+            auditMetadata.doc_no = doc[reg.no_field]
           }
         }
       }
     }
 
     // 1. Record to system_audit_logs (Centralized)
-    const { error } = await supabaseAdmin.from('system_audit_logs').insert({
-      doc_id: docId,
-      doc_type: type,
-      action: action,
-      details: details,
-      user_email: userEmail,
-      metadata: metadata
+    const auditResult = await recordEntityAuditLog({
+      scope: auditMetadata.scope || 'workflow',
+      entityType: type,
+      entityId: docId,
+      entityLabel: auditMetadata.doc_no || null,
+      sourceModule: auditMetadata.source_module || 'workflow',
+      docId,
+      docType: type,
+      action,
+      details,
+      userEmail,
+      metadata: auditMetadata,
     })
 
-    if (error) {
-      console.error('system_audit_logs Error:', error)
+    if (!auditResult?.success) {
+      console.error('system_audit_logs Error:', auditResult?.error)
       // Fallback or secondary log could be here, but we prioritize the centralized one
     }
 
