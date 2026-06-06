@@ -10,6 +10,7 @@ export default function ViewToggle({ mode, onChange }) {
       border: '1px solid #e2e8f0'
     }}>
       <button 
+        data-readonly-allowed="true"
         onClick={() => onChange('table')}
         style={{
           padding: '6px 12px',
@@ -30,6 +31,7 @@ export default function ViewToggle({ mode, onChange }) {
         <span>📄</span> List
       </button>
       <button 
+        data-readonly-allowed="true"
         onClick={() => onChange('grid')}
         style={{
           padding: '6px 12px',

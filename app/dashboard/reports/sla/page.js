@@ -155,7 +155,7 @@ export default function SLAReportPage() {
         <div style={{ background: '#fff', borderRadius: 16, maxWidth: 650, width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
           <div style={{ padding: '24px 30px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 10 }}>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: 0 }}>📊 เกณฑ์การคำนวณ SLA Compliance</h2>
-            <button onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#9ca3af' }}>&times;</button>
+            <button data-readonly-allowed="true" onClick={() => setShowHelp(false)} style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#9ca3af' }}>&times;</button>
           </div>
 
           <div style={{ padding: 30 }}>
@@ -220,7 +220,7 @@ export default function SLAReportPage() {
               >
                 ⚙️ ไปที่ SLA Settings
               </Link>
-              <button onClick={() => setShowHelp(false)} style={{ padding: '10px 30px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>เข้าใจแล้ว</button>
+              <button data-readonly-allowed="true" onClick={() => setShowHelp(false)} style={{ padding: '10px 30px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>เข้าใจแล้ว</button>
             </div>
           </div>
         </div>
@@ -256,6 +256,7 @@ export default function SLAReportPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0' }}>SLA Compliance Dashboard</h1>
             <button 
+              data-readonly-allowed="true"
               onClick={() => setShowHelp(true)}
               style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '50%', width: 20, height: 20, fontSize: 12, color: '#1d4ed8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, marginTop: 4 }}
               title="ดูเกณฑ์การคำนวณ SLA"
@@ -272,7 +273,7 @@ export default function SLAReportPage() {
           <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>ช่วงเวลา (DATE RANGE)</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {DATE_FILTERS.map(f => (
-                <button key={f.value} onClick={() => applyQuickFilter(f.value)} style={{
+                <button data-readonly-allowed="true" key={f.value} onClick={() => applyQuickFilter(f.value)} style={{
                   padding: '6px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
                   border: activeFilter === f.value ? 'none' : '1px solid #d1d5db',
                   background: activeFilter === f.value ? '#1d4ed8' : '#fff',
@@ -291,7 +292,7 @@ export default function SLAReportPage() {
           <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>กำหนดเอง (CUSTOM)</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ position: 'relative' }}>
-                <input type="date" value={dateRange.start} onChange={e => { setActiveFilter('custom'); setDateRange({ ...dateRange, start: e.target.value }) }}
+                <input data-readonly-allowed="true" type="date" value={dateRange.start} onChange={e => { setActiveFilter('custom'); setDateRange({ ...dateRange, start: e.target.value }) }}
                 onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
                 style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 2, color: 'transparent', background: 'transparent' }} 
               />
@@ -302,7 +303,7 @@ export default function SLAReportPage() {
             </div>
             <span style={{ color: '#9ca3af', fontWeight: 500 }}>—</span>
             <div style={{ position: 'relative' }}>
-              <input type="date" value={dateRange.end} onChange={e => { setActiveFilter('custom'); setDateRange({ ...dateRange, end: e.target.value }) }}
+              <input data-readonly-allowed="true" type="date" value={dateRange.end} onChange={e => { setActiveFilter('custom'); setDateRange({ ...dateRange, end: e.target.value }) }}
                 onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
                 style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 2, color: 'transparent', background: 'transparent' }} 
               />
@@ -314,7 +315,7 @@ export default function SLAReportPage() {
           </div>
         </div>
 
-        <button onClick={() => { setPage(0); fetchData(dateRange.start, dateRange.end, 0, false); }} disabled={loading} style={{ padding: '8px 20px', background: loading ? '#93c5fd' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', height: 35, display: 'flex', alignItems: 'center' }}>
+        <button data-readonly-allowed="true" onClick={() => { setPage(0); fetchData(dateRange.start, dateRange.end, 0, false); }} disabled={loading} style={{ padding: '8px 20px', background: loading ? '#93c5fd' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', height: 35, display: 'flex', alignItems: 'center' }}>
           {loading ? 'กำลังโหลด...' : 'กรองข้อมูล'}
         </button>
       </div>
@@ -480,6 +481,7 @@ export default function SLAReportPage() {
           {hasMore && (
             <div style={{ padding: '20px', textAlign: 'center', borderTop: '1px solid #f3f4f6' }}>
               <button 
+                data-readonly-allowed="true"
                 onClick={loadMore} 
                 disabled={loadingMore}
                 style={{

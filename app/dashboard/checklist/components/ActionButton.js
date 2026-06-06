@@ -16,6 +16,7 @@ export function ActionButton({ onClick, icon, color, title, disabled }) {
   
   return (
     <button
+      data-readonly-allowed={disabled ? undefined : 'true'}
       title={title}
       onClick={onClick}
       disabled={disabled}

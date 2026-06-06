@@ -394,6 +394,7 @@ function ChecklistListForm() {
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
             {DATE_FILTERS.map(f => (
               <button 
+                data-readonly-allowed="true"
                 key={f.value} 
                 onClick={() => applyQuickFilter(f.value)} 
                 style={{
@@ -418,6 +419,7 @@ function ChecklistListForm() {
                 <span style={{ fontSize: 12 }}>📅</span>
               </div>
               <input 
+                data-readonly-allowed="true"
                 type="date" 
                 value={filters.date_from} 
                 onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
@@ -435,6 +437,7 @@ function ChecklistListForm() {
                 <span style={{ fontSize: 12 }}>📅</span>
               </div>
               <input 
+                data-readonly-allowed="true"
                 type="date" 
                 value={filters.date_to} 
                 onClick={(e) => { try { e.target.showPicker() } catch(err) {} }}
@@ -450,7 +453,7 @@ function ChecklistListForm() {
         
         <div>
           <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 6 }}>ประเภท</label>
-          <select value={filters.freq_type} onChange={e => setFilters({...filters, freq_type: e.target.value})} style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}>
+          <select data-readonly-allowed="true" value={filters.freq_type} onChange={e => setFilters({...filters, freq_type: e.target.value})} style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}>
             <option value="">ทั้งหมด</option>
             {/* Frequency filter options derived from fetched templates */}
             {Array.from(new Set((templates||[]).map(t=>t.freq_type))).sort().map(f=>(
@@ -461,7 +464,7 @@ function ChecklistListForm() {
 
         <div>
           <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 6 }}>สถานะ</label>
-          <select value={filters.status} onChange={e => setFilters({...filters, status: e.target.value})} style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}>
+          <select data-readonly-allowed="true" value={filters.status} onChange={e => setFilters({...filters, status: e.target.value})} style={{ padding: '7px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}>
             <option value="">ทั้งหมด</option>
             <option value="Open">Open</option>
             <option value="In Progress">In Progress</option>
@@ -473,12 +476,12 @@ function ChecklistListForm() {
 
         <div style={{ paddingBottom: 8 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: filters.only_ng ? '#dc2626' : '#374151', fontWeight: filters.only_ng ? 600 : 400 }}>
-            <input type="checkbox" checked={filters.only_ng} onChange={e => setFilters({...filters, only_ng: e.target.checked})} style={{ width: 16, height: 16 }} />
+            <input data-readonly-allowed="true" type="checkbox" checked={filters.only_ng} onChange={e => setFilters({...filters, only_ng: e.target.checked})} style={{ width: 16, height: 16 }} />
             แสดงเฉพาะที่มีปัญหา (NG)
           </label>
         </div>
 
-        <button onClick={() => setFilters({ freq_type: '', status: '', date_from: '', date_to: '', only_ng: false })} style={{ padding: '8px 16px', background: 'none', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12, color: '#6b7280', cursor: 'pointer', marginBottom: 2 }}>
+        <button data-readonly-allowed="true" onClick={() => setFilters({ freq_type: '', status: '', date_from: '', date_to: '', only_ng: false })} style={{ padding: '8px 16px', background: 'none', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12, color: '#6b7280', cursor: 'pointer', marginBottom: 2 }}>
           ล้างฟิลเตอร์
         </button>
       </div>
@@ -578,6 +581,7 @@ function ChecklistListForm() {
         {hasMore && (
           <div style={{ padding: '20px', textAlign: 'center', borderTop: '1px solid #f3f4f6' }}>
             <button 
+              data-readonly-allowed="true"
               onClick={loadMore} 
               disabled={loadingMore}
               style={{

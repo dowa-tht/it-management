@@ -31,7 +31,7 @@ function createEmptyPlan() {
   }
 }
 
-export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId }) {
+export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId, readOnly = false }) {
   const initialPlan = plans.find((plan) => plan.id === initialPlanId) || plans[0] || createEmptyPlan()
   const debugUx = process.env.NODE_ENV !== 'production'
   const [planList, setPlanList] = useState(plans)
@@ -658,19 +658,22 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
               </p>
               <div className="procedure-editor-header-actions" style={{ marginTop: 32 }}>
                 <button
+                  data-readonly-allowed="true"
                   type="button"
                   onClick={() => setShowPreviewModal(true)}
                   className="procedure-preview-trigger transition hover:border-sky-300 hover:bg-cyan-100"
                 >
                   👁 Preview
                 </button>
-                <button
-                  type="button"
-                  onClick={handleNewPlan}
-                  className="procedure-editor-action bg-gradient-to-r from-cyan-700 to-sky-500 text-white shadow-lg shadow-cyan-500/20 transition hover:translate-y-[-1px]"
-                >
-                  + New Plan
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={handleNewPlan}
+                    className="procedure-editor-action bg-gradient-to-r from-cyan-700 to-sky-500 text-white shadow-lg shadow-cyan-500/20 transition hover:translate-y-[-1px]"
+                  >
+                    + New Plan
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -703,6 +706,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
             </div>
 
             <input
+              data-readonly-allowed="true"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="ค้นหา plan..."
@@ -712,6 +716,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
             <div className="mt-4 space-y-3">
               {filteredPlans.map((plan) => (
                 <button
+                  data-readonly-allowed="true"
                   key={plan.id}
                   type="button"
                   onClick={() => selectPlan(plan)}
@@ -737,24 +742,27 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                   <input
                     value={draft.plan_name}
                     onChange={(event) => updatePlanField('plan_name', event.target.value)}
+                    readOnly={readOnly}
                     placeholder="เช่น SOP ตรวจตู้ CCTV รายเดือน"
                     className="procedure-editor-input"
                   />
                   {fieldErrors.plan_name?.[0] && <p className="mt-2 text-xs text-rose-600">{fieldErrors.plan_name[0]}</p>}
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  className={cn(
-                    'procedure-editor-action px-5 text-white transition',
-                    saving
-                      ? 'cursor-not-allowed bg-slate-300'
-                      : 'bg-gradient-to-r from-cyan-700 to-sky-500 shadow-lg shadow-cyan-500/20 hover:translate-y-[-1px]'
-                  )}
-                >
-                  {saving ? 'กำลังบันทึก...' : 'Save Plan'}
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    className={cn(
+                      'procedure-editor-action px-5 text-white transition',
+                      saving
+                        ? 'cursor-not-allowed bg-slate-300'
+                        : 'bg-gradient-to-r from-cyan-700 to-sky-500 shadow-lg shadow-cyan-500/20 hover:translate-y-[-1px]'
+                    )}
+                  >
+                    {saving ? 'กำลังบันทึก...' : 'Save Plan'}
+                  </button>
+                )}
               </div>
             </section>
 
@@ -772,6 +780,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                   <div className="procedure-step-list-content">
                     {draft.steps.map((step, index) => (
                       <button
+                        data-readonly-allowed="true"
                         key={`${step.step_no}-${index}`}
                         type="button"
                         onClick={() => setActiveStepIndex(index)}
@@ -802,13 +811,15 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                     )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={addStep}
-                    className="procedure-editor-action w-full justify-center border border-cyan-200 bg-cyan-50 text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 shrink-0"
-                  >
-                    + Add Step
-                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={addStep}
+                      className="procedure-editor-action w-full justify-center border border-cyan-200 bg-cyan-50 text-cyan-700 transition hover:border-cyan-300 hover:bg-cyan-100 shrink-0"
+                    >
+                      + Add Step
+                    </button>
+                  )}
                 </div>
 
                 {selectedStep && (
@@ -819,9 +830,13 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                         <p className="mt-2 text-lg font-bold text-slate-900">{selectedStep.title || 'ยังไม่ได้ตั้งชื่อขั้นตอน'}</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => moveStep(activeStepIndex, -1)} className="procedure-step-mini-action border border-slate-200 bg-white text-slate-600">ขึ้น</button>
-                        <button type="button" onClick={() => moveStep(activeStepIndex, 1)} className="procedure-step-mini-action border border-slate-200 bg-white text-slate-600">ลง</button>
-                        <button type="button" onClick={() => removeStep(activeStepIndex)} className="procedure-step-mini-action border border-rose-200 bg-rose-50 text-rose-600">ลบ</button>
+                        {!readOnly && (
+                          <>
+                            <button type="button" onClick={() => moveStep(activeStepIndex, -1)} className="procedure-step-mini-action border border-slate-200 bg-white text-slate-600">ขึ้น</button>
+                            <button type="button" onClick={() => moveStep(activeStepIndex, 1)} className="procedure-step-mini-action border border-slate-200 bg-white text-slate-600">ลง</button>
+                            <button type="button" onClick={() => removeStep(activeStepIndex)} className="procedure-step-mini-action border border-rose-200 bg-rose-50 text-rose-600">ลบ</button>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -831,6 +846,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                         <input
                           value={selectedStep.title}
                           onChange={(event) => updateStep(activeStepIndex, 'title', event.target.value)}
+                          readOnly={readOnly}
                           placeholder="เช่น เปิดฝาตู้"
                           className="procedure-editor-input"
                         />
@@ -844,6 +860,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                         <select
                           value={selectedStep.step_type}
                           onChange={(event) => updateStep(activeStepIndex, 'step_type', event.target.value)}
+                          disabled={readOnly}
                           className="procedure-editor-select"
                         >
                           {PROCEDURE_STEP_TYPES.map((type) => (
@@ -855,7 +872,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                       </label>
 
                       <label className="procedure-step-toggle">
-                        <input type="checkbox" checked={Boolean(selectedStep.required)} onChange={(event) => updateStep(activeStepIndex, 'required', event.target.checked)} />
+                        <input type="checkbox" checked={Boolean(selectedStep.required)} onChange={(event) => updateStep(activeStepIndex, 'required', event.target.checked)} disabled={readOnly} />
                         <span className="text-sm text-slate-700">Required step</span>
                       </label>
 
@@ -864,6 +881,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                         <textarea
                           value={selectedStep.instruction}
                           onChange={(event) => updateStep(activeStepIndex, 'instruction', event.target.value)}
+                          readOnly={readOnly}
                           rows={4}
                           placeholder="คำอธิบายหรือเงื่อนไขสำหรับผู้ตรวจ"
                           className="procedure-editor-textarea"
@@ -875,6 +893,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                         <input
                           value={selectedStep.responsible_person}
                           onChange={(event) => updateStep(activeStepIndex, 'responsible_person', event.target.value)}
+                          readOnly={readOnly}
                           placeholder="เช่น IT Support, หัวหน้างาน IT"
                           className="procedure-editor-input"
                         />
@@ -885,6 +904,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                         <textarea
                           value={selectedStep.success_criteria}
                           onChange={(event) => updateStep(activeStepIndex, 'success_criteria', event.target.value)}
+                          readOnly={readOnly}
                           rows={3}
                           placeholder="ระบุเกณฑ์ที่ใช้วัดว่าการซ้อมสำเร็จ เช่น ทำครบทุกขั้นตอน, ไม่เกิดข้อผิดพลาด"
                           className="procedure-editor-textarea"
@@ -898,6 +918,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                           type="checkbox"
                           checked={Boolean(selectedStep.evidence_rule?.photo_required)}
                           onChange={(event) => updateEvidenceRule(activeStepIndex, 'photo_required', event.target.checked)}
+                          disabled={readOnly}
                         />
                         <span className="text-sm text-slate-700">ต้องแนบรูปภาพ</span>
                       </label>
@@ -906,6 +927,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                           type="checkbox"
                           checked={Boolean(selectedStep.evidence_rule?.note_required)}
                           onChange={(event) => updateEvidenceRule(activeStepIndex, 'note_required', event.target.checked)}
+                          disabled={readOnly}
                         />
                         <span className="text-sm text-slate-700">ต้องกรอกหมายเหตุ</span>
                       </label>
@@ -927,7 +949,7 @@ export function ProcedurePlanEditorClient({ currentUser, plans, initialPlanId })
                   <h2 className="text-2xl font-extrabold leading-tight text-slate-950">{draft.plan_name || 'Procedure Preview'}</h2>
                   <p className="text-sm leading-6 text-slate-500">ดูผลลัพธ์การรันขั้นตอนแบบเต็มโดยไม่ให้ preview กินพื้นที่หน้าทำงานหลัก</p>
                 </div>
-                <button type="button" onClick={() => setShowPreviewModal(false)} className="procedure-preview-close" aria-label="Close preview">×</button>
+                <button data-readonly-allowed="true" type="button" onClick={() => setShowPreviewModal(false)} className="procedure-preview-close" aria-label="Close preview">×</button>
               </div>
               <div className="procedure-preview-shell" style={{ marginTop: 20 }}>
                 <div className="procedure-preview-grid">

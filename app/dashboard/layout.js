@@ -405,11 +405,11 @@ export default function DashboardLayout({ children }) {
               </div>
             )}
             <style>{`
-              .main-content button:not(.nav-item), 
-              .main-content input, 
-              .main-content select, 
-              .main-content textarea,
-              .main-content [role="button"]:not(a) { 
+              .main-content button:not(.nav-item):not([data-readonly-allowed="true"]), 
+              .main-content input:not([data-readonly-allowed="true"]), 
+              .main-content select:not([data-readonly-allowed="true"]), 
+              .main-content textarea:not([data-readonly-allowed="true"]),
+              .main-content [role="button"]:not(a):not([data-readonly-allowed="true"]) { 
                 pointer-events: none !important; 
                 opacity: 0.6 !important; 
                 filter: grayscale(0.6) !important;

@@ -21,6 +21,7 @@ export default async function ProcedurePlanEditorPage({ searchParams }) {
       currentUser={data.currentUser}
       plans={data.plans}
       initialPlanId={query?.planId || null}
+      readOnly={data.currentUser?.role === 'auditor'}
     />
   )
 }

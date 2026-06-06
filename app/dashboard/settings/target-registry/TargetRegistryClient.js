@@ -230,7 +230,7 @@ const S = {
 }
 
 // ── TargetTypeDropdown ──────────────────────────────────────────
-function TargetTypeDropdown({ value, options, onChange, error, onAddType }) {
+function TargetTypeDropdown({ value, options, onChange, error, onAddType, disabled = false }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [addModal, setAddModal] = useState(false)
@@ -241,18 +241,21 @@ function TargetTypeDropdown({ value, options, onChange, error, onAddType }) {
   const canAdd = search.trim().length > 0 && !options.some((o) => o.toLowerCase() === search.trim().toLowerCase())
 
   function selectType(type) {
+    if (disabled) return
     onChange(type)
     setOpen(false)
     setSearch('')
   }
 
   function openAddModal() {
+    if (disabled) return
     setNewTypeName(search.trim())
     setAddError('')
     setAddModal(true)
   }
 
   function confirmAdd() {
+    if (disabled) return
     const val = newTypeName.trim()
     if (!val) { setAddError('กรุณากรอกชื่อประเภท'); return }
     if (options.some((o) => o.toLowerCase() === val.toLowerCase())) { setAddError('ประเภทนี้มีอยู่แล้ว'); return }
@@ -501,15 +504,18 @@ function FieldSelector({ label, value, onChange, customValue, onCustomChange, fi
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: value === 'custom' ? 8 : 0 }}>
         {fieldOptions.map((opt) => (
           <button
+            data-readonly-allowed="true"
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
+            disabled={disabled}
             style={{
               padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: value === opt.value ? 700 : 500,
               border: value === opt.value ? '2px solid #2563eb' : '1px solid #e2e8f0',
               background: value === opt.value ? '#eff6ff' : '#f8fafc',
               color: value === opt.value ? '#2563eb' : '#475569',
-              cursor: 'pointer',
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              opacity: disabled ? 0.65 : 1,
             }}
           >
             {opt.label}
@@ -523,6 +529,7 @@ function FieldSelector({ label, value, onChange, customValue, onCustomChange, fi
       </div>
       {value === 'custom' && (
         <input
+          readOnly={disabled}
           value={customValue}
           onChange={(e) => onCustomChange(e.target.value)}
           placeholder="พิมพ์ข้อความเอง..."
@@ -628,7 +635,7 @@ function QrPreviewModal({ qrImageUrl, draft, onClose }) {
         {/* Modal header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 28px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
           <p style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: 0 }}>ออกแบบ QR Code</p>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer', padding: 4 }}>✕</button>
+          <button data-readonly-allowed="true" type="button" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer', padding: 4 }}>✕</button>
         </div>
 
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
@@ -780,6 +787,7 @@ function TargetForm({
   onNew,
   onDelete,
   onAddTargetType,
+  readOnly = false,
 }) {
   const [showQrModal, setShowQrModal] = useState(false)
 
@@ -804,7 +812,7 @@ function TargetForm({
           <h2 style={S.h2}>{draft.id ? 'Edit Target' : 'Create Target'}</h2>
           <p style={S.subtitle}>ลงทะเบียน asset รายตัวพร้อม QR value สำหรับใช้ต่อยอด Asset History</p>
         </div>
-        <button type="button" onClick={onNew} style={S.newBtn}>+ New Target</button>
+        {!readOnly && <button type="button" onClick={onNew} style={S.newBtn}>+ New Target</button>}
       </div>
 
       {/* Fields */}
@@ -817,6 +825,7 @@ function TargetForm({
             <input
               value={draft.target_code}
               onChange={(e) => onChange('target_code', e.target.value)}
+              readOnly={readOnly}
               style={S.input('#3b82f6')}
             />
             {fieldErrors.target_code && <span style={S.errMsg}>{fieldErrors.target_code}</span>}
@@ -831,6 +840,7 @@ function TargetForm({
               onChange={(v) => onChange('target_type', v)}
               error={fieldErrors.target_type}
               onAddType={onAddTargetType}
+              disabled={readOnly}
             />
           </div>
 
@@ -840,6 +850,7 @@ function TargetForm({
             <input
               value={draft.name}
               onChange={(e) => onChange('name', e.target.value)}
+              readOnly={readOnly}
               style={S.input('#3b82f6')}
             />
             {fieldErrors.name && <span style={S.errMsg}>{fieldErrors.name}</span>}
@@ -851,6 +862,7 @@ function TargetForm({
             <input
               value={draft.location}
               onChange={(e) => onChange('location', e.target.value)}
+              readOnly={readOnly}
               style={S.input('#3b82f6')}
             />
           </div>
@@ -884,6 +896,7 @@ function TargetForm({
                   <input value={publicLinkDisplay} readOnly style={{ ...S.input(), fontSize: 12, background: '#fff' }} />
                   {hasBaseUrlError && <span style={S.errMsg}>Base URL ไม่ถูกต้อง เช่น https://it.dowa.co.th</span>}
                   <button
+                    data-readonly-allowed="true"
                     type="button"
                     onClick={() => setShowQrModal(true)}
                     disabled={!qrPreviewImage}
@@ -907,33 +920,34 @@ function TargetForm({
             <div style={S.formGrid} className="tr-form-grid">
               <div style={S.fieldGroup}>
                 <label style={S.label}>Building</label>
-                <input value={draft.building || ''} onChange={(e) => onChange('building', e.target.value)} style={S.input('#3b82f6')} />
+                <input value={draft.building || ''} onChange={(e) => onChange('building', e.target.value)} readOnly={readOnly} style={S.input('#3b82f6')} />
               </div>
               <div style={S.fieldGroup}>
                 <label style={S.label}>Floor</label>
-                <input value={draft.floor || ''} onChange={(e) => onChange('floor', e.target.value)} style={S.input('#3b82f6')} />
+                <input value={draft.floor || ''} onChange={(e) => onChange('floor', e.target.value)} readOnly={readOnly} style={S.input('#3b82f6')} />
               </div>
               <div style={S.fieldGroup}>
                 <label style={S.label}>Zone</label>
-                <input value={draft.zone || ''} onChange={(e) => onChange('zone', e.target.value)} style={S.input('#3b82f6')} />
+                <input value={draft.zone || ''} onChange={(e) => onChange('zone', e.target.value)} readOnly={readOnly} style={S.input('#3b82f6')} />
               </div>
               <div style={S.fieldGroup}>
                 <label style={S.label}>Serial No</label>
-                <input value={draft.serial_no || ''} onChange={(e) => onChange('serial_no', e.target.value)} style={S.input('#3b82f6')} />
+                <input value={draft.serial_no || ''} onChange={(e) => onChange('serial_no', e.target.value)} readOnly={readOnly} style={S.input('#3b82f6')} />
               </div>
               <div style={{ ...S.fieldGroup, gridColumn: 'span 2' }}>
                 <label style={S.label}>Vendor</label>
-                <input value={draft.vendor || ''} onChange={(e) => onChange('vendor', e.target.value)} style={S.input('#3b82f6')} />
+                <input value={draft.vendor || ''} onChange={(e) => onChange('vendor', e.target.value)} readOnly={readOnly} style={S.input('#3b82f6')} />
               </div>
             </div>
           </div>
 
           {/* Active checkbox */}
-          <label style={{ ...S.checkboxRow, gridColumn: 'span 2', cursor: 'pointer' }}>
+          <label style={{ ...S.checkboxRow, gridColumn: 'span 2', cursor: readOnly ? 'default' : 'pointer' }}>
             <input
               type="checkbox"
               checked={draft.is_active !== false}
               onChange={(e) => onChange('is_active', e.target.checked)}
+              disabled={readOnly}
               style={{ width: 16, height: 16, accentColor: '#3b82f6' }}
             />
             Active target
@@ -945,7 +959,7 @@ function TargetForm({
       {/* Footer — Save + Delete side by side */}
       <div style={{ ...S.cardFooter, justifyContent: 'space-between' }}>
         <div>
-          {draft.id && (
+          {draft.id && !readOnly && (
             <button
               type="button"
               disabled={deleting || saving}
@@ -962,14 +976,16 @@ function TargetForm({
             </button>
           )}
         </div>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={onSave}
-          style={{ ...S.saveBtn('#2563eb', '0 4px 12px rgba(37,99,235,0.25)'), opacity: saving ? 0.5 : 1 }}
-        >
-          {saving ? 'Saving...' : 'Save Target'}
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            disabled={saving}
+            onClick={onSave}
+            style={{ ...S.saveBtn('#2563eb', '0 4px 12px rgba(37,99,235,0.25)'), opacity: saving ? 0.5 : 1 }}
+          >
+            {saving ? 'Saving...' : 'Save Target'}
+          </button>
+        )}
       </div>
 
       {/* QR Preview Modal */}
@@ -985,6 +1001,7 @@ function TargetForm({
 }
 
 export function TargetRegistryClient({ currentUser, initialTargets, mappings, embedded = false }) {
+  const isReadOnlyAuditor = currentUser?.role === 'auditor'
   const [targets, setTargets] = useState(initialTargets)
   const [search, setSearch] = useState('')
   const [targetDraft, setTargetDraft] = useState(EMPTY_TARGET)
@@ -1163,6 +1180,7 @@ export function TargetRegistryClient({ currentUser, initialTargets, mappings, em
           <aside style={{ ...S.card, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0, alignSelf: 'stretch', boxSizing: 'border-box', maxHeight: 'calc(100vh - 200px)', overflow: 'hidden' }}>
             {/* Search */}
             <input
+              data-readonly-allowed="true"
               className="tr-input"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -1174,6 +1192,7 @@ export function TargetRegistryClient({ currentUser, initialTargets, mappings, em
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 2 }}>
               {filteredTargets.map((target) => (
                 <button
+                  data-readonly-allowed="true"
                   key={target.id}
                   type="button"
                   onClick={() => setTargetDraft(hydrateTargetDraft(target))}
@@ -1221,6 +1240,7 @@ export function TargetRegistryClient({ currentUser, initialTargets, mappings, em
               onNew={() => setTargetDraft(EMPTY_TARGET)}
               onDelete={requestDelete}
               onAddTargetType={addTargetType}
+              readOnly={isReadOnlyAuditor}
             />
           </main>
 

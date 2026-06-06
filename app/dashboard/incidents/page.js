@@ -335,7 +335,7 @@ function IncidentsContent() {
           <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>ช่วงเวลา (Date Range)</div>
           <div style={{ display: 'flex', gap: 6 }}>
             {DATE_FILTERS.map(f => (
-              <button key={f.value} onClick={() => setDateFilter(f.value)} style={{
+              <button data-readonly-allowed="true" key={f.value} onClick={() => setDateFilter(f.value)} style={{
                 padding: '6px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer',
                 border: dateFilter === f.value ? 'none' : '1px solid #d1d5db',
                 background: dateFilter === f.value ? '#1d4ed8' : '#fff',
@@ -352,7 +352,7 @@ function IncidentsContent() {
         
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>สถานะ (Status)</div>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{
+          <select data-readonly-allowed="true" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{
             padding: '6px 12px', borderRadius: 6, fontSize: 12, border: '1px solid #d1d5db', outline: 'none', fontFamily: 'inherit', width: 140
           }}>
             <option value="all">ทั้งหมด (All)</option>
@@ -365,7 +365,7 @@ function IncidentsContent() {
 
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>ความรุนแรง (Severity)</div>
-          <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} style={{
+          <select data-readonly-allowed="true" value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} style={{
             padding: '6px 12px', borderRadius: 6, fontSize: 12, border: '1px solid #d1d5db', outline: 'none', fontFamily: 'inherit', width: 140
           }}>
             <option value="all">ทั้งหมด (All)</option>
@@ -377,6 +377,7 @@ function IncidentsContent() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'flex-end', paddingBottom: 6 }}>
           <input 
+            data-readonly-allowed="true"
             type="checkbox" 
             id="showOnlyMine" 
             checked={showOnlyMine} 
@@ -478,6 +479,7 @@ function IncidentsContent() {
         {hasMore && (
           <div style={{ padding: '20px', textAlign: 'center', borderTop: '1px solid #f3f4f6' }}>
             <button 
+              data-readonly-allowed="true"
               onClick={loadMore} 
               disabled={loadingMore}
               style={{

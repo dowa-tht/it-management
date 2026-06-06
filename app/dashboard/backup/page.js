@@ -39,6 +39,7 @@ function MonthPicker({ value, onChange }) {
   return (
     <div style={{ position: 'relative' }}>
       <button
+        data-readonly-allowed="true"
         onClick={() => setIsOpen(!isOpen)}
         style={{
           padding: '6px 12px', background: '#fff', border: '1px solid #d1d5db',
@@ -61,13 +62,14 @@ function MonthPicker({ value, onChange }) {
             zIndex: 100, padding: 12, width: 180
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <button onClick={() => setViewYear(viewYear - 1)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 8px', fontSize: 10 }}>◀</button>
+              <button data-readonly-allowed="true" onClick={() => setViewYear(viewYear - 1)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 8px', fontSize: 10 }}>◀</button>
               <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{viewYear}</div>
-              <button onClick={() => setViewYear(viewYear + 1)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 8px', fontSize: 10 }}>▶</button>
+              <button data-readonly-allowed="true" onClick={() => setViewYear(viewYear + 1)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 8px', fontSize: 10 }}>▶</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
               {ENG_MONTHS_SHORT.map((m, idx) => (
                 <button
+                  data-readonly-allowed="true"
                   key={m}
                   onClick={() => handleMonthSelect(idx + 1)}
                   style={{
@@ -288,7 +290,7 @@ export default function BackupPage() {
             <h1 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>Backup Log</h1>
             <div style={{ display: 'flex', gap: 6 }}>
               {DATE_FILTERS.map(f => (
-                <button key={f.value} onClick={() => setDateFilter(f.value)} style={{
+                <button data-readonly-allowed="true" key={f.value} onClick={() => setDateFilter(f.value)} style={{
                   padding: '6px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
                   border: dateFilter === f.value ? 'none' : '1px solid #d1d5db',
                   background: dateFilter === f.value ? '#1d4ed8' : '#fff',
@@ -436,6 +438,7 @@ export default function BackupPage() {
         {hasMore && (
           <div style={{ padding: '20px', textAlign: 'center', borderTop: '1px solid #f3f4f6' }}>
             <button 
+              data-readonly-allowed="true"
               onClick={loadMore} 
               disabled={loadingMore}
               style={{
