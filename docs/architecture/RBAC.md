@@ -26,13 +26,13 @@
 | **Incident (My Tickets)** | ✅ RW | ✅ RW | ✅ RW | ✅ RO | ✅ RO |
 | **Checklist (Execute)** | ✅ RW | ✅ RW | ❌ | ✅ RO | ❌ |
 | **Backup Log (Manage)** | ✅ RW | ✅ RW | ❌ | ✅ RO | ❌ |
-| **System Logs (Audit)** | ✅ RO | ❌ | ❌ | ✅ RO | ❌ |
+| **System Logs (Audit)** | ✅ RO | ✅ RO | ❌ | ❌ | ❌ |
 | **User Settings** | ✅ RW | ❌ | ❌ | ❌ | ❌ |
 
 **กฎการกรองข้อมูล (Data Isolation):**
 -   **`employee`**: จะเห็นเฉพาะ Incident ที่ตนเองเป็นคนแจ้ง (`reported_by_id`) หรือที่เป็นคนสร้างเท่านั้น
 -   **`it_staff`**: จะเห็นงานทั้งหมดที่เกี่ยวข้องกับฝ่าย IT เพื่อการปฏิบัติงาน
--   **`auditor`**: เห็นข้อมูลทุกอย่างแต่ไม่สามารถกดปุ่ม Save/Delete หรือแก้ไขใดๆ ได้
+-   **`auditor`**: เห็นข้อมูลตามขอบเขตการตรวจสอบแบบ Read-Only และต้องไม่สามารถ create/update/delete ข้อมูลใน `incident` / `checklist`
 
 ---
 
@@ -41,6 +41,7 @@
 1.  **Strict Typing**: ห้ามใช้คำว่า `guest`, `visitor`, `member` หรือ `supervisor` ในโค้ดอีกต่อไป ให้ใช้ชื่อตามตารางด้านบนเท่านั้น
 2.  **Server-side Enforcement**: การเช็คสิทธิ์ (Check Permission) ต้องทำที่ Server Action ทุกครั้งก่อนเข้าถึงข้อมูล
 3.  **Audit Trail**: ทุกการเปลี่ยนแปลงสิทธิ์ (Change Role) ต้องถูกบันทึก Log โดยระบุชื่อ Admin และสาเหตุของการเปลี่ยนแปลงเสมอ
+4.  **RLS Alignment**: สิทธิ์ Read-Only ของ `auditor` ต้องถูกบังคับทั้งใน UI และ RLS; ห้ามใช้ read helper เดียวกันกับ write policy โดยตรง
 
 ---
 *จัดทำโดย: Project Checker (DOWA IT System)*

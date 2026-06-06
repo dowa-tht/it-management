@@ -1,6 +1,6 @@
-# 📘 DOWA IT System - Technical Documentation (Multi-Tier RBAC)
+# 📘 DOWA IT System - Technical Documentation (Unified Auth, Workflow, Audit)
 
-เอกสารฉบับนี้สรุปโครงสร้างระบบบริหารจัดการผู้ใช้ (User Management) และการรักษาความปลอดภัยที่มีการแบ่งเป็น 4 ระดับ (Tiers) เพื่อใช้เป็นมาตรฐานในการพัฒนาและแก้ไขระบบ
+เอกสารฉบับนี้สรุปโครงสร้างระบบบริหารจัดการผู้ใช้ (User Management), Workflow, Audit Trail และการรักษาความปลอดภัย เพื่อใช้เป็นภาพรวมของสถาปัตยกรรมที่ใช้งานจริง
 
 ---
 
@@ -12,7 +12,7 @@
 ### 1. Unified Identity Strategy
 - **Core Platform**: Supabase Auth (Email/Password & Microsoft 365 SSO)
 - **Source of Truth**: `user_profiles` (Single table for all roles)
-- **Unified Auth Flow**: All users (Administrator to Guest) use a single login interface.
+- **Unified Auth Flow**: All users use a single login interface with normalized roles `admin`, `it_staff`, `approver`, `employee`, `auditor`.
 
 #### Data Relation (Unified)
 ```mermaid
@@ -53,19 +53,18 @@ erDiagram
 
 ---
 
-## 2. Multi-Tier RBAC (Unified Tiers)
+## 2. Unified RBAC
 
-All tiers now use standard authentication protocols.
-
-| Tier | Role Name | Access Level | Auth Method |
-| :---: | :--- | :--- | :--- |
-| **Tier 1** | administrator | Full System Control | Email/Pass or M365 |
-| **Tier 2** | supervisor | Operation & Reports | Email/Pass or M365 |
-| **Tier 3** | approval | Specific Case Approvals | Email/Pass or M365 |
-| **Tier 4** | guest | Create/View Incidents | Email/Pass or M365 |
+| Role | Access Summary | Auth Method |
+| :--- | :--- | :--- |
+| `admin` | Full system control | Email/Pass or M365 |
+| `it_staff` | Operate checklist / incidents / reports | Email/Pass or M365 |
+| `approver` | Approval-specific actions | Email/Pass or M365 |
+| `employee` | Create/follow own incidents | Email/Pass or M365 |
+| `auditor` | Read-only audit access to allowed modules | Email/Pass or M365 |
 
 > [!IMPORTANT]
-> **Normalization:** ระบบใช้ฟังก์ชัน `normalizeRole()` ใน `lib/auth.js` เพื่อแปลงค่าเก่า (เช่น `superuser` -> `administrator`, `visitor` -> `guest`) ให้เป็นมาตรฐานเดียวกันก่อนแสดงผลหรือเช็คสิทธิ์
+> **Normalization:** ระบบใช้ฟังก์ชัน `normalizeRole()` ใน `lib/auth.js` เพื่อแปลงค่า legacy role ให้เป็นมาตรฐานเดียวกันก่อนแสดงผลหรือเช็คสิทธิ์
 
 ---
 
@@ -102,9 +101,14 @@ All tiers now use standard authentication protocols.
     - External ใช้ Custom Cookie (Cookie `guest-session` เข้ารหัส Base64)
 
 ---
-## 5. Workflow & Approval Engine (ระบบอนุมัติ)
+## 5. Workflow & Audit Engine (ระบบอนุมัติและการตรวจสอบย้อนหลัง)
 
-ระบบใช้มาตรฐาน **Unified Workflow Engine** เพื่อจัดการลำดับการอนุมัติแบบ Dynamic รองรับการตั้งค่าผ่านหน้าเว็บและเก็บประวัติการอนุมัติ (Audit Trail) แบบรวมศูนย์ในตารางเดียว
+ระบบใช้มาตรฐาน **Unified Workflow Engine** เพื่อจัดการลำดับการอนุมัติแบบ Dynamic และใช้ชุด log แยกตามชนิดงาน:
+- `system_audit_logs` สำหรับ document/settings audit events แบบ structured
+- `admin_audit_logs` สำหรับ user/security actions
+- `backup_logs` สำหรับ operational backup records
+
+หน้าจอ `System Logs & Audit` จะ aggregate ข้อมูลเหล่านี้ผ่าน query layer กลางเพื่อให้ตรวจย้อนหลังได้โดยไม่ต้อง query DB ตรง
 
 **รายละเอียดมาตรฐาน:** `docs/standards/WORKFLOW_ENGINE.md`
 

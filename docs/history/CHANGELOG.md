@@ -2,6 +2,18 @@
 
 ## 6 มิถุนายน 2569 (06-Jun-2026)
 
+- **[17:32] Sync Audit Documentation, Re-Verify Test Suite, And Prepare Push**
+  - **อัปเดตเอกสารถาวรให้ตรงกับระบบหลังปิด audit rollout:**
+    - ปรับ `docs/INDEX.md` และ `docs/standards/FUNCTION_REGISTRY.md` ให้สะท้อน shared audit helpers, logs viewer tabs, และสถานะ RLS remediation ล่าสุด
+    - อัปเดต `docs/standards/DOCUMENT_MAPPING_STANDARD.md`, `docs/architecture/RBAC.md`, และ `docs/architecture/DATABASE_AND_FLOW.md` ให้ตรงกับ structured audit flow, `admin_audit_logs`, `backup_logs`, และ read-only contract ของ `auditor`
+    - อัปเดตคู่มือ `docs/manuals/WORKFLOW_GUIDE.md` และ `docs/manuals/PRODUCTION_MIGRATION_PLAYBOOK.md` เพื่อเพิ่มการใช้งาน logs viewer และ checklist ตรวจ policy drift/RLS regression
+    - บันทึกผล close-out ลง `docs/history/USER_TASKS.md` ให้ tracker สอดคล้องกับสถานะจริงของงาน
+  - **ยืนยันคุณภาพก่อนเตรียม push:**
+    - `npm test` ผ่าน `34/34`
+    - `npm run build` ผ่าน
+  - **หมายเหตุ:**
+    - รอบนี้ยังไม่ cleanup working tree และจะรอการยืนยันจาก USER หลัง push ก่อนดำเนินการต่อ
+
 - **[16:58] Close Manual Verification And Fix Auditor RLS Leak**
   - **ปิด manual verification เพิ่มเติมสำหรับ audit rollout:**
     - ยืนยันว่า `Checklist` edit เขียน structured audit entry ได้จริงจากเอกสารทดสอบ `CHK-AUDIT-20260606-162832`

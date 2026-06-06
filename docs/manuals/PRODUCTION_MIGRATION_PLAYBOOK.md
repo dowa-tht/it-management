@@ -145,10 +145,22 @@
    - Pass: ทุกตารางที่ต้องคุมสิทธิ์มี RLS + policy ครบ
    - Fail: RLS ปิดหรือ policy สำคัญหาย
 
+   **เพิ่มจุดตรวจ drift ที่ห้ามพลาด:**
+   - ห้ามมี broad policy แนว `Allow all for authenticated users` บน `incidents`
+   - write policy ของ `checklist_items` / `checklist_item_steps` ต้องอิง write helper เท่านั้น ไม่ใช่ read helper
+   - read helper ของ `auditor` ต้องแยกจาก write helper ชัดเจน
+
 4. **RBAC contract ไม่เปลี่ยนโดยพลการ**
-   - Verify: role หลัก `admin`, `it_staff`, `approver`, `employee`, `auditor` ยังทำงานตามมาตรฐาน และไม่มี migration ที่ลดสิทธิ์/ยกระดับสิทธิ์นอกแผน
-   - Pass: ไม่มี role/permission drift
-   - Fail: พบการแก้สิทธิ์นอกขอบเขตที่อนุมัติ
+  - Verify: role หลัก `admin`, `it_staff`, `approver`, `employee`, `auditor` ยังทำงานตามมาตรฐาน และไม่มี migration ที่ลดสิทธิ์/ยกระดับสิทธิ์นอกแผน
+  - Pass: ไม่มี role/permission drift
+  - Fail: พบการแก้สิทธิ์นอกขอบเขตที่อนุมัติ
+
+5. **Read-only auditor contract ยังอยู่ครบ**
+   - Verify:
+     - `auditor` ยังอ่าน `incident`, `checklist`, `backup`, และ report scope ที่อนุญาตได้
+     - `auditor` ต้อง update `incidents` และ `checklist_items` ไม่ได้
+   - Pass: read ได้ / write ไม่ได้
+   - Fail: ถ้า update สำเร็จหรือกระทบข้อมูลจริง ให้ block release ทันที
 
 ### Warning (should-fix / documented risk)
 
@@ -236,9 +248,22 @@
    - Fail: ไม่มี summary แต่ไม่ block release ถ้า Critical ผ่าน
 
 2. **Post-release quick audit script/list พร้อมใช้**
-   - Verify: มี checklist หรือ query/script สั้นสำหรับตรวจหลัง deploy รอบแรก
-   - Pass: ลดเวลา incident response หลังปล่อยจริง
-   - Fail: ไม่มี artifact เสริม แต่ยัง deploy ได้
+  - Verify: มี checklist หรือ query/script สั้นสำหรับตรวจหลัง deploy รอบแรก
+  - Pass: ลดเวลา incident response หลังปล่อยจริง
+  - Fail: ไม่มี artifact เสริม แต่ยัง deploy ได้
+
+### Recommended Post-Release RLS Queries
+```sql
+select schemaname, tablename, policyname, permissive, roles, cmd
+from pg_policies
+where schemaname = 'public'
+  and tablename in ('incidents', 'checklist_docs', 'checklist_items', 'checklist_item_steps')
+order by tablename, policyname;
+```
+
+ตรวจเพิ่มเติม:
+- ไม่มี policy broad เกินจำเป็นบน `incidents`
+- `checklist_items` และ `checklist_item_steps` ไม่มี write policy ที่อ้าง `current_user_can_read_checklist_doc(...)`
 
 ---
 

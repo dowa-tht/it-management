@@ -1,8 +1,8 @@
 # Function Registry
 <!-- อัปเดตโดย Smart AI ทุกครั้งที่มีการเปลี่ยนแปลง function -->
 
-สร้างจากการอ่าน `docs/INDEX.md`, `docs/history/USER_TASKS.md`, `app/actions/*` และ `app/dashboard/**/page.js` ณ วันที่ 29 พฤษภาคม 2569
-อัปเดตล่าสุด: 29 พฤษภาคม 2569 — เพิ่ม external reporter follow-up token flow, public follow-up route และปรับ incident reporter mapping ใน workflow
+สร้างจากการอ่าน `docs/INDEX.md`, `docs/history/USER_TASKS.md`, `app/actions/*` และ `app/dashboard/**/page.js` ณ วันที่ 6 มิถุนายน 2569
+อัปเดตล่าสุด: 6 มิถุนายน 2569 — เพิ่ม shared audit helper, structured document/settings audit hooks, ขยาย logs viewer และบันทึก migration ปิด auditor RLS leak
 
 หมายเหตุ:
 - Registry นี้บันทึกเฉพาะฟังก์ชัน/คอมโพเนนต์ที่พบจริงจาก source path ที่ USER ระบุ
@@ -117,6 +117,10 @@
 | Diagnose approval PIN | `app/actions/workflow.js` | `diagnoseApprovalPin()` | Server Action, L113 |
 | บันทึก system error | `app/actions/workflow.js` | `recordSystemError()` | Server Action, L199 |
 | บันทึก audit log | `app/actions/workflow.js` | `recordAuditLog()` | Server Action, L218 |
+| ตรวจว่า payload audit ถูก normalize แล้วหรือไม่ | `app/actions/audit.js` | `isNormalizedAuditPayload()` | internal helper; ป้องกันการ normalize ซ้ำก่อน insert ลง `system_audit_logs` |
+| บันทึก structured audit log กลาง | `app/actions/audit.js` | `recordEntityAuditLog()` | Server Action; เขียน `system_audit_logs` ด้วย contract กลาง |
+| resolve actor สำหรับ client audit | `app/actions/audit.js` | `resolveAuditActor()` | internal helper; ดึง session/profile ของผู้กระทำ |
+| บันทึก audit จาก client mutation | `app/actions/audit.js` | `recordClientAuditLog()` | Server Action; ใช้กับ document/settings edit flows เพื่อสร้าง `field_changes` |
 | แจ้งเตือน approver | `app/actions/workflow.js` | `notifyApprover()` | internal helper, L281 |
 | โหลด approval audit log | `app/actions/workflow.js` | `getApprovalAuditLog()` | Server Action, L327 |
 | โหลด pending approvals รวม | `app/actions/workflow.js` | `getUnifiedPendingApprovals()` | Server Action, L426 |
@@ -235,6 +239,7 @@
 | หน้า Permissions settings | `app/dashboard/settings/permissions/page.js` | `PermissionsPage()` | Page component, L15 |
 | หน้า Substitutes settings | `app/dashboard/settings/substitutes/page.js` | `SubstitutesPage()` | Page component, L7 |
 | หน้า Logs settings | `app/dashboard/settings/logs/page.js` | `LogsPage()` | Page component, L7 |
+| แปลงรายละเอียด log ให้ render-safe | `app/dashboard/settings/logs/page.js` | `renderLogDetailsText()` | page-local helper; รองรับ `details` แบบ string/object และ `details_text` |
 | หน้า Master Data settings | `app/dashboard/settings/master-data/page.js` | `MasterDataPage()` | Page component, L9 |
 
 ## settings expanded scan (setup/admin)

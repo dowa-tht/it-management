@@ -11,7 +11,9 @@
 1.  **`workflow_configs`**: ตารางแม่บทที่กำหนดว่าเอกสารแต่ละประเภท (Incident, Checklist) ต้องผ่านขั้นตอนการอนุมัติอย่างไร
 2.  **`approval_configs`**: ตารางกำหนด "ผู้อนุมัติหลัก" (Primary Approver) สำหรับความถี่ของ Checklist หรือประเภทงาน
 3.  **`document_approvals`**: ตารางที่เก็บสถานะการอนุมัติจริงของเอกสารแต่ละใบ (1 บรรทัด = 1 ขั้นตอน)
-4.  **`incident_logs` / `checklist_logs`**: เก็บประวัติการกระทำ (Audit Trail) ในรูปแบบ `Action | Details`
+4.  **`system_audit_logs`**: เก็บ structured audit trail สำหรับ document/settings changes
+5.  **`admin_audit_logs`**: เก็บ user/security actions
+6.  **`incident_logs` / `checklist_logs`**: legacy compatibility logs ในรูปแบบ `Action | Details`
 
 ---
 
@@ -33,6 +35,10 @@
     *   ถ้าเซ็นครบทุกขั้นตอนตาม Config -> สถานะเป็น `Closed` ทันที
     *   ถ้ายังไม่ครบ (เช่น ขาดลายเซ็นผู้จัดการ) -> สถานะเป็น `Pending Approval`
 5.  **การปิดเคส (Closed)**: เมื่อขั้นตอนสุดท้ายได้รับการอนุมัติ ระบบจะรัน `onDocumentFinalApproval` เพื่อซิงค์ข้อมูลกลับไปยัง Checklist (ถ้ามี)
+
+### Audit Expectations ระหว่างแก้เอกสาร
+- การแก้ Incident detail ต้องสร้าง canonical `Updated` structured audit entry พร้อม `field_changes`
+- การแก้ Checklist detail ต้องสร้าง structured audit entry ทั้งระดับเอกสารและระดับ item ตามจุด mutation สำคัญ
 
 ### ⚖️ เงื่อนไข Yes/No ใน Incident Resolve:
 *   **เป็นงานที่มาจาก Checklist?**
@@ -57,6 +63,10 @@
         *   ❌ **ตีกลับ (Reject)**: ใส่เหตุผล -> เอกสารกลับไปสถานะ `Open` (ร่าง) เพื่อให้แก้ไขใหม่
 5.  **เสร็จสิ้น (Closed)**: เมื่อคนสุดท้ายเซ็นครบ สถานะจะเป็น `Closed`
 
+### Audit Expectations ระหว่างลงผลตรวจ
+- การเปลี่ยน `evaluation_result`, `evaluation_remark`, `status`, `duration`, `start_time` และ `template_data` ต้องถูกบันทึกเป็น structured audit event
+- `template_data` ต้อง log แบบ summary เท่านั้น ห้าม dump payload ดิบทั้งก้อน
+
 ---
 
 ## 🔒 4. การยืนยันตัวตน (Authentication Modes)
@@ -75,13 +85,27 @@
 
 ## 📝 5. มาตรฐานการบันทึก Log (Logging Standard)
 
-เพื่อให้ตรวจสอบย้อนกลับได้ง่าย ทุก Action ของ Workflow ต้องบันทึกในรูปแบบ:
-`[Action] | [Details]`
+เพื่อให้ตรวจสอบย้อนกลับได้ง่าย ระบบใช้ 2 ชั้น:
+- **Structured audit** ใน `system_audit_logs` / `admin_audit_logs`
+- **Legacy display log** แบบ `Action | Details` สำหรับ compatibility
+
+Structured audit ขั้นต่ำต้องมี:
+- `metadata.scope`
+- `metadata.entity_type`
+- `metadata.entity_id`
+- `metadata.entity_label`
+- `metadata.source_module`
+- `metadata.field_changes`
 
 **ตัวอย่าง:**
 *   `Submitted | ส่งเอกสารเพื่อขออนุมัติ (ผู้อนุมัติหลัก: นายเอ)`
 *   `Approved | อนุมัติโดย: นายบี (b@dowa.co.th) | (Verified by PIN)`
 *   `Auto-Update OK | แก้ไขรายการ NG อัตโนมัติจากเคส INC-20240508-001`
+
+### Logs Viewer Mapping
+- `Audit Logs`: document/settings audit จาก `system_audit_logs`
+- `Admin Actions`: user/security audit จาก `admin_audit_logs`
+- `Backup Logs`: operational records จาก `backup_logs`
 
 ---
 

@@ -3,14 +3,14 @@
 **[ATTENTION AI AGENTS]**  
 This is the central documentation hub. You MUST read this file first before starting any task to understand the system's architecture and find the relevant documentation for your specific task. **DO NOT read all files unless necessary to avoid context overflow.**
 
-**Latest Update (05-Jun-2026 15:25):** Audit Trail & Logs Viewer implementation plan ถูกอัปเดตสถานะเป็น Task 1-5 complete, พร้อมมาตรฐาน structured audit logs สำหรับ document/settings/admin/backup
+**Latest Update (06-Jun-2026 17:32):** Audit Trail & Logs Viewer rollout ปิด functional verification แล้ว, เอกสารสถาปัตยกรรม/คู่มือถูก sync ให้ตรงกับ structured audit logs และ logs viewer ปัจจุบัน, และมี follow-up RLS fix สำหรับ `auditor` read-only ใน `incident/checklist`
 
 ---
 
 ## 🏛️ 1. Architecture & Core Systems (`docs/architecture/`)
 เอกสารหมวดนี้เกี่ยวกับโครงสร้างพื้นฐาน การออกแบบฐานข้อมูล และระบบความปลอดภัย
 - [DATABASE_AND_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/DATABASE_AND_FLOW.md) : โครงสร้าง Database หลัก, ความสัมพันธ์ของตาราง, และ Workflow การทำงาน (Authentication, Checklist Engine)
-- [RBAC.md](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/RBAC.md) : แผนงานและโครงสร้างของระบบสิทธิ์การใช้งาน (Role-Based Access Control) แบบ 4 ระดับ (Admin, Supervisor, Approval, Guest)
+- [RBAC.md](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/RBAC.md) : แผนงานและโครงสร้างของระบบสิทธิ์การใช้งาน (Role-Based Access Control) สำหรับ `admin`, `it_staff`, `employee`, `auditor`, และ `approver`
 - [RBAC_PLAN_THAI.txt](file:///c:/Users/Lenovo/dowa-it-system/docs/architecture/RBAC_PLAN_THAI.txt) : บันทึกการวางแผนระบบ RBAC เริ่มต้น (Archive)
 
 ---

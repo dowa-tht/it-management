@@ -1,16 +1,33 @@
 # 📋 รายการงาน (Task Tracker)
 
-**อัปเดตล่าสุด:** 4 มิถุนายน 2569 (ตอนนี้)
+**อัปเดตล่าสุด:** 6 มิถุนายน 2569
 
 ---
 
 ## ⏳ งานรอทดสอบ (Pending Verification)
 
-ไม่มีงานรอทดสอบอยู่ใน tracker นี้ ณ ตอนอัปเดตล่าสุด
+ไม่มีงานที่อยู่ระหว่างรอทดสอบใน tracker นี้ ณ ตอนอัปเดตล่าสุด
 
 ---
 
 ## ✅ งานที่เสร็จสิ้นแล้ว (Completed)
+
+### 25. Audit Trail & Logs Viewer Close-Out + Auditor RLS Leak Remediation
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 6 มิถุนายน 2569
+- **รายละเอียด:**
+  - ปิด manual verification ของแผน `IMPLEMENTATION_PLAN_AUDIT_TRAIL_AND_LOG_VIEWER`
+  - ยืนยันว่า Incident edit, Checklist edit, Working Hours settings change, Admin Actions tab, และ Backup Logs tab ทำงานและเขียน audit ได้จริง
+  - พบ live RLS drift ที่ทำให้ `auditor` ยังเขียน `incidents` และ `checklist_items` ได้ แม้ UI เป็น read-only
+  - สร้าง migration `supabase/migrations/20260606_fix_auditor_readonly_rls_leaks.sql` เพื่อปิด permissive policies และแยก read/write helper ให้ตรงตาม contract
+  - ยืนยันหลัง apply migration ว่า `auditor` ยังอ่านข้อมูลที่อนุญาตได้ แต่ write attempts ให้ผล `0 rows` และไม่แก้ข้อมูลจริง
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `app/actions/audit.js`
+  - `app/dashboard/settings/logs/page.js`
+  - `lib/audit.js`
+  - `tests/audit-log-contract.test.js`
+  - `supabase/migrations/20260606_fix_auditor_readonly_rls_leaks.sql`
+  - `docs/history/IMPLEMENTATION_PLAN_AUDIT_TRAIL_AND_LOG_VIEWER.md`
 
 ### 24. Fix Dashboard "My Sent Pending" False Positive & Align isCreator Logic
 - **สถานะ:** ✅ เสร็จสมบูรณ์
@@ -325,6 +342,27 @@
 ---
 
 ## ✅ งานที่ตรวจสอบแล้วและปิดได้เพิ่ม (Verified & Closed)
+
+### P3. Auditor Expiry Quick Extend In Account Management
+- **สถานะ:** ✅ ทดสอบผ่านแล้ว / ปิดงานได้
+- **วันที่พัฒนา:** 5 มิถุนายน 2569
+- **วันที่ยืนยันผลทดสอบ:** 5 มิถุนายน 2569
+- **รายละเอียด:**
+  - เพิ่มมาตรฐาน `auditor expiry` ที่ `default = 3 วัน` และ quick extend options `3/7/15/30 วัน`
+  - เพิ่ม action `extendAuditorExpiry(userId, days)` ใน `app/actions/admin.js` สำหรับ `admin` เท่านั้น
+  - flow ต่ออายุ, role switch, confirm dialog, และการ clear/set `expires_at` ผ่านการทดสอบแล้ว
+  - ยืนยันว่า flow ปกติของ `Account Management` ไม่ regress
+
+### P2. Checklist Auditor Read-Only RLS Alignment
+- **สถานะ:** ✅ ทดสอบผ่านแล้ว / ปิดงานได้
+- **วันที่พัฒนา:** 5 มิถุนายน 2569
+- **วันที่ยืนยันผลทดสอบ:** 5 มิถุนายน 2569
+- **รายละเอียด:**
+  - migration `supabase/migrations/20260605_checklist_auditor_readonly_rls.sql` และ helper `current_user_can_read_checklist_doc()` ถูกใช้งานร่วมกับ read-only policy ที่แยกจาก write path เดิม
+  - flow read-only ของ `auditor` ใน `checklist`, `incidents`, `backup`, `reports/sla`, `holidays`, `logs`, `Target Registry`, และ `Procedure Plans` ผ่านการทดสอบแล้ว
+  - ยืนยันว่า `auditor` อ่านข้อมูลได้ตาม scope ที่ออกแบบไว้ โดยยังไม่สามารถ create/update/delete ข้อมูลได้
+  - ยืนยันว่า flow เดิมของ `admin`, `it_staff`, และ `approver` ไม่ regress
+  - **Follow-up (06-Jun-2026):** พบ live policy drift เพิ่มเติมใน production-like DB และแก้ด้วย migration `20260606_fix_auditor_readonly_rls_leaks.sql` เพื่อปิด write leak ที่ยังค้างจริง
 
 ### 1. เตรียมข้อมูล UAT สำหรับ Target Registry / QR Asset History
 - **สถานะ:** ✅ ตรวจสอบแล้ว / ปิดงานได้

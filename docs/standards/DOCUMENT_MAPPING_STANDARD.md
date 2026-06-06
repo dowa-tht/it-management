@@ -1,7 +1,7 @@
 # 🗺️ Document Mapping Standard (Unified Workflow)
 
-**Version:** 1.0  
-**Last Updated:** 10-May-2026  
+**Version:** 1.1  
+**Last Updated:** 06-Jun-2026  
 **Purpose:** มาตรฐานการจับคู่ข้อมูล (Mapping) ระหว่างสถานะทางธุรกิจ (Business Status) และสถานะของระบบ (System Workflow) เพื่อให้ Agent ทุกตัวทำงานบนตรรกะเดียวกัน
 
 ---
@@ -28,6 +28,8 @@
 | :--- | :--- | :--- | :--- |
 | `incidents` / `checklist_docs` | `document_approvals` | 1 : N | `doc_id` |
 | `incidents` / `checklist_docs` | `system_audit_logs` | 1 : N | `doc_id` |
+| `user_profiles` | `admin_audit_logs` | 1 : N | `target_user_id` |
+| `backup_logs` | Logs Viewer | normalized view | `id` |
 | `document_approvals` | `user_profiles` | N : 1 | `approver_id` |
 | `incidents` | `user_profiles` | N : 1 | `reported_by_id` |
 | `incidents` | `user_profiles` | N : 1 | `assigned_to_id` |
@@ -44,7 +46,19 @@
 - **Initial Submission**: ไม่บันทึกรูปภาพ (Image) แต่บันทึก Full Name + Timestamp ลงใน `metadata` ของ `system_audit_logs`
 - **Approval Signatures**: บันทึกลงใน `document_approvals.signature_data` (Data URL)
 
-### 3.3 Checklist Photo Evidence Mapping
+### 3.3 Structured Audit Mapping
+- **Document / Settings Audit:** ใช้ `system_audit_logs` เป็นแหล่งกลาง
+- **User / Security Audit:** ใช้ `admin_audit_logs`
+- **Operational Backup Records:** ใช้ `backup_logs` และแสดงผ่าน viewer แบบ normalized
+- ทุก structured audit event ต้องมี `metadata.scope`, `metadata.entity_type`, `metadata.entity_id`, `metadata.entity_label`, `metadata.source_module`, และ `metadata.field_changes`
+- หาก `entity_id` ไม่ใช่ UUID เช่น `working_hours` ให้เก็บค่า text ไว้ใน `metadata.entity_id` และใช้ zero UUID เป็น `doc_id` แทนเพื่อไม่ให้ชน contract ของคอลัมน์ UUID
+
+### 3.4 Read vs Write Access Mapping
+- `public.current_user_can_read_checklist_doc()` ใช้สำหรับ read path ของ Checklist โดยเฉพาะกรณี `auditor`
+- `public.current_user_can_access_checklist_doc()` ใช้สำหรับ write path ของ Checklist และต้องไม่รวม `auditor`
+- `public.current_user_can_read_incident()` ใช้สำหรับ read path ของ Incident
+- `public.current_user_can_edit_incident()` ใช้สำหรับ update path ของ Incident เพื่อให้สิทธิ์ตรงกับ UI/business owner จริง
+### 3.5 Checklist Photo Evidence Mapping
 - หลักฐานภาพของ Checklist ถูกบันทึกใน `checklist_items.template_data`
 - `template_data.photos` ใช้เก็บ OneDrive file id แยกตาม `point index`
 - `template_data.photo_meta` ใช้เก็บ metadata ของภาพ เช่น:
@@ -58,7 +72,7 @@
   - `message`
 - หาก geolocation เป็น optional และผู้ใช้ไม่อนุญาต ระบบยังต้องบันทึกรูปภาพได้ตามปกติ โดยเก็บ `lat` และ `lng` เป็น `null`
 
-### 3.4 Checklist Template Config Mapping
+### 3.6 Checklist Template Config Mapping
 - `checklist_templates.template_config` เป็น source of truth สำหรับการตั้งค่าเชิงลึกของ Template Builder
 - การบันทึก `template_config` ต้อง validate ที่ server ทุกครั้งก่อน `insert` หรือ `update`
 - โครงสร้างขั้นต่ำของแต่ละ `ui_template_type`:
@@ -70,7 +84,7 @@
 - `T5 Sign-off`: `signers`, `require_order`, `pin_required`
 - เอกสาร Checklist ที่ถูกสร้างแล้วต้องอ้างอิง snapshot เดิมใน `checklist_items.template_data._snapshot.config` ต่อไป ห้าม render ย้อนหลังจาก master config ล่าสุดอย่างเดียว
 
-### 3.5 Procedure Plan Step Mapping
+### 3.7 Procedure Plan Step Mapping
 - `checklist_procedure_plans.steps` ใช้เก็บ metadata ของ SOP ในรูปแบบ object ที่มี key `rows`
 - `steps.rows[]` แต่ละรายการต้องมี field ขั้นต่ำ:
   - `step_no`
