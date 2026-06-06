@@ -8,10 +8,13 @@
     - ย่อ `docs/history/CHANGELOG.md` ให้เหลือเฉพาะ section ของวันที่ปัจจุบัน
   - **ทบทวนสถานะ implementation plan รอบ audit อีกครั้งจากไฟล์จริง:**
     - ยืนยันว่า `Task 1-6` ทำเสร็จแล้วจาก implementation/test/build เดิม
-    - ยืนยันว่าจุดค้างหลักเหลือ `Task 7 Step 4` และชุด commit ปิดงานตาม task
+    - ยืนยันว่าจุดค้างหลักเหลือ `Task 7 Step 4` และ final close-out commit
   - **ความพยายามในการ manual verification รอบนี้:**
     - เรียก `next dev` และตรวจ runtime/brower tooling เพื่อเตรียมปิด manual verification
     - ยังไม่สามารถคง dev server สำหรับ browser walkthrough แบบ authenticated ได้จาก session ปัจจุบัน จึงต้องเก็บ checklist นี้ไว้เป็นงาน verify เชิง runtime ต่อ
+  - **จัดระเบียบ local commit ของงานที่เสร็จแล้ว:**
+    - รวม `Tasks 2-6` ไว้ใน commit `d5a1b3c` (`feat: complete audit trail rollout`)
+    - ยังไม่ได้ push ขึ้น GitHub ตามขอบเขตงานปัจจุบัน
 
 ---
 
@@ -43,4 +46,4 @@
 - [CHANGELOG_2026_05_07.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_07.md)
 
 ---
-*อัปเดตล่าสุด: 06-Jun-2026 15:26*
+*อัปเดตล่าสุด: 06-Jun-2026 15:32*

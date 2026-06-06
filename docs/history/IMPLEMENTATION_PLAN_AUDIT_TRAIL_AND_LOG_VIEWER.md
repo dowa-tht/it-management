@@ -8,11 +8,12 @@
 
 **Tech Stack:** Next.js App Router, Supabase, Server Actions, `system_audit_logs`, `admin_audit_logs`, `backup_logs`
 
-**Status Update (06-Jun-2026 15:26):**
+**Status Update (06-Jun-2026 15:32):**
 - `Task 1-5`: implementation complete
 - `Task 6`: documentation standards updated
 - `Verification`: targeted audit tests passed, full `npm test` passed, `npm run build` passed
-- `Pending`: authenticated manual verification checklist and scoped cleanup/commit for Tasks 2-5 / Task 6 / Task 7
+- `Commits`: Tasks 2-6 consolidated into local commit `d5a1b3c`
+- `Pending`: authenticated manual verification checklist and final close-out commit for Task 7
 - `Runtime Note`: attempted `next dev` + browser verification on 06-Jun-2026, but no stable authenticated dev walkthrough was available from the current session
 
 ---
@@ -165,7 +166,9 @@ Run: `npm test -- tests/audit-log-contract.test.js`
 Expected:
 - PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
+
+Consolidated into local commit `d5a1b3c` (`feat: complete audit trail rollout`)
 
 ```bash
 git add app/dashboard/incidents/[id]/page.js tests/audit-log-contract.test.js
@@ -229,7 +232,9 @@ Run: `npm test -- tests/audit-log-contract.test.js`
 Expected:
 - PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
+
+Consolidated into local commit `d5a1b3c` (`feat: complete audit trail rollout`)
 
 ```bash
 git add app/dashboard/checklist/[id]/page.js app/actions/audit.js tests/audit-log-contract.test.js
@@ -310,7 +315,9 @@ Run: `npm test -- tests/audit-log-contract.test.js`
 Expected:
 - PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
+
+Consolidated into local commit `d5a1b3c` (`feat: complete audit trail rollout`)
 
 ```bash
 git add app/actions/audit.js app/actions/target.js app/actions/checklist-template.js app/actions/procedure-plan.js app/actions/sla-settings.js app/dashboard/settings/working-hours/page.js app/dashboard/settings/holidays/page.js app/dashboard/settings/permissions/page.js app/dashboard/settings/substitutes/page.js app/dashboard/settings/_components/MasterDataScope.js tests/audit-log-contract.test.js
@@ -381,7 +388,9 @@ Run: `npm test -- tests/audit-log-viewer.test.js`
 Expected:
 - PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
+
+Consolidated into local commit `d5a1b3c` (`feat: complete audit trail rollout`)
 
 ```bash
 git add app/actions/workflow.js app/dashboard/settings/logs/page.js tests/audit-log-viewer.test.js
@@ -418,7 +427,9 @@ Verify docs do not contradict current architecture:
 - `admin_audit_logs` for user/security
 - `backup_logs` as operational logs
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
+
+Consolidated into local commit `d5a1b3c` (`feat: complete audit trail rollout`)
 
 ```bash
 git add docs/standards/DEVELOPMENT.md docs/standards/AGENCY_QUICK_REFERENCE.md docs/INDEX.md docs/history/IMPLEMENTATION_PLAN_AUDIT_TRAIL_AND_LOG_VIEWER.md
