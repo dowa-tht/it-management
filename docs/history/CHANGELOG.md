@@ -2,6 +2,18 @@
 
 ## 6 มิถุนายน 2569 (06-Jun-2026)
 
+- **[22:25] Update & Restructure Workflow Guide with Identity Flow**
+  - อัปเดตไฟล์ [docs/manuals/WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/WORKFLOW_GUIDE.md) เพื่อเพิ่มกระบวนการ Login, Gatekeeper, และ Onboarding Flow เป็นข้อที่ 1
+  - มาร์กส่วนข้อมูลเดิม (Incident, Checklist, Auth Modes, Logging) เป็น `Legacy / Reference Only` เพื่อเก็บไว้สำหรับใช้อ้างอิงเท่านั้น
+  - ระบุโครงสร้างไฟล์โค้ดที่เกี่ยวข้อง, ตารางฐานข้อมูล, Decision Matrix ของระบบป้องกันการ Loop, และขั้นตอนการทำงานสำหรับนำไปวาด Flowchart ชัดเจน
+
+
+- **[18:02] Add Headless And Backend Testing Guide**
+  - สร้างคู่มือ `docs/manuals/HEADLESS_AND_BACKEND_TESTING_GUIDE.md`
+  - อธิบายวิธีทดสอบระบบโดยไม่ต้องเปิดหน้าเว็บจริง แยกเป็น `direct backend call`, `request simulation`, `headless browser automation`, `database verification`, และ `role-based verification`
+  - เพิ่ม guidance สำหรับงาน `workflow`, `audit trail`, `settings`, และ `RLS/security`
+  - อัปเดต `docs/INDEX.md` ให้มีลิงก์เข้าคู่มือใหม่
+
 - **[17:32] Sync Audit Documentation, Re-Verify Test Suite, And Prepare Push**
   - **อัปเดตเอกสารถาวรให้ตรงกับระบบหลังปิด audit rollout:**
     - ปรับ `docs/INDEX.md` และ `docs/standards/FUNCTION_REGISTRY.md` ให้สะท้อน shared audit helpers, logs viewer tabs, และสถานะ RLS remediation ล่าสุด
@@ -94,4 +106,4 @@
 - [CHANGELOG_2026_05_07.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_07.md)
 
 ---
-*อัปเดตล่าสุด: 06-Jun-2026 16:58*
+*อัปเดตล่าสุด: 06-Jun-2026 22:25*

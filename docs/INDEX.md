@@ -3,7 +3,7 @@
 **[ATTENTION AI AGENTS]**  
 This is the central documentation hub. You MUST read this file first before starting any task to understand the system's architecture and find the relevant documentation for your specific task. **DO NOT read all files unless necessary to avoid context overflow.**
 
-**Latest Update (06-Jun-2026 17:32):** Audit Trail & Logs Viewer rollout ปิด functional verification แล้ว, เอกสารสถาปัตยกรรม/คู่มือถูก sync ให้ตรงกับ structured audit logs และ logs viewer ปัจจุบัน, และมี follow-up RLS fix สำหรับ `auditor` read-only ใน `incident/checklist`
+**Latest Update (06-Jun-2026 18:02):** เพิ่มคู่มือ `Headless & Backend Testing` สำหรับการทดสอบโดยไม่ต้องเปิดหน้าเว็บจริง, พร้อมแยกแนวทาง direct backend call, request simulation, headless browser, DB verification, และ role-based security checks
 
 ---
 
@@ -94,6 +94,7 @@ This is the central documentation hub. You MUST read this file first before star
 *หมวดหมู่นี้ใช้สำหรับเป็นคู่มือขั้นตอนการทำงาน (Flow) สำหรับผู้ใช้และนักพัฒนา (How-to Guides)*
 **Directory:** `docs/manuals/`
 - [WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/WORKFLOW_GUIDE.md) : คู่มือขั้นตอนการทำงานของ Workflow (Incident & Checklist)
+- [HEADLESS_AND_BACKEND_TESTING_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/HEADLESS_AND_BACKEND_TESTING_GUIDE.md) : คู่มือการทดสอบแบบไม่ต้องเปิดหน้าเว็บจริง โดยใช้ backend calls, request simulation, headless browser, และ database verification
 - [USER_MANAGEMENT_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/USER_MANAGEMENT_GUIDE.md) : คู่มือการจัดการผู้ใช้, PIN และ Onboarding Flow
 - [TARGET_REGISTRY_UAT_SEED_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) : แผนเตรียมข้อมูล UAT สำหรับ Target Registry / QR Asset History โดยยังไม่ insert ข้อมูลจริง
 - [MULTI_AGENT_WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/MULTI_AGENT_WORKFLOW_GUIDE.md) : คู่มือการประสานงานทำงานร่วมกันและใช้เครื่องมือระหว่าง Antigravity และ Google Jules
