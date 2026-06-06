@@ -29,7 +29,7 @@ export function UnifiedApprovalModal({
 }) {
   const needPin = requirePin !== undefined ? requirePin : isRemote
   const useTwoStepRemote = isRemote && !isCreator
-  const [activeVerificationMode, setActiveVerificationMode] = useState(verificationMode)
+  const [runtimeVerificationMode, setRuntimeVerificationMode] = useState(verificationMode)
 
   const [pin, setPin] = useState('')
   const [comment, setComment] = useState('')
@@ -56,7 +56,7 @@ export function UnifiedApprovalModal({
   useEffect(() => {
     if (isOpen) {
       queueMicrotask(() => {
-        setActiveVerificationMode(verificationMode)
+        setRuntimeVerificationMode(verificationMode)
         setPin('')
         setComment('')
         setError('')
@@ -73,8 +73,9 @@ export function UnifiedApprovalModal({
   }, [isOpen, verificationMode])
 
   if (!isOpen) return null
+  verificationMode = runtimeVerificationMode
 
-  const isOtpMode = activeVerificationMode === 'otp'
+  const isOtpMode = verificationMode === 'otp'
 
   const hasRealSignature = () => {
     if (!sigPad.current || sigPad.current.isEmpty()) return false
@@ -145,8 +146,8 @@ export function UnifiedApprovalModal({
 
     const signatureData = sigPad.current ? sigPad.current.toDataURL() : null
     onConfirm({
-      pin: needPin && activeVerificationMode !== 'otp' ? pin : null,
-      otp: needPin && activeVerificationMode === 'otp' ? pin : null,
+      pin: needPin && verificationMode !== 'otp' ? pin : null,
+      otp: needPin && verificationMode === 'otp' ? pin : null,
       signatureData,
       comment,
     })
@@ -197,7 +198,7 @@ export function UnifiedApprovalModal({
     }
     const result = await requestOtp()
     if (result?.success === false) return
-    setActiveVerificationMode('otp')
+    setRuntimeVerificationMode('otp')
     setPin('')
     setPinTestResult(null)
     setError('')
