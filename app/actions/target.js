@@ -3,8 +3,10 @@
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import { getCurrentUserSession } from './user'
+import { recordEntityAuditLog } from './audit'
 
 const TARGET_SELECT = 'id, target_code, target_type, name, location, qr_value, metadata, is_active, created_at, updated_at'
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000'
 
 function buildAssetHistoryPhotoList(items) {
   const photos = []
@@ -441,7 +443,7 @@ export async function getTargetRegistryPageData() {
 
 export async function saveChecklistTarget(payload) {
   try {
-    const { adminClient } = await requireAdminProfile()
+    const { adminClient, session } = await requireAdminProfile()
     const validation = validateTargetPayload(payload)
 
     if (!validation.success) {
@@ -454,6 +456,16 @@ export async function saveChecklistTarget(payload) {
 
     const target = validation.data
     const existingId = target.id || null
+    let beforeRecord = null
+
+    if (existingId) {
+      const { data: currentTarget } = await adminClient
+        .from('checklist_targets')
+        .select(TARGET_SELECT)
+        .eq('id', existingId)
+        .maybeSingle()
+      beforeRecord = currentTarget || null
+    }
 
     // Check target_code duplicate
     const codeQuery = adminClient
@@ -517,6 +529,27 @@ export async function saveChecklistTarget(payload) {
     const { data, error } = await query
     if (error) return { success: false, error: error.message }
 
+    await recordEntityAuditLog({
+      scope: 'settings',
+      entityType: 'checklist_target',
+      entityId: data.id,
+      entityLabel: data.target_code || data.name,
+      sourceModule: 'settings_target_registry',
+      docId: data.id,
+      docType: 'checklist_target',
+      action: existingId ? 'Updated' : 'Created',
+      details: existingId ? 'Updated checklist target' : 'Created checklist target',
+      userEmail: session.user.email,
+      before: beforeRecord || {},
+      after: data,
+      allowlist: ['target_code', 'target_type', 'name', 'location', 'qr_value', 'is_active', 'metadata'],
+      metadata: {
+        diffOptions: {
+          summarizeFields: ['metadata'],
+        },
+      },
+    })
+
     revalidatePath('/dashboard/settings/target-registry')
 
     return {
@@ -531,7 +564,12 @@ export async function saveChecklistTarget(payload) {
 
 export async function deleteChecklistTarget(targetId) {
   try {
-    const { adminClient } = await requireAdminProfile()
+    const { adminClient, session } = await requireAdminProfile()
+    const { data: currentTarget } = await adminClient
+      .from('checklist_targets')
+      .select(TARGET_SELECT)
+      .eq('id', targetId)
+      .maybeSingle()
 
     // 1. Check if the target is referenced in checklist_docs
     const { count, error: countErr } = await adminClient
@@ -570,6 +608,27 @@ export async function deleteChecklistTarget(targetId) {
       return { success: false, error: deleteTargetErr.message }
     }
 
+    await recordEntityAuditLog({
+      scope: 'settings',
+      entityType: 'checklist_target',
+      entityId: targetId,
+      entityLabel: currentTarget?.target_code || currentTarget?.name || targetId,
+      sourceModule: 'settings_target_registry',
+      docId: targetId,
+      docType: 'checklist_target',
+      action: 'Deleted',
+      details: 'Deleted checklist target',
+      userEmail: session.user.email,
+      before: currentTarget || {},
+      after: {},
+      allowlist: ['target_code', 'target_type', 'name', 'location', 'qr_value', 'is_active', 'metadata'],
+      metadata: {
+        diffOptions: {
+          summarizeFields: ['metadata'],
+        },
+      },
+    })
+
     revalidatePath('/dashboard/settings/target-registry')
     return { success: true, message: 'ลบอุปกรณ์เรียบร้อยแล้ว' }
   } catch (error) {
@@ -579,7 +638,7 @@ export async function deleteChecklistTarget(targetId) {
 
 export async function addTargetType(value) {
   try {
-    const { adminClient } = await requireAdminProfile()
+    const { adminClient, session } = await requireAdminProfile()
     const cleanValue = String(value || '').trim()
 
     if (!cleanValue) {
@@ -628,6 +687,22 @@ export async function addTargetType(value) {
       return { success: false, error: insertErr.message }
     }
 
+    await recordEntityAuditLog({
+      scope: 'settings',
+      entityType: 'master_data',
+      entityId: `target_type:${cleanValue}`,
+      entityLabel: cleanValue,
+      sourceModule: 'settings_target_registry',
+      docId: ZERO_UUID,
+      docType: 'master_data',
+      action: 'Created',
+      details: 'Added target type',
+      userEmail: session.user.email,
+      before: {},
+      after: { type: 'target_type', value: cleanValue, sort_order: sortOrder, is_active: true },
+      allowlist: ['type', 'value', 'sort_order', 'is_active'],
+    })
+
     revalidatePath('/dashboard/settings/target-registry')
     return { success: true, message: 'เพิ่มประเภทอุปกรณ์สำเร็จ' }
   } catch (error) {
@@ -637,7 +712,7 @@ export async function addTargetType(value) {
 
 export async function deleteTargetType(value) {
   try {
-    const { adminClient } = await requireAdminProfile()
+    const { adminClient, session } = await requireAdminProfile()
     const cleanValue = String(value || '').trim()
 
     if (!cleanValue) {
@@ -681,6 +756,22 @@ export async function deleteTargetType(value) {
     if (deleteErr) {
       return { success: false, error: deleteErr.message }
     }
+
+    await recordEntityAuditLog({
+      scope: 'settings',
+      entityType: 'master_data',
+      entityId: `target_type:${cleanValue}`,
+      entityLabel: cleanValue,
+      sourceModule: 'settings_target_registry',
+      docId: ZERO_UUID,
+      docType: 'master_data',
+      action: 'Deleted',
+      details: 'Deleted target type',
+      userEmail: session.user.email,
+      before: { type: 'target_type', value: cleanValue },
+      after: {},
+      allowlist: ['type', 'value'],
+    })
 
     revalidatePath('/dashboard/settings/target-registry')
     return { success: true, message: 'ลบประเภทอุปกรณ์สำเร็จ' }

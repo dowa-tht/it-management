@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { recordClientAuditLog } from '@/app/actions/audit'
 import { ALL_ROLES, ROLE_BADGE } from '@/lib/auth'
 
 const FEATURES = [
@@ -111,6 +112,25 @@ export default function PermissionsPage() {
     if (error) {
       setMsg({ text: 'บันทึกไม่สำเร็จ: ' + error.message, type: 'error' })
     } else {
+      for (const entry of payload) {
+        const current = permissions.find((item) => item.role_name === entry.role_name && item.feature_key === entry.feature_key)
+        await recordClientAuditLog({
+          scope: 'settings',
+          entityType: 'permission',
+          entityId: `${entry.role_name}:${entry.feature_key}`,
+          entityLabel: `${entry.role_name}:${entry.feature_key}`,
+          sourceModule: 'settings_permissions',
+          action: 'Updated',
+          details: 'Updated permission access level',
+          before: {
+            role_name: entry.role_name,
+            feature_key: entry.feature_key,
+            access_level: current?.access_level ?? null,
+          },
+          after: entry,
+          allowlist: ['role_name', 'feature_key', 'access_level'],
+        })
+      }
       setMsg({ text: `บันทึกสิทธิ์ ${payload.length} รายการเรียบร้อยแล้ว ✨`, type: 'success' })
       setEdits({})
       await fetchPermissions()

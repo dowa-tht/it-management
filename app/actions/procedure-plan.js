@@ -1,8 +1,10 @@
 'use server'
 
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache'
-import { getCurrentUserSession } from './user'
+import { getCurrentActorProfile, getCurrentUserSession } from './user'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
+import { recordEntityAuditLog } from './audit'
+import { createClient as createServerSupabaseClient } from '@/lib/supabaseServer'
 import { normalizeProcedurePlan, normalizeProcedurePlanSteps, validateProcedurePlanInput } from '@/lib/procedurePlanValidation'
 
 async function requireAdminProfile() {
@@ -27,7 +29,27 @@ async function requireAdminProfile() {
     throw new Error('คุณไม่มีสิทธิ์จัดการ Procedure Plans')
   }
 
-  return { adminClient, profile }
+  return { adminClient, profile, session }
+}
+
+async function requireProcedurePlanViewer() {
+  const session = await getCurrentUserSession()
+
+  if (!session || session.type !== 'internal') {
+    throw new Error('กรุณาเข้าสู่ระบบก่อนใช้งาน')
+  }
+
+  const profile = await getCurrentActorProfile()
+
+  if (!profile?.id || !profile?.role) {
+    throw new Error('ไม่พบข้อมูลผู้ใช้ในระบบ')
+  }
+
+  if (!['admin', 'auditor'].includes(profile.role)) {
+    throw new Error('คุณไม่มีสิทธิ์ดู Procedure Plans')
+  }
+
+  return { profile }
 }
 
 function formatProcedurePlan(record) {
@@ -42,8 +64,9 @@ function formatProcedurePlan(record) {
 export async function getProcedurePlanEditorPageData() {
   noStore()
 
-  const { adminClient, profile } = await requireAdminProfile()
-  const { data, error } = await adminClient
+  const { profile } = await requireProcedurePlanViewer()
+  const supabase = await createServerSupabaseClient()
+  const { data, error } = await supabase
     .from('checklist_procedure_plans')
     .select('id, plan_name, steps')
     .order('plan_name')
@@ -62,7 +85,7 @@ export async function getProcedurePlanEditorPageData() {
 
 export async function saveProcedurePlan(payload) {
   try {
-    const { adminClient } = await requireAdminProfile()
+    const { adminClient, profile, session } = await requireAdminProfile()
     const validation = validateProcedurePlanInput(payload)
 
     if (!validation.success) {
@@ -74,6 +97,15 @@ export async function saveProcedurePlan(payload) {
     }
 
     const plan = validation.data
+    let beforeRecord = null
+    if (plan.id) {
+      const { data: currentPlan } = await adminClient
+        .from('checklist_procedure_plans')
+        .select('id, plan_name, steps')
+        .eq('id', plan.id)
+        .maybeSingle()
+      beforeRecord = currentPlan || null
+    }
     const planData = {
       plan_name: plan.plan_name,
       steps: {
@@ -93,6 +125,28 @@ export async function saveProcedurePlan(payload) {
         error: error.message,
       }
     }
+
+    await recordEntityAuditLog({
+      scope: 'settings',
+      entityType: 'procedure_plan',
+      entityId: data.id,
+      entityLabel: data.plan_name,
+      sourceModule: 'settings_procedure_plan_editor',
+      docId: data.id,
+      docType: 'procedure_plan',
+      action: plan.id ? 'Updated' : 'Created',
+      details: plan.id ? 'Updated procedure plan' : 'Created procedure plan',
+      userEmail: session.user.email,
+      before: beforeRecord || {},
+      after: data,
+      allowlist: ['plan_name', 'steps'],
+      metadata: {
+        actor_name: profile.full_name,
+        diffOptions: {
+          summarizeFields: ['steps'],
+        },
+      },
+    })
 
     revalidatePath('/dashboard/settings/procedure-plan-editor')
     revalidatePath('/dashboard/settings/checklist-master-data')

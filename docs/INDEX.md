@@ -3,7 +3,7 @@
 **[ATTENTION AI AGENTS]**  
 This is the central documentation hub. You MUST read this file first before starting any task to understand the system's architecture and find the relevant documentation for your specific task. **DO NOT read all files unless necessary to avoid context overflow.**
 
-**Latest Update (29-May-2026 11:18):** Incident external reporter OTP/follow-up flow, public follow-up tracking, workflow reporter mapping, และเอกสาร registry/changelog ถูกอัปเดตแล้ว
+**Latest Update (05-Jun-2026 15:25):** Audit Trail & Logs Viewer implementation plan ถูกอัปเดตสถานะเป็น Task 1-5 complete, พร้อมมาตรฐาน structured audit logs สำหรับ document/settings/admin/backup
 
 ---
 
@@ -19,7 +19,7 @@ This is the central documentation hub. You MUST read this file first before star
 *หมวดหมู่นี้ใช้สำหรับให้ Agent ยึดถือเป็นหลักการและ Logic ในการพัฒนาระบบ (Source of Truth for Agents)*
 **Directory:** `docs/standards/`
 - [ZERO_HACK_POLICY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/ZERO_HACK_POLICY.md) : นโยบายห้ามใช้ UI Hacks
-- [DEVELOPMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DEVELOPMENT.md) : มาตรฐานโค้ด, Logging และ Security
+- [DEVELOPMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DEVELOPMENT.md) : มาตรฐานโค้ด, Logging, Security และ structured audit contract สำหรับ document/settings changes
 - [WORKFLOW_ENGINE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/WORKFLOW_ENGINE.md) : มาตรฐานการอนุมัติและสถานะเอกสาร
 - [USER_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/USER_MANAGEMENT.md) : มาตรฐานการจัดการผู้ใช้และความปลอดภัย
 - [PERMISSIONS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/PERMISSIONS.md) : มาตรฐานระบบสิทธิ์การใช้งาน
@@ -37,7 +37,7 @@ This is the central documentation hub. You MUST read this file first before star
 - [INCIDENT_LIFECYCLE_OVERHAUL_SPEC.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/INCIDENT_LIFECYCLE_OVERHAUL_SPEC.md) : รายละเอียดทางเทคนิคสำหรับการปรับปรุงวงจรชีวิต Incident
 - [DOCUMENT_MAPPING_STANDARD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DOCUMENT_MAPPING_STANDARD.md) : มาตรฐานการจับคู่ข้อมูลและสถานะ Workflow ของระบบ
 - [SYSTEM_ARCHITECTURE_MAP.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SYSTEM_ARCHITECTURE_MAP.md) : [AGGREGATION TOOL] แผนผังโครงสร้างสถาปัตยกรรมและ Logic Flow (สำหรับ Agent)
-- [AGENCY_QUICK_REFERENCE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/AGENCY_QUICK_REFERENCE.md) : [AGGREGATION TOOL] รวมสูตรสำเร็จ (Cheat Sheet) และคำสั่งที่ใช้บ่อย (สำหรับ Agent)
+- [AGENCY_QUICK_REFERENCE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/AGENCY_QUICK_REFERENCE.md) : [AGGREGATION TOOL] รวมสูตรสำเร็จ (Cheat Sheet), audit log mapping, และคำสั่งที่ใช้บ่อย (สำหรับ Agent)
 - [FUNCTION_REGISTRY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/FUNCTION_REGISTRY.md) : ดัชนีฟังก์ชันและคอมโพเนนต์หลักของระบบ ใช้สำหรับนำทางการตรวจสอบ source code และ workflow ของ AI
 - [WINDSURF.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/WINDSURF.md) : มาตรฐานวิธีคิดและกระบวนการทำงานของ AI เชิง Evidence-first สำหรับใช้ร่วมกับ Agent Rules และ Superpowers
 - [AGENTS.md](file:///c:/Users/Lenovo/dowa-it-system/AGENTS.md) : กฎข้อบังคับและ Workflow สำหรับ AI และ Agent ทุกตัวในระบบ (มีผลบังคับใช้สูงสุด)
@@ -57,6 +57,8 @@ This is the central documentation hub. You MUST read this file first before star
 - [WORKFLOW_REFINEMENT_PHASE_2.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/WORKFLOW_REFINEMENT_PHASE_2.md): [PLAN] แผนการปรับปรุงความเสถียร (Phase 2: Transactions & Logs)
 - [UI_UX_WORKFLOW_CARD_UPGRADE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/UI_UX_WORKFLOW_CARD_UPGRADE.md): [PLAN] แผนการอัปเกรด UI/UX เป็นแบบ Card (Phase 3)
 - [CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md) : บันทึกการเปลี่ยนแปลงรายวัน
+- [archive/CHANGELOG_2026_06_04.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_04.md) : บันทึก changelog รายวันแบบ archive สำหรับ 4-Jun-2026
+- [archive/CHANGELOG_2026_05_29.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_29.md) : บันทึก changelog รายวันแบบ archive สำหรับ 29-May-2026
 - [USER_TASKS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/USER_TASKS.md) : รายการงานที่ USER ฝากแก้ไขและติดตามความคืบหน้า (Agent ต้องอ่านทุกครั้ง)
 - [REF_INCIDENT_CREATION_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_INCIDENT_CREATION_FLOW.md) : [PLAN] แผนการ Refactor ระบบการสร้าง Incident
 - [REF_ROLE_AUDITOR_REFACTOR.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/REF_ROLE_AUDITOR_REFACTOR.md) : [PLAN] แผนการเปลี่ยนชื่อ Role จาก Guest เป็น Auditor
@@ -72,6 +74,7 @@ This is the central documentation hub. You MUST read this file first before star
 - [IMPLEMENTATION_PLAN_SETTINGS_GUIDE_LOGS_MASTERDATA_FIX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_SETTINGS_GUIDE_LOGS_MASTERDATA_FIX.md) : [PLAN] แผนแก้ Guide edit/content, Logs Doc No./Email/System Errors และลดขนาด Incident Master Data form
 - [IMPLEMENTATION_PLAN_UNIFIED_SLA_SETTINGS_AND_CALCULATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_UNIFIED_SLA_SETTINGS_AND_CALCULATION.md) : [PLAN] แผนรวมศูนย์การตั้งค่า SLA, SLA Exclusion Reason, และสูตรคำนวณ SLA กลางสำหรับ Dashboard/Report/Incident Detail
 - [IMPLEMENTATION_PLAN_REMOTE_APPROVE_REBUILD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_REMOTE_APPROVE_REBUILD.md) : [PLAN] แผน Rebuild Remote Approve (Incident + Checklist) แบบ 2-step verify/sign พร้อม PIN/OTP policy และ audit contract
+- [IMPLEMENTATION_PLAN_AUDIT_TRAIL_AND_LOG_VIEWER.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_AUDIT_TRAIL_AND_LOG_VIEWER.md) : [PLAN] แผนยกระดับ Audit Trail สำหรับ document/settings changes และขยายหน้า Logs กลางให้พร้อมใช้งานสำหรับการตรวจสอบระบบ
 - [SCAN_SUMMARY_SETTINGS_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/SCAN_SUMMARY_SETTINGS_AUDIT.md) : [AUDIT] รายงานผลการตรวจสอบสถาปัตยกรรมและ UI/UX ของโมดูล Settings (Standalone Route & Responsive)
 - [AUDIT_SYSTEM_GAP_ANALYSIS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_SYSTEM_GAP_ANALYSIS.md) : [AUDIT] รายงานการตรวจสอบความสอดคล้องระหว่างโค้ดและมาตรฐาน (Gap Analysis)
 - [INCIDENT_APPROVAL_MIGRATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/INCIDENT_APPROVAL_MIGRATION.md) : ประวัติการย้ายข้อมูล Workflow

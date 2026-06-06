@@ -14,7 +14,11 @@
 ## 🕒 2. Full Audit Trail (ระบบจดบันทึกที่ครอบคลุม)
 *   **Standard Fields:** ทุกตารางข้อมูลหลักต้องมีฟิลด์ `created_at`, `updated_at`, `created_by` (ID ของผู้ทำรายการ) และ `updated_by` เสมอ
 *   **Login/Logout Logs:** ทุกการเข้า-ออกจากระบบ ไม่ว่าจะผ่าน Email/Password หรือ Microsoft SSO ต้องมีการบันทึก Log ลงในตาราง `login_logs` พร้อมข้อมูล User Agent และ Timestamp
-*   **Action Tracking:** ฟังก์ชันที่สำคัญต้องมีการบันทึกประวัติการเปลี่ยนแปลง เพื่อให้สามารถตรวจสอบย้อนกลับ (Traceability) ได้ 100% โดยใช้รูปแบบ `Action | Details` เสมอ
+*   **Structured Audit Contract:** การแก้ไขเอกสารและการตั้งค่าระบบต้องบันทึกลง `system_audit_logs` โดยมี `metadata.scope`, `metadata.entity_type`, `metadata.entity_id`, `metadata.entity_label`, `metadata.source_module`, และ `metadata.field_changes`
+*   **Field-Level Tracking:** งานประเภท edit/update ต้องพยายามเก็บ `old_value` / `new_value` สำหรับ scalar fields และใช้ summary สำหรับ JSON หรือ array ขนาดใหญ่ เช่น `template_data`, `steps`, `metadata`
+*   **Action Tracking:** ฟังก์ชันที่สำคัญต้องมีการบันทึกประวัติการเปลี่ยนแปลง เพื่อให้สามารถตรวจสอบย้อนกลับ (Traceability) ได้ 100% โดยใช้ structured audit event เป็นหลัก และคง `Action | Details` ไว้สำหรับ legacy display หรือ compatibility layer
+*   **Hidden Fields Policy:** ห้ามบันทึก secrets ลง audit logs โดยเด็ดขาด เช่น `PIN`, `OTP`, `password`, `signature_data`, หรือค่า hash ที่เกี่ยวข้องกับการยืนยันตัวตน
+*   **Operational vs Audit Logs:** `system_audit_logs` ใช้สำหรับ document/settings audit, `admin_audit_logs` ใช้สำหรับ user/security actions, และ `backup_logs` ถือเป็น operational log คนละชนิด ห้ามรวมข้อมูลดิบเข้าตารางเดียวกัน
 *   **Identity Integrity:** ทุกการยืนยันตัวตนผ่าน PIN ต้องมีการประทับตรา `(Verified by PIN)` ใน Log เพื่อรองรับกฎหมายธุรกรรมทางอิเล็กทรอนิกส์
 
 ---

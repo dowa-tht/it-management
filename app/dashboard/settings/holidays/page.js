@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { recordClientAuditLog } from '@/app/actions/audit'
 import { ActionButton } from '@/app/dashboard/checklist/components/ActionButton'
 
 const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -196,6 +197,7 @@ export default function HolidaysPage() {
   const [guideContent, setGuideContent] = useState('')
   const [editingGuide, setEditingGuide] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
+  const isReadOnlyAuditor = currentUser?.role === 'auditor'
 
   async function fetchData() {
     setLoading(true)
@@ -277,9 +279,22 @@ export default function HolidaysPage() {
     if (!newHolidayDate || !newHolidayDesc.trim()) return
     setSaving(true)
     const normalized = normalizeHolidayDate(newHolidayDate)
+    const nextHoliday = { holiday_date: normalized, description: newHolidayDesc.trim() }
     const { error } = await supabase.from('holidays').insert([{ holiday_date: normalized, description: newHolidayDesc.trim() }])
     if (error) setMsg({ text: `Error: ${error.message}`, type: 'error' })
     else {
+      await recordClientAuditLog({
+        scope: 'settings',
+        entityType: 'holiday',
+        entityId: `holiday:${normalized}`,
+        entityLabel: nextHoliday.description,
+        sourceModule: 'settings_holidays',
+        action: 'Created',
+        details: 'Added holiday',
+        before: {},
+        after: nextHoliday,
+        allowlist: ['holiday_date', 'description'],
+      })
       setNewHolidayDate('')
       setNewHolidayDesc('')
       setMsg({ text: 'เพิ่มวันหยุดสำเร็จ', type: 'success' })
@@ -291,9 +306,22 @@ export default function HolidaysPage() {
   const handleUpdateHoliday = async (id) => {
     if (!editDate || !editValue.trim()) return
     setSaving(true)
+    const currentItem = items.find((item) => item.id === id)
     const { error } = await supabase.from('holidays').update({ holiday_date: editDate, description: editValue.trim() }).eq('id', id)
     if (error) setMsg({ text: `Error: ${error.message}`, type: 'error' })
     else {
+      await recordClientAuditLog({
+        scope: 'settings',
+        entityType: 'holiday',
+        entityId: id,
+        entityLabel: editValue.trim(),
+        sourceModule: 'settings_holidays',
+        action: 'Updated',
+        details: 'Updated holiday',
+        before: currentItem || {},
+        after: { ...(currentItem || {}), holiday_date: editDate, description: editValue.trim() },
+        allowlist: ['holiday_date', 'description'],
+      })
       setEditingId(null)
       setMsg({ text: 'อัปเดตข้อมูลสำเร็จ', type: 'success' })
       await fetchItems()
@@ -303,9 +331,22 @@ export default function HolidaysPage() {
 
   const handleDelete = async (id, description) => {
     if (!confirm(`ลบ "${description}"?`)) return
+    const currentItem = items.find((item) => item.id === id)
     const { error } = await supabase.from('holidays').delete().eq('id', id)
     if (error) setMsg({ text: `Error: ${error.message}`, type: 'error' })
     else {
+      await recordClientAuditLog({
+        scope: 'settings',
+        entityType: 'holiday',
+        entityId: id,
+        entityLabel: description,
+        sourceModule: 'settings_holidays',
+        action: 'Deleted',
+        details: 'Deleted holiday',
+        before: currentItem || {},
+        after: {},
+        allowlist: ['holiday_date', 'description'],
+      })
       setMsg({ text: 'ลบวันหยุดสำเร็จ', type: 'success' })
       await fetchItems()
     }
@@ -339,6 +380,23 @@ export default function HolidaysPage() {
       const { error } = await supabase.from('holidays').insert(records)
       if (error) setMsg({ text: `Error: ${error.message}`, type: 'error' })
       else {
+        await recordClientAuditLog({
+          scope: 'settings',
+          entityType: 'holiday',
+          entityId: `holiday-import:${records.length}`,
+          entityLabel: 'Holiday CSV Import',
+          sourceModule: 'settings_holidays',
+          action: 'Imported',
+          details: `Imported ${records.length} holidays`,
+          before: { records_count: 0 },
+          after: { records_count: records.length, sample_records: records.slice(0, 3) },
+          allowlist: ['records_count', 'sample_records'],
+          metadata: {
+            diffOptions: {
+              summarizeFields: ['sample_records'],
+            },
+          },
+        })
         setMsg({ text: `Imported ${records.length} holidays`, type: 'success' })
         await fetchItems()
       }
@@ -524,6 +582,7 @@ export default function HolidaysPage() {
               >
                 Holidays Calendar
                 <button
+                  data-readonly-allowed="true"
                   onClick={() => setShowGuide(true)}
                   style={{ border: 'none', background: '#eff6ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}
                   title="Guide"
@@ -538,18 +597,32 @@ export default function HolidaysPage() {
           </div>
 
           <div className="holiday-action-dock">
-            <button onClick={jumpToToday} style={secondaryButtonStyle}>Today</button>
-            <button onClick={downloadCSVTemplate} style={secondaryButtonStyle}>📄 Template</button>
-            <label
-              style={{
-                ...primaryButtonStyle,
-                background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
-                boxShadow: '0 16px 30px -18px rgba(5, 150, 105, 0.85)',
-              }}
-            >
-              📥 Import CSV
-              <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
-            </label>
+            <button data-readonly-allowed="true" onClick={jumpToToday} style={secondaryButtonStyle}>Today</button>
+            <button data-readonly-allowed="true" onClick={downloadCSVTemplate} style={secondaryButtonStyle}>📄 Template</button>
+            {isReadOnlyAuditor ? (
+              <div
+                style={{
+                  ...primaryButtonStyle,
+                  background: 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)',
+                  boxShadow: 'none',
+                  opacity: 0.7,
+                  cursor: 'not-allowed',
+                }}
+              >
+                📥 Import CSV
+              </div>
+            ) : (
+              <label
+                style={{
+                  ...primaryButtonStyle,
+                  background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                  boxShadow: '0 16px 30px -18px rgba(5, 150, 105, 0.85)',
+                }}
+              >
+                📥 Import CSV
+                <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
+              </label>
+            )}
           </div>
         </div>
 
@@ -583,11 +656,11 @@ export default function HolidaysPage() {
           <SurfaceCard style={{ padding: 18, marginBottom: 18, overflow: 'hidden' }}>
           <div className="holiday-toolbar">
             <div className="holiday-segment">
-              <button onClick={() => setViewMode('month')} className={viewMode === 'month' ? 'active' : ''}>Month View</button>
-              <button onClick={() => setViewMode('year')} className={viewMode === 'year' ? 'active' : ''}>Year View</button>
+              <button data-readonly-allowed="true" onClick={() => setViewMode('month')} className={viewMode === 'month' ? 'active' : ''}>Month View</button>
+              <button data-readonly-allowed="true" onClick={() => setViewMode('year')} className={viewMode === 'year' ? 'active' : ''}>Year View</button>
             </div>
 
-            <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} style={{ ...inputStyle, width: 140, minWidth: 140 }}>
+            <select data-readonly-allowed="true" value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} style={{ ...inputStyle, width: 140, minWidth: 140 }}>
               {yearOptions.map((year) => (
                 <option key={year} value={year}>
                   {year}
@@ -598,6 +671,7 @@ export default function HolidaysPage() {
             <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
               <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 14 }}>🔍</span>
               <input
+                data-readonly-allowed="true"
                 placeholder="ค้นหาวันหยุดจากชื่อหรือวันที่..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -634,8 +708,8 @@ export default function HolidaysPage() {
                 subtitle="คลิกวันที่บนปฏิทินเพื่อ prefill ฟอร์มเพิ่มวันหยุด"
                 action={
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => stepMonth(-1)} style={secondaryButtonStyle}>◀ Prev</button>
-                    <button onClick={() => stepMonth(1)} style={secondaryButtonStyle}>Next ▶</button>
+                    <button data-readonly-allowed="true" onClick={() => stepMonth(-1)} style={secondaryButtonStyle}>◀ Prev</button>
+                    <button data-readonly-allowed="true" onClick={() => stepMonth(1)} style={secondaryButtonStyle}>Next ▶</button>
                   </div>
                 }
               />
@@ -807,7 +881,7 @@ export default function HolidaysPage() {
               </SurfaceCard>
 
               <SurfaceCard style={{ padding: 18 }}>
-                <SectionTitle title={`Holidays In ${MONTHS_FULL[selectedMonth]}`} subtitle="รายการในเดือนปัจจุบัน พร้อมแก้ไขแบบ inline" />
+                <SectionTitle title={`Holidays In ${MONTHS_FULL[selectedMonth]}`} subtitle="รายการวันหยุดในเดือนปัจจุบันสำหรับดูข้อมูลย้อนหลัง" />
                 <div className="holiday-month-list">
                   {loading ? (
                     <div style={{ color: '#94a3b8', textAlign: 'center', padding: 12 }}>กำลังโหลด...</div>
@@ -827,12 +901,12 @@ export default function HolidaysPage() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                           <div>
                             <div style={{ fontSize: 12, fontWeight: 800, color: '#1e293b' }}>{formatDateDisplay(item.holiday_date)}</div>
-                            <div style={{ marginTop: 6, fontSize: 13, color: '#475569', lineHeight: 1.5 }}>{editingId === item.id ? '' : item.description}</div>
+                            <div style={{ marginTop: 6, fontSize: 13, color: '#475569', lineHeight: 1.5 }}>{editingId === item.id && !isReadOnlyAuditor ? '' : item.description}</div>
                           </div>
-                          {editingId !== item.id ? <Badge label="Holiday" tone="amber" /> : null}
+                          {editingId !== item.id || isReadOnlyAuditor ? <Badge label="Holiday" tone="amber" /> : null}
                         </div>
 
-                        {editingId === item.id ? (
+                        {editingId === item.id && !isReadOnlyAuditor ? (
                           <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
                             <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} style={inputStyle} />
                             <input value={editValue} onChange={(e) => setEditValue(e.target.value)} style={inputStyle} />
@@ -841,7 +915,7 @@ export default function HolidaysPage() {
                               <ActionButton color="gray" icon="❌" onClick={() => setEditingId(null)} title="ยกเลิก" />
                             </div>
                           </div>
-                        ) : (
+                        ) : !isReadOnlyAuditor ? (
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
                             <ActionButton
                               color="blue"
@@ -855,7 +929,7 @@ export default function HolidaysPage() {
                             />
                             <ActionButton color="red" icon="🗑" onClick={() => handleDelete(item.id, item.description)} title="ลบ" />
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     ))
                   )}
@@ -870,6 +944,7 @@ export default function HolidaysPage() {
 
               return (
                 <button
+                  data-readonly-allowed="true"
                   type="button"
                   key={monthIndex}
                   onClick={() => openMonth(monthIndex)}
@@ -1048,6 +1123,7 @@ export default function HolidaysPage() {
                   </button>
                 ) : null}
                 <button
+                  data-readonly-allowed="true"
                   onClick={() => {
                     setShowGuide(false)
                     setEditingGuide(false)

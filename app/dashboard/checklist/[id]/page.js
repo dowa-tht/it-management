@@ -7,6 +7,7 @@ import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { CHECKLIST_TEMPLATES } from '@/lib/checklistItems'
 import { isSubstituteOf } from '@/lib/workflow'
 import { recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow, cancelDocument, diagnoseApprovalPin } from '@/app/actions/workflow'
+import { recordClientAuditLog } from '@/app/actions/audit'
 import { WorkflowProgressBar } from '@/components/workflow/WorkflowProgressBar'
 import { UnifiedApprovalModal } from '@/components/workflow/UnifiedApprovalModal'
 import { WorkflowActionBar } from '@/components/workflow/WorkflowActionBar'
@@ -158,6 +159,48 @@ export default function ChecklistDetailPage() {
   const [showRemoteModal, setShowRemoteModal] = useState(false)
 
   const { NotificationComponent, showToast, showModal } = useWorkflowNotification()
+
+  const auditChecklistItemChange = async (item, before, after, allowlist, details) => {
+    await recordClientAuditLog({
+      scope: 'document',
+      entityType: 'checklist',
+      entityId: item?.id || id,
+      entityLabel: doc?.doc_no || id,
+      sourceModule: 'checklist_detail_item',
+      action: 'Updated',
+      details,
+      before,
+      after,
+      allowlist,
+      metadata: {
+        doc_no: doc?.doc_no || null,
+        checklist_item_id: item?.id || null,
+        checklist_item_label: item?.item_label || null,
+      },
+      docId: id,
+      docType: 'checklist',
+    })
+  }
+
+  const auditChecklistDocChange = async (before, after, allowlist, details) => {
+    await recordClientAuditLog({
+      scope: 'document',
+      entityType: 'checklist',
+      entityId: id,
+      entityLabel: doc?.doc_no || id,
+      sourceModule: 'checklist_detail',
+      action: 'Updated',
+      details,
+      before,
+      after,
+      allowlist,
+      metadata: {
+        doc_no: doc?.doc_no || null,
+      },
+      docId: id,
+      docType: 'checklist',
+    })
+  }
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -337,9 +380,12 @@ export default function ChecklistDetailPage() {
     if (isLocked) return
     const updatedItems = [...items]
     const itemIndex = updatedItems.findIndex(i => i.id === itemId)
+    const currentItem = updatedItems[itemIndex]
+    const before = { template_data: currentItem?.template_data || null }
     updatedItems[itemIndex].template_data = newData
     setItems(updatedItems)
     await supabase.from('checklist_items').update({ template_data: newData }).eq('id', itemId)
+    await auditChecklistItemChange(currentItem, before, { template_data: newData }, ['template_data'], 'Updated checklist template data')
   }
 
   // Time Tracking Functions
@@ -389,8 +435,10 @@ export default function ChecklistDetailPage() {
 
     setIsSavingTime(true)
     try {
+      const before = { start_time: doc?.start_time || null }
       await supabase.from('checklist_docs').update({ start_time: date.toISOString() }).eq('id', id)
       setDoc(prev => ({ ...prev, start_time: date.toISOString() }))
+      await auditChecklistDocChange(before, { start_time: date.toISOString() }, ['start_time'], 'Updated checklist start time')
       showToast({ message: 'บันทึกเวลาเริ่มต้นเรียบร้อย', type: 'success' })
     } catch (err) {
       showToast({ message: err.message, type: 'error' })
@@ -409,15 +457,20 @@ export default function ChecklistDetailPage() {
     const updatedItems = items.map(item =>
       item.id === itemId ? { ...item, duration_minutes: minutes } : item
     )
+    const currentItem = items.find((item) => item.id === itemId)
     setItems(updatedItems)
 
     // Calculate and update total duration
     const totalMinutes = updatedItems.reduce((sum, item) => sum + (item.duration_minutes || 0), 0)
 
     try {
+      const beforeItem = { duration_minutes: currentItem?.duration_minutes ?? null }
+      const beforeDoc = { total_duration_minutes: doc?.total_duration_minutes ?? null }
       await supabase.from('checklist_items').update({ duration_minutes: minutes }).eq('id', itemId)
       await supabase.from('checklist_docs').update({ total_duration_minutes: totalMinutes }).eq('id', id)
       setDoc(prev => ({ ...prev, total_duration_minutes: totalMinutes }))
+      await auditChecklistItemChange(currentItem, beforeItem, { duration_minutes: minutes }, ['duration_minutes'], 'Updated checklist item duration')
+      await auditChecklistDocChange(beforeDoc, { total_duration_minutes: totalMinutes }, ['total_duration_minutes'], 'Updated checklist total duration')
     } catch (err) {
       showToast({ message: err.message, type: 'error' })
     }
@@ -425,12 +478,14 @@ export default function ChecklistDetailPage() {
 
   const updateItemEvaluation = async (itemId, evaluation) => {
     if (isLocked) return
+    const currentItem = items.find((item) => item.id === itemId)
     const updatedItems = items.map(item =>
       item.id === itemId ? { ...item, evaluation_result: evaluation } : item
     )
     setItems(updatedItems)
     try {
       await supabase.from('checklist_items').update({ evaluation_result: evaluation }).eq('id', itemId)
+      await auditChecklistItemChange(currentItem, { evaluation_result: currentItem?.evaluation_result ?? null }, { evaluation_result: evaluation }, ['evaluation_result'], 'Updated checklist item evaluation')
     } catch (err) {
       showToast({ message: err.message, type: 'error' })
     }
@@ -441,12 +496,15 @@ export default function ChecklistDetailPage() {
     const newItems = [...items]
     if (newStatus === 'NG') setActiveNgItem({ ...newItems[index], index })
     else {
+      const currentItem = newItems[index]
       newItems[index].status = 'OK'; newItems[index].notes = ''
       setItems(newItems)
       await supabase.from('checklist_items').update({ status: 'OK', notes: '' }).eq('id', newItems[index].id)
+      await auditChecklistItemChange(currentItem, { status: currentItem?.status ?? null, notes: currentItem?.notes ?? '' }, { status: 'OK', notes: '' }, ['status', 'notes'], 'Updated checklist item status')
       if (doc.status === 'Open') {
         await supabase.from('checklist_docs').update({ status: 'In Progress' }).eq('id', id)
         setDoc(prev => ({ ...prev, status: 'In Progress' }))
+        await auditChecklistDocChange({ status: doc?.status ?? null }, { status: 'In Progress' }, ['status'], 'Updated checklist document status')
       }
     }
   }
@@ -454,12 +512,15 @@ export default function ChecklistDetailPage() {
   const handleNgConfirm = async (notes) => {
     if (isLocked) return
     const newItems = [...items]
+    const currentItem = newItems[activeNgItem.index]
     newItems[activeNgItem.index].status = 'NG'; newItems[activeNgItem.index].notes = notes
     setItems(newItems)
     await supabase.from('checklist_items').update({ status: 'NG', notes: notes }).eq('id', newItems[activeNgItem.index].id)
+    await auditChecklistItemChange(currentItem, { status: currentItem?.status ?? null, notes: currentItem?.notes ?? '' }, { status: 'NG', notes }, ['status', 'notes'], 'Updated checklist item status')
     if (doc.status === 'Open') {
       await supabase.from('checklist_docs').update({ status: 'In Progress' }).eq('id', id)
       setDoc(prev => ({ ...prev, status: 'In Progress' }))
+      await auditChecklistDocChange({ status: doc?.status ?? null }, { status: 'In Progress' }, ['status'], 'Updated checklist document status')
     }
     setActiveNgItem(null)
   }
@@ -469,6 +530,7 @@ export default function ChecklistDetailPage() {
     try {
       await supabase.from('checklist_docs').update({ evaluation_result: result }).eq('id', id)
       setDoc(prev => ({ ...prev, evaluation_result: result }))
+      await auditChecklistDocChange({ evaluation_result: doc?.evaluation_result ?? null }, { evaluation_result: result }, ['evaluation_result'], 'Updated checklist document evaluation')
       showToast({ message: `บันทึกผลการประเมินเอกสารเป็น ${result} เรียบร้อยค่ะ/ครับ`, type: 'success' })
     } catch (err) {
       showToast({ message: err.message, type: 'error' })
@@ -480,6 +542,7 @@ export default function ChecklistDetailPage() {
     try {
       await supabase.from('checklist_docs').update({ evaluation_remark: remarkValue }).eq('id', id)
       setDoc(prev => ({ ...prev, evaluation_remark: remarkValue }))
+      await auditChecklistDocChange({ evaluation_remark: doc?.evaluation_remark ?? '' }, { evaluation_remark: remarkValue }, ['evaluation_remark'], 'Updated checklist document remark')
     } catch (err) {
       showToast({ message: err.message, type: 'error' })
     }
@@ -491,12 +554,20 @@ export default function ChecklistDetailPage() {
     // track incomplete state สำหรับ block save
     setHasIncompleteT2(!!incomplete)
     const newStatus = status || null
+    const currentItem = items.find((item) => item.id === itemId)
     const updatedItems = items.map(item =>
       item.id === itemId ? { ...item, status: newStatus } : item
     )
     setItems(updatedItems)
     try {
+      const beforeDoc = {
+        total_duration_minutes: doc?.total_duration_minutes ?? null,
+        evaluation_result: doc?.evaluation_result ?? null,
+        evaluation_remark: doc?.evaluation_remark ?? null,
+        status: doc?.status ?? null,
+      }
       await supabase.from('checklist_items').update({ status: newStatus }).eq('id', itemId)
+      await auditChecklistItemChange(currentItem, { status: currentItem?.status ?? null }, { status: newStatus }, ['status'], 'Updated checklist T2 item status')
       if (typeof totalSubMinutes === 'number' && totalSubMinutes >= 0) {
         await supabase.from('checklist_docs').update({ total_duration_minutes: totalSubMinutes }).eq('id', id)
         setDoc(prev => ({ ...prev, total_duration_minutes: totalSubMinutes }))
@@ -509,6 +580,12 @@ export default function ChecklistDetailPage() {
         await supabase.from('checklist_docs').update({ status: 'In Progress' }).eq('id', id)
         setDoc(prev => ({ ...prev, status: 'In Progress' }))
       }
+      await auditChecklistDocChange(beforeDoc, {
+        total_duration_minutes: typeof totalSubMinutes === 'number' && totalSubMinutes >= 0 ? totalSubMinutes : doc?.total_duration_minutes ?? null,
+        evaluation_result: !newStatus && doc.evaluation_result ? null : doc?.evaluation_result ?? null,
+        evaluation_remark: !newStatus && doc.evaluation_result ? null : doc?.evaluation_remark ?? null,
+        status: newStatus && doc.status === 'Open' ? 'In Progress' : doc?.status ?? null,
+      }, ['total_duration_minutes', 'evaluation_result', 'evaluation_remark', 'status'], 'Updated checklist T2 completion state')
     } catch (err) {
       showToast({ message: err.message, type: 'error' })
     }

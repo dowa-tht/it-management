@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { recordClientAuditLog } from '@/app/actions/audit'
 import { SLA_LIMITS } from '@/lib/slaUtils'
 
 const DAYS = [
@@ -213,11 +214,25 @@ export default function WorkingHoursPage() {
 
   async function handleSave() {
     setSaving(true)
+    const beforeSettings = JSON.parse(JSON.stringify(settings))
+    const { data: currentRow } = await supabase.from('system_settings').select('value').eq('key', 'working_hours').maybeSingle()
     const { error } = await supabase.from('system_settings').upsert({ key: 'working_hours', value: settings, updated_at: new Date().toISOString() })
 
     if (error) {
       setMsg({ text: `Error: ${error.message}`, type: 'error' })
     } else {
+      await recordClientAuditLog({
+        scope: 'settings',
+        entityType: 'working_hours',
+        entityId: 'working_hours',
+        entityLabel: 'Working Hours',
+        sourceModule: 'settings_working_hours',
+        action: 'Updated',
+        details: 'Updated working hours configuration',
+        before: currentRow?.value || beforeSettings,
+        after: settings,
+        allowlist: ['start', 'end', 'work_days'],
+      })
       setMsg({ text: 'บันทึกการตั้งค่าเวลาทำงานเรียบร้อยแล้ว', type: 'success' })
       setTimeout(() => setMsg({ text: '', type: '' }), 3000)
     }

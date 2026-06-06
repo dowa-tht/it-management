@@ -21,6 +21,7 @@ export default function LogsPage() {
   const [guideContent, setGuideContent] = useState('')
   const [editingGuide, setEditingGuide] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
+  const isReadOnlyAuditor = currentUser?.role === 'auditor'
 
   const loadLogs = async (type, pageToLoad = 0, isLoadMore = false) => {
     if (isLoadMore) setLoadingMore(true)
@@ -59,15 +60,42 @@ export default function LogsPage() {
       }
     }
     fetchUser()
-    setPage(0)
-    setHasMore(true)
-    loadLogs(activeTab, 0, false)
-  }, [activeTab])
+  }, [])
 
   const handleLoadMore = () => {
     const nextPage = page + 1
     setPage(nextPage)
     loadLogs(activeTab, nextPage, true)
+  }
+
+  const renderFieldChanges = (changes = []) => {
+    if (!Array.isArray(changes) || changes.length === 0) {
+      return <div style={{ fontSize: 13, color: '#64748b' }}>ไม่พบ field changes</div>
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {changes.map((change, index) => (
+          <div key={`${change.field}-${index}`} style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 12, background: '#f8fafc' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>{change.field}</div>
+            {'summary' in change ? (
+              <div style={{ fontSize: 13, color: '#475569' }}>{change.summary}</div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, marginBottom: 4 }}>Old</div>
+                  <div style={{ fontSize: 13, color: '#334155', wordBreak: 'break-word' }}>{String(change.old_value ?? '—')}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, marginBottom: 4 }}>New</div>
+                  <div style={{ fontSize: 13, color: '#334155', wordBreak: 'break-word' }}>{String(change.new_value ?? '—')}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    )
   }
 
   const renderTimestamp = (dateStr) => {
@@ -164,7 +192,13 @@ export default function LogsPage() {
   }
 
   useEffect(() => {
-    loadLogs(activeTab)
+    setPage(0)
+    setHasMore(true)
+    setSelectedLog(null)
+    setLogs([])
+    setError(null)
+    setLoading(true)
+    loadLogs(activeTab, 0, false)
     fetchGuide()
   }, [activeTab])
 
@@ -222,7 +256,7 @@ export default function LogsPage() {
                     {editingGuide ? '👁 View' : '✏️ Edit'}
                   </button>
                 )}
-                <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 32, cursor: 'pointer' }}>&times;</button>
+              <button data-readonly-allowed="true" onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 32, cursor: 'pointer' }}>&times;</button>
               </div>
             </div>
             <div style={{ padding: 40, overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
@@ -259,16 +293,16 @@ export default function LogsPage() {
             </div>
             <h1 style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '0', display: 'flex', alignItems: 'center', gap: 12 }}>
               System Logs & Audit
-              <button className="no-print" onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#eef2ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
+              <button data-readonly-allowed="true" className="no-print" onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#eef2ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
             </h1>
           </div>
           <p style={{ color: '#64748b', fontSize: 15, margin: 0 }}>ตรวจสอบบันทึกการใช้งานระบบและการเปลี่ยนแปลงข้อมูล (Audit Trails)</p>
         </div>
         <div className="action-dock no-print" style={{ display: 'flex', gap: 6, padding: '6px', background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-          <button onClick={() => window.print()} style={{ padding: '10px 20px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 14, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button data-readonly-allowed="true" onClick={() => window.print()} style={{ padding: '10px 20px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 14, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
             🖨️ Print Report
           </button>
-          <button style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #4f46e5 0%, #818cf8 100%)', color: '#fff', border: 'none', borderRadius: 14, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.2)' }}>
+          <button data-readonly-allowed="true" style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #4f46e5 0%, #818cf8 100%)', color: '#fff', border: 'none', borderRadius: 14, fontSize: 13, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.2)' }}>
             📥 Export CSV
           </button>
         </div>
@@ -279,10 +313,13 @@ export default function LogsPage() {
         {[
           { id: 'audit', label: 'Audit Logs', icon: '🔍' },
           { id: 'approval', label: 'Approval Logs', icon: '✅' },
+          { id: 'admin', label: 'Admin Actions', icon: '🛡️' },
+          { id: 'backup', label: 'Backup Logs', icon: '🗄️' },
           { id: 'login', label: 'Login History', icon: '🔑' },
           { id: 'system', label: 'System Errors', icon: '⚙️' }
         ].map(tab => (
           <button
+            data-readonly-allowed="true"
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             style={{
@@ -321,7 +358,7 @@ export default function LogsPage() {
           <div style={{ padding: 80, textAlign: 'center' }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>⚠️</div>
             <div style={{ color: '#dc2626', fontWeight: 600 }}>เกิดข้อผิดพลาด: {error}</div>
-            <button onClick={() => loadLogs(activeTab, 0, false)} style={{ marginTop: 16, padding: '8px 20px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer' }}>ลองใหม่</button>
+            <button data-readonly-allowed="true" onClick={() => loadLogs(activeTab, 0, false)} style={{ marginTop: 16, padding: '8px 20px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer' }}>ลองใหม่</button>
           </div>
         ) : logs.length === 0 ? (
           <div style={{ padding: 80, textAlign: 'center' }}>
@@ -362,6 +399,7 @@ export default function LogsPage() {
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Action</th>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Details</th>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>User</th>
+                      <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Review</th>
                     </>
                   )}
                 </tr>
@@ -398,6 +436,7 @@ export default function LogsPage() {
                            log.current_status !== 'Closed' && (
                             <button 
                               onClick={() => handleOpenReset(log)}
+                              disabled={isReadOnlyAuditor}
                               style={{ padding: '6px 12px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
                             >
                               Reset
@@ -427,6 +466,7 @@ export default function LogsPage() {
                         </td>
                         <td style={{ padding: '16px 20px' }}>
                           <button 
+                            data-readonly-allowed="true"
                             onClick={() => setSelectedLog(log)}
                             style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
                           >
@@ -447,8 +487,17 @@ export default function LogsPage() {
                         </td>
                         <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 700, color: '#334155', fontFamily: 'monospace' }}>{log.docNo || '—'}</td>
                         <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{log.action}</td>
-                        <td style={{ padding: '16px 20px', fontSize: 13, color: '#4b5563' }}>{log.details}</td>
-                        <td style={{ padding: '16px 20px', fontSize: 13, color: '#6b7280' }}>{log.full_name || log.user_email}</td>
+                        <td style={{ padding: '16px 20px', fontSize: 13, color: '#4b5563' }}>{log.details || log.details_text || '—'}</td>
+                        <td style={{ padding: '16px 20px', fontSize: 13, color: '#6b7280' }}>{log.full_name || log.user || log.user_email || 'System'}</td>
+                        <td style={{ padding: '16px 20px' }}>
+                          <button
+                            data-readonly-allowed="true"
+                            onClick={() => setSelectedLog(log)}
+                            style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            View Details
+                          </button>
+                        </td>
                       </>
                     )}
                   </tr>
@@ -459,6 +508,7 @@ export default function LogsPage() {
             {hasMore && (
               <div style={{ padding: '24px', textAlign: 'center', background: '#fff', borderTop: '1px solid #f1f5f9' }}>
                 <button 
+                  data-readonly-allowed="true"
                   onClick={handleLoadMore}
                   disabled={loadingMore}
                   style={{ 
@@ -519,6 +569,53 @@ export default function LogsPage() {
               >
                 {resetLoading ? 'Processing...' : 'Confirm Reset'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedLog && !showResetModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, backdropFilter: 'blur(4px)', padding: 16 }}>
+          <div style={{ width: 'min(760px, 100%)', maxHeight: '90vh', overflow: 'auto', background: '#fff', borderRadius: 20, boxShadow: '0 20px 40px rgba(15,23,42,0.2)' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#6366f1', textTransform: 'uppercase', marginBottom: 4 }}>{selectedLog.category || 'Audit Detail'}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#0f172a' }}>{selectedLog.action || 'Log Detail'}</div>
+              </div>
+              <button data-readonly-allowed="true" onClick={() => setSelectedLog(null)} style={{ background: 'none', border: 'none', fontSize: 30, color: '#94a3b8', cursor: 'pointer' }}>&times;</button>
+            </div>
+            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                <div style={{ background: '#f8fafc', borderRadius: 14, padding: 14 }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, marginBottom: 4 }}>Doc / Entity</div>
+                  <div style={{ fontSize: 14, color: '#1e293b', fontWeight: 700 }}>{selectedLog.docNo || selectedLog.entity_label || '—'}</div>
+                </div>
+                <div style={{ background: '#f8fafc', borderRadius: 14, padding: 14 }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, marginBottom: 4 }}>User</div>
+                  <div style={{ fontSize: 14, color: '#1e293b', fontWeight: 700 }}>{selectedLog.full_name || selectedLog.user || selectedLog.user_email || 'System'}</div>
+                </div>
+                <div style={{ background: '#f8fafc', borderRadius: 14, padding: 14 }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, marginBottom: 4 }}>Scope</div>
+                  <div style={{ fontSize: 14, color: '#1e293b', fontWeight: 700 }}>{selectedLog.scope || selectedLog.metadata?.scope || '—'}</div>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: 8 }}>Details</div>
+                <div style={{ fontSize: 14, color: '#334155', lineHeight: 1.7 }}>{selectedLog.details || selectedLog.details_text || '—'}</div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: 8 }}>Field Changes</div>
+                {renderFieldChanges(selectedLog.field_changes || selectedLog.metadata?.field_changes || [])}
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: 8 }}>Metadata</div>
+                <pre style={{ margin: 0, padding: 16, borderRadius: 14, background: '#0f172a', color: '#e2e8f0', fontSize: 12, overflowX: 'auto' }}>
+                  {JSON.stringify(selectedLog.metadata || {}, null, 2)}
+                </pre>
+              </div>
             </div>
           </div>
         </div>

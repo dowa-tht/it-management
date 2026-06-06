@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { recordClientAuditLog } from '@/app/actions/audit'
 import { formatDateTime } from '@/lib/dateFormat'
 import { ActionButton } from '@/app/dashboard/checklist/components/ActionButton'
 
@@ -78,6 +79,13 @@ export default function SubstitutesPage() {
   const handleAddSub = async (e) => {
     e.preventDefault()
     setMsg({ text: '', type: '' })
+    const nextSubstitute = {
+      substitute_id: form.substitute_id,
+      start_date: form.start_date,
+      end_date: form.end_date,
+      reason: form.reason,
+      is_active: true,
+    }
 
     const { error } = await supabase
       .from('approval_substitutes')
@@ -93,6 +101,18 @@ export default function SubstitutesPage() {
     if (error) {
       setMsg({ text: `เกิดข้อผิดพลาด: ${error.message}`, type: 'error' })
     } else {
+      await recordClientAuditLog({
+        scope: 'settings',
+        entityType: 'substitute',
+        entityId: `${currentUser}:${form.substitute_id}:${form.start_date}`,
+        entityLabel: 'Approval Substitute',
+        sourceModule: 'settings_substitutes',
+        action: 'Created',
+        details: 'Created approval substitute window',
+        before: {},
+        after: nextSubstitute,
+        allowlist: ['substitute_id', 'start_date', 'end_date', 'reason', 'is_active'],
+      })
       setMsg({ text: 'ตั้งค่าการไม่อยู่สำเร็จ!', type: 'success' })
       setShowModal(false)
       init()
@@ -100,12 +120,27 @@ export default function SubstitutesPage() {
   }
 
   const toggleActive = async (id, currentStatus) => {
+    const currentItem = mySubs.find((item) => item.id === id)
     const { error } = await supabase
       .from('approval_substitutes')
       .update({ is_active: !currentStatus })
       .eq('id', id)
     
-    if (!error) init()
+    if (!error) {
+      await recordClientAuditLog({
+        scope: 'settings',
+        entityType: 'substitute',
+        entityId: id,
+        entityLabel: 'Approval Substitute',
+        sourceModule: 'settings_substitutes',
+        action: 'Updated',
+        details: 'Updated substitute active status',
+        before: currentItem || {},
+        after: { ...(currentItem || {}), is_active: !currentStatus },
+        allowlist: ['substitute_id', 'start_date', 'end_date', 'reason', 'is_active'],
+      })
+      init()
+    }
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>กำลังโหลด...</div>

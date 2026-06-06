@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache'
 import { getCurrentUserSession } from './user'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
+import { recordEntityAuditLog } from './audit'
 import { buildTemplatePreview, normalizeTemplateRecord, validateChecklistTemplate } from '@/lib/checklistTemplateValidation'
 
 /**
@@ -192,7 +193,7 @@ export async function getChecklistTemplateBuilderPageData() {
 
 export async function saveChecklistTemplate(payload) {
   try {
-    const { adminClient } = await requireAdminProfile()
+    const { adminClient, session } = await requireAdminProfile()
     const validation = validateChecklistTemplate(payload)
 
     if (!validation.success) {
@@ -205,8 +206,18 @@ export async function saveChecklistTemplate(payload) {
 
     const template = validation.data
     const existingId = template.id || null
+    let beforeRecord = null
     let sortOrder = payload?.sort_order ?? 0
     let itemKey = payload?.item_key || ''
+
+    if (existingId) {
+      const { data: currentTemplate } = await adminClient
+        .from('checklist_templates')
+        .select('id, item_key, category, freq_type, item_label, instruction, ui_template_type, template_config, is_active, sort_order, scope_mode, target_type')
+        .eq('id', existingId)
+        .maybeSingle()
+      beforeRecord = currentTemplate || null
+    }
 
     if (!existingId) {
 
@@ -371,6 +382,27 @@ export async function saveChecklistTemplate(payload) {
       .from('checklist_procedure_plans')
       .select('id, plan_name, steps')
       .order('plan_name')
+
+    await recordEntityAuditLog({
+      scope: 'settings',
+      entityType: 'checklist_template',
+      entityId: data.id,
+      entityLabel: data.item_label || data.item_key || data.id,
+      sourceModule: 'settings_checklist_template_builder',
+      docId: data.id,
+      docType: 'checklist_template',
+      action: existingId ? 'Updated' : 'Created',
+      details: existingId ? 'Updated checklist template' : 'Created checklist template',
+      userEmail: session.user.email,
+      before: beforeRecord || {},
+      after: data,
+      allowlist: ['category', 'freq_type', 'item_label', 'instruction', 'ui_template_type', 'template_config', 'is_active', 'scope_mode', 'target_type', 'sort_order'],
+      metadata: {
+        diffOptions: {
+          summarizeFields: ['template_config'],
+        },
+      },
+    })
 
     revalidatePath('/dashboard/settings/checklist-template-builder')
     revalidatePath('/dashboard/settings/checklist-master-data')

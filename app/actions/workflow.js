@@ -1,5 +1,6 @@
 'use server'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
+import { isApprovalAuditAction, normalizeAdminViewerRow, normalizeAuditViewerRow, normalizeBackupViewerRow } from '@/lib/audit'
 import { getCurrentUserSession } from './user'
 import { verifyEmployeePIN } from './users'
 import { recordEntityAuditLog } from './audit'
@@ -860,12 +861,7 @@ export async function getSystemLogs(type = 'audit', { page = 0, limit = 20 } = {
       const { data: profiles } = await supabaseAdmin.from('user_profiles').select('email, full_name').in('email', emails)
       const nameMap = Object.fromEntries(profiles?.map(p => [p.email, p.full_name]) || [])
 
-      const mapped = data.map(l => ({
-        ...l,
-        category: l.doc_type === 'checklist' ? 'Checklist' : (l.doc_type === 'incident' ? 'Incident' : l.doc_type),
-        full_name: nameMap[l.user_email] || l.user_email,
-        docNo: l.metadata?.doc_no || '—'
-      }))
+      const mapped = data.map((log) => normalizeAuditViewerRow(log, nameMap[log.user_email] || log.user_email))
 
       return { data: mapped, count }
     }
@@ -895,22 +891,58 @@ export async function getSystemLogs(type = 'audit', { page = 0, limit = 20 } = {
       const chkStatusMap = Object.fromEntries(chkRes.data?.map(d => [d.id, d]) || [])
       const incStatusMap = Object.fromEntries(incRes.data?.map(d => [d.id, d]) || [])
 
-      const mapped = data.map(l => {
+      const mapped = data
+        .filter((log) => isApprovalAuditAction(log.action) || log.metadata?.scope === 'workflow')
+        .map(l => {
         const cur = l.doc_type === 'checklist' ? chkStatusMap[l.doc_id] : incStatusMap[l.doc_id]
+        const normalized = normalizeAuditViewerRow(l, nameMap[l.user_email] || l.user_email)
         return {
           id: l.id,
           doc_id: l.doc_id,
           category: l.doc_type === 'checklist' ? 'Checklist' : 'Incident',
-          docNo: l.metadata?.doc_no || '—',
+          docNo: normalized.docNo,
           subject: l.details || l.action,
           action: l.action,
           timestamp: l.created_at,
-          user: nameMap[l.user_email] || l.user_email,
+          user: normalized.user,
+          field_changes: normalized.field_changes,
+          scope: normalized.scope,
           current_status: cur?.status,
           current_workflow_status: l.doc_type === 'checklist' ? cur?.workflow_status : (cur?.status === 'Pending Approval' ? 'pending' : 'other')
         }
       })
 
+      return { data: mapped, count }
+    }
+
+    if (type === 'admin') {
+      const { data, error, count } = await supabaseAdmin
+        .from('admin_audit_logs')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to)
+
+      if (error) throw error
+
+      const emails = [...new Set(data.map((log) => log.admin_email).filter(Boolean))]
+      const { data: profiles } = await supabaseAdmin.from('user_profiles').select('email, full_name').in('email', emails)
+      const nameMap = Object.fromEntries(profiles?.map((profile) => [profile.email, profile.full_name]) || [])
+
+      const mapped = data.map((log) => normalizeAdminViewerRow(log, nameMap[log.admin_email] || log.admin_email))
+      return { data: mapped, count }
+    }
+
+    if (type === 'backup') {
+      const { data, error, count } = await supabaseAdmin
+        .from('backup_logs')
+        .select('*', { count: 'exact' })
+        .order('log_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(from, to)
+
+      if (error) throw error
+
+      const mapped = data.map((log) => normalizeBackupViewerRow(log))
       return { data: mapped, count }
     }
 
@@ -1726,7 +1758,11 @@ export async function requestIncidentApprovalOTP(docId, stepId = null) {
   }
 }
 
-export async function verifyIncidentApprovalOTP(docId, otp, stepId = null) {
+export async function verifyIncidentApprovalOTP(docId, otp) {
+  return verifyIncidentApprovalOTPByStep(docId, otp, null)
+}
+
+async function verifyIncidentApprovalOTPByStep(docId, otp, stepId = null) {
   try {
     const session = await getCurrentUserSession()
     if (!session) return { success: false, error: 'Unauthorized' }

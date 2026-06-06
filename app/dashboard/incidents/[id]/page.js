@@ -9,6 +9,7 @@ import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { calculateIncidentSlaSnapshot } from '@/lib/slaUtils'
 import { getPotentialWorkflowSteps, recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow, syncDynamicWorkflowApprovers, diagnoseApprovalPin, cancelDocument, requestIncidentCancelOTP, requestIncidentApprovalOTP, verifyIncidentApprovalOTP, diagnoseIncidentApprovalOTP } from '@/app/actions/workflow'
 import { acknowledgeIncident, createIncidentExclusionManual, closeIncidentExclusionManual, getIncidentMasterData, requestIncidentReporterOtp, verifyIncidentReporterOtp, resendIncidentFollowupLink, validateExternalReporterEmail } from '@/app/actions/incidents'
+import { recordClientAuditLog } from '@/app/actions/audit'
 import { isSubstituteOf } from '@/lib/workflow'
 import { WorkflowProgressBar } from '@/components/workflow/WorkflowProgressBar'
 import { UnifiedApprovalModal } from '@/components/workflow/UnifiedApprovalModal'
@@ -30,6 +31,21 @@ const SEVERITY_COLORS = {
   Medium: { color: '#d97706', bg: '#fef3c7', text: 'MEDIUM' },
   Low:    { color: '#059669', bg: '#d1fae5', text: 'LOW' }
 }
+
+const INCIDENT_AUDIT_FIELDS = [
+  'title',
+  'severity',
+  'category',
+  'affected_system',
+  'assigned_to_id',
+  'reported_by',
+  'reported_by_id',
+  'reporter_email',
+  'resolution',
+  'root_cause',
+  'corrective_action',
+  'status',
+]
 
 // Local CSS for Media Queries and Layout
 const PageStyles = () => (
@@ -430,6 +446,10 @@ export default function IncidentDetailPage() {
     const nextReporterEmail = String(form.reporter_email || '').trim().toLowerCase()
     const oldReporterEmail = String(incident.reporter_email || '').trim().toLowerCase()
     const reporterEmailChanged = nextReporterEmail !== oldReporterEmail
+    const beforeAuditSnapshot = INCIDENT_AUDIT_FIELDS.reduce((snapshot, field) => {
+      snapshot[field] = incident?.[field] ?? null
+      return snapshot
+    }, {})
 
     // Handle Severity Change and Workflow Sync
     if (form.severity !== incident.severity) {
@@ -464,6 +484,27 @@ export default function IncidentDetailPage() {
     const { error } = await supabase.from('incidents').update(updateData).eq('id', id)
     if (error) alert(error.message)
     else {
+      const afterAuditSnapshot = INCIDENT_AUDIT_FIELDS.reduce((snapshot, field) => {
+        snapshot[field] = updateData?.[field] ?? incident?.[field] ?? null
+        return snapshot
+      }, {})
+
+      await recordClientAuditLog({
+        scope: 'document',
+        entityType: 'incident',
+        entityId: id,
+        entityLabel: incident?.case_number || id,
+        sourceModule: 'incident_detail',
+        action: 'Updated',
+        details: 'Updated incident detail fields',
+        before: beforeAuditSnapshot,
+        after: afterAuditSnapshot,
+        allowlist: INCIDENT_AUDIT_FIELDS,
+        metadata: {
+          doc_no: incident?.case_number || null,
+        },
+      })
+
       if (reporterEmailChanged) {
         await recordLog(
           id,
@@ -1361,7 +1402,7 @@ export default function IncidentDetailPage() {
           if (!pendingStep) return { success: false, message: 'ไม่พบขั้นตอนอนุมัติที่รอดำเนินการ' }
 
           if (mode === 'otp') {
-            const res = await diagnoseIncidentApprovalOTP(id, code, pendingStep.id)
+            const res = await verifyIncidentApprovalOTP(id, code)
             return { success: !!res?.success, message: res?.error || res?.message || 'ไม่สามารถยืนยัน OTP ได้' }
           }
 

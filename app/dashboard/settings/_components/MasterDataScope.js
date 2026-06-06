@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { recordClientAuditLog } from '@/app/actions/audit'
 import { ActionButton } from '@/app/dashboard/checklist/components/ActionButton'
 import { TemplatePreview } from '../checklist-template-builder/components/TemplatePreview'
 import { TargetRegistryClient } from '../target-registry/TargetRegistryClient'
@@ -160,6 +161,7 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
   const [targetRegistryLoading, setTargetRegistryLoading] = useState(false)
 
   const isAdmin = currentUser?.role === 'admin'
+  const isReadOnlyAuditor = currentUser?.role === 'auditor'
   const currentType = MASTER_GROUPS.flatMap(g => g.items).find(t => t.key === activeType)
 
   const fetchItems = async () => {
@@ -242,6 +244,18 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
     if (!newValue.trim()) return; setAdding(true)
     const maxOrder = items.length > 0 ? Math.max(...items.map(i => i.sort_order || 0)) + 1 : 1
     await supabase.from('master_data').insert([{ type: activeType, value: newValue.trim(), sort_order: maxOrder, is_active: true }])
+    await recordClientAuditLog({
+      scope: 'settings',
+      entityType: 'master_data',
+      entityId: `${activeType}:${newValue.trim()}`,
+      entityLabel: newValue.trim(),
+      sourceModule: 'settings_master_data',
+      action: 'Created',
+      details: `Added ${activeType} master data`,
+      before: {},
+      after: { type: activeType, value: newValue.trim(), sort_order: maxOrder, is_active: true },
+      allowlist: ['type', 'value', 'sort_order', 'is_active'],
+    })
     setNewValue(''); fetchItems(); setAdding(false)
   }
 
@@ -267,13 +281,41 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
 
   const handleDelete = async (id, label, table = 'master_data') => {
     if (!confirm(`ยืนยันการลบ "${label}"?`)) return
+    const currentItem = items.find((item) => item.id === id)
     const { error } = await supabase.from(table).delete().eq('id', id)
     if (error) setMsg({ text: `Error: ${error.message}`, type: 'error' })
-    else fetchItems()
+    else {
+      await recordClientAuditLog({
+        scope: 'settings',
+        entityType: 'master_data',
+        entityId: id,
+        entityLabel: label,
+        sourceModule: 'settings_master_data',
+        action: 'Deleted',
+        details: `Deleted ${activeType} master data`,
+        before: currentItem || {},
+        after: {},
+        allowlist: ['type', 'value', 'sort_order', 'is_active'],
+      })
+      fetchItems()
+    }
   }
 
   const handleToggle = async (id, currentStatus, table = 'master_data') => {
+    const currentItem = items.find((item) => item.id === id)
     await supabase.from(table).update({ is_active: !currentStatus }).eq('id', id)
+    await recordClientAuditLog({
+      scope: 'settings',
+      entityType: 'master_data',
+      entityId: id,
+      entityLabel: currentItem?.value || activeType,
+      sourceModule: 'settings_master_data',
+      action: 'Updated',
+      details: `Updated ${activeType} active status`,
+      before: currentItem || {},
+      after: { ...(currentItem || {}), is_active: !currentStatus },
+      allowlist: ['type', 'value', 'sort_order', 'is_active'],
+    })
     fetchItems()
   }
 
@@ -351,7 +393,7 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
               </div>
               {(expandedGroup === g.name || visibleGroups.length === 1) && g.items.map(t => {
                 return (
-                  <button key={t.key} className="sidebar-item" onClick={() => { setActiveType(t.key); setExpandedGroup(g.name); setEditingId(null) }} style={{ width: '100%', padding: '10px 20px', border: 'none', background: activeType === t.key ? '#eff6ff' : 'transparent', color: activeType === t.key ? '#2563eb' : '#475569', textAlign: 'left', cursor: 'pointer', fontWeight: activeType === t.key ? 700 : 500, fontSize: 13, borderLeft: activeType === t.key ? '4px solid #2563eb' : '4px solid transparent', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button data-readonly-allowed="true" key={t.key} className="sidebar-item" onClick={() => { setActiveType(t.key); setExpandedGroup(g.name); setEditingId(null) }} style={{ width: '100%', padding: '10px 20px', border: 'none', background: activeType === t.key ? '#eff6ff' : 'transparent', color: activeType === t.key ? '#2563eb' : '#475569', textAlign: 'left', cursor: 'pointer', fontWeight: activeType === t.key ? 700 : 500, fontSize: 13, borderLeft: activeType === t.key ? '4px solid #2563eb' : '4px solid transparent', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontSize: 16 }}>{t.icon}</span>
                     <span style={{ lineHeight: 1.3 }}>{t.label}</span>
                   </button>
@@ -367,9 +409,9 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
             <h2 style={{ fontSize: 20, fontWeight: 800, color: '#1e293b', margin: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ fontSize: 24 }}>{currentType?.icon}</span>
               {currentType?.label}
-              <button onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#eff6ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
+              <button data-readonly-allowed="true" onClick={() => setShowGuide(true)} style={{ border: 'none', background: '#eff6ff', width: 34, height: 34, borderRadius: 10, cursor: 'pointer', fontSize: 18 }}>📖</button>
             </h2>
-            {activeType === 'checklist_template' && (
+            {activeType === 'checklist_template' && !isReadOnlyAuditor && (
               <a
                 href="/dashboard/settings/checklist-template-builder?mode=create"
                 style={{
@@ -390,7 +432,7 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                 สร้าง Template ใหม่
               </a>
             )}
-            {activeType === 'procedure_plan' && (
+            {activeType === 'procedure_plan' && !isReadOnlyAuditor && (
               <a
                 href="/dashboard/settings/procedure-plan-editor"
                 style={{
@@ -433,6 +475,7 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
             <div style={{ position: 'relative', flex: 1 }}>
               <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 16 }}>🔍</span>
               <input 
+                data-readonly-allowed="true"
                 placeholder={`ค้นหาใน ${currentType?.label}...`} 
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
@@ -460,6 +503,7 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                   const isActive = freqFilter === frequency
                   return (
                     <button
+                      data-readonly-allowed="true"
                       key={frequency}
                       type="button"
                       onClick={() => setFreqFilter(frequency)}
@@ -532,10 +576,11 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                         </td>
                         <td style={{ textAlign: 'center' }}>{TEMPLATE_NAMES[it.ui_template_type]}</td>
                         <td style={{ textAlign: 'center' }}>
-                          <span onClick={() => handleToggle(it.id, it.is_active, 'checklist_templates')} style={{ cursor: 'pointer', padding: '4px 10px', borderRadius: 20, fontSize: 11, background: it.is_active ? '#dcfce7' : '#f1f5f9', color: it.is_active ? '#166534' : '#64748b' }}>{it.is_active ? 'Active' : 'Inactive'}</span>
+                          <span onClick={() => !isReadOnlyAuditor && handleToggle(it.id, it.is_active, 'checklist_templates')} style={{ cursor: isReadOnlyAuditor ? 'default' : 'pointer', padding: '4px 10px', borderRadius: 20, fontSize: 11, background: it.is_active ? '#dcfce7' : '#f1f5f9', color: it.is_active ? '#166534' : '#64748b' }}>{it.is_active ? 'Active' : 'Inactive'}</span>
                         </td>
                         <td style={{ textAlign: 'right', padding: '14px 20px' }}>
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            {!isReadOnlyAuditor && (
                             <a
                               href={`/dashboard/settings/checklist-template-builder?mode=edit&templateId=${it.id}`}
                               title="แก้ไข Template นี้"
@@ -554,8 +599,9 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                             >
                               ✏️
                             </a>
+                            )}
                             <ActionButton color="gray" icon="👁" onClick={() => handlePreviewTemplate(it)} disabled={saving} />
-                            <ActionButton color="red" icon="🗑" onClick={() => handleDelete(it.id, it.item_label, 'checklist_templates')} disabled={saving} />
+                            <ActionButton color="red" icon="🗑" onClick={() => handleDelete(it.id, it.item_label, 'checklist_templates')} disabled={saving || isReadOnlyAuditor} />
                           </div>
                         </td>
                       </>
@@ -567,7 +613,7 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                             <a
                               href={`/dashboard/settings/procedure-plan-editor?planId=${it.id}`}
-                              title="เปิด Procedure Editor"
+                              title={isReadOnlyAuditor ? 'ดูรายละเอียด Procedure Plan' : 'เปิด Procedure Editor'}
                               style={{
                                 width: 34,
                                 height: 34,
@@ -581,9 +627,9 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                                 textDecoration: 'none'
                               }}
                             >
-                              ✏️
+                              {isReadOnlyAuditor ? '👁' : '✏️'}
                             </a>
-                            <ActionButton color="red" icon="🗑" onClick={() => handleDelete(it.id, it.plan_name, 'checklist_procedure_plans')} />
+                            <ActionButton color="red" icon="🗑" onClick={() => handleDelete(it.id, it.plan_name, 'checklist_procedure_plans')} disabled={isReadOnlyAuditor} />
                           </div>
                         </td>
                       </>
@@ -596,13 +642,13 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                               await supabase.from('master_data').update({ value: editValue }).eq('id', it.id)
                               setEditingId(null); fetchItems()
                             }} autoFocus style={{ width: '100%', padding: '6px', borderRadius: 8, border: '1px solid #e2e8f0' }} />
-                          ) : <span onClick={() => { setEditingId(it.id); setEditValue(it.value) }} style={{ cursor: 'pointer', fontWeight: 500 }}>{it.value}</span>}
+                          ) : <span onClick={() => { if (isReadOnlyAuditor) return; setEditingId(it.id); setEditValue(it.value) }} style={{ cursor: isReadOnlyAuditor ? 'default' : 'pointer', fontWeight: 500 }}>{it.value}</span>}
                         </td>
                         <td style={{ textAlign: 'center', padding: isCompactMasterData ? '10px 12px' : '14px 20px' }}>
-                          <span onClick={() => handleToggle(it.id, it.is_active)} style={{ cursor: 'pointer', padding: '4px 10px', borderRadius: 20, fontSize: 11, background: it.is_active ? '#dcfce7' : '#f1f5f9', color: it.is_active ? '#166534' : '#64748b', fontWeight: 600 }}>{it.is_active ? 'Active' : 'Inactive'}</span>
+                          <span onClick={() => !isReadOnlyAuditor && handleToggle(it.id, it.is_active)} style={{ cursor: isReadOnlyAuditor ? 'default' : 'pointer', padding: '4px 10px', borderRadius: 20, fontSize: 11, background: it.is_active ? '#dcfce7' : '#f1f5f9', color: it.is_active ? '#166534' : '#64748b', fontWeight: 600 }}>{it.is_active ? 'Active' : 'Inactive'}</span>
                         </td>
                         <td style={{ textAlign: 'right', padding: isCompactMasterData ? '10px 16px' : '14px 20px' }}>
-                          <ActionButton color="red" icon="🗑" onClick={() => handleDelete(it.id, it.value)} />
+                          <ActionButton color="red" icon="🗑" onClick={() => handleDelete(it.id, it.value)} disabled={isReadOnlyAuditor} />
                         </td>
                       </>
                     )}
@@ -633,7 +679,7 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                     {editingGuide ? '👁 View' : '✏️ Edit'}
                   </button>
                 )}
-                <button onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ color: '#fff', background: 'none', border: 'none', fontSize: 32, cursor: 'pointer', lineHeight: 1 }}>&times;</button>
+                <button data-readonly-allowed="true" onClick={() => { setShowGuide(false); setEditingGuide(false); }} style={{ color: '#fff', background: 'none', border: 'none', fontSize: 32, cursor: 'pointer', lineHeight: 1 }}>&times;</button>
               </div>
             </div>
             <div style={{ padding: 40, overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
@@ -671,7 +717,7 @@ function MasterDataContent({ forcedGroup, initialType, title, subtitle }) {
                 <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Template Preview</h3>
                 <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>ตัวอย่างรูปแบบการแสดงผลหน้างานจริง</p>
               </div>
-              <button onClick={() => setShowPreview(false)} style={{ color: '#64748b', background: '#f1f5f9', border: 'none', width: 32, height: 32, borderRadius: 10, cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
+              <button data-readonly-allowed="true" onClick={() => setShowPreview(false)} style={{ color: '#64748b', background: '#f1f5f9', border: 'none', width: 32, height: 32, borderRadius: 10, cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
             </div>
             <div style={{ padding: 32, overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
               <TemplatePreview template={previewTemplate} procedurePlans={procedurePlans} />

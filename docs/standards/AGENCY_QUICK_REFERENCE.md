@@ -73,5 +73,15 @@ const minutes = calculateNetBusinessMinutes(start, end, wh, holidays)
 | **Users** | `user_profiles` | `admin_audit_logs` |
 
 ---
+
+## 🧾 6. Audit Log Mapping
+- **Document / Settings Audit:** ใช้ `system_audit_logs`
+- **User / Security Audit:** ใช้ `admin_audit_logs`
+- **Operational Backup Records:** ใช้ `backup_logs`
+- **Viewer Contract หลัก:** row สำหรับหน้า Logs กลางควร normalize ให้มี `category`, `docNo/entity_label`, `action`, `details`, `user`, `scope`, `field_changes`
+- **Field Changes Contract:** ใช้ `metadata.field_changes = [{ field, old_value, new_value }]` และสำหรับ payload ซับซ้อนให้ใช้ `{ field, summary }`
+- **Do Not Log:** `signature_pin`, `otp_code`, `password`, `password_hash`, `signature_data`
+
+---
 > [!IMPORTANT]
 > **Zero Hack Policy**: ห้ามแก้ไขค่าในตารางโดยไม่ผ่าน Workflow Logic เว้นแต่ได้รับมอบหมายให้ทำ Data Migration
