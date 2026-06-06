@@ -112,6 +112,28 @@ export default function LogsPage() {
     )
   }
 
+  const renderLogDetailsText = (log) => {
+    if (!log) return '—'
+
+    if (typeof log.details_text === 'string' && log.details_text.trim()) {
+      return log.details_text
+    }
+
+    if (typeof log.details === 'string' && log.details.trim()) {
+      return log.details
+    }
+
+    if (log.details && typeof log.details === 'object') {
+      try {
+        return JSON.stringify(log.details, null, 2)
+      } catch {
+        return '[details object]'
+      }
+    }
+
+    return '—'
+  }
+
   const handleOpenReset = (log) => {
     setSelectedLog(log)
     setShowResetModal(true)
@@ -159,9 +181,15 @@ export default function LogsPage() {
   }
 
   const fetchGuide = async () => {
-    const { data } = await supabase.from('system_settings').select('value').eq('key', 'logs_guide_content').single()
-    if (data) setGuideContent(data.value)
-    else {
+    const { data, error } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'logs_guide_content')
+      .maybeSingle()
+
+    if (!error && data?.value) {
+      setGuideContent(data.value)
+    } else {
       setGuideContent(`### 🔍 คู่มือระบบตรวจสอบบันทึก (System Logs & Audit Trails)
 ระบบรวบรวมบันทึกเหตุการณ์สำคัญทั้งหมดที่เกิดขึ้นในระบบ เพื่อความโปร่งใสและการตรวจสอบย้อนหลัง (Traceability)
 
@@ -487,7 +515,7 @@ export default function LogsPage() {
                         </td>
                         <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 700, color: '#334155', fontFamily: 'monospace' }}>{log.docNo || '—'}</td>
                         <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{log.action}</td>
-                        <td style={{ padding: '16px 20px', fontSize: 13, color: '#4b5563' }}>{log.details || log.details_text || '—'}</td>
+                        <td style={{ padding: '16px 20px', fontSize: 13, color: '#4b5563', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderLogDetailsText(log)}</td>
                         <td style={{ padding: '16px 20px', fontSize: 13, color: '#6b7280' }}>{log.full_name || log.user || log.user_email || 'System'}</td>
                         <td style={{ padding: '16px 20px' }}>
                           <button
@@ -602,7 +630,7 @@ export default function LogsPage() {
 
               <div>
                 <div style={{ fontSize: 12, fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: 8 }}>Details</div>
-                <div style={{ fontSize: 14, color: '#334155', lineHeight: 1.7 }}>{selectedLog.details || selectedLog.details_text || '—'}</div>
+                <div style={{ fontSize: 14, color: '#334155', lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderLogDetailsText(selectedLog)}</div>
               </div>
 
               <div>

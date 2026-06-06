@@ -2,10 +2,24 @@
 
 import { buildAuditLogPayload } from '../../lib/audit.js'
 
+function isNormalizedAuditPayload(payload = {}) {
+  return Boolean(
+    payload &&
+    typeof payload === 'object' &&
+    payload.metadata &&
+    typeof payload.metadata === 'object' &&
+    'scope' in payload.metadata &&
+    'doc_type' in payload &&
+    'doc_id' in payload
+  )
+}
+
 export async function recordEntityAuditLog(payload) {
   const { getSupabaseAdmin } = await import('../../lib/supabaseAdmin.js')
   const supabaseAdmin = getSupabaseAdmin()
-  const normalizedPayload = buildAuditLogPayload(payload)
+  const normalizedPayload = isNormalizedAuditPayload(payload)
+    ? payload
+    : buildAuditLogPayload(payload)
 
   const { error } = await supabaseAdmin
     .from('system_audit_logs')
@@ -34,25 +48,26 @@ async function resolveAuditActor() {
   }
 }
 
-export async function recordClientAuditLog({
-  scope = 'document',
-  entityType,
-  entityId,
-  entityLabel,
-  sourceModule,
-  action = 'Updated',
-  details = '',
-  before = {},
-  after = {},
-  allowlist = [],
-  metadata = {},
-  docId,
-  docType,
-  skipIfNoChanges = true,
-} = {}) {
+export async function recordClientAuditLog(payloadInput = {}) {
   const { session, actor } = await resolveAuditActor()
+  const {
+    scope = 'document',
+    entityType,
+    entityId,
+    entityLabel,
+    sourceModule,
+    action = 'Updated',
+    details = '',
+    before = {},
+    after = {},
+    allowlist = [],
+    metadata = {},
+    docId,
+    docType,
+    skipIfNoChanges = true,
+  } = payloadInput || {}
 
-  const payload = buildAuditLogPayload({
+  const auditPayload = buildAuditLogPayload({
     scope,
     entityType,
     entityId,
@@ -60,7 +75,7 @@ export async function recordClientAuditLog({
     sourceModule,
     action,
     details,
-    userEmail: session.user.email,
+    userEmail: session.user.email || actor?.email || 'system@internal',
     before,
     after,
     allowlist,
@@ -73,9 +88,9 @@ export async function recordClientAuditLog({
     docType,
   })
 
-  if (skipIfNoChanges && payload.metadata.field_changes.length === 0) {
-    return { success: true, skipped: true, payload }
+  if (skipIfNoChanges && auditPayload.metadata.field_changes.length === 0) {
+    return { success: true, skipped: true, payload: auditPayload }
   }
 
-  return recordEntityAuditLog(payload)
+  return recordEntityAuditLog(auditPayload)
 }

@@ -222,3 +222,24 @@ test('buildAuditLogPayload supports settings classifications and field changes',
   assert.equal(payload.metadata.field_changes[2].field, 'work_days')
   assert.equal(typeof payload.metadata.field_changes[2].summary, 'string')
 })
+
+test('buildAuditLogPayload keeps non-uuid settings entity ids in metadata only', async () => {
+  const { buildAuditLogPayload, AUDIT_ZERO_UUID } = await import('../lib/audit.js')
+
+  const payload = buildAuditLogPayload({
+    scope: 'settings',
+    entityType: 'working_hours',
+    entityId: 'working_hours',
+    entityLabel: 'Working Hours',
+    sourceModule: 'settings_working_hours',
+    action: 'Updated',
+    details: 'Updated working hours configuration',
+    before: { start: '08:30' },
+    after: { start: '08:31' },
+    allowlist: ['start'],
+  })
+
+  assert.equal(payload.doc_id, AUDIT_ZERO_UUID)
+  assert.equal(payload.doc_type, 'working_hours')
+  assert.equal(payload.metadata.entity_id, 'working_hours')
+})

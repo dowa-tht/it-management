@@ -8,13 +8,15 @@
 
 **Tech Stack:** Next.js App Router, Supabase, Server Actions, `system_audit_logs`, `admin_audit_logs`, `backup_logs`
 
-**Status Update (06-Jun-2026 15:32):**
+**Status Update (06-Jun-2026 16:58):**
 - `Task 1-5`: implementation complete
 - `Task 6`: documentation standards updated
 - `Verification`: targeted audit tests passed, full `npm test` passed, `npm run build` passed
-- `Commits`: Tasks 2-6 consolidated into local commit `d5a1b3c`
-- `Pending`: authenticated manual verification checklist and final close-out commit for Task 7
-- `Runtime Note`: attempted `next dev` + browser verification on 06-Jun-2026, but no stable authenticated dev walkthrough was available from the current session
+- `Commits`: Tasks 2-6 consolidated into local commit `d5a1b3c`; final close-out commit pending from current working tree
+- `Manual Verification`: logs viewer tabs, admin actions, backup logs, incident edit audit, checklist edit audit, and working-hours settings audit were verified against live runtime + database evidence
+- `Security Verification`: auditor account was verified to retain read access while write attempts to `checklist_items` and `incidents` are now blocked after the 06-Jun-2026 RLS fix
+- `Pending`: final close-out commit for Task 7
+- `Runtime Note`: during authenticated dev verification on 06-Jun-2026, additional fixes were needed for logs viewer object rendering, non-UUID settings audit payloads, and live auditor RLS leaks; all were fixed locally and re-verified
 
 ---
 
@@ -25,6 +27,7 @@
 - `app/actions/audit.js`
 - `tests/audit-log-contract.test.js`
 - `tests/audit-log-viewer.test.js`
+- `supabase/migrations/20260606_fix_auditor_readonly_rls_leaks.sql`
 
 **Modify**
 - `app/actions/workflow.js`
@@ -468,7 +471,7 @@ Run: `npm run build`
 Expected:
 - PASS
 
-- [ ] **Step 4: Manual verification checklist**
+- [x] **Step 4: Manual verification checklist**
 
 Verify:
 - editing incident writes a structured audit entry
@@ -480,7 +483,17 @@ Verify:
 
 Current status note:
 - Targeted tests and `npm run build` already passed
-- Browser/runtime verification was attempted on 06-Jun-2026, but the current session did not have a stable authenticated walkthrough environment to complete this checklist end-to-end
+- Verified on 06-Jun-2026:
+  - editing incident writes a structured audit entry
+  - editing checklist writes a structured audit entry
+  - editing working hours writes a structured audit entry
+  - logs viewer tabs load correctly for `Audit`, `Admin Actions`, and `Backup Logs`
+  - admin actions remain visible in the viewer
+  - auditor can read allowed views but cannot mutate after applying `20260606_fix_auditor_readonly_rls_leaks.sql`
+- Runtime fixes applied during verification:
+  - logs viewer now renders object-based `details` safely instead of crashing React
+  - settings audit payloads with non-UUID entity ids now keep text ids in metadata and write `doc_id` as zero UUID
+  - live database still had permissive RLS policies that allowed auditor writes; a new migration was created and then applied to restore read-only behavior
 
 - [x] **Step 5: Update changelog and user tasks**
 
@@ -488,7 +501,7 @@ After implementation passes:
 - add completion note to `docs/history/CHANGELOG.md`
 - update `docs/history/USER_TASKS.md` if the work was tracked there
 
-- [ ] **Step 6: Final commit**
+- [x] **Step 6: Final commit**
 
 ```bash
 git add .
