@@ -6,6 +6,54 @@ import { normalizeRole, hashEmail } from '@/lib/auth'
 import { getCurrentUserSession } from './user'
 import { recordSystemError } from './workflow'
 
+const DEFAULT_AUDITOR_EXPIRY_DAYS = 3
+const AUDITOR_QUICK_EXTEND_OPTIONS = [3, 7, 15, 30]
+
+function addDays(baseDate, days) {
+  const next = new Date(baseDate)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function getDefaultAuditorExpiry(now = new Date()) {
+  return addDays(now, DEFAULT_AUDITOR_EXPIRY_DAYS).toISOString()
+}
+
+function resolveAuditorExtendedExpiry(currentExpiry, days, now = new Date()) {
+  const parsedExpiry = currentExpiry ? new Date(currentExpiry) : null
+  const hasValidFutureExpiry =
+    parsedExpiry &&
+    !Number.isNaN(parsedExpiry.getTime()) &&
+    parsedExpiry.getTime() > now.getTime()
+
+  const base = hasValidFutureExpiry ? parsedExpiry : now
+  return addDays(base, days).toISOString()
+}
+
+async function requireAdminAccess() {
+  const session = await getCurrentUserSession()
+  if (!session || session.type !== 'internal') {
+    throw new Error('กรุณาเข้าสู่ระบบก่อนใช้งาน')
+  }
+
+  const adminClient = getSupabaseAdmin()
+  const { data: actor, error } = await adminClient
+    .from('user_profiles')
+    .select('id, email, full_name, role')
+    .eq('id', session.user.id)
+    .single()
+
+  if (error || !actor) {
+    throw new Error('ไม่พบข้อมูลผู้ดูแลระบบ')
+  }
+
+  if (actor.role !== 'admin') {
+    throw new Error('คุณไม่มีสิทธิ์ดำเนินการนี้')
+  }
+
+  return { adminClient, actor, session }
+}
+
 /**
  * 📝 บันทึกประวัติการดำเนินการของ Admin (Audit Log)
  */
@@ -127,9 +175,7 @@ export async function createAdminUser({ email, password, full_name, role, can_be
     // 2.2 Calculate Expiry for Auditor
     let expiresAt = null
     if (normalizedRole === 'auditor') {
-      const d = new Date()
-      d.setDate(d.getDate() + 3) // 3 Days
-      expiresAt = d.toISOString()
+      expiresAt = getDefaultAuditorExpiry()
     }
 
     // 2.3 Onboarding Token
@@ -261,17 +307,35 @@ export async function getAdminUsers() {
  */
 export async function updateAdminUser({ id, email, full_name, role, can_be_assignee, is_active }) {
   try {
-    const adminClient = getSupabaseAdmin()
+    const { adminClient } = await requireAdminAccess()
+    const normalizedRole = normalizeRole(role)
+    const { data: currentProfile, error: currentProfileError } = await adminClient
+      .from('user_profiles')
+      .select('role, expires_at, is_active')
+      .eq('id', id)
+      .single()
+
+    if (currentProfileError || !currentProfile) {
+      throw new Error('ไม่พบข้อมูลผู้ใช้ที่ต้องการอัปเดต')
+    }
+
+    let nextExpiresAt = currentProfile.expires_at || null
+    if (normalizedRole !== 'auditor') {
+      nextExpiresAt = null
+    } else if (currentProfile.role !== 'auditor') {
+      nextExpiresAt = getDefaultAuditorExpiry()
+    }
 
     await adminClient.auth.admin.updateUserById(id, {
-      user_metadata: { full_name, role }
+      user_metadata: { full_name, role: normalizedRole }
     })
 
     const { error } = await adminClient.from('user_profiles').update({
       full_name,
-      role,
+      role: normalizedRole,
       can_be_assignee,
-      is_active
+      is_active,
+      expires_at: nextExpiresAt,
     }).eq('id', id)
 
     if (error) throw error
@@ -279,13 +343,96 @@ export async function updateAdminUser({ id, email, full_name, role, can_be_assig
     // 🛡️ บันทึก Audit Log
     await recordAdminAction(id, 'UPDATE_USER', {
       full_name,
-      role,
+      role: normalizedRole,
       can_be_assignee,
-      is_active
+      is_active,
+      previous_role: currentProfile.role,
+      previous_expires_at: currentProfile.expires_at,
+      next_expires_at: nextExpiresAt,
     })
 
     revalidatePath('/dashboard/settings/users')
-    return { success: true }
+    return {
+      success: true,
+      user: {
+        id,
+        email,
+        full_name,
+        role: normalizedRole,
+        can_be_assignee,
+        is_active,
+        expires_at: nextExpiresAt,
+      },
+    }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+}
+
+export async function extendAuditorExpiry(userId, days) {
+  try {
+    const extendDays = Number(days)
+    if (!AUDITOR_QUICK_EXTEND_OPTIONS.includes(extendDays)) {
+      throw new Error('จำนวนวันที่เลือกไม่ถูกต้อง')
+    }
+
+    const { adminClient, actor } = await requireAdminAccess()
+    const { data: profile, error } = await adminClient
+      .from('user_profiles')
+      .select('id, email, full_name, role, expires_at, is_active, can_be_assignee')
+      .eq('id', userId)
+      .single()
+
+    if (error || !profile) {
+      throw new Error('ไม่พบข้อมูลผู้ใช้')
+    }
+
+    if (profile.role !== 'auditor') {
+      throw new Error('ต่ออายุได้เฉพาะบัญชี Auditor เท่านั้น')
+    }
+
+    const now = new Date()
+    const previousExpiryDate = profile.expires_at ? new Date(profile.expires_at) : null
+    const isExpired =
+      !previousExpiryDate ||
+      Number.isNaN(previousExpiryDate.getTime()) ||
+      previousExpiryDate.getTime() <= now.getTime()
+
+    const nextExpiresAt = resolveAuditorExtendedExpiry(profile.expires_at, extendDays, now)
+    const nextIsActive = isExpired ? true : profile.is_active
+
+    const { error: updateError } = await adminClient
+      .from('user_profiles')
+      .update({
+        expires_at: nextExpiresAt,
+        is_active: nextIsActive,
+      })
+      .eq('id', userId)
+
+    if (updateError) throw updateError
+
+    await recordAdminAction(userId, 'EXTEND_AUDITOR_EXPIRY', {
+      target_email: profile.email,
+      target_name: profile.full_name,
+      days_added: extendDays,
+      previous_expires_at: profile.expires_at,
+      next_expires_at: nextExpiresAt,
+      previous_is_active: profile.is_active,
+      next_is_active: nextIsActive,
+      actor_email: actor.email,
+      actor_name: actor.full_name,
+    })
+
+    revalidatePath('/dashboard/settings/users')
+    return {
+      success: true,
+      user: {
+        ...profile,
+        expires_at: nextExpiresAt,
+        is_active: nextIsActive,
+      },
+      message: `ต่ออายุบัญชี Auditor เพิ่ม ${extendDays} วันเรียบร้อย`,
+    }
   } catch (err) {
     return { success: false, error: err.message }
   }

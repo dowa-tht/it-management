@@ -3,7 +3,20 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/dateFormat'
 import { normalizeRole, ROLE_BADGE } from '@/lib/auth'
-import { createAdminUser, getAdminUsers, updateAdminUser, updateAdminUserPassword, secureCleanDeleteUser, getUserIdentities, updateAdminUserPin, unlockUserPin } from '@/app/actions/admin'
+import { createAdminUser, getAdminUsers, updateAdminUser, updateAdminUserPassword, secureCleanDeleteUser, getUserIdentities, updateAdminUserPin, unlockUserPin, extendAuditorExpiry } from '@/app/actions/admin'
+
+const DEFAULT_AUDITOR_EXPIRY_DAYS = 3
+const AUDITOR_QUICK_EXTEND_OPTIONS = [3, 7, 15, 30]
+
+function addDays(baseDate, days) {
+  const next = new Date(baseDate)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function getDefaultAuditorExpiryPreview(now = new Date()) {
+  return addDays(now, DEFAULT_AUDITOR_EXPIRY_DAYS).toISOString()
+}
 
 // --- Modern Action Button Component ---
 const ActionButton = ({ onClick, icon, color, title }) => {
@@ -95,6 +108,36 @@ function PasswordConfirmDialog({ onConfirm, onCancel, targetName, action }) {
   )
 }
 
+function AuditorExpiryConfirmDialog({ targetName, days, willReactivate, onConfirm, onCancel }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2200, padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: 32, width: '100%', maxWidth: 460, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>⌛ ยืนยันการต่ออายุ Auditor</div>
+        <div style={{ fontSize: 14, color: '#475569', lineHeight: 1.7, marginBottom: 16 }}>
+          คุณกำลังจะต่ออายุบัญชี <strong>{targetName}</strong> เพิ่มอีก <strong>{days} วัน</strong>
+        </div>
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.7 }}>
+            ระบบจะคงเวลาเดิมไว้หากบัญชียังไม่หมดอายุ
+          </div>
+          <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.7 }}>
+            หากบัญชีหมดอายุแล้ว ระบบจะนับต่อจากเวลาปัจจุบัน
+          </div>
+          {willReactivate && (
+            <div style={{ fontSize: 12, color: '#166534', lineHeight: 1.7, marginTop: 8, fontWeight: 700 }}>
+              บัญชีนี้จะถูกเปิดใช้งานกลับอัตโนมัติพร้อมกับการต่ออายุ
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+          <button onClick={onCancel} style={{ padding: '10px 20px', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 14, background: '#fff', cursor: 'pointer' }}>ยกเลิก</button>
+          <button onClick={onConfirm} style={{ padding: '10px 24px', border: 'none', borderRadius: 12, fontSize: 14, background: '#1d4ed8', color: '#fff', cursor: 'pointer', fontWeight: 700 }}>ยืนยันการต่ออายุ</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ===== User Setup Dialog (Unified Version) =====
 function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
   const [activeTab, setActiveTab] = useState('general')
@@ -106,8 +149,13 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
   const [identities, setIdentities] = useState([])
   const [pinForm, setPinForm] = useState({ newPin: '', confirm: '' })
   const [msg, setMsg] = useState({ text: '', type: '' })
+  const [expiryConfirm, setExpiryConfirm] = useState(null)
 
   const isSelf = user.id === currentUser?.id
+  const isCurrentAuditor = user.role === 'auditor'
+  const isAuditorRole = formData.role === 'auditor'
+  const isExpiryExpired = formData.expires_at && new Date(formData.expires_at) < new Date()
+  const isPendingAuditorRoleChange = !isCurrentAuditor && isAuditorRole
 
   const fetchIdentities = async () => {
     setLoading(true)
@@ -146,6 +194,9 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
     const res = await updateAdminUser(formData)
     if (res.success) {
       setMsg({ text: 'อัปเดตข้อมูลสำเร็จ', type: 'success' })
+      if (res.user) {
+        setFormData(prev => ({ ...prev, ...res.user }))
+      }
       onRefresh()
     } else {
       setMsg({ text: res.error, type: 'error' })
@@ -220,6 +271,42 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
 
   const derivedAssignee = formData.role === 'it_staff'
 
+  const handleRoleChange = (nextRole) => {
+    setFormData(current => {
+      const next = {
+        ...current,
+        role: nextRole,
+        can_be_assignee: nextRole === 'it_staff',
+      }
+
+      if (nextRole !== 'auditor') {
+        next.expires_at = null
+      } else if (current.role !== 'auditor') {
+        next.expires_at = getDefaultAuditorExpiryPreview()
+      }
+
+      return next
+    })
+  }
+
+  const handleConfirmExtendAuditorExpiry = async () => {
+    if (!expiryConfirm) return
+
+    setLoading(true)
+    const res = await extendAuditorExpiry(user.id, expiryConfirm.days)
+    if (res.success) {
+      setMsg({ text: res.message || 'ต่ออายุ Auditor สำเร็จ', type: 'success' })
+      if (res.user) {
+        setFormData(prev => ({ ...prev, ...res.user }))
+      }
+      onRefresh()
+    } else {
+      setMsg({ text: res.error, type: 'error' })
+    }
+    setExpiryConfirm(null)
+    setLoading(false)
+  }
+
   const tabStyle = (tab) => ({
     padding: '14px 20px', fontSize: 14, cursor: 'pointer', border: 'none',
     borderBottom: activeTab === tab ? '3px solid #1d4ed8' : '3px solid transparent',
@@ -261,7 +348,7 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
                 </div>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 8 }}>สิทธิ์การใช้งาน (Role)</label>
-                  <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} disabled={isSelf} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 14, background: isSelf ? '#f8fafc' : '#fff' }}>
+                  <select value={formData.role} onChange={e => handleRoleChange(e.target.value)} disabled={isSelf} style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 14, background: isSelf ? '#f8fafc' : '#fff' }}>
                     <option value="admin">Administrator</option>
                     <option value="it_staff">IT Team</option>
                     <option value="approver">Approver</option>
@@ -300,6 +387,65 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
                   กำหนดจาก Role อัตโนมัติ: เลือก role IT Team เพื่อให้ผู้ใช้นี้เป็นผู้รับมอบหมายงาน Incident
                 </div>
               </div>
+              {isAuditorRole && (
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 18, background: '#f8fafc', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Auditor Access Duration</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>การควบคุมวันหมดอายุของบัญชี Auditor</div>
+                  </div>
+                  <div className="dialog-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div style={{ padding: 16, background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Expiration Status</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: isExpiryExpired ? '#dc2626' : '#166534' }}>
+                        {isExpiryExpired ? 'Expired' : 'Active'}
+                      </div>
+                    </div>
+                    <div style={{ padding: 16, background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Current Expiry</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                        {formData.expires_at ? formatDateTime(formData.expires_at) : 'ยังไม่มีการกำหนด'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: 16, background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 8 }}>Quick Add</div>
+                    <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.7, marginBottom: 14 }}>
+                      ระบบคิดวันหมดอายุแบบวันและเวลา ถ้าบัญชียังไม่หมดอายุจะต่อจากเวลาหมดอายุเดิม แต่ถ้าหมดอายุแล้วจะนับต่อจากเวลาปัจจุบัน
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      {AUDITOR_QUICK_EXTEND_OPTIONS.map(days => (
+                        <button
+                          key={days}
+                          type="button"
+                          onClick={() => setExpiryConfirm({ days, willReactivate: Boolean(isExpiryExpired && formData.is_active === false) })}
+                          disabled={loading || isPendingAuditorRoleChange}
+                          style={{
+                            padding: '10px 16px',
+                            borderRadius: 12,
+                            border: '1px solid #bfdbfe',
+                            background: loading || isPendingAuditorRoleChange ? '#dbeafe' : '#eff6ff',
+                            color: '#1d4ed8',
+                            fontWeight: 700,
+                            cursor: loading || isPendingAuditorRoleChange ? 'default' : 'pointer',
+                          }}
+                        >
+                          +{days} วัน
+                        </button>
+                      ))}
+                    </div>
+                    {isPendingAuditorRoleChange ? (
+                      <div style={{ marginTop: 12, fontSize: 12, color: '#92400e', lineHeight: 1.7 }}>
+                        บัญชีนี้เพิ่งถูกเปลี่ยน role เป็น Auditor ในหน้าจอนี้ ระบบตั้งวันหมดอายุเริ่มต้นให้อัตโนมัติแล้ว กรุณากดบันทึกข้อมูลทั่วไปก่อน หากต้องการใช้ Quick Add เพิ่มเติม
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 12, fontSize: 12, color: '#64748b', lineHeight: 1.7 }}>
+                        ค่ามาตรฐานสำหรับ Auditor ใหม่คือ {DEFAULT_AUDITOR_EXPIRY_DAYS} วัน และถ้าเปลี่ยน role ออกจาก Auditor ระบบจะล้างวันหมดอายุออกอัตโนมัติ
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               <button onClick={handleUpdateGeneral} disabled={loading} style={{ padding: '14px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, boxShadow: '0 4px 12px rgba(29, 78, 216, 0.2)' }}>บันทึกข้อมูลทั่วไป</button>
             </div>
           )}
@@ -393,6 +539,15 @@ function UserSetupDialog({ user, onClose, onRefresh, currentUser }) {
           )}
         </div>
       </div>
+      {expiryConfirm && (
+        <AuditorExpiryConfirmDialog
+          targetName={user.full_name}
+          days={expiryConfirm.days}
+          willReactivate={expiryConfirm.willReactivate}
+          onCancel={() => setExpiryConfirm(null)}
+          onConfirm={handleConfirmExtendAuditorExpiry}
+        />
+      )}
     </div>
   </div>
   )
