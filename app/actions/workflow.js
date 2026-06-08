@@ -516,13 +516,15 @@ export async function recordAuditLog({ docId, docType, action, details, userEmai
 }
 
 /**
- * 📧 [Phase 2] Helper: ส่งอีเมลแจ้งเตือนผู้อนุมัติ
+ * 📧 [Phase 2] Helper: ส่งอีเมลแจ้งเตือนผู้อนุมัติ (และ Substitute หากมี)
  */
 async function notifyApprover(approverId, docId, docType, docNo, title) {
   try {
     const supabaseAdmin = getAdminClient()
+
+    // 1. ดึงข้อมูลผู้อนุมัติหลัก (แก้ bug: user_profiles ไม่ใช่ profiles)
     const { data: profile } = await supabaseAdmin
-      .from('profiles')
+      .from('user_profiles')
       .select('email, full_name')
       .eq('id', approverId)
       .single()
@@ -532,27 +534,62 @@ async function notifyApprover(approverId, docId, docType, docNo, title) {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
     const link = `${baseUrl}/dashboard/${docType === 'incident' ? 'incidents' : 'checklist'}/${docId}`
 
+    const buildApprovalEmail = (recipientName, noteText = '') => `
+      <div style="padding: 24px; background: #f8fafc; font-family: sans-serif;">
+        <h2 style="color: #1e293b; margin-bottom: 16px;">สวัสดีคุณ ${recipientName}</h2>
+        <p style="color: #475569; font-size: 16px; line-height: 1.6;">
+          มีเอกสารรอการอนุมัติในระบบ DOWA IT System${noteText ? ` <em style="color:#64748b; font-size:14px;">(${noteText})</em>` : ''}
+        </p>
+        <div style="background: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin: 24px 0;">
+          <p style="margin: 0; color: #94a3b8; font-size: 12px; text-transform: uppercase; font-weight: 800;">เลขที่เอกสาร</p>
+          <p style="margin: 4px 0 12px 0; color: #1e293b; font-size: 18px; font-weight: 700;">${docNo}</p>
+          <p style="margin: 0; color: #94a3b8; font-size: 12px; text-transform: uppercase; font-weight: 800;">หัวข้อ</p>
+          <p style="margin: 4px 0 0 0; color: #1e293b; font-size: 16px;">${title}</p>
+        </div>
+        <a href="${link}" style="display: inline-block; padding: 14px 28px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 12px; font-weight: 700;">
+          ไปหน้าตรวจสอบและอนุมัติ
+        </a>
+      </div>
+    `
+
+    // 2. ส่งให้ผู้อนุมัติหลักก่อน
     await sendEmail({
       to: profile.email,
       subject: `[Pending Approval] ${docNo} - ${title}`,
-      html: `
-        <div style="padding: 24px; background: #f8fafc;">
-          <h2 style="color: #1e293b; margin-bottom: 16px;">สวัสดีคุณ ${profile.full_name}</h2>
-          <p style="color: #475569; font-size: 16px; line-height: 1.6;">
-            มีเอกสารรอการอนุมัติจากคุณในระบบ DOWA IT System
-          </p>
-          <div style="background: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin: 24px 0;">
-            <p style="margin: 0; color: #94a3b8; font-size: 12px; text-transform: uppercase; font-weight: 800;">เลขที่เอกสาร</p>
-            <p style="margin: 4px 0 12px 0; color: #1e293b; font-size: 18px; font-weight: 700;">${docNo}</p>
-            <p style="margin: 0; color: #94a3b8; font-size: 12px; text-transform: uppercase; font-weight: 800;">หัวข้อ</p>
-            <p style="margin: 4px 0 0 0; color: #1e293b; font-size: 16px;">${title}</p>
-          </div>
-          <a href="${link}" style="display: inline-block; padding: 14px 28px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 12px; font-weight: 700;">
-            ไปหน้าตรวจสอบและอนุมัติ
-          </a>
-        </div>
-      `
+      html: buildApprovalEmail(profile.full_name),
     })
+
+    // 3. ตรวจสอบ Substitute ที่ active อยู่ในวันนี้
+    const today = new Date().toISOString().split('T')[0]
+    const { data: substitutes } = await supabaseAdmin
+      .from('approval_substitutes')
+      .select('substitute_id')
+      .eq('primary_approver_id', approverId)
+      .eq('is_active', true)
+      .lte('start_date', today)
+      .gte('end_date', today)
+
+    if (substitutes && substitutes.length > 0) {
+      const subIds = substitutes.map(s => s.substitute_id).filter(Boolean)
+      if (subIds.length > 0) {
+        const { data: subProfiles } = await supabaseAdmin
+          .from('user_profiles')
+          .select('email, full_name')
+          .in('id', subIds)
+
+        for (const sub of (subProfiles || [])) {
+          if (!sub?.email) continue
+          await sendEmail({
+            to: sub.email,
+            subject: `[Pending Approval — แทน ${profile.full_name}] ${docNo} - ${title}`,
+            html: buildApprovalEmail(
+              sub.full_name,
+              `คุณได้รับสิทธิ์อนุมัติแทน ${profile.full_name} ในช่วงนี้`
+            ),
+          }).catch(err => console.error('notifySubstitute Error:', err))
+        }
+      }
+    }
   } catch (err) {
     console.error('notifyApprover Error:', err)
   }

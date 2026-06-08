@@ -9,8 +9,13 @@ You must strictly align with the unified system rules defined in the following f
 3. **Superpowers Skills Library**: Read [docs/standards/SUPERPOWERS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SUPERPOWERS.md) and adopt superpowers skills for all session tasks.
 4. **Project Map & Directory Register**: Read [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md)
 5. **Current System Architecture**: Read [docs/standards/SYSTEM_ARCHITECTURE_MAP.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SYSTEM_ARCHITECTURE_MAP.md)
+6. **Windsurf Agent Way (WINDSURF)**: Read [docs/standards/WINDSURF.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/WINDSURF.md) and strictly follow its philosophy and process.
 
 ## 🛡️ Critical Reminders
+- **Evidence Before Action**: Read the target file/code first before writing or editing. Do not guess API signatures.
+- **Root Cause Over Symptom**: Trace bugs to their origin (e.g. schema, query parameters) rather than using try/catch workarounds.
+- **Minimal Edit**: Only modify what is necessary to achieve the task. Avoid unsolicited refactoring.
+- **Build Before Ship**: Ensure the project builds successfully by running `npm run build` before completing.
 - Strictly check and comply with Supabase RLS and Security boundaries.
 - Never write Server Action logic outside of `app/actions/`.
 - Ensure dual-write/single-write transactional integrity when editing incidents or approvals.

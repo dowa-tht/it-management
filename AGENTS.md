@@ -43,6 +43,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 | Bug investigation | `systematic-debugging` |
 | ก่อนส่งมอบ | `verification-before-completion` |
 | งานที่มี test impact | `test-driven-development` |
+| ทุกงานที่ไม่ใช่ brainstorming | `silent-execution` |
 
 ## 🎛️ Superpowers Workflow Catalog (Thai Quick Guide)
 
@@ -121,6 +122,43 @@ Model Mapping (Default Policy):
 
 > หมายเหตุ: กฎความปลอดภัยทั้งหมดในหัวข้อ **[SECURITY BOUNDARY — MANDATORY]** ยังคงบังคับใช้ทุก Tier โดยไม่มีข้อยกเว้น
 
+## [SILENT THINKING POLICY — MANDATORY]
+
+AI ทุก Role ต้องคิดภายในแบบเงียบ ห้าม output ความคิดระหว่างกลาง
+ออกมาบนหน้าจอ เพื่อลด token waste และรักษา output ให้กระชับมีคุณค่า
+
+**Forbidden Output Patterns (ห้ามใช้โดยเด็ดขาด):**
+- `"กำลังวิเคราะห์..."` / `"กำลังตรวจสอบ..."`
+- `"ขั้นแรกฉันจะ..."` / `"ให้ฉันคิดก่อนว่า..."`
+- `"น่าจะเป็นเพราะ..."` / `"โดยทั่วไปแล้ว pattern นี้..."`
+- `"ฉันเห็นว่า..."` เมื่อยังไม่ได้แนบหลักฐานจริง
+- ประโยคที่เป็น interim reasoning ทุกรูปแบบ
+
+**Allowed Output เท่านั้น:**
+- Code block / ไฟล์ที่สมบูรณ์
+- Structured format ที่กำหนดใน AGENTS.md (Role Confirmation, Step Report, ESCALATE, HANDOFF)
+- คำถามเดียวที่กระชับ เมื่อต้องการ clarify
+- ผลลัพธ์สุดท้ายพร้อม evidence (file:line)
+
+**Tier Exception:**
+- Critical Tier: อนุญาตให้แสดง assumption ≤3 bullet สั้น ก่อน execute เพื่อ confirm กับ USER เท่านั้น
+
+**Verbose Mode Toggle (USER สั่งได้):**
+
+| USER พิมพ์ | ผล |
+|---|---|
+| `verbose on` | เปิด reasoning output สำหรับ session นี้ |
+| `verbose off` | กลับสู่ Silent mode (default) |
+| `อธิบายวิธีคิด` / `explain` | แสดง reasoning เฉพาะ response นั้น |
+
+Default ของทุก session คือ **Silent Execution** เสมอ
+
+**Self-Monitor (AI ต้องถามตัวเองก่อน output ทุกครั้ง):**
+> output นี้คือผลลัพธ์จริงที่ USER ต้องการ หรือแค่ความคิดระหว่างทาง?
+> ถ้าลบทิ้ง USER จะเสียข้อมูลสำคัญไหม? → ถ้าไม่เสีย: ลบทิ้ง
+
+**เอกสารฉบับเต็ม:** `docs/standards/SILENT_EXECUTION.md`
+
 1. **[BEFORE START]** ก่อนเริ่มทำงานทุกครั้ง **ต้องตรวจสอบบทบาท (Role) ของตัวเองใน `docs/standards/roles/` (หากมีการระบุ)** และทำ preflight ตาม Tier:
    - **Quick:** อ่านเฉพาะไฟล์ที่เกี่ยวข้องโดยตรงกับงาน + role doc ที่เกี่ยวข้อง
      - Fast AI: ห้ามเปิดไฟล์นอก Task scope ยกเว้น import chain ที่จำเป็น
@@ -150,26 +188,26 @@ Model Mapping (Default Policy):
 
 8. **[BEFORE END]** เมื่อจบงานในแต่ละวัน (หรือเมื่อ USER สั่งจบงาน) **ต้องทำการอัปเดตส่วน "Change Logs" ใน `docs/history/CHANGELOG.md`** โดยต้อง **ระบุวันที่และเวลา (Timestamp)** เข้าไปด้วยเสมอ เนื่องจากในหนึ่งวันอาจมีการบันทึกหลายครั้ง
 
-8. **[DOCUMENTATION STRUCTURE]** หากมีการสร้างไฟล์ `.md` ใหม่ **ห้ามสร้างไว้ที่ Root Folder โดยเด็ดขาด** และ AI ต้องจัดหมวดหมู่ไฟล์ให้ถูกต้องตามประเภทงานเสมอ:
+9. **[DOCUMENTATION STRUCTURE]** หากมีการสร้างไฟล์ `.md` ใหม่ **ห้ามสร้างไว้ที่ Root Folder โดยเด็ดขาด** และ AI ต้องจัดหมวดหมู่ไฟล์ให้ถูกต้องตามประเภทงานเสมอ:
    - **Development Standards**: เก็บใน `docs/standards/` (สำหรับกฎและ Logic)
    - **Implementation History**: เก็บใน `docs/history/` (สำหรับบันทึกการทำงาน/Audit)
    - **Manuals & Guides**: เก็บใน `docs/manuals/` (สำหรับคู่มือการใช้งาน)
 
    และหลังจากสร้างแล้ว **ต้องไปอัปเดตลิงก์ใน `docs/INDEX.md` ตามหมวดหมู่ให้เรียบร้อยเสมอ**
 
-9. **[MARKDOWN SINGLE-HOME POLICY — MANDATORY]** ไฟล์ `.md` ถาวรทุกไฟล์ต้องอยู่ภายใต้ `docs/` เท่านั้น ยกเว้นไฟล์ root policy ที่ USER อนุมัติชัดเจน เช่น `AGENTS.md` และ `README.md`:
+10. **[MARKDOWN SINGLE-HOME POLICY — MANDATORY]** ไฟล์ `.md` ถาวรทุกไฟล์ต้องอยู่ภายใต้ `docs/` เท่านั้น ยกเว้นไฟล์ root policy ที่ USER อนุมัติชัดเจน เช่น `AGENTS.md` และ `README.md`:
    - ห้ามสร้างหรือคงไฟล์ `.md` ถาวรไว้ในโฟลเดอร์อื่น เช่น `plans/`, `doc/`, หรือ `ai-tasks/` หากไฟล์นั้นมีบทบาทเป็นมาตรฐาน, คู่มือ, ประวัติ, registry, หรือ reference ของระบบ
    - หากไฟล์ `.md` ใดเป็นเอกสารถาวร ต้องย้ายไปยัง `docs/standards/`, `docs/history/`, หรือ `docs/manuals/` ตามประเภท
    - หลังย้าย/สร้าง/ลบไฟล์ `.md` ต้องอัปเดต `docs/INDEX.md` ทันที และต้องตรวจแก้ทุก path reference ใน `AGENTS.md`, `README.md`, `docs/standards/SUPERPOWERS.md`, และไฟล์เอกสารอื่นที่เกี่ยวข้องให้ครบ
    - หากพบโฟลเดอร์เอกสารซ้ำบทบาท เช่น `plans/` หรือ `doc/` ต้องเสนอ normalization plan ก่อนสร้างเอกสารเพิ่ม
 
-10. **[SCRATCH WORKSPACE POLICY — MANDATORY]** local AI working residue, temporary debug scripts, session scratch files, และ disposable analysis outputs ต้องเก็บไว้ในโฟลเดอร์กลางเดียวคือ `brain/` เท่านั้น:
+11. **[SCRATCH WORKSPACE POLICY — MANDATORY]** local AI working residue, temporary debug scripts, session scratch files, และ disposable analysis outputs ต้องเก็บไว้ในโฟลเดอร์กลางเดียวคือ `brain/` เท่านั้น:
    - ห้ามกระจาย scratch files ไปยัง root, `scripts/`, `docs/`, หรือโฟลเดอร์ระบบอื่น
    - `brain/` เป็น temporary workspace only และต้องถูก ignore จาก Git เสมอ
    - ห้ามใช้ไฟล์ใน `brain/` เป็น source of truth หรืออ้างอิงในเอกสารถาวร
    - เมื่อจบงานต้องลบไฟล์ใน `brain/` หรือย้ายเฉพาะสิ่งที่มีคุณค่าถาวรไปยัง `scripts/` หรือ `docs/` ตามประเภท
 
-11. **[EVIDENCE-BASED VERIFICATION]** เมื่อ USER ถามหรือสั่งให้ "ตรวจสอบ", "ดูว่า...", "ระบบทำงานถูกต้องไหม" หรือคำสั่งในลักษณะเดียวกัน ให้บังคับตาม Tier:
+12. **[EVIDENCE-BASED VERIFICATION]** เมื่อ USER ถามหรือสั่งให้ "ตรวจสอบ", "ดูว่า...", "ระบบทำงานถูกต้องไหม" หรือคำสั่งในลักษณะเดียวกัน ให้บังคับตาม Tier:
    - **Quick:** ตอบแบบกระชับจากไฟล์ที่เกี่ยวข้องโดยตรง และใส่ line reference เมื่อเป็นข้อสรุปเชิงยืนยัน
    - **Standard/Critical:** ใช้หลักฐานแบบเต็มตามรายการด้านล่าง
    - **อ่านไฟล์จริง**: ใช้ `view_file` หรือ `grep_search` อ่านโค้ดหรือไฟล์ที่เกี่ยวข้องจริงๆ ก่อนตอบ **ห้ามตอบจากความจำ**
@@ -178,17 +216,17 @@ Model Mapping (Default Policy):
    - **ห้ามตอบแบบ "น่าจะ" หรือ "โดยทั่วไป"**: หากไม่แน่ใจให้ระบุว่า "ยังไม่ได้ตรวจสอบโค้ดจริง กำลังดำเนินการ..." แล้วไปอ่านไฟล์ก่อนตอบ
    - **รายงานตามความจริง**: หากพบว่าโค้ดยังไม่เป็นไปตามมาตรฐาน **ต้องรายงานตรงๆ** พร้อมระบุจุดที่ไม่ตรงและเสนอแนวทางแก้ไข ห้ามรายงานว่า "ถูกต้องแล้ว" หากยังไม่ตรวจสอบจริง
 
-12. **[DAILY LOG SHRINKING]** ก่อนเริ่มงานในวันใหม่ทุกครั้ง หรือเมื่อใดก็ตามที่ตรวจพบว่า `docs/history/CHANGELOG.md` มี section ของวันที่ไม่ใช่วันนี้ (ไม่ว่าผู้ใช้จะพิมพ์คำว่า "เริ่มงานได้" หรือไม่ก็ตาม) **AI ต้องตรวจสอบวันที่ล่าสุดใน `docs/history/CHANGELOG.md` ทันที** หากวันที่ปัจจุบันไม่ตรงกับวันที่ล่าสุดใน Changelog ต้องทำการย้าย (Archive) บันทึกของวันก่อนหน้าทั้งหมดไปไว้ในไฟล์ `docs/history/archive/CHANGELOG_YYYY_MM_DD.md` ของวันที่นั้น ถ้าไฟล์ archive ของวันนั้นยังไม่มีให้สร้างใหม่ แล้วค่อยย่อ `CHANGELOG.md` ให้เหลือเฉพาะ section ของวันที่ปัจจุบันก่อนเริ่มงานหรือก่อนบันทึกงานใหม่ เพื่อรักษาขนาดไฟล์ `CHANGELOG.md` ให้กะทัดรัดและทำงานได้รวดเร็วเสมอ
+13. **[DAILY LOG SHRINKING]** ก่อนเริ่มงานในวันใหม่ทุกครั้ง หรือเมื่อใดก็ตามที่ตรวจพบว่า `docs/history/CHANGELOG.md` มี section ของวันที่ไม่ใช่วันนี้ (ไม่ว่าผู้ใช้จะพิมพ์คำว่า "เริ่มงานได้" หรือไม่ก็ตาม) **AI ต้องตรวจสอบวันที่ล่าสุดใน `docs/history/CHANGELOG.md` ทันที** หากวันที่ปัจจุบันไม่ตรงกับวันที่ล่าสุดใน Changelog ต้องทำการย้าย (Archive) บันทึกของวันก่อนหน้าทั้งหมดไปไว้ในไฟล์ `docs/history/archive/CHANGELOG_YYYY_MM_DD.md` ของวันที่นั้น ถ้าไฟล์ archive ของวันนั้นยังไม่มีให้สร้างใหม่ แล้วค่อยย่อ `CHANGELOG.md` ให้เหลือเฉพาะ section ของวันที่ปัจจุบันก่อนเริ่มงานหรือก่อนบันทึกงานใหม่ เพื่อรักษาขนาดไฟล์ `CHANGELOG.md` ให้กะทัดรัดและทำงานได้รวดเร็วเสมอ
 
-13. **[DOUBLE-VERIFICATION BEFORE CONFIRMATION]** ห้ามตอบ USER ว่า "อัปเดตแล้ว", "แก้ไขแล้ว" หรือ "บันทึกแล้ว" จนกว่าจะได้ทำการ **ตรวจสอบไฟล์จริง** (View File) อีกครั้งหลังจากส่งคำสั่งแก้ไข โดยใช้ตาม Tier:
+14. **[DOUBLE-VERIFICATION BEFORE CONFIRMATION]** ห้ามตอบ USER ว่า "อัปเดตแล้ว", "แก้ไขแล้ว" หรือ "บันทึกแล้ว" จนกว่าจะได้ทำการ **ตรวจสอบไฟล์จริง** (View File) อีกครั้งหลังจากส่งคำสั่งแก้ไข โดยใช้ตาม Tier:
    - **Quick:** บังคับเมื่อแก้ไฟล์ที่มีผลต่อ logic/config/security หรือไฟล์ที่ USER ระบุให้ตรวจละเอียด
    - **Standard/Critical:** บังคับทุกครั้งตามกฎเดิม
 
-14. **[NON-INTUITIVE DETAILED PLANNING]** ในการทำ Implementation Plan ห้ามใช้ "ความรู้สึก" หรือ "ความน่าจะเป็น" ในการกำหนด Logic หากจุดใดมีความซับซ้อน **ต้องระบุเป็น Technical Logic/Pseudocode** ให้ละเอียดถึงระดับฟิลด์ข้อมูลและเงื่อนไข (If/Else) เพื่อป้องกัน Agent อื่นๆ ตีความผิดพลาด
+15. **[NON-INTUITIVE DETAILED PLANNING]** ในการทำ Implementation Plan ห้ามใช้ "ความรู้สึก" หรือ "ความน่าจะเป็น" ในการกำหนด Logic หากจุดใดมีความซับซ้อน **ต้องระบุเป็น Technical Logic/Pseudocode** ให้ละเอียดถึงระดับฟิลด์ข้อมูลและเงื่อนไข (If/Else) เพื่อป้องกัน Agent อื่นๆ ตีความผิดพลาด
 
-15. **[VISUAL EVIDENCE ANALYSIS]** เมื่อ USER ส่งรูปภาพ (Screenshot) มาเพื่อแจ้งปัญหาการแสดงผล (UI/UX) หรือ Error **AI ต้องวิเคราะห์จากภาพจริงที่เห็นเป็นลำดับแรก** ห้ามตอบว่า "สวยแล้ว" หรือ "แก้ไขแล้ว" โดยดูเพียงแค่โค้ดหากภาพจริงยังแสดงความผิดพลาดหรือความไม่สวยงาม AI ต้องยอมรับความจริงตามภาพหลักฐานและดำเนินการแก้ไขจนกว่าผลลัพธ์ในภาพจะถูกต้อง 100%
+16. **[VISUAL EVIDENCE ANALYSIS]** เมื่อ USER ส่งรูปภาพ (Screenshot) มาเพื่อแจ้งปัญหาการแสดงผล (UI/UX) หรือ Error **AI ต้องวิเคราะห์จากภาพจริงที่เห็นเป็นลำดับแรก** ห้ามตอบว่า "สวยแล้ว" หรือ "แก้ไขแล้ว" โดยดูเพียงแค่โค้ดหากภาพจริงยังแสดงความผิดพลาดหรือความไม่สวยงาม AI ต้องยอมรับความจริงตามภาพหลักฐานและดำเนินการแก้ไขจนกว่าผลลัพธ์ในภาพจะถูกต้อง 100%
 
-16. **[MODULE BOUNDARY]** ทุกครั้งที่ทำงาน Agent ต้องระบุให้ชัดว่างานนั้นอยู่ใน module ใด และต้องทำงานภายใน boundary ของ module นั้นเท่านั้น:
+17. **[MODULE BOUNDARY]** ทุกครั้งที่ทำงาน Agent ต้องระบุให้ชัดว่างานนั้นอยู่ใน module ใด และต้องทำงานภายใน boundary ของ module นั้นเท่านั้น:
 
     | Module | Scope | Actions file | DB Tables หลัก |
     |---|---|---|---|
@@ -199,19 +237,19 @@ Model Mapping (Default Policy):
 
     **ห้าม** แก้ไขไฟล์ของ module อื่นโดยไม่ได้รับคำสั่งชัดเจนจาก USER
 
-17. **[DATABASE CONTRACT]** ห้ามสร้างตารางใหม่ในฐานข้อมูลโดยไม่ได้รับการอนุมัติจาก USER ก่อนทุกครั้ง หากต้องการตารางใหม่ให้:
+18. **[DATABASE CONTRACT]** ห้ามสร้างตารางใหม่ในฐานข้อมูลโดยไม่ได้รับการอนุมัติจาก USER ก่อนทุกครั้ง หากต้องการตารางใหม่ให้:
     1. แจ้ง USER พร้อม schema ที่เสนอ
     2. รอ USER อนุมัติ
     3. สร้าง migration file ใน `supabase/migrations/` เท่านั้น ห้ามรัน SQL ตรงกับ production โดยไม่มี migration
 
-18. **[SECURITY BOUNDARY — MANDATORY]** กฎความปลอดภัยต่อไปนี้มีผลบังคับใช้ทุกครั้งโดยไม่มีข้อยกเว้น:
+19. **[SECURITY BOUNDARY — MANDATORY]** กฎความปลอดภัยต่อไปนี้มีผลบังคับใช้ทุกครั้งโดยไม่มีข้อยกเว้น:
     - **ห้ามใช้ `service_role` key ใน client-side** หรือใน Server Component ที่ไม่จำเป็น
     - **ห้ามเขียน Logic ที่ bypass RLS** ของ Supabase ไม่ว่ากรณีใดก็ตาม
     - **ห้ามแก้ไข PIN System** (6-digit Bcrypt) โดยไม่ผ่านการ review จาก USER — ให้ escalate ทันที
     - **ห้ามเปลี่ยน RBAC Role** (`admin`, `it_staff`, `approver`, `employee`, `auditor`) หรือสิทธิ์ของแต่ละ Role โดยไม่มีคำสั่งชัดเจน
     - **ทุก Server Action ที่เกี่ยวกับ approval ต้องผ่าน `workflow.js`** ห้ามเขียน approval logic ใหม่แยกต่างหาก
 
-19. **[TAILWIND-JIT-ISSUE — SETTINGS PAGES]** ⚠️ **ปัญหาที่พบและได้รับการยืนยันแล้ว** ⚠️
+20. **[TAILWIND-JIT-ISSUE — SETTINGS PAGES]** ⚠️ **ปัญหาที่พบและได้รับการยืนยันแล้ว** ⚠️
 
     **อาการ:** Tailwind class เช่น `px-8 py-7`, `gap-5`, `text-xs`, `font-semibold` ไม่มีผลบนหน้าจอจริงใน `/dashboard/settings/*` แม้จะเขียน className ถูกต้อง
 
@@ -267,6 +305,7 @@ lib/
   supabaseServer.js ← Server-side Supabase client
 docs/
   standards/        ← กฎและ Logic สำหรับ Agent
+                       (รวมถึง SILENT_EXECUTION.md, FUNCTION_REGISTRY.md, SUPERPOWERS.md ฯลฯ)
   history/          ← Changelog และ Task history
   manuals/          ← คู่มือผู้ใช้และ UAT
 supabase/
@@ -334,9 +373,29 @@ ai-tasks/
 **หน้าที่:** คิด วิเคราะห์ วางแผน สร้าง Task files Debug งานยาก และตัดสินใจเชิงสถาปัตยกรรม  
 **ห้าม:** แก้โค้ดโดยตรงโดยไม่มี Task file ใน workflow นี้ หรือทำงาน execution ที่ Fast AI ทำได้
 
+**Output Contract (Silent Execution):**
+output เฉพาะสิ่งต่อไปนี้เท่านั้น ตามลำดับ:
+```
+1. Role Confirmation block
+2. [รอ USER ยืนยัน]
+3. Task File (.md) ที่สมบูรณ์ หรือ Implementation Plan
+4. HANDOFF REPORT block (ถ้าต้องส่งงานต่อ)
+```
+ห้ามมีข้อความ reasoning แทรกระหว่างขั้นตอน ยกเว้น Critical Tier (≤3 assumption bullet)
+
 ### Fast AI
 **หน้าที่:** Execute Task files ตาม scope ที่ได้รับ, อ่านไฟล์เท่าที่จำเป็น, Self-validate, Report ผล  
 **ห้าม:** วิเคราะห์หรือวางแผนนอก scope ที่กำหนดใน Task file หรือตัดสินใจเปลี่ยน logic สำคัญเอง
+
+**Output Contract (Silent Execution):**
+output เฉพาะสิ่งต่อไปนี้เท่านั้น ตามลำดับ:
+```
+1. Role Confirmation block
+2. [รอ USER ยืนยัน]
+3. Code / File changes โดยตรง
+4. Step N เสร็จสิ้น block
+```
+ห้ามมีข้อความ reasoning แทรกระหว่างขั้นตอน ยกเว้น Critical Tier (≤3 assumption bullet)
 
 **ข้อจำกัดการสแกน:**
 - ห้าม scan ทั้ง codebase โดยไม่มี Task directive หรือ Human approval

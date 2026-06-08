@@ -423,11 +423,13 @@ export default function LogsPage() {
                   ) : (
                     <>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Category</th>
-                      <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Doc No.</th>
+                      <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase', minWidth: 160 }}>
+                        {activeTab === 'admin' ? 'Target User' : 'Doc No.'}
+                      </th>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Action</th>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Details</th>
                       <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>User</th>
-                      <th style={{ padding: '16px 20px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Review</th>
+                      <th style={{ padding: '16px 12px', fontSize: 12, fontWeight: 600, color: '#4b5563', textTransform: 'uppercase', width: 80, textAlign: 'center' }}>Review</th>
                     </>
                   )}
                 </tr>
@@ -513,17 +515,17 @@ export default function LogsPage() {
                             {log.category || 'System'}
                           </span>
                         </td>
-                        <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 700, color: '#334155', fontFamily: 'monospace' }}>{log.docNo || '—'}</td>
+                        <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 700, color: '#334155', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{log.docNo || '—'}</td>
                         <td style={{ padding: '16px 20px', fontSize: 13, fontWeight: 600, color: '#111827' }}>{log.action}</td>
                         <td style={{ padding: '16px 20px', fontSize: 13, color: '#4b5563', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderLogDetailsText(log)}</td>
                         <td style={{ padding: '16px 20px', fontSize: 13, color: '#6b7280' }}>{log.full_name || log.user || log.user_email || 'System'}</td>
-                        <td style={{ padding: '16px 20px' }}>
+                        <td style={{ padding: '12px 8px', textAlign: 'center' }}>
                           <button
                             data-readonly-allowed="true"
                             onClick={() => setSelectedLog(log)}
-                            style={{ padding: '6px 12px', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                            style={{ padding: '5px 10px', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
                           >
-                            View Details
+                            View
                           </button>
                         </td>
                       </>

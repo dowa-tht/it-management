@@ -3,7 +3,7 @@
 **[ATTENTION AI AGENTS]**  
 This is the central documentation hub. You MUST read this file first before starting any task to understand the system's architecture and find the relevant documentation for your specific task. **DO NOT read all files unless necessary to avoid context overflow.**
 
-**Latest Update (06-Jun-2026 18:02):** เพิ่มคู่มือ `Headless & Backend Testing` สำหรับการทดสอบโดยไม่ต้องเปิดหน้าเว็บจริง, พร้อมแยกแนวทาง direct backend call, request simulation, headless browser, DB verification, และ role-based security checks
+**Latest Update (08-Jun-2026 09:12):** ประเมินบทบาทและความจำเป็นในการอ่านไฟล์ .cursorrules และทำการยุบประวัติการทำงานรายวัน (Daily Log Shrinking)
 
 ---
 
@@ -20,6 +20,7 @@ This is the central documentation hub. You MUST read this file first before star
 **Directory:** `docs/standards/`
 - [ZERO_HACK_POLICY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/ZERO_HACK_POLICY.md) : นโยบายห้ามใช้ UI Hacks
 - [DEVELOPMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DEVELOPMENT.md) : มาตรฐานโค้ด, Logging, Security และ structured audit contract สำหรับ document/settings changes
+- [SILENT_EXECUTION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SILENT_EXECUTION.md) : มาตรฐานและข้อกำหนดการประมวลผลและการรายงานตัวแบบเงียบ (Silent Thinking / Silent Execution)
 - [WORKFLOW_ENGINE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/WORKFLOW_ENGINE.md) : มาตรฐานการอนุมัติและสถานะเอกสาร
 - [USER_MANAGEMENT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/USER_MANAGEMENT.md) : มาตรฐานการจัดการผู้ใช้และความปลอดภัย
 - [PERMISSIONS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/PERMISSIONS.md) : มาตรฐานระบบสิทธิ์การใช้งาน
@@ -38,13 +39,6 @@ This is the central documentation hub. You MUST read this file first before star
 - [DOCUMENT_MAPPING_STANDARD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DOCUMENT_MAPPING_STANDARD.md) : มาตรฐานการจับคู่ข้อมูลและสถานะ Workflow ของระบบ
 - [SYSTEM_ARCHITECTURE_MAP.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SYSTEM_ARCHITECTURE_MAP.md) : [AGGREGATION TOOL] แผนผังโครงสร้างสถาปัตยกรรมและ Logic Flow (สำหรับ Agent)
 - [AGENCY_QUICK_REFERENCE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/AGENCY_QUICK_REFERENCE.md) : [AGGREGATION TOOL] รวมสูตรสำเร็จ (Cheat Sheet), audit log mapping, และคำสั่งที่ใช้บ่อย (สำหรับ Agent)
-- [FUNCTION_REGISTRY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/FUNCTION_REGISTRY.md) : ดัชนีฟังก์ชันและคอมโพเนนต์หลักของระบบ ใช้สำหรับนำทางการตรวจสอบ source code และ workflow ของ AI
-- [WINDSURF.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/WINDSURF.md) : มาตรฐานวิธีคิดและกระบวนการทำงานของ AI เชิง Evidence-first สำหรับใช้ร่วมกับ Agent Rules และ Superpowers
-- [AGENTS.md](file:///c:/Users/Lenovo/dowa-it-system/AGENTS.md) : กฎข้อบังคับและ Workflow สำหรับ AI และ Agent ทุกตัวในระบบ (มีผลบังคับใช้สูงสุด)
-- [.julesrules](file:///c:/Users/Lenovo/dowa-it-system/.julesrules) : กฎข้อบังคับและข้อกำหนดเฉพาะสำหรับ Google Jules Coding Agent
-- [SUPERPOWERS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SUPERPOWERS.md) : คู่มือการผสานและใช้งาน Superpowers Skills Library (v5.1.0) สำหรับ AI Agents ทุกตัว
-
-### 👤 Agent Roles
 - [roles/README.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/roles/README.md) : สารบัญและโครงสร้างของบทบาท Agent ย่อย
 
 
@@ -80,6 +74,7 @@ This is the central documentation hub. You MUST read this file first before star
 - [INCIDENT_APPROVAL_MIGRATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/INCIDENT_APPROVAL_MIGRATION.md) : ประวัติการย้ายข้อมูล Workflow
 - [AUDIT_REPORT_LATEST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_LATEST.md) : รายงานการตรวจสอบคุณภาพล่าสุด (PASSED)
 - [AUDIT_REPORT_INCIDENT_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_INCIDENT_FLOW.md) : รายงานการตรวจสอบกระบวนการ Incident (Archive - FAILED)
+- [AUDIT_INCIDENT_ROUTE_RUNTIME_DESYNC_2026_06_08.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_INCIDENT_ROUTE_RUNTIME_DESYNC_2026_06_08.md) : [AUDIT] รายงานตรวจสอบปัญหา `/dashboard/incidents` ตอบ 404 ทั้งที่ route file มีอยู่จริง โดยสรุปว่าเป็น runtime route desync ของ Next.js dev server
 - [remediation_plan_photo_evidence_spacing.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/remediation_plan_photo_evidence_spacing.md) : [PLAN] แผนการปรับปรุงระยะ Spacing ของหน้าจอสร้างเทมเพลต Photo Evidence (ui_template_type: 1)
 - [remediation_plan_checklist_edit_lock.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/remediation_plan_checklist_edit_lock.md) : [PLAN] แผนติดตั้งระบบล็อกแก้ไขสำหรับป้องกันการแก้ไขข้อมูล Checklist โดยไม่ตั้งใจ (View/Edit Lock Flow)
 - [audit_report_checklist_dtt_chk_2605_010.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/audit_report_checklist_dtt_chk_2605_010.md) : [AUDIT] รายงานการตรวจสอบตรรกะเงื่อนไขและกระบวนการอนุมัติสำหรับเอกสาร DTT-CHK-2605-010
