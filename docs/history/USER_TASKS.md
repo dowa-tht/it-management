@@ -1,6 +1,6 @@
 # 📋 รายการงาน (Task Tracker)
 
-**อัปเดตล่าสุด:** 6 มิถุนายน 2569
+**อัปเดตล่าสุด:** 9 มิถุนายน 2569
 
 ---
 
@@ -11,6 +11,79 @@
 ---
 
 ## ✅ งานที่เสร็จสิ้นแล้ว (Completed)
+
+### 30. Production Re-baseline Final Artifact Templates and User Remap Pack
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 9 มิถุนายน 2569
+- **รายละเอียด:**
+  - สร้าง template ใช้งานจริงสำหรับ `release inventory`, `export row counts`, และ `verification result`
+  - สร้าง [PRODUCTION_REBASELINE_SELECTED_USER_BOOTSTRAP_AND_REMAP_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_SELECTED_USER_BOOTSTRAP_AND_REMAP_PLAN.md) เพื่อปิด flow selected-user bootstrap, source->target user-id mapping, และ downstream reference remap
+  - เชื่อมเอกสารใหม่เข้ากับ migration section ใน [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) เพื่อให้หยิบใช้ต่อเนื่องในวัน execute จริงได้
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `docs/manuals/PRODUCTION_REBASELINE_RELEASE_INVENTORY_TEMPLATE.md`
+  - `docs/manuals/PRODUCTION_REBASELINE_EXPORT_ROW_COUNTS_TEMPLATE.md`
+  - `docs/manuals/PRODUCTION_REBASELINE_VERIFICATION_RESULT_TEMPLATE.md`
+  - `docs/manuals/PRODUCTION_REBASELINE_SELECTED_USER_BOOTSTRAP_AND_REMAP_PLAN.md`
+  - `docs/INDEX.md`
+
+### 29. Production Re-baseline SQL Query Packs
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 9 มิถุนายน 2569
+- **รายละเอียด:**
+  - สร้าง [PRODUCTION_REBASELINE_EXPORT_SQL_PACK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_EXPORT_SQL_PACK.md) สำหรับ export SQL แบบ table-by-table จาก `dev Supabase`
+  - สร้าง [PRODUCTION_REBASELINE_VERIFICATION_SQL_PACK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_VERIFICATION_SQL_PACK.md) สำหรับ post-import verification SQL บน `production target`
+  - ผูก query packs เข้ากับ export artifact plan, import command pack, และ verification run sequence เพื่อให้วัน migration จริงใช้เอกสารเป็นชุดต่อเนื่องได้
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `docs/manuals/PRODUCTION_REBASELINE_EXPORT_SQL_PACK.md`
+  - `docs/manuals/PRODUCTION_REBASELINE_VERIFICATION_SQL_PACK.md`
+  - `docs/INDEX.md`
+
+### 28. Production Re-baseline Execution Artifacts Pack
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 9 มิถุนายน 2569
+- **รายละเอียด:**
+  - สร้าง [PRODUCTION_REBASELINE_EXPORT_ARTIFACT_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_EXPORT_ARTIFACT_PLAN.md) เพื่อกำหนด artifact groups, metadata, export order, table filters, และ integrity checks
+  - สร้าง [PRODUCTION_REBASELINE_IMPORT_ORDER_COMMAND_PACK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_IMPORT_ORDER_COMMAND_PACK.md) เพื่อสรุปลำดับ schema apply / seed import / selected-user remap / stop conditions สำหรับวัน execute จริง
+  - สร้าง [PRODUCTION_REBASELINE_VERIFICATION_RUN_SEQUENCE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_VERIFICATION_RUN_SEQUENCE.md) เพื่อทำ post-import verification แบบ run ตามลำดับก่อนเปิด production
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `docs/manuals/PRODUCTION_REBASELINE_EXPORT_ARTIFACT_PLAN.md`
+  - `docs/manuals/PRODUCTION_REBASELINE_IMPORT_ORDER_COMMAND_PACK.md`
+  - `docs/manuals/PRODUCTION_REBASELINE_VERIFICATION_RUN_SEQUENCE.md`
+  - `docs/INDEX.md`
+
+### 27. Production Re-baseline Apply Order and Security Hardening Backlog
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 9 มิถุนายน 2569
+- **รายละเอียด:**
+  - สร้างเอกสาร [PRODUCTION_REBASELINE_PRODUCTION_APPLY_ORDER.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_PRODUCTION_APPLY_ORDER.md) เพื่อสรุป first production migration order แบบ operator-friendly
+  - สร้างเอกสาร [IMPLEMENTATION_PLAN_PRODUCTION_SECURITY_HARDENING_BACKLOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_SECURITY_HARDENING_BACKLOG.md) เพื่อแยก hardening backlog ออกจาก first migration cut
+  - อัปเดตเอกสาร migration ฐานให้ตรงกับ audit ล่าสุด:
+    - เพิ่ม migrations วันที่ `2026-06-08`
+    - เปลี่ยน `approval_substitutes` จาก `verify-first` เป็น `seed-all`
+    - ย้าย selected-user bootstrap ให้อยู่ก่อน `workflow_configs` และ `approval_substitutes`
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `docs/manuals/PRODUCTION_REBASELINE_EXECUTION_RUNBOOK.md`
+  - `docs/manuals/PRODUCTION_REBASELINE_PRODUCTION_APPLY_ORDER.md`
+  - `docs/manuals/PRODUCTION_REBASELINE_FINAL_IN_SCOPE_TABLE_LIST.md`
+  - `docs/manuals/PRODUCTION_REBASELINE_SEED_EXTRACTION_MAPPING.md`
+  - `docs/history/IMPLEMENTATION_PLAN_PRODUCTION_SECURITY_HARDENING_BACKLOG.md`
+  - `docs/INDEX.md`
+
+### 26. Production Re-baseline RLS Follow-up for Legacy SLA Tables and Approval Substitutes
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 9 มิถุนายน 2569
+- **รายละเอียด:**
+  - apply manual migration `supabase/migrations/20260608_enable_rls_for_substitutes_and_lock_legacy_sla_tables.sql` บน `dev Supabase` สำเร็จ
+  - ยืนยันจาก live schema ว่า `approval_substitutes`, `working_hours`, `sla_exclusions`, `sla_holidays` มี `rls_enabled = true`
+  - ยืนยันจาก `pg_policies` ว่า:
+    - `approval_substitutes` มี `admin_all_*` และ owner/substitute policies ครบ
+    - `working_hours`, `sla_exclusions`, `sla_holidays` ถูก lock เป็น `admin_all_*` ตามแผน
+  - ปิด blocker เดิมเรื่อง `RLS disabled` สำหรับ production re-baseline บนฝั่ง dev
+  - หมายเหตุ: ยังมี advisory อื่นนอก scope นี้ เช่น `user_whitelist` และ function hardening ซึ่งยังไม่ได้รวมในรอบนี้
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `supabase/migrations/20260608_enable_rls_for_substitutes_and_lock_legacy_sla_tables.sql`
+  - `docs/manuals/PRODUCTION_REBASELINE_RLS_REMEDIATION_PLAN.md`
+  - `docs/history/AUDIT_PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_2026_06_08.md`
 
 ### 25. Audit Trail & Logs Viewer Close-Out + Auditor RLS Leak Remediation
 - **สถานะ:** ✅ เสร็จสมบูรณ์
@@ -412,7 +485,33 @@
 
 ## 📌 งานที่รอดำเนินการ (Pending)
 
-ไม่มีงานค้างที่เปิดอยู่ใน tracker นี้ ณ ตอนอัปเดตล่าสุด
+### 1. Production Re-baseline Dev Export Artifact Completion
+- **สถานะ:** ✅ Ready for Production Migration Mode Entry
+- **วันเริ่ม:** 9 มิถุนายน 2569
+- **อัปเดตล่าสุด:** 9 มิถุนายน 2569
+- **รายละเอียด:**
+  - สร้าง dev export artifact pack ใต้ `brain/production-rebaseline/dev-export/20260609-092859/` แล้ว ครอบคลุม `release_inventory`, row counts, selected-user pack, workflow/no-series pack, และ baseline table ส่วนหลัก
+  - ยืนยันจาก live dev schema ว่า `workflow_configs.condition_key` มีอยู่จริง และ `approval_substitutes` ใช้ runtime columns ชุดใหม่แล้ว
+  - พบ data drift ที่ต้องตัดสินใจก่อน execution จริง:
+    - `checklist_targets.target_type` มีค่า `cctv_terminal_box` และ `network_teminal_box` แต่ `master_data.target_type` ใน approved scope ยังมีเพียง `cctv_terminal` และ `ac_server_room`
+    - `checklist_templates.category` มีค่า `IT Infrastructure` และ `Security` แต่ `master_data.checklist_category` snapshot ปัจจุบันยังไม่มีสองค่านี้
+    - `checklist_template_targets` มี row แบบ `per_type` ที่ `target_id = null` ได้ และต้องตีความตาม runtime contract ไม่ใช่ orphan โดยอัตโนมัติ
+    - live dev `master_data` ยังไม่มี active rows สำหรับ `IT Infrastructure`, `Security`, `cctv_terminal_box`, และ `network_teminal_box`
+  - ต้องตัดสินใจก่อนเข้าสู่ execution runbook ว่าจะ:
+    - ขยาย master data scope ให้ตรง runtime ปัจจุบัน
+    - หรือ normalize runtime data ให้กลับเข้าขอบเขตเดิม
+    - และจะเติม missing `master_data` rows ใน dev ก่อนหรือใช้ supplement pack แยก
+  - สร้าง decision pack [PRODUCTION_REBASELINE_SCOPE_DRIFT_DECISION_PACK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_SCOPE_DRIFT_DECISION_PACK.md) แล้ว โดย recommendation ปัจจุบันคือขยาย scope ให้ตรง baseline runtime data และยอมรับ `per_type` rows ที่ `target_id = null`
+  - เนื่องจาก connector ฝั่ง dev ไม่อนุญาต `INSERT` (`read-only transaction`) จึงปิด gap ด้วย execution-grade supplement pack แทน:
+    - `master_data_supplement.json`
+    - `master_data_supplement.sql`
+  - final verification แบบ `source + supplement` ผ่านแล้ว และบันทึก readiness ไว้ใน [PRODUCTION_REBASELINE_PRODUCTION_MODE_READINESS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_PRODUCTION_MODE_READINESS.md)
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `brain/production-rebaseline/dev-export/20260609-092859/`
+  - `docs/manuals/PRODUCTION_REBASELINE_EXPORT_ARTIFACT_PLAN.md`
+  - `docs/manuals/PRODUCTION_REBASELINE_FINAL_IN_SCOPE_TABLE_LIST.md`
+  - `docs/manuals/PRODUCTION_REBASELINE_SCOPE_DRIFT_DECISION_PACK.md`
+  - `docs/manuals/PRODUCTION_REBASELINE_PRODUCTION_MODE_READINESS.md`
 
 ---
 

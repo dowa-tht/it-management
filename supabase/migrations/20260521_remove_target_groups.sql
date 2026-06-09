@@ -8,17 +8,20 @@ FROM public.checklist_targets
 WHERE target_type IS NOT NULL AND target_type != ''
 AND NOT EXISTS (
   SELECT 1 FROM public.master_data WHERE type = 'target_type' AND value = target_type
-)
-ON CONFLICT (type, value) DO NOTHING;
+);
 
 -- 2. ย้ายค่า default target types เพิ่มเติม (cctv_terminal_box, ups, nvr, switch)
 INSERT INTO public.master_data (type, value, sort_order, is_active)
-VALUES 
-  ('target_type', 'cctv_terminal_box', 1, true),
-  ('target_type', 'ups', 2, true),
-  ('target_type', 'nvr', 3, true),
-  ('target_type', 'switch', 4, true)
-ON CONFLICT (type, value) DO NOTHING;
+SELECT 'target_type', val, idx, true
+FROM (VALUES 
+  ('cctv_terminal_box', 1),
+  ('ups', 2),
+  ('nvr', 3),
+  ('switch', 4)
+) AS t(val, idx)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.master_data WHERE type = 'target_type' AND value = t.val
+);
 
 -- 3. อัปเดต checklist_templates และ checklist_procedure_plans ที่เป็น per_group ให้เป็น per_type
 UPDATE public.checklist_templates

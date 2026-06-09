@@ -98,7 +98,8 @@ ALTER TABLE public.checklist_docs
   ADD COLUMN IF NOT EXISTS approved_by TEXT,
   ADD COLUMN IF NOT EXISTS created_by TEXT,
   ADD COLUMN IF NOT EXISTS created_by_id UUID,
-  ADD COLUMN IF NOT EXISTS assigned_approver_id UUID;
+  ADD COLUMN IF NOT EXISTS assigned_approver_id UUID,
+  ADD COLUMN IF NOT EXISTS current_approver_id UUID;
 
 CREATE TABLE IF NOT EXISTS public.checklist_templates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -170,7 +171,7 @@ CREATE TABLE IF NOT EXISTS public.checklist_targets (
 );
 
 CREATE INDEX IF NOT EXISTS idx_checklist_targets_target_code ON public.checklist_targets(target_code);
-CREATE INDEX IF NOT EXISTS idx_checklist_targets_target_group_id ON public.checklist_targets(target_group_id);
+-- target_group_id was removed in a later migration
 
 CREATE TABLE IF NOT EXISTS public.checklist_template_targets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -374,4 +375,29 @@ ON CONFLICT (role_name, feature_key)
 DO UPDATE SET
   access_level = EXCLUDED.access_level,
   updated_at = NOW();
+
+
+ALTER TABLE public.document_approvals
+  ADD COLUMN IF NOT EXISTS role_required TEXT;
+
+
+
+ALTER TABLE public.checklist_templates
+  ADD COLUMN IF NOT EXISTS scope_mode TEXT DEFAULT 'per_type';
+
+ALTER TABLE public.checklist_procedure_plans
+  ADD COLUMN IF NOT EXISTS scope_mode TEXT DEFAULT 'per_type';
+
+
+
+ALTER TABLE public.incidents
+  ADD COLUMN IF NOT EXISTS reported_by_id UUID;
+
+ALTER TABLE public.checklist_docs
+  ADD COLUMN IF NOT EXISTS created_by_id UUID;
+
+
+ALTER TABLE public.incidents
+  ADD COLUMN IF NOT EXISTS assigned_approver_id UUID,
+  ADD COLUMN IF NOT EXISTS current_approver_id UUID;
 

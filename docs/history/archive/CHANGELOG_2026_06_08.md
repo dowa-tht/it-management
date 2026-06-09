@@ -1,9 +1,4 @@
-# 🕒 ประวัติการเปลี่ยนแปลง (Chang- **[13:20] Completed Production Database Migration & Schema Fixes**
-  - Apply SQL files on Production Supabase successfully.
-  - Resolve Column drift & syntax errors (reported_by_id, created_by_id, target_group_id).
-  - Update add_rls_policies.sql to drop legacy tables.
-  - Run npm run build successfully.
-e Logs)
+# 🕒 ประวัติการเปลี่ยนแปลง (Change Logs)
 
 ## 8 มิถุนายน 2569 (08-Jun-2026)
 
@@ -46,6 +41,52 @@ e Logs)
   - **(B) แก้ bug code + implement feature:** แก้ไข `notifyApprover` function ใน [workflow.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/workflow.js)
     - แก้ bug ที่ query table `profiles` ผิด → `user_profiles` (ทำให้ email notification ไม่เคยส่งได้เลย)
     - เพิ่ม Substitute Notification logic — ตรวจสอบ `approval_substitutes` ที่ `is_active=true` และอยู่ในช่วงวันที่ปัจจุบัน แล้วส่ง email แจ้งเตือนไปหา substitute พร้อมระบุว่าเป็นการแทน primary approver คนใด
+- **[15:05] Add Development-First Migration Policy and Draft 4 Permanent Docs**
+  - อัปเดต [AGENTS.md](file:///c:/Users/Lenovo/dowa-it-system/AGENTS.md) เพิ่ม `Migration Mode Router` ให้ default เป็น `Development Mode` และบังคับอธิบาย 3 โหมดก่อนทุกครั้งเมื่อ USER พูดถึง migration / production
+  - เพิ่ม policy ให้แยก `Development Mode`, `Migration Planning Mode`, และ `Production Migration Mode` พร้อมผูกกับ repo / Supabase จริงของโปรเจกต์
+  - สร้างเอกสารถาวรใหม่ 4 ไฟล์:
+    - [DEV_PROD_OPERATING_POLICY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DEV_PROD_OPERATING_POLICY.md)
+    - [MIGRATION_COMMAND_CONTRACT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/MIGRATION_COMMAND_CONTRACT.md)
+    - [PRODUCTION_MIGRATION_SOP.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_MIGRATION_SOP.md)
+    - [RELEASE_AND_ROLLBACK_CHECKLIST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/RELEASE_AND_ROLLBACK_CHECKLIST.md)
+  - อัปเดต [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) ให้เชื่อมลิงก์เอกสารใหม่ทั้งหมด
+- **[15:16] Split Migration Repo & Environment into Dedicated INDEX Section**
+  - เพิ่ม section ใหม่ `Migration Repo & Environment` ใน [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) เพื่อรวมเอกสารด้าน migration repo / environment ไว้ในจุดเดียว
+  - ย้ายรายการ migration governance และ migration execution ออกจากหมวด `Development Standards` และ `Manuals & Guides` เพื่อลดความซ้ำซ้อนและช่วยให้ AI route context ได้เร็วขึ้น
+- **[16:26] Add Final In-Scope Table List for Production Re-baseline**
+  - สร้างเอกสาร [PRODUCTION_REBASELINE_FINAL_IN_SCOPE_TABLE_LIST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_FINAL_IN_SCOPE_TABLE_LIST.md) เพื่อสรุป `table / action / fields / dependency / note` สำหรับ production re-baseline migration ครั้งแรก
+  - ระบุ baseline seed order, selected user carry-forward policy, reset-empty tables, และ must-verify items เพื่อใช้เป็นต้นฉบับของ execution runbook
+  - อัปเดต [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) ให้เชื่อมลิงก์เอกสาร migration ฉบับใหม่นี้
+- **[16:29] Add Production Re-baseline Execution Runbook**
+  - สร้างเอกสาร [PRODUCTION_REBASELINE_EXECUTION_RUNBOOK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_EXECUTION_RUNBOOK.md) เพื่อแปลง migration planning ให้เป็น execution runbook แบบ phase-by-phase
+  - ระบุ entry gate, must-verify items, extraction flow, production reset flow, schema apply order, baseline seed apply order, selected user bootstrap, verification, rollback triggers, และ deliverables
+  - อัปเดต [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) ให้เชื่อมลิงก์ execution runbook ฉบับนี้
+- **[16:32] Add Schema Verification Checklist and Seed Extraction Mapping**
+  - สร้างเอกสาร [PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_CHECKLIST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_CHECKLIST.md) เพื่อใช้ปิด must-verify items ด้าน schema/runtime contract ก่อน execute จริง
+  - สร้างเอกสาร [PRODUCTION_REBASELINE_SEED_EXTRACTION_MAPPING.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_SEED_EXTRACTION_MAPPING.md) เพื่อกำหนดวิธี extract / transform / import สำหรับแต่ละ table ใน scope
+  - อัปเดต [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) ให้เชื่อมลิงก์เอกสารทั้ง 2 ฉบับ
+- **[17:03] Audit Production Re-baseline Schema Verification Checklist**
+  - ตรวจเทียบ `supabase/migrations/`, runtime code, และ `dev Supabase` schema/state จริง แล้วบันทึกรายงานไว้ที่ [AUDIT_PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_2026_06_08.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_2026_06_08.md)
+  - สรุปผลว่า `workflow_configs`, `checklist_templates/checklist_procedure_plans`, `no_series`, selected users, และ approver references ผ่านการตรวจ
+  - พบ drift สำคัญ 2 จุดที่ยัง block execution runbook: `approval_substitutes` column mismatch และ `checklist_target_groups/target_group_id` ยังหลงเหลือใน live dev schema
+  - บันทึก security finding เพิ่มเติมว่า `approval_substitutes`, `working_hours`, `sla_exclusions`, และ `sla_holidays` ยังมี RLS disabled บน dev Supabase
+  - อัปเดต [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) ให้เชื่อมลิงก์รายงาน audit ฉบับนี้
+- **[17:35] Prepare Remediation Migration for Schema-to-Code Alignment**
+  - สร้าง migration [20260608_align_substitute_and_target_group_schema_to_runtime.sql](file:///c:/Users/Lenovo/dowa-it-system/supabase/migrations/20260608_align_substitute_and_target_group_schema_to_runtime.sql) เพื่อปรับ `approval_substitutes` ให้ตรงกับคอลัมน์ที่โค้ดใช้งานจริง และ cleanup legacy `checklist_target_groups/target_group_id`
+  - พยายาม apply migration เข้า `dev Supabase` แล้ว แต่ถูกบล็อกด้วยข้อความ `Cannot apply migration in read-only mode.` จาก connector ปัจจุบัน
+  - อัปเดตรายงาน [AUDIT_PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_2026_06_08.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_2026_06_08.md) ให้ระบุสถานะ remediation ล่าสุด
+- **[18:02] Re-verify Schema After Manual Dev Migration Apply**
+  - ตรวจ `dev Supabase` ซ้ำหลัง apply manual แล้ว พบว่า `approval_substitutes` ถูก align เป็น `substitute_id/start_date/end_date/reason` ตรงกับโค้ดปัจจุบัน
+  - ยืนยันว่าไม่มี `checklist_target_groups` และไม่มี `checklist_template_targets.target_group_id` แล้วใน live dev schema
+  - อัปเดตรายงาน [AUDIT_PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_2026_06_08.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_2026_06_08.md) ให้ปิด 2 findings เดิมและเปลี่ยนสถานะ checklist เป็น `PASS WITH SECURITY FOLLOW-UP`
+- **[18:20] Draft RLS Remediation Plan for Legacy SLA Tables and Approval Substitutes**
+  - สร้าง [PRODUCTION_REBASELINE_RLS_REMEDIATION_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_RLS_REMEDIATION_PLAN.md) เพื่อแยก remediation strategy ระหว่าง runtime table (`approval_substitutes`) กับ legacy tables (`working_hours`, `sla_exclusions`, `sla_holidays`)
+  - สร้าง migration [20260608_enable_rls_for_substitutes_and_lock_legacy_sla_tables.sql](file:///c:/Users/Lenovo/dowa-it-system/supabase/migrations/20260608_enable_rls_for_substitutes_and_lock_legacy_sla_tables.sql) สำหรับ enable RLS และวาง policy ชุดแรก
+  - อัปเดต [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) และเชื่อมเอกสาร remediation plan เข้ากับรายงาน audit ล่าสุด
+- **[18:28] Record Pending Task for Tomorrow**
+  - บันทึกงานค้างลง [USER_TASKS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/USER_TASKS.md) สำหรับ `Production Re-baseline RLS Follow-up`
+  - ระบุ scope ที่ต้องทำต่อคือ apply migration RLS บน dev และ verify policy behavior ของ `approval_substitutes`, `working_hours`, `sla_exclusions`, `sla_holidays`
+  - บันทึกหมายเหตุว่า `npm test` ที่ fail ล่าสุดเป็นปัญหาเดิมของ `lib/audit.js` และไม่ใช่ regression จาก RLS migration ชุดนี้
 
 ---
 
@@ -78,4 +119,4 @@ e Logs)
 - [CHANGELOG_2026_05_07.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_07.md)
 
 ---
-*อัปเดตล่าสุด: 08-Jun-2026 12:00*
+*อัปเดตล่าสุด: 08-Jun-2026 18:28*

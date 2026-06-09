@@ -3,7 +3,7 @@
 **[ATTENTION AI AGENTS]**  
 This is the central documentation hub. You MUST read this file first before starting any task to understand the system's architecture and find the relevant documentation for your specific task. **DO NOT read all files unless necessary to avoid context overflow.**
 
-**Latest Update (08-Jun-2026 09:12):** ประเมินบทบาทและความจำเป็นในการอ่านไฟล์ .cursorrules และทำการยุบประวัติการทำงานรายวัน (Daily Log Shrinking)
+**Latest Update (09-Jun-2026 10:00):** ปิด migration planning pack จนพร้อมเข้า Production Migration Mode ด้วย supplement-based readiness pack และ final verification
 
 ---
 
@@ -15,7 +15,38 @@ This is the central documentation hub. You MUST read this file first before star
 
 ---
 
-## 📜 ประเภทที่ 1: มาตรฐานการพัฒนาระบบ (Development Standards)
+## 🚚 2. Migration Repo & Environment
+*หมวดหมู่นี้ใช้สำหรับกติกาและขั้นตอนการย้ายระบบระหว่าง development source / environment และ production release repo / environment โดยเฉพาะ*
+
+### Governance & Command Contract
+- [DEV_PROD_OPERATING_POLICY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DEV_PROD_OPERATING_POLICY.md) : กติกาหลักในการแยก development source / environment ออกจาก production release repo / environment พร้อม default mode เป็น Development Mode
+- [MIGRATION_COMMAND_CONTRACT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/MIGRATION_COMMAND_CONTRACT.md) : สัญญาคำสั่งมาตรฐานสำหรับการสั่ง AI ให้ทำงานใน Development, Migration Planning, หรือ Production Migration Mode โดยบังคับให้เลือกโหมดก่อนแตะ production
+
+### Migration Execution
+- [PRODUCTION_MIGRATION_PLAYBOOK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_MIGRATION_PLAYBOOK.md) : คู่มือมาตรฐานการ Migration จาก Dev ไป Production (GitHub/Vercel/Supabase), Checkpoint, Verification และ Rollback
+- [PRODUCTION_MIGRATION_SOP.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_MIGRATION_SOP.md) : ขั้นตอนปฏิบัติแบบทีละลำดับสำหรับการย้าย release จาก development source ไป production repo / production Supabase
+- [PRODUCTION_REBASELINE_EXECUTION_RUNBOOK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_EXECUTION_RUNBOOK.md) : execution runbook แบบ phase-by-phase สำหรับ production re-baseline migration ครั้งแรก ครอบคลุม freeze, extract, reset, schema apply, seed apply, selected user bootstrap, verification, และ rollback triggers
+- [PRODUCTION_REBASELINE_PRODUCTION_APPLY_ORDER.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_PRODUCTION_APPLY_ORDER.md) : ลำดับ apply สำหรับ operator ใช้ใน first production migration โดยสรุป exact schema order, seed order, stop conditions, และ release gate
+- [PRODUCTION_REBASELINE_EXPORT_ARTIFACT_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_EXPORT_ARTIFACT_PLAN.md) : แผนเตรียม export artifacts จาก dev สำหรับ baseline-config, checklist, selected users, workflow, และ number-series พร้อม metadata และ integrity checks
+- [PRODUCTION_REBASELINE_EXPORT_SQL_PACK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_EXPORT_SQL_PACK.md) : ชุด SQL export แบบ table-by-table สำหรับ dev Supabase พร้อม row counts และ integrity queries เพื่อสร้าง artifacts รอบแรก
+- [PRODUCTION_REBASELINE_EXPORT_ROW_COUNTS_TEMPLATE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_EXPORT_ROW_COUNTS_TEMPLATE.md) : template สำหรับบันทึก export row counts จาก dev และ sign-off ก่อนสร้าง artifact จริง
+- [PRODUCTION_REBASELINE_IMPORT_ORDER_COMMAND_PACK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_IMPORT_ORDER_COMMAND_PACK.md) : command pack template สำหรับวัน execute จริง โดยบังคับลำดับ schema apply, seed import, selected-user remap, stop conditions, และ execution logging
+- [PRODUCTION_REBASELINE_FINAL_IN_SCOPE_TABLE_LIST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_FINAL_IN_SCOPE_TABLE_LIST.md) : ตารางสรุป final in-scope สำหรับการทำ production re-baseline migration ครั้งแรก พร้อม action, fields, dependency, และ note สำหรับใช้เป็นต้นฉบับของ execution runbook
+- [PRODUCTION_REBASELINE_RLS_REMEDIATION_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_RLS_REMEDIATION_PLAN.md) : แผน remediation สำหรับ security follow-up เรื่อง `RLS disabled` โดยแยก active runtime table (`approval_substitutes`) ออกจาก legacy tables (`working_hours`, `sla_exclusions`, `sla_holidays`)
+- [PRODUCTION_REBASELINE_RELEASE_INVENTORY_TEMPLATE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_RELEASE_INVENTORY_TEMPLATE.md) : template สำหรับ release inventory ของ first migration โดยรวม release header, scope lock, migration file list, artifact checklist, และ sign-off block
+- [PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_CHECKLIST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_CHECKLIST.md) : checklist สำหรับปิด must-verify items ของ schema/runtime contract ก่อนเข้าสู่ production migration mode จริง
+- [PRODUCTION_REBASELINE_SEED_EXTRACTION_MAPPING.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_SEED_EXTRACTION_MAPPING.md) : แผน mapping วิธี extract / transform / import สำหรับแต่ละ table ใน production re-baseline migration
+- [PRODUCTION_REBASELINE_SELECTED_USER_BOOTSTRAP_AND_REMAP_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_SELECTED_USER_BOOTSTRAP_AND_REMAP_PLAN.md) : แผน bootstrap selected users 2 รายการ, user-id mapping worksheet, remap rules, และ stop conditions ก่อน import workflow baseline
+- [PRODUCTION_REBASELINE_SCOPE_DRIFT_DECISION_PACK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_SCOPE_DRIFT_DECISION_PACK.md) : decision pack สำหรับปิด drift ระหว่าง approved migration scope กับ runtime baseline data โดยเฉพาะ `master_data`, `target_type`, `checklist_category`, และ `per_type` mappings
+- [PRODUCTION_REBASELINE_PRODUCTION_MODE_READINESS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_PRODUCTION_MODE_READINESS.md) : สรุปสถานะ readiness ล่าสุดของ production re-baseline ว่า planning pack พร้อมแล้วหรือยัง และยังเหลือ human gate อะไรก่อนเข้าสู่ Production Migration Mode
+- [PRODUCTION_REBASELINE_VERIFICATION_RUN_SEQUENCE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_VERIFICATION_RUN_SEQUENCE.md) : verification pack หลัง import สำหรับตรวจ schema, row counts, dependencies, selected users, smoke test, workflow/substitute remap, และ release decision
+- [PRODUCTION_REBASELINE_VERIFICATION_SQL_PACK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_VERIFICATION_SQL_PACK.md) : ชุด SQL verification สำหรับ production หลัง import เพื่อเช็ก schema presence, row counts, orphan mappings, selected users, workflow references, และ RLS sanity
+- [PRODUCTION_REBASELINE_VERIFICATION_RESULT_TEMPLATE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_REBASELINE_VERIFICATION_RESULT_TEMPLATE.md) : template สำหรับบันทึกผล verification step-by-step, critical gates, และ final release decision
+- [RELEASE_AND_ROLLBACK_CHECKLIST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/RELEASE_AND_ROLLBACK_CHECKLIST.md) : checklist สั้นสำหรับก่อนปล่อยจริง, หลังปล่อยจริง, และกรณีต้อง rollback
+
+---
+
+## 📜 3. ประเภทที่ 1: มาตรฐานการพัฒนาระบบ (Development Standards)
 *หมวดหมู่นี้ใช้สำหรับให้ Agent ยึดถือเป็นหลักการและ Logic ในการพัฒนาระบบ (Source of Truth for Agents)*
 **Directory:** `docs/standards/`
 - [ZERO_HACK_POLICY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/ZERO_HACK_POLICY.md) : นโยบายห้ามใช้ UI Hacks
@@ -44,7 +75,7 @@ This is the central documentation hub. You MUST read this file first before star
 
 ---
 
-## 📅 ประเภทที่ 2: บันทึกการดำเนินการและประวัติ (Implementation History)
+## 📅 4. ประเภทที่ 2: บันทึกการดำเนินการและประวัติ (Implementation History)
 *หมวดหมู่นี้ใช้สำหรับบันทึกความคืบหน้า ประวัติการเปลี่ยนแปลง และรายงานสถานะ (Audit Trail)*
 **Directory:** `docs/history/`
 - [UNIFIED_WORKFLOW_STANDARD_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/UNIFIED_WORKFLOW_STANDARD_PLAN.md): แผนการปรับปรุงมาตรฐาน Workflow ทั้งระบบ
@@ -75,6 +106,8 @@ This is the central documentation hub. You MUST read this file first before star
 - [AUDIT_REPORT_LATEST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_LATEST.md) : รายงานการตรวจสอบคุณภาพล่าสุด (PASSED)
 - [AUDIT_REPORT_INCIDENT_FLOW.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_REPORT_INCIDENT_FLOW.md) : รายงานการตรวจสอบกระบวนการ Incident (Archive - FAILED)
 - [AUDIT_INCIDENT_ROUTE_RUNTIME_DESYNC_2026_06_08.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_INCIDENT_ROUTE_RUNTIME_DESYNC_2026_06_08.md) : [AUDIT] รายงานตรวจสอบปัญหา `/dashboard/incidents` ตอบ 404 ทั้งที่ route file มีอยู่จริง โดยสรุปว่าเป็น runtime route desync ของ Next.js dev server
+- [AUDIT_PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_2026_06_08.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_PRODUCTION_REBASELINE_SCHEMA_VERIFICATION_2026_06_08.md) : [AUDIT] ผลการตรวจ Schema Verification Checklist สำหรับ production re-baseline migration โดยเทียบ migrations, runtime code, และ dev Supabase schema/state จริง
+- [IMPLEMENTATION_PLAN_PRODUCTION_SECURITY_HARDENING_BACKLOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_SECURITY_HARDENING_BACKLOG.md) : [PLAN] backlog hardening หลัง first production baseline โดยแยก `user_whitelist` policy, function execute/search_path review, audit/log policy review, และ auth password protection ออกจาก migration รอบแรก
 - [remediation_plan_photo_evidence_spacing.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/remediation_plan_photo_evidence_spacing.md) : [PLAN] แผนการปรับปรุงระยะ Spacing ของหน้าจอสร้างเทมเพลต Photo Evidence (ui_template_type: 1)
 - [remediation_plan_checklist_edit_lock.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/remediation_plan_checklist_edit_lock.md) : [PLAN] แผนติดตั้งระบบล็อกแก้ไขสำหรับป้องกันการแก้ไขข้อมูล Checklist โดยไม่ตั้งใจ (View/Edit Lock Flow)
 - [audit_report_checklist_dtt_chk_2605_010.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/audit_report_checklist_dtt_chk_2605_010.md) : [AUDIT] รายงานการตรวจสอบตรรกะเงื่อนไขและกระบวนการอนุมัติสำหรับเอกสาร DTT-CHK-2605-010
@@ -85,7 +118,7 @@ This is the central documentation hub. You MUST read this file first before star
 ---
 
 
-## 📖 ประเภทที่ 3: คู่มือการใช้งานและเทคนิค (Manuals & Guides)
+## 📖 5. ประเภทที่ 3: คู่มือการใช้งานและเทคนิค (Manuals & Guides)
 *หมวดหมู่นี้ใช้สำหรับเป็นคู่มือขั้นตอนการทำงาน (Flow) สำหรับผู้ใช้และนักพัฒนา (How-to Guides)*
 **Directory:** `docs/manuals/`
 - [WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/WORKFLOW_GUIDE.md) : คู่มือขั้นตอนการทำงานของ Workflow (Incident & Checklist)
@@ -93,11 +126,10 @@ This is the central documentation hub. You MUST read this file first before star
 - [USER_MANAGEMENT_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/USER_MANAGEMENT_GUIDE.md) : คู่มือการจัดการผู้ใช้, PIN และ Onboarding Flow
 - [TARGET_REGISTRY_UAT_SEED_PLAN.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/TARGET_REGISTRY_UAT_SEED_PLAN.md) : แผนเตรียมข้อมูล UAT สำหรับ Target Registry / QR Asset History โดยยังไม่ insert ข้อมูลจริง
 - [MULTI_AGENT_WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/MULTI_AGENT_WORKFLOW_GUIDE.md) : คู่มือการประสานงานทำงานร่วมกันและใช้เครื่องมือระหว่าง Antigravity และ Google Jules
-- [PRODUCTION_MIGRATION_PLAYBOOK.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/PRODUCTION_MIGRATION_PLAYBOOK.md) : คู่มือมาตรฐานการ Migration จาก Dev ไป Production (GitHub/Vercel/Supabase), Checkpoint, Verification และ Rollback
 
 ---
 
-## ✅ ประเภทที่ 4: Test Cases & QA Checklists
+## ✅ 6. ประเภทที่ 4: Test Cases & QA Checklists
 *หมวดหมู่นี้ใช้สำหรับจัดเก็บ test case, UAT checklist, และรายการตรวจสอบการทดสอบเชิงระบบ*
 **Directory:** `docs/tests/`
 - [SLA_UAT_CHECKLIST.md](file:///c:/Users/Lenovo/dowa-it-system/docs/tests/SLA_UAT_CHECKLIST.md) : Checklist ทดสอบ SLA ตามกติกาใหม่ (Response/Resolution, Pause, Reject, Closed-only, N/A)

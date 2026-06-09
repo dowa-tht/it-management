@@ -1,58 +1,105 @@
 # Target Registry Standards
 
 ## Overview
-The Target Registry introduces three new tables to support asset‑aware checklists and QR‑based navigation:
 
-- **checklist_targets** – stores each physical asset/target.
-- **checklist_target_groups** – groups of targets for bulk checklist assignment.
-- **checklist_template_targets** – many‑to‑many mapping between checklist templates and targets or groups.
+Target Registry รองรับการทำ checklist แบบผูกกับ asset จริงและการสแกน QR โดยใช้โครงสร้างหลัก 2 ตาราง:
 
-All tables include the new columns `scope_mode`, `target_type`, `validation_rules`, `incident_rules` to allow fine‑grained control over which checklist templates apply to which assets.
+- `checklist_targets` สำหรับเก็บ asset/target จริง
+- `checklist_template_targets` สำหรับเก็บ mapping ของ template ไปยัง target หรือ target type
 
-## Schema
-| Table | Column | Type | Description |
-|-------|--------|------|-------------|
-| checklist_targets | id | uuid (PK) | Unique identifier for the target |
-|  | target_code | text | Human‑readable code (e.g., `CCTV-001`) |
-|  | target_type | text | Type of asset (e.g., `cctv_terminal`) |
-|  | qr_value | text | QR code value used for lookup |
-|  | target_snapshot | jsonb | Optional snapshot of static data |
-| checklist_target_groups | id | uuid (PK) | Unique identifier for the group |
-|  | group_name | text | Name of the group |
-|  | description | text | Optional description |
-| checklist_template_targets | id | uuid (PK) | Unique identifier |
-|  | template_id | uuid (FK → checklist_templates.id) | Linked template |
-|  | target_id | uuid (FK → checklist_targets.id) | Target this template applies to |
-|  | target_group_id | uuid (FK → checklist_target_groups.id) | Group this template applies to |
-|  | scope_mode | enum('global','per_target','per_group') | Determines the scope of the template |
-
-## Usage Examples
-```sql
--- Find all templates that apply to a specific target
-SELECT ct.*
-FROM checklist_templates ct
-JOIN checklist_template_targets ctt ON ct.id = ctt.template_id
-WHERE ctt.target_id = '123e4567-e89b-12d3-a456-426614174000'
-  AND ctt.scope_mode = 'per_target';
-```
-
-```js
-// Server‑side action to fetch templates for a target
-import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
-export async function getTemplatesForTarget(targetId) {
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('checklist_template_targets')
-    .select('template_id')
-    .eq('target_id', targetId)
-    .eq('scope_mode', 'per_target');
-  if (error) throw new Error(error.message);
-  return data.map(d => d.template_id);
-}
-```
-
-## Validation
-The new fields are validated in `lib/checklistTemplateValidation.js` and `lib/procedurePlanValidation.js` with Zod schemas (`scope_mode`, `target_type`, `validation_rules`, `incident_rules`).
+> [!IMPORTANT]
+> `checklist_target_groups` และ `scope_mode = per_group` ถูกยกเลิกแล้ว  
+> มาตรฐานปัจจุบันรองรับเฉพาะ `global`, `per_target`, และ `per_type`
 
 ---
-*Last updated: 2026‑05‑14*
+
+## Current Runtime Model
+
+### 1. `checklist_targets`
+
+ใช้เก็บทะเบียนอุปกรณ์/จุดตรวจ เช่น:
+
+- `target_code`
+- `target_type`
+- `name`
+- `location`
+- `qr_value`
+- `metadata`
+- `is_active`
+
+### 2. `checklist_templates`
+
+แต่ละ template มี:
+
+- `scope_mode`
+- `target_type`
+- `ui_template_type`
+- `template_config`
+- `validation_rules`
+- `incident_rules`
+
+### 3. `checklist_template_targets`
+
+ตารางนี้รองรับ 2 รูปแบบ:
+
+- `per_target`
+  - `target_id` ต้องมีค่า
+  - `target_type` ใช้เป็นข้อมูลประกอบได้
+- `per_type`
+  - `target_id` อนุญาตให้เป็น `null`
+  - `target_type` ต้องมีค่า
+
+ดังนั้น row ที่ `target_id = null` ไม่ใช่ orphan โดยอัตโนมัติ ถ้า row นั้นเป็น valid `per_type` mapping
+
+---
+
+## Scope Modes
+
+| Mode | ความหมาย | Rule |
+|---|---|---|
+| `global` | ใช้กับทุก target | ไม่ต้องมี mappings |
+| `per_target` | ผูกราย target | ต้องมี `target_id` |
+| `per_type` | ผูกรายประเภทอุปกรณ์ | ต้องมี `target_type` และ `target_id` เป็น `null` ได้ |
+
+---
+
+## Validation Rules
+
+Validation หลักถูกบังคับใน:
+
+- [lib/checklistTemplateValidation.js](/C:/Users/Lenovo/dowa-it-system/lib/checklistTemplateValidation.js)
+- [lib/procedurePlanValidation.js](/C:/Users/Lenovo/dowa-it-system/lib/procedurePlanValidation.js)
+
+และ runtime actions ใน:
+
+- [app/actions/checklist-template.js](/C:/Users/Lenovo/dowa-it-system/app/actions/checklist-template.js)
+- [app/actions/target.js](/C:/Users/Lenovo/dowa-it-system/app/actions/target.js)
+
+กติกาที่ต้องยึด:
+
+1. `target_type` ต้องอยู่ใน `master_data.type = 'target_type'` หรืออยู่ใน baseline runtime values ที่ยืนยันแล้ว
+2. `checklist_templates.category` ต้องสอดคล้องกับ `master_data.type = 'checklist_category'`
+3. ห้ามมี mapping row ที่ `target_id` และ `target_type` ว่างพร้อมกัน
+
+---
+
+## Runtime Resolution
+
+เมื่อระบบต้อง resolve template สำหรับ target ใด target หนึ่ง:
+
+1. query direct mappings ด้วย `target_id`
+2. query type mappings ด้วย `target_type`
+3. รวมผลและตัด `template_id` ซ้ำ
+
+ดังนั้น `per_type` mapping เป็น runtime contract จริงของระบบ ไม่ใช่เพียงข้อมูลประกอบ
+
+---
+
+## Related Migration Notes
+
+- [supabase/migrations/20260521_remove_target_groups.sql](/C:/Users/Lenovo/dowa-it-system/supabase/migrations/20260521_remove_target_groups.sql) คือ migration หลักที่ถอด target groups และย้ายระบบไปสู่ `per_type`
+- เอกสาร migration baseline ต้องตีความ `checklist_template_targets` ตาม runtime contract นี้เสมอ
+
+---
+
+*Last updated: 2026-06-09*

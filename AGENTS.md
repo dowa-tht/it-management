@@ -89,6 +89,72 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - หาก USER ไม่เลือก workflow ให้ default เป็น `brainstorming`
 - หลังเลือก workflow แล้วค่อยดำเนินการตามลำดับ Superpowers lifecycle
 
+## 🚦 Migration Mode Router (Mandatory)
+
+ค่าเริ่มต้นของทุก session ให้ถือว่า AI อยู่ใน **Development Mode** เสมอ และต้องทำงานบน development source / environment เท่านั้นจนกว่าจะได้รับคำสั่งชัดเจนจาก USER
+
+Trigger words:
+- `migration`
+- `migrate`
+- `migrate to production`
+- `deploy production`
+- `promote to production`
+- `ย้ายขึ้น production`
+- `ปล่อย production`
+
+เมื่อ USER พิมพ์คำใดคำหนึ่งที่สื่อถึง migration หรือ production promotion **AI ต้องหยุดก่อนเสมอ** และ **ห้ามลงมือทำอะไรทันที** แม้ USER จะใช้ถ้อยคำสั้นหรือจำคำสั่งจริงไม่ได้ก็ตาม
+
+AI ต้องตอบกลับด้วยการอธิบาย **3 โหมด** ต่อไปนี้ก่อนทุกครั้ง:
+
+1. `Development Mode`
+   - ทำงานเฉพาะ `trush000/dowa-it-system`
+   - ใช้เฉพาะ development Supabase `fhcsvvlwhwqzlsltrkuq`
+   - อนุญาตให้พัฒนา, ทดสอบ, refactor, เพิ่ม migration file, seed data สำหรับ dev
+   - **ห้ามแตะ production repo / production database**
+
+2. `Migration Planning Mode`
+   - ยังไม่แตะ production
+   - ใช้เพื่อสรุป diff, migration files, env checklist, release scope, rollback plan, verification plan
+   - อนุญาตให้ prepare เอกสารและตรวจความพร้อมเท่านั้น
+
+3. `Production Migration Mode`
+   - ใช้เมื่อ USER ยืนยันชัดเจนว่าจะย้ายไป production
+   - อนุญาตให้ sync code ไป `dowa-tht/it-management`
+   - อนุญาตให้ apply migration / approved seed ไป production Supabase `yrgsukhjkoexvdybyyjm`
+   - ต้องทำตาม checklist และ rollback plan ก่อนเสมอ
+
+ฟอร์แมตบังคับ:
+
+```text
+> [!IMPORTANT]
+ตรวจพบคำสั่งที่เกี่ยวกับ Migration / Production
+
+ระบบมี 3 โหมด:
+1) Development Mode — พัฒนาและทดสอบบน dev เท่านั้น
+2) Migration Planning Mode — เตรียมแผน migration แต่ยังไม่แตะ production
+3) Production Migration Mode — ย้าย code / migration ไป production จริง
+
+ค่าเริ่มต้นตอนนี้คือ: Development Mode
+ตอนนี้ AI จะยังไม่ทำอะไรกับ production จนกว่าคุณจะเลือกโหมด
+
+ตอบกลับเป็นเลขข้อ:
+1 = กลับไปทำงานแบบ Development Mode
+2 = ให้เตรียมแผน Migration ก่อน
+3 = ยืนยันเข้าสู่ Production Migration Mode
+```
+
+กฎบังคับ:
+- ถ้า USER พูดเพียงคำว่า `migration` หรือคำใกล้เคียง โดยยังไม่เลือกโหมด ให้ AI ตอบด้วยฟอร์แมตด้านบนเท่านั้น
+- ถ้า USER ไม่เลือกโหมด ให้ถือว่ายังคงอยู่ใน `Development Mode`
+- คำว่า `migrate to production` เพียงอย่างเดียว **ยังไม่พอ** หาก AI ยังไม่ได้อธิบาย 3 โหมดใน response นั้นก่อน
+- ก่อนเข้า `Production Migration Mode` ต้องมีอย่างน้อย:
+  - release scope
+  - migration file list
+  - env / secret checklist
+  - rollback plan
+  - post-migration verification plan
+- หากคำสั่งมีคำว่า `migration` แต่เนื้อหาคือการวางแผนหรือสอบถาม ให้ default เป็น `Migration Planning Mode` หลัง USER เลือกเท่านั้น
+
 ## 🧪 Model Suitability Check (Mandatory)
 
 ก่อนเริ่มงานทุก prompt AI ต้องประเมินความเหมาะสมของ model ปัจจุบันเทียบกับประเภทงานเสมอ
@@ -352,13 +418,21 @@ ai-tasks/
   - `https://github.com/trush000/dowa-it-system.git`
   - ห้าม push ไป production repository โดยอัตโนมัติ
   - หาก remote ปัจจุบันไม่ตรงตาม policy ให้ตั้ง/ใช้ remote ที่ชี้ไป test repository ก่อนทุกครั้ง
-- **[MIGRATION TARGET POLICY — CODE + DB STRUCTURE]** เมื่อ USER สั่งว่า "migrate project" ให้ตีความเป็นการย้ายเฉพาะ:
+- **[DEFAULT ENVIRONMENT MODE — MANDATORY]** หาก USER ไม่ได้ระบุเป็นอย่างอื่น ให้ทำงานใน `Development Mode` เสมอ:
+  - Development repo: `https://github.com/trush000/dowa-it-system.git`
+  - Development Supabase: `fhcsvvlwhwqzlsltrkuq`
+  - Production repo: `https://github.com/dowa-tht/it-management.git`
+  - Production Supabase: `yrgsukhjkoexvdybyyjm`
+  - งานพัฒนา/ทดสอบ/แก้ไข/เพิ่ม migration file ทั้งหมดต้องเกิดในฝั่ง development ก่อน
+- **[MIGRATION TARGET POLICY — CODE + DB STRUCTURE]** เมื่อ USER ยืนยันเข้าสู่ `Production Migration Mode` แล้วเท่านั้น ให้ตีความการ migrate เป็นการย้ายเฉพาะ:
   1) Source code
   2) Database structure / migrations
-  - **ไม่รวมข้อมูลจริง (data rows)**
+  3) Approved setup/master data ที่ระบุใน release plan
+  - **ไม่รวมข้อมูลธุรกรรมจริง (transaction data rows)** เว้นแต่ USER อนุมัติเป็นกรณีพิเศษ
   - ปลายทาง migration repository คือ:
     - `https://github.com/dowa-tht/it-management.git`
-  - สำหรับส่วนฐานข้อมูล ให้ย้ายเฉพาะไฟล์ schema/migration (เช่นใน `supabase/migrations/`) และห้ามย้ายไฟล์ seed data ที่เป็นข้อมูลจริงโดยไม่ได้รับอนุมัติ
+  - สำหรับส่วนฐานข้อมูล ให้ย้ายเฉพาะไฟล์ schema/migration (เช่นใน `supabase/migrations/`) และ seed/setup data ที่ถูก approve ในแผน
+  - หาก USER ยังไม่ได้เลือกโหมดจาก `Migration Mode Router` ห้ามตีความคำว่า migrate เป็น permission ให้แตะ production
 
 
 ---

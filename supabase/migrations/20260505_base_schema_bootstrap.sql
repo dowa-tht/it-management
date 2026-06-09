@@ -121,3 +121,68 @@ CREATE INDEX IF NOT EXISTS idx_document_approvals_doc_type ON public.document_ap
 CREATE INDEX IF NOT EXISTS idx_incident_logs_incident_id ON public.incident_logs(incident_id);
 CREATE INDEX IF NOT EXISTS idx_checklist_logs_doc_id ON public.checklist_logs(doc_id);
 
+
+
+-- Helper function for RLS and collaboration checks
+create or replace function public.current_user_role()
+  returns text
+  language sql
+  stable
+  security definer
+  set search_path = public, auth
+  as $$
+    select up.role
+    from public.user_profiles up
+    where up.id = auth.uid()
+      and coalesce(up.is_active, true) = true
+    limit 1;
+$$;
+
+
+
+create or replace function public.current_user_is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select coalesce(public.current_user_role() = 'admin', false)
+$$;
+
+create or replace function public.current_user_has_feature_access(
+  p_feature_key text,
+  p_min_access text default 'RO'
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select coalesce(
+    public.current_user_is_admin()
+    or public.current_user_role() = 'auditor'
+    or exists (
+      select 1
+      from public.permission_sets ps
+      where ps.role_name in (
+        public.current_user_role(),
+        case public.current_user_role()
+          when 'admin' then 'administrator'
+          when 'approver' then 'approval'
+          when 'employee' then 'member'
+          when 'auditor' then 'guest'
+          else public.current_user_role()
+        end
+      )
+        and ps.feature_key = p_feature_key
+        and (
+          ps.access_level = 'RW'
+          or (p_min_access = 'RO' and ps.access_level = 'RO')
+        )
+    ),
+    false
+  )
+$$;
+

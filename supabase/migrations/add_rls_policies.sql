@@ -96,7 +96,7 @@ as $$
           d.created_by_id = auth.uid()
           or d.current_approver_id = auth.uid()
           or d.assigned_approver_id = auth.uid()
-          or d.approved_by = auth.uid()
+          or d.approved_by = auth.uid()::text
           or exists (
             select 1
             from public.document_approvals da
@@ -158,13 +158,13 @@ alter table public.checklist_templates enable row level security;
 alter table public.holidays enable row level security;
 alter table public.system_settings enable row level security;
 alter table public.incident_exclusions enable row level security;
-alter table public.external_users enable row level security;
-alter table public.approval_tokens enable row level security;
-alter table public.user_registry enable row level security;
-alter table public.user_limits enable row level security;
+
+
+
+
 alter table public.checklist_procedure_plans enable row level security;
-alter table public.checklist_documents enable row level security;
-alter table public.checklist_results enable row level security;
+
+
 alter table public.no_series_lines enable row level security;
 alter table public.workflow_configs enable row level security;
 alter table public.document_approvals enable row level security;
@@ -202,30 +202,30 @@ drop policy if exists "admin_all_incident_exclusions" on public.incident_exclusi
 drop policy if exists "authenticated_related_select_incident_exclusions" on public.incident_exclusions;
 drop policy if exists "authenticated_related_insert_incident_exclusions" on public.incident_exclusions;
 
-drop policy if exists "admin_all_external_users" on public.external_users;
-drop policy if exists "authenticated_created_by_select_external_users" on public.external_users;
 
-drop policy if exists "admin_all_approval_tokens" on public.approval_tokens;
-drop policy if exists "authenticated_created_by_select_approval_tokens" on public.approval_tokens;
-drop policy if exists "authenticated_created_by_insert_approval_tokens" on public.approval_tokens;
 
-drop policy if exists "admin_all_user_registry" on public.user_registry;
-drop policy if exists "authenticated_self_select_user_registry" on public.user_registry;
 
-drop policy if exists "admin_all_user_limits" on public.user_limits;
-drop policy if exists "authenticated_read_user_limits" on public.user_limits;
+
+
+
+
+
+
+
+
+
 
 drop policy if exists "admin_all_checklist_procedure_plans" on public.checklist_procedure_plans;
 drop policy if exists "authenticated_read_checklist_procedure_plans" on public.checklist_procedure_plans;
 
-drop policy if exists "admin_all_checklist_documents" on public.checklist_documents;
-drop policy if exists "authenticated_owner_select_checklist_documents" on public.checklist_documents;
-drop policy if exists "authenticated_owner_insert_checklist_documents" on public.checklist_documents;
-drop policy if exists "authenticated_owner_update_checklist_documents" on public.checklist_documents;
 
-drop policy if exists "admin_all_checklist_results" on public.checklist_results;
-drop policy if exists "authenticated_related_select_checklist_results" on public.checklist_results;
-drop policy if exists "authenticated_related_upsert_checklist_results" on public.checklist_results;
+
+
+
+
+
+
+
 
 drop policy if exists "admin_all_no_series_lines" on public.no_series_lines;
 drop policy if exists "authenticated_read_no_series_lines" on public.no_series_lines;
@@ -444,18 +444,9 @@ using (role_name in (
   end
 ));
 
-create policy "admin_all_user_limits"
-on public.user_limits
-for all
-to authenticated
-using (public.current_user_is_admin())
-with check (public.current_user_is_admin());
 
-create policy "authenticated_read_user_limits"
-on public.user_limits
-for select
-to authenticated
-using (public.current_user_has_feature_access('settings', 'RO'));
+
+
 
 -- -----------------------------------------------------------------------------
 -- Incident exclusions
@@ -484,112 +475,37 @@ with check (public.current_user_can_access_incident(incident_id));
 -- External users, approval tokens and user registry
 -- -----------------------------------------------------------------------------
 
-create policy "admin_all_external_users"
-on public.external_users
-for all
-to authenticated
-using (public.current_user_is_admin())
-with check (public.current_user_is_admin());
 
-create policy "authenticated_created_by_select_external_users"
-on public.external_users
-for select
-to authenticated
-using (created_by = auth.uid());
 
-create policy "admin_all_approval_tokens"
-on public.approval_tokens
-for all
-to authenticated
-using (public.current_user_is_admin())
-with check (public.current_user_is_admin());
 
-create policy "authenticated_created_by_select_approval_tokens"
-on public.approval_tokens
-for select
-to authenticated
-using (created_by = auth.uid());
 
-create policy "authenticated_created_by_insert_approval_tokens"
-on public.approval_tokens
-for insert
-to authenticated
-with check (created_by = auth.uid());
 
-create policy "admin_all_user_registry"
-on public.user_registry
-for all
-to authenticated
-using (public.current_user_is_admin())
-with check (public.current_user_is_admin());
 
-create policy "authenticated_self_select_user_registry"
-on public.user_registry
-for select
-to authenticated
-using (supabase_user_id = auth.uid() or created_by = auth.uid() or last_role_changed_by = auth.uid());
+
+
+
+
+
+
+
 
 -- -----------------------------------------------------------------------------
 -- Legacy checklist tables
 -- -----------------------------------------------------------------------------
 
-create policy "admin_all_checklist_documents"
-on public.checklist_documents
-for all
-to authenticated
-using (public.current_user_is_admin())
-with check (public.current_user_is_admin());
 
-create policy "authenticated_owner_select_checklist_documents"
-on public.checklist_documents
-for select
-to authenticated
-using (created_by = auth.uid());
 
-create policy "authenticated_owner_insert_checklist_documents"
-on public.checklist_documents
-for insert
-to authenticated
-with check (created_by = auth.uid());
 
-create policy "authenticated_owner_update_checklist_documents"
-on public.checklist_documents
-for update
-to authenticated
-using (created_by = auth.uid())
-with check (created_by = auth.uid());
 
-create policy "admin_all_checklist_results"
-on public.checklist_results
-for all
-to authenticated
-using (public.current_user_is_admin())
-with check (public.current_user_is_admin());
 
-create policy "authenticated_related_select_checklist_results"
-on public.checklist_results
-for select
-to authenticated
-using (exists (
-  select 1 from public.checklist_documents d
-  where d.id = checklist_results.document_id
-    and d.created_by = auth.uid()
-));
 
-create policy "authenticated_related_upsert_checklist_results"
-on public.checklist_results
-for all
-to authenticated
-using (exists (
-  select 1 from public.checklist_documents d
-  where d.id = checklist_results.document_id
-    and d.created_by = auth.uid()
-))
-with check (exists (
-  select 1 from public.checklist_documents d
-  where d.id = checklist_results.document_id
-    and d.created_by = auth.uid()
-));
+
+
+
+
+
+
+
 
 -- -----------------------------------------------------------------------------
 -- Unified workflow approvals

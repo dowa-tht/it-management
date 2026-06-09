@@ -28,7 +28,7 @@ as $$
           d.created_by_id = auth.uid()
           or d.current_approver_id = auth.uid()
           or d.assigned_approver_id = auth.uid()
-          or d.approved_by = auth.uid()
+          or d.approved_by = auth.uid()::text
           or exists (
             select 1
             from public.document_approvals da
