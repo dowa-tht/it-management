@@ -1,12 +1,17 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Changelog)
 
+- **[14:33] Fix ReferenceError in QR Preview Modal Text Tab**
+  - ดำเนินการแก้ไขข้อผิดพลาด `ReferenceError: disabled is not defined` ภายในคอมโพเนนต์ `FieldSelector` ในไฟล์ [TargetRegistryClient.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/settings/target-registry/TargetRegistryClient.js)
+  - โดยระบุค่า `disabled` ใน props destructuring พร้อมค่าเริ่มต้นเป็น `false` เพื่อป้องกันปัญหาหน้าจอค้างหรือ Crash เมื่อเปิดแท็บ "ข้อความ" (Text) ในกล่องออกแบบ QR Code
+  - ดำเนินการทดสอบผ่าน Browser Subagent ด้วยการ Login บัญชี `test_admin@dowa.local` (และได้ทำการรีเซ็ตรหัสผ่านบัญชีทดสอบใน Database เป็น `ChangeMe1234!`) เปิดแท็บข้อความได้โดยไม่เกิดข้อผิดพลาดใดๆ
+  - ยืนยันผลลัพธ์การแก้ไขโดยตรวจสอบผ่าน ESLint บนไฟล์ดังกล่าวผ่าน 100% ไม่มีข้อผิดพลาด
 - **[13:15] Hide Linked Form from No. Series Page**
   - ดำเนินการซ่อนคอมโพเนนต์ dropdown "Linked Form" จากหน้าจอ No. Series Management ([app/dashboard/settings/no-series/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/settings/no-series/page.js))
   - ปรับสไตล์ Grid ใน Header Settings จาก 4 คอลัมน์เป็น 3 คอลัมน์เพื่อให้เลย์เอาต์สวยงามสมดุล
   - แก้ไข bug ฟังก์ชันบันทึกข้อมูลส่วนหัว (Save Header) โดยเปลี่ยนจาก `showMessage` ที่ไม่มีอยู่จริงในไฟล์นี้ ให้เรียกใช้ `setMsg` เพื่อแสดงแจ้งเตือนสถานะสำเร็จ/ล้มเหลวได้อย่างถูกต้อง
   - รัน sanity test ด้วย `npm test` ผลลัพธ์ 34/34 ผ่านทั้งหมด
 - **[11:05] login_logs Schema Fix & Historical Log Restoration**
-  - วิเคราะห์และระบุข้อจำกัดของตาราง `public.login_logs` ที่ไม่มีคอลัมน์ `metadata` ส่งผลให้การ Insert ข้อมูล `action = 'login'` ที่มี metadata ล้มเหลวทั้งหมดในอดีต (ขณะที่ Logout ทำงานปกติเพราะไม่มีการส่งฟิลด์นี้)
+  - วิเคราะห์และระบุข้อจำกัดของตาราง `public.login_logs` ที่ไม่มีคอลัมน์ `metadata` ส่งผลให้การ Insert ข้อมูล `action = 'login'` ที่มี metadata ล้มเหลวทั้งหมดในอดี트 (ขณะที่ Logout ทำงานปกติเพราะไม่มีการส่งฟิลด์นี้)
   - เพิ่มการตรวจสอบในคำสั่ง Insert/Select เพื่อสร้างคอลัมน์ `metadata` JSONB สำเร็จ
   - ดำเนินการย้ายประวัติการล็อกอินย้อนหลัง (Data Migration) จาก `auth.audit_log_entries` กลับมาเข้าตาราง `public.login_logs` เฉพาะผู้ใช้ที่ยังคงใช้งานอยู่ในระบบจริง (ป้องกัน Foreign Key Error จาก Deleted Users)
   - สร้างไฟล์ migration: [20260610_add_metadata_to_login_logs_and_restore_history.sql](file:///c:/Users/Lenovo/dowa-it-system/supabase/migrations/20260610_add_metadata_to_login_logs_and_restore_history.sql)

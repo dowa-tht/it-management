@@ -497,7 +497,7 @@ function drawQrFrame(ctx, preset, W, H, bgColor, fgColor, frameText, subText, qr
 }
 
 // ── QR Field Selector ───────────────────────────────────────────
-function FieldSelector({ label, value, onChange, customValue, onCustomChange, fieldOptions }) {
+function FieldSelector({ label, value, onChange, customValue, onCustomChange, fieldOptions, disabled = false }) {
   return (
     <div style={S.fieldGroup}>
       <label style={S.label}>{label}</label>
