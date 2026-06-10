@@ -64,7 +64,7 @@ CREATE POLICY "authenticated_created_by_select_approval_tokens" ON public.approv
 ALTER TABLE public.checklist_templates 
   ALTER COLUMN ui_template_type TYPE integer USING (
     CASE 
-      WHEN ui_template_type ~ '^[0-9]+$' THEN ui_template_type::integer 
+      WHEN ui_template_type::text ~ '^[0-9]+$' THEN ui_template_type::integer 
       ELSE NULL 
     END
   );
@@ -73,7 +73,7 @@ ALTER TABLE public.checklist_templates
 ALTER TABLE public.checklist_docs
   ALTER COLUMN approved_by TYPE uuid USING (
     CASE 
-      WHEN approved_by ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN approved_by::uuid 
+      WHEN approved_by::text ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN approved_by::uuid 
       ELSE NULL 
     END
   ),
