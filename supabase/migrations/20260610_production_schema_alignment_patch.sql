@@ -47,13 +47,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS approval_tokens_token_key ON public.approval_t
 ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.approval_tokens ENABLE ROW LEVEL SECURITY;
 
--- 3. Add RLS policies for approval_tokens
+-- 3. Add RLS policies for approval_tokens (Drop first if exists to prevent duplicates)
+DROP POLICY IF EXISTS "admin_all_approval_tokens" ON public.approval_tokens;
 CREATE POLICY "admin_all_approval_tokens" ON public.approval_tokens
   FOR ALL TO authenticated USING (public.current_user_is_admin()) WITH CHECK (public.current_user_is_admin());
 
+DROP POLICY IF EXISTS "authenticated_created_by_insert_approval_tokens" ON public.approval_tokens;
 CREATE POLICY "authenticated_created_by_insert_approval_tokens" ON public.approval_tokens
   FOR INSERT TO authenticated WITH CHECK (created_by = auth.uid());
 
+DROP POLICY IF EXISTS "authenticated_created_by_select_approval_tokens" ON public.approval_tokens;
 CREATE POLICY "authenticated_created_by_select_approval_tokens" ON public.approval_tokens
   FOR SELECT TO authenticated USING (created_by = auth.uid());
 
