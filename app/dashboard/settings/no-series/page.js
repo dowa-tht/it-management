@@ -441,7 +441,7 @@ export default function NoSeriesPage() {
                 <div style={{ padding: '0 32px 32px' }}>
                   <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: '1px solid #f1f5f9' }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 16 }}>Header Settings</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, alignItems: 'end' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, alignItems: 'end' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 6 }}>Description</label>
                         <input value={s.description || ''} onChange={e => {
@@ -461,25 +461,13 @@ export default function NoSeriesPage() {
                         }} style={{ width: '100%', padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13 }} />
                       </div>
                       <div>
-                        <label style={{ display: 'block', fontSize: 12, color: '#64748b', marginBottom: 6 }}>Linked Form</label>
-                        <select value={s.linked_form || 'ไม่ผูกกับเอกสาร'} onChange={e => {
-                          const updated = [...series];
-                          const idx = updated.findIndex(x => x.id === s.id);
-                          updated[idx].linked_form = e.target.value;
-                          setSeries(updated);
-                        }} style={{ width: '100%', padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13 }}>
-                          {mappings.map(m => <option key={m.key} value={m.key}>{m.displayName}</option>)}
-                        </select>
-                      </div>
-                      <div>
                         <button onClick={async () => {
                           const { error } = await supabase.from('no_series').update({
                             description: s.description,
-                            format: s.format,
-                            linked_form: s.linked_form
+                            format: s.format
                           }).eq('id', s.id);
-                          if(error) showMessage('Error saving header', 'error');
-                          else showMessage('Header updated successfully', 'success');
+                          if(error) setMsg({ text: 'Error saving header: ' + error.message, type: 'error' });
+                          else setMsg({ text: 'Header updated successfully', type: 'success' });
                         }} style={{ background: '#10b981', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 600, fontSize: 13, width: '100%' }}>Save Header</button>
                       </div>
                     </div>

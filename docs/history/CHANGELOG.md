@@ -1,5 +1,10 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Changelog)
 
+- **[13:15] Hide Linked Form from No. Series Page**
+  - ดำเนินการซ่อนคอมโพเนนต์ dropdown "Linked Form" จากหน้าจอ No. Series Management ([app/dashboard/settings/no-series/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/settings/no-series/page.js))
+  - ปรับสไตล์ Grid ใน Header Settings จาก 4 คอลัมน์เป็น 3 คอลัมน์เพื่อให้เลย์เอาต์สวยงามสมดุล
+  - แก้ไข bug ฟังก์ชันบันทึกข้อมูลส่วนหัว (Save Header) โดยเปลี่ยนจาก `showMessage` ที่ไม่มีอยู่จริงในไฟล์นี้ ให้เรียกใช้ `setMsg` เพื่อแสดงแจ้งเตือนสถานะสำเร็จ/ล้มเหลวได้อย่างถูกต้อง
+  - รัน sanity test ด้วย `npm test` ผลลัพธ์ 34/34 ผ่านทั้งหมด
 - **[11:05] login_logs Schema Fix & Historical Log Restoration**
   - วิเคราะห์และระบุข้อจำกัดของตาราง `public.login_logs` ที่ไม่มีคอลัมน์ `metadata` ส่งผลให้การ Insert ข้อมูล `action = 'login'` ที่มี metadata ล้มเหลวทั้งหมดในอดีต (ขณะที่ Logout ทำงานปกติเพราะไม่มีการส่งฟิลด์นี้)
   - เพิ่มการตรวจสอบในคำสั่ง Insert/Select เพื่อสร้างคอลัมน์ `metadata` JSONB สำเร็จ
@@ -53,4 +58,4 @@
 - [CHANGELOG_2026_05_07.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_07.md)
 
 ---
-*อัปเดตล่าสุด: 10-Jun-2026 10:10*
+*อัปเดตล่าสุด: 10-Jun-2026 13:15*
