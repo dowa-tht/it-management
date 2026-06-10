@@ -62,11 +62,21 @@ CREATE POLICY "authenticated_created_by_select_approval_tokens" ON public.approv
 
 -- 4. Align checklist_templates.ui_template_type from TEXT to INTEGER (with safe casting)
 ALTER TABLE public.checklist_templates 
-  ALTER COLUMN ui_template_type TYPE integer USING (NULLIF(ui_template_type, '')::integer);
+  ALTER COLUMN ui_template_type TYPE integer USING (
+    CASE 
+      WHEN ui_template_type ~ '^[0-9]+$' THEN ui_template_type::integer 
+      ELSE NULL 
+    END
+  );
 
 -- 5. Align checklist_docs columns
 ALTER TABLE public.checklist_docs
-  ALTER COLUMN approved_by TYPE uuid USING (NULLIF(approved_by, '')::uuid),
+  ALTER COLUMN approved_by TYPE uuid USING (
+    CASE 
+      WHEN approved_by ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN approved_by::uuid 
+      ELSE NULL 
+    END
+  ),
   ADD COLUMN IF NOT EXISTS is_substituted boolean DEFAULT false,
   ADD COLUMN IF NOT EXISTS approval_comment text,
   ADD COLUMN IF NOT EXISTS target_type text,
