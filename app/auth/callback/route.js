@@ -47,9 +47,10 @@ export async function GET(request) {
           await supabaseAdmin.from('login_logs').insert([{
             user_id: user.id,
             user_email: user.email,
-            action: 'Login สำเร็จ (SSO)',
+            action: 'login',
             ip_address: 'SERVER_SIDE',
-            user_agent: 'Auth Callback'
+            user_agent: 'Auth Callback',
+            metadata: { login_type: 'sso' }
           }])
 
           const target = needsOnboarding ? '/onboarding' : next

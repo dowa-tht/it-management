@@ -1,57 +1,32 @@
-# 🕒 ประวัติการเปลี่ยนแปลง (Chang- **[13:20] Completed Production Database Migration & Schema Fixes**
-  - Apply SQL files on Production Supabase successfully.
-  - Resolve Column drift & syntax errors (reported_by_id, created_by_id, target_group_id).
-  - Update add_rls_policies.sql to drop legacy tables.
-  - Run npm run build successfully.
-e Logs)
+# 🕒 ประวัติการเปลี่ยนแปลง (Changelog)
 
-## 8 มิถุนายน 2569 (08-Jun-2026)
-
-- **[09:12] Daily Log Shrinking & Inspecting .cursorrules**
-  - ย้ายบันทึกการเปลี่ยนแปลงของวันที่ 6 มิถุนายน 2569 ไปยัง [CHANGELOG_2026_06_06.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_06.md) ตามกฎ Daily Log Shrinking
-  - ตรวจสอบไฟล์ `.cursorrules` เพื่อประเมินบทบาทและความจำเป็นในการอ่านของ Agents ในโปรเจกต์นี้
-- **[09:14] Sync WINDSURF.md Rules with .cursorrules**
-  - เพิ่มการอ้างอิงและกฎเหล็กจาก [docs/standards/WINDSURF.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/WINDSURF.md) เข้าไปใน [.cursorrules](file:///c:/Users/Lenovo/dowa-it-system/.cursorrules)
-  - ปรับปรุง [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) เพื่อเชื่อมโยงประวัติย้อนหลังของปี 2026-06-05 และ 2026-06-06
-- **[09:28] Update AGENTS.md with Silent Thinking Policy & Output Contracts**
-  - เพิ่มนโยบาย `[SILENT THINKING POLICY — MANDATORY]` เข้าไปใน [AGENTS.md](file:///c:/Users/Lenovo/dowa-it-system/AGENTS.md)
-  - อัปเดต `Superpowers Trigger Matrix` เพื่อกำหนดให้การทำงานที่ไม่ใช่ `brainstorming` ต้องใช้ `silent-execution`
-  - เพิ่มข้อกำหนดสัญญาผลลัพธ์ (`Output Contract`) ให้แก่บทบาท `Smart AI` และ `Fast AI` ภายใต้ `AGENTS.md`
-- **[09:31] Create SILENT_EXECUTION.md Standard File**
-  - สร้างไฟล์เปล่า [docs/standards/SILENT_EXECUTION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SILENT_EXECUTION.md) สำหรับเป็นที่ตั้งของนโยบายและมาตรฐานการทำงานแบบประมวลผลเงียบ
-  - อัปเดตลิงก์ไปยังมาตรฐานใหม่ลงใน [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md)
-- **[10:00] Audit Incident 404 Route Runtime Desync**
-  - ตรวจสอบปัญหา `/dashboard/incidents` ตอบ `404` จาก runtime จริง แม้ route file จะมีอยู่และถูก compile แล้ว
-  - สร้างรายงาน [AUDIT_INCIDENT_ROUTE_RUNTIME_DESYNC_2026_06_08.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_INCIDENT_ROUTE_RUNTIME_DESYNC_2026_06_08.md)
-  - อัปเดต [docs/INDEX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/INDEX.md) ให้เชื่อมลิงก์รายงาน audit ฉบับนี้
-- **[10:12] Restore Dashboard Child Routes by Restarting Next Dev Runtime**
-  - หยุด runtime เก่าที่ให้บริการ `localhost:3000` แล้ว start `next dev` ใหม่จาก workspace ปัจจุบัน
-  - ยืนยันว่า `/dashboard/incidents` และ `/dashboard/backup` กลับมาใช้งานได้จริง
-  - อัปเดตรายงาน [AUDIT_INCIDENT_ROUTE_RUNTIME_DESYNC_2026_06_08.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/AUDIT_INCIDENT_ROUTE_RUNTIME_DESYNC_2026_06_08.md) ด้วยผลการแก้ไขและ verification ล่าสุด
-- **[10:30] ขยายคอลัมน์ Doc No. และลดคอลัมน์ Review ใน Audit Logs Tab**
-  - ปรับ `minWidth: 160` ให้คอลัมน์ Doc No. ใน Audit Logs tab เพื่อให้เลขที่เอกสารแสดงแบบ 1 บรรทัด
-  - เพิ่ม `whiteSpace: 'nowrap'` ที่ cell Doc No. ป้องกันการตัดคำ
-  - ลดความกว้างคอลัมน์ Review จาก `16px 20px` → `12px 8px` และเซ็ต `width: 80` พร้อม `textAlign: 'center'`
-  - เปลี่ยนข้อความปุ่ม "View Details" → "View" เพื่อให้สั้นลง
-  - ไฟล์ที่แก้: `app/dashboard/settings/logs/page.js`
-- **[10:39] ปรับชื่อคอลัมน์ Doc No. เป็นแบบไดนามิก (Dynamic Column Header)**
-  - ปรับปรุงให้หน้าจอแสดงผลหัวคอลัมน์จากเดิมที่เป็น "Doc No." ให้กลายเป็น "Target User" เมื่อผู้ใช้เปิดแท็บ "Admin Actions" (เนื่องจากคอลัมน์นี้ใช้แสดงผล Email หรือ UUID ของผู้ใช้เป้าหมายในการดำเนินการของ Admin)
-  - ไฟล์ที่แก้: `app/dashboard/settings/logs/page.js`
-- **[12:00] แสดงวันที่ Backup จริง (log_date) ในคอลัมน์ Details ของ Backup Logs**
-  - นำค่า `log_date` (วันที่ทำการ Backup จริง) มาจัดรูปแบบผ่าน `formatDate` แล้วแสดงผลนำหน้าข้อมูล `notes` ในคอลัมน์ Details เช่น `[Backup: 01 / Jun / 2026] ...` เพื่อแก้ไขปัญหาเมื่อมีการบันทึกข้อมูลย้อนหลัง
-  - ไฟล์ที่แก้: `lib/audit.js`
-- **[14:26] ตรวจสอบและแก้ไขระบบตาม WORKFLOW_GUIDE.md**
-  - ตรวจสอบ 95% ของ flow ตาม [WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/WORKFLOW_GUIDE.md) — พบ 2 จุดที่ต้องแก้ไข
-  - **(A) แก้ bug เอกสาร:** ลบ Section §5 Backup Logs ที่ซ้ำซ้อนออกจาก [WORKFLOW_GUIDE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/manuals/WORKFLOW_GUIDE.md) — ลำดับ section ถูกต้องแล้ว: §5=IT Checklist, §6=Backup Logs, §7=System Setup
-  - **(B) แก้ bug code + implement feature:** แก้ไข `notifyApprover` function ใน [workflow.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/workflow.js)
-    - แก้ bug ที่ query table `profiles` ผิด → `user_profiles` (ทำให้ email notification ไม่เคยส่งได้เลย)
-    - เพิ่ม Substitute Notification logic — ตรวจสอบ `approval_substitutes` ที่ `is_active=true` และอยู่ในช่วงวันที่ปัจจุบัน แล้วส่ง email แจ้งเตือนไปหา substitute พร้อมระบุว่าเป็นการแทน primary approver คนใด
-
----
+- **[11:05] login_logs Schema Fix & Historical Log Restoration**
+  - วิเคราะห์และระบุข้อจำกัดของตาราง `public.login_logs` ที่ไม่มีคอลัมน์ `metadata` ส่งผลให้การ Insert ข้อมูล `action = 'login'` ที่มี metadata ล้มเหลวทั้งหมดในอดีต (ขณะที่ Logout ทำงานปกติเพราะไม่มีการส่งฟิลด์นี้)
+  - เพิ่มการตรวจสอบในคำสั่ง Insert/Select เพื่อสร้างคอลัมน์ `metadata` JSONB สำเร็จ
+  - ดำเนินการย้ายประวัติการล็อกอินย้อนหลัง (Data Migration) จาก `auth.audit_log_entries` กลับมาเข้าตาราง `public.login_logs` เฉพาะผู้ใช้ที่ยังคงใช้งานอยู่ในระบบจริง (ป้องกัน Foreign Key Error จาก Deleted Users)
+  - สร้างไฟล์ migration: [20260610_add_metadata_to_login_logs_and_restore_history.sql](file:///c:/Users/Lenovo/dowa-it-system/supabase/migrations/20260610_add_metadata_to_login_logs_and_restore_history.sql)
+- **[10:10] Session Restore Login Logging & CHECK Constraint Alignment**
+  - ค้นพบสาเหตุหลักของปัญหา Log การ Login ไม่บันทึกเนื่องจากติดกฎ **CHECK Constraint** ของฐานข้อมูลบนตาราง `login_logs` (ที่อนุญาตเฉพาะค่า `'login'` และ `'logout'`)
+  - ปรับปรุงการบันทึกประวัติการ Login ทั้งหมด (Unified, SSO, Session Restore) ให้ใช้ Action เป็นตัวพิมพ์เล็ก `'login'` เพื่อให้ผ่านด่าน Constraint ของฐานข้อมูล และจัดเก็บข้อมูลแยกประเภทไว้ใน `metadata` แทน
+  - เพิ่มการส่ง JWT Access Token จาก Client-side ไปใช้ดึงและตรวจสอบสิทธิ์ผู้ใช้ผ่าน Supabase admin ใน Server Action `recordSessionRestoreLog` เพื่อแก้ปัญหา Cookie ยังไม่ซิงค์บนเบราว์เซอร์ที่เปิดใหม่
+  - ปรับปรุง [login.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/login.js), [page.js](file:///c:/Users/Lenovo/dowa-it-system/app/page.js), [layout.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/layout.js) และ [route.js](file:///c:/Users/Lenovo/dowa-it-system/app/auth/callback/route.js) ตามแผนการปรับปรุงโครงสร้างข้อมูลนี้
+- **[09:28] Production Schema Synchronization & Alignment**
+  - วิเคราะห์เปรียบเทียบ Schema Drift ระหว่างสภาพแวดล้อม Dev และ Production
+  - สร้างสคริปต์ Sync Dev: [20260610_align_dev_schema_to_production.sql](file:///c:/Users/Lenovo/dowa-it-system/supabase/migrations/20260610_align_dev_schema_to_production.sql) เพื่อบันทึกคอลัมน์กู้คืนและอนุมัติที่คุณทำไว้บน Production ให้ตรงกันในเครื่อง
+  - สร้างและแนะนำ SQL Patch สำหรับ Production: [20260610_production_schema_alignment_patch.sql](file:///c:/Users/Lenovo/dowa-it-system/supabase/migrations/20260610_production_schema_alignment_patch.sql) แบบปลอดภัย (Non-destructive) เพื่อแก้ไขตาราง/คอลัมน์และแคสต์ประเภทข้อมูลตามโค้ด Runtime
+  - ตรวจสอบ Parity สำเร็จ และรันเทส `npm test` ทั้งหมดผ่าน 100% (34/34 tests passed)
+- **[08:17] Create production migration hand-off document**
+  - สร้างเอกสารส่งต่องาน [HANDOFF_PRODUCTION_STATUS_2026_06_10.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/HANDOFF_PRODUCTION_STATUS_2026_06_10.md)
+  - สรุปเป้าหมาย สถานะ production ปัจจุบัน สิ่งที่ยืนยันแล้ว ความเสี่ยงค้าง และรายการงานที่ agent ถัดไปต้องทำต่อ
+  - ย้าย changelog ของวันที่ 8-9 มิถุนายน 2569 ไป archive เพื่อให้ `CHANGELOG.md` เหลือเฉพาะของวันปัจจุบันตามกฎ Daily Log Shrinking
+- **[08:17] Add reusable hand-off prompt document**
+  - สร้าง [HANDOFF_PROMPT_PRODUCTION_STATUS_2026_06_10.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/HANDOFF_PROMPT_PRODUCTION_STATUS_2026_06_10.md)
+  - จัดรูปแบบเป็น prompt พร้อมใช้สำหรับ agent ถัดไป โดยระบุ environment, เป้าหมาย, guardrails, ลำดับการอ่านเอกสาร, runtime evidence files, และ task continuation list
 
 ## 📦 บันทึกย้อนหลัง (Archives)
 
 ### มิถุนายน 2569 (June 2026)
+- [CHANGELOG_2026_06_09.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_09.md)
 - [CHANGELOG_2026_06_06.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_06.md)
 - [CHANGELOG_2026_06_05.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_05.md)
 - [CHANGELOG_2026_06_04.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_04.md)
@@ -78,4 +53,4 @@ e Logs)
 - [CHANGELOG_2026_05_07.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_07.md)
 
 ---
-*อัปเดตล่าสุด: 08-Jun-2026 12:00*
+*อัปเดตล่าสุด: 10-Jun-2026 10:10*

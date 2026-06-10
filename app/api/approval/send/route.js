@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import { normalizeRole } from '@/lib/auth'
+import { buildPublicBaseUrl } from '@/lib/publicBaseUrl'
 import { recordSystemError } from '@/app/actions/workflow'
 
 async function requireAdmin() {
@@ -63,7 +64,7 @@ export async function POST(request) {
 
     if (tokenError) return Response.json({ error: tokenError.message }, { status: 400 })
 
-    const approvalUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/approve?token=${tokenData.token}`
+    const approvalUrl = `${buildPublicBaseUrl()}/approve?token=${tokenData.token}`
 
     // ส่ง Email ผ่าน Resend
     const { sendEmail } = await import('@/lib/resend')

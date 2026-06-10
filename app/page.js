@@ -1,7 +1,7 @@
 'use client'
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { unifiedLogin, getOnboardingStatus } from '@/app/actions/login'
+import { unifiedLogin, getOnboardingStatus, recordSessionRestoreLog } from '@/app/actions/login'
 import { requestPasswordOTP, verifyPasswordOTP } from '@/app/actions/recovery'
 import { supabase } from '@/lib/supabase'
 
@@ -45,7 +45,18 @@ function LoginContent() {
       if (!profile) return
 
       if (profile.is_onboarded) {
-        // Onboard แล้ว -> ไป Dashboard
+        // Onboard แล้ว -> บันทึก Log การกลับเข้าสู่ระบบ (Session เดิม) เพื่อป้องการ Log หาย
+        if (typeof window !== 'undefined' && !sessionStorage.getItem('dowa_session_logged')) {
+          try {
+            const res = await recordSessionRestoreLog(session.access_token)
+            if (res.success) {
+              sessionStorage.setItem('dowa_session_logged', 'true')
+            }
+          } catch (err) {
+            console.error('Failed to record session restore log:', err)
+          }
+        }
+        // ไป Dashboard
         router.replace('/dashboard')
       } else {
         // ยังไม่ Onboard -> ใช้ full redirect ไป API เพื่อสร้าง/ดึง Token

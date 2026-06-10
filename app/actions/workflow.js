@@ -8,6 +8,7 @@ import { WORKFLOW_DOC_REGISTRY, getMappedWorkflowValue } from '@/lib/workflowReg
 import { sendEmail } from '@/lib/resend'
 import { normalizeRole } from '@/lib/auth'
 import { deriveIncidentCancelVerificationPolicy } from '@/lib/incidentCancelVerificationPolicy'
+import { buildPublicBaseUrl } from '@/lib/publicBaseUrl'
 
 const getAdminClient = getSupabaseAdmin
 const INCIDENT_EMAIL_OTP_TTL_MINUTES = 30
@@ -531,7 +532,7 @@ async function notifyApprover(approverId, docId, docType, docNo, title) {
 
     if (!profile?.email) return
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const baseUrl = buildPublicBaseUrl()
     const link = `${baseUrl}/dashboard/${docType === 'incident' ? 'incidents' : 'checklist'}/${docId}`
 
     const buildApprovalEmail = (recipientName, noteText = '') => `

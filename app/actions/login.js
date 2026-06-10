@@ -1,6 +1,6 @@
 'use server'
 
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { recordSystemError } from './workflow'
 
@@ -65,9 +65,10 @@ export async function unifiedLogin(email, password) {
   await adminClient.from('login_logs').insert([{
     user_id: userId,
     user_email: email,
-    action: 'Login สำเร็จ',
+    action: 'login',
     ip_address: 'SERVER_SIDE',
-    user_agent: 'Unified Login'
+    user_agent: 'Unified Login',
+    metadata: { login_type: 'credentials' }
   }])
 
   // 🛡️ ตั้งค่า Cookie สำหรับ Onboarding (Gatekeeper Standard - Cookie based)
@@ -158,4 +159,76 @@ export async function getOnboardingStatus() {
     needs_onboarding: onboarding.needs_onboarding,
     onboarding_token: onboarding.onboarding_token
   }
+}
+
+/**
+ * 📝 บันทึกประวัติการเข้าใช้งานระบบในกรณีเชื่อมต่อใหม่ด้วย Session เดิม (Session Restore Log)
+ */
+export async function recordSessionRestoreLog(accessToken) {
+  const headersList = await headers()
+  const userAgent = headersList.get('user-agent') || 'Unknown User Agent'
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseKey) {
+    return { success: false, error: 'Missing Configuration' }
+  }
+
+  let user = null
+  const { createClient } = await import('@supabase/supabase-js')
+
+  // 🛡️ หากมีการส่ง accessToken มาจาก client-side (เนื่องจาก cookie ยังไม่ sync ใน tab แรกที่เปิด)
+  // ให้ทำการตรวจสอบ JWT Token โดยตรงผ่าน Admin Client ของ Supabase
+  if (accessToken) {
+    const supabaseAdmin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY)
+    const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(accessToken)
+    if (!authError && authUser) {
+      user = authUser
+    }
+  }
+
+  // Fallback ไปใช้ Cookie-based session แบบเดิมหากไม่มี Token หรือการดึง Token ล้มเหลว
+  if (!user) {
+    const cookieStore = await cookies()
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
+      cookies: {
+        getAll: () => cookieStore.getAll(),
+        setAll: (cookiesToSet) => {
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+        }
+      }
+    })
+    const { data: { user: cookieUser } } = await supabase.auth.getUser()
+    user = cookieUser
+  }
+
+  if (!user) return { success: false, error: 'No active session' }
+
+  // Whitelist check
+  const adminClient = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  const { hashEmail } = await import('@/lib/auth')
+  
+  const hashedEmail = hashEmail(user.email)
+  const { data: whitelistData } = await adminClient
+    .from('user_whitelist')
+    .select('id')
+    .eq('email_hash', hashedEmail)
+    .single()
+
+  if (!whitelistData) {
+    return { success: false, error: 'Not in whitelist' }
+  }
+
+  // Insert to login_logs
+  await adminClient.from('login_logs').insert([{
+    user_id: user.id,
+    user_email: user.email,
+    action: 'login',
+    ip_address: 'SERVER_SIDE',
+    user_agent: userAgent,
+    metadata: { login_type: 'session_restore' }
+  }])
+
+  return { success: true }
 }

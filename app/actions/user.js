@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
+import { buildPublicBaseUrl } from '@/lib/publicBaseUrl'
 
 export async function getCurrentUserSession() {
   const cookieStore = await cookies()
@@ -151,7 +152,7 @@ export async function requestSignaturePinReset(email) {
     const adminClient = createClient(supabaseUrl, serviceKey)
     const { data: profile } = await adminClient.from('user_profiles').select('full_name').eq('email', email).single()
     
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const siteUrl = buildPublicBaseUrl()
 
     await sendEmail({
       to: [email],

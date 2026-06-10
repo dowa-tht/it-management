@@ -3,6 +3,8 @@ import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache'
 import { randomBytes, randomUUID } from 'crypto'
 import { normalizeRole, hashEmail } from '@/lib/auth'
+import { buildOnboardingInviteEmail } from '@/lib/emailTemplates'
+import { buildPublicBaseUrl } from '@/lib/publicBaseUrl'
 import { getCurrentUserSession } from './user'
 import { recordSystemError } from './workflow'
 
@@ -215,48 +217,13 @@ export async function createAdminUser({ email, password, full_name, role, can_be
     if (sendEmailInvite) {
       try {
         const { sendEmail } = await import('@/lib/resend')
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-        const setupUrl = `${siteUrl}/onboarding?token=${onboardingToken}`
-
-        let emailHtml = '';
-        if (isInviteOnly) {
-          // Path A: Invite
-          emailHtml = `
-            <div style="font-family: sans-serif; padding: 40px; background-color: #f8fafc;">
-              <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 40px; border: 1px solid #e2e8f0;">
-                <h2 style="color: #1d4ed8; margin-top: 0;">ยินดีต้อนรับสู่ DOWA IT System</h2>
-                <p>สวัสดีคุณ <strong>${full_name}</strong>,</p>
-                <p>คุณได้รับเชิญให้เข้าใช้งานระบบบริหารจัดการไอทีของ DOWA</p>
-                <p style="margin: 24px 0;">กรุณากดปุ่มด้านล่างเพื่อทำการลงทะเบียน ตั้งค่ารหัสผ่าน และ Signature PIN ของคุณ:</p>
-                <div style="text-align: center;">
-                  <a href="${setupUrl}" style="display: inline-block; padding: 14px 28px; background-color: #1d4ed8; color: white; text-decoration: none; border-radius: 10px; font-weight: bold;">ลงทะเบียนเข้าใช้งาน (Self-Registration)</a>
-                </div>
-                <p style="font-size: 12px; color: #64748b; margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 20px;">
-                  * ลิงก์นี้มีอายุ 24 ชั่วโมง
-                </p>
-              </div>
-            </div>
-          `;
-        } else {
-          // Path B: Manual Credentials
-          emailHtml = `
-            <div style="font-family: sans-serif; padding: 40px; background-color: #f8fafc;">
-              <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 40px; border: 1px solid #e2e8f0;">
-                <h2 style="color: #1d4ed8; margin-top: 0;">ข้อมูลการเข้าใช้งาน DOWA IT System</h2>
-                <p>สวัสดีคุณ <strong>${full_name}</strong>,</p>
-                <p>บัญชีของคุณถูกสร้างเรียบร้อยแล้ว โดยมีข้อมูลการเข้าใช้งานดังนี้:</p>
-                <div style="background-color: #f1f5f9; padding: 20px; border-radius: 12px; margin: 24px 0;">
-                  <p style="margin: 0; font-size: 14px;"><strong>อีเมล:</strong> ${email}</p>
-                  <p style="margin: 8px 0 0 0; font-size: 14px;"><strong>รหัสผ่าน:</strong> ${password}</p>
-                </div>
-                <div style="text-align: center;">
-                  <a href="${setupUrl}" style="display: inline-block; padding: 14px 28px; background-color: #1d4ed8; color: white; text-decoration: none; border-radius: 10px; font-weight: bold;">เข้าสู่ระบบและตั้งค่าความปลอดภัย</a>
-                </div>
-                <p style="font-size: 12px; color: #dc2626; margin-top: 24px;">* เมื่อเข้าสู่ระบบครั้งแรก ระบบจะบังคับให้คุณเปลี่ยนรหัสผ่านเพื่อความปลอดภัย</p>
-              </div>
-            </div>
-          `;
-        }
+        const setupUrl = `${buildPublicBaseUrl()}/onboarding?token=${onboardingToken}`
+        const emailHtml = buildOnboardingInviteEmail({
+          fullName: full_name,
+          setupUrl,
+          isInviteOnly,
+          password,
+        })
 
         await sendEmail({
           to: [email],

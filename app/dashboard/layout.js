@@ -6,6 +6,7 @@ import { normalizeRole, ROLE_BADGE, canAccess, getRolePermissions, checkPermissi
 import Link from 'next/link'
 import { formatDateMMM } from '@/lib/dateFormat'
 import { useWorkingDate } from '@/lib/context/WorkingDateContext'
+import { recordSessionRestoreLog } from '@/app/actions/login'
 
 export default function DashboardLayout({ children }) {
   const { workingDate, setWorkingDate, getFormattedDate } = useWorkingDate()
@@ -27,6 +28,18 @@ export default function DashboardLayout({ children }) {
       if (!session) {
         router.push('/')
         return
+      }
+
+      // 📝 บันทึก Log การกลับเข้าสู่ระบบ (Session เดิม) สำหรับผู้ที่เข้าลิงก์ dashboard ตรงๆ
+      if (typeof window !== 'undefined' && !sessionStorage.getItem('dowa_session_logged')) {
+        try {
+          const res = await recordSessionRestoreLog(session.access_token)
+          if (res.success) {
+            sessionStorage.setItem('dowa_session_logged', 'true')
+          }
+        } catch (err) {
+          console.error('Failed to record session restore log from dashboard layout:', err)
+        }
       }
 
       const sessionUser = session.user

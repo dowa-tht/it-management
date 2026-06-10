@@ -1,6 +1,7 @@
 'use server'
 import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
+import { buildPublicBaseUrl } from '@/lib/publicBaseUrl'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -45,12 +46,13 @@ export async function requestRecovery(email) {
     }
 
     const isExternal = ['approver', 'auditor'].includes(profile.role)
+    const siteUrl = buildPublicBaseUrl()
 
 
     if (!isExternal) {
       // --- กรณี Staff: ใช้ Supabase Auth (Password) ---
       const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard/profile?tab=security`
+        redirectTo: `${siteUrl}/dashboard/profile?tab=security`
       })
       if (error) throw error
     } else {
@@ -73,7 +75,7 @@ export async function requestRecovery(email) {
 
       // 3. ส่งอีเมลผ่าน Resend
       const { sendEmail } = await import('@/lib/resend')
-      const resetLink = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/reset-pin?token=${token}`
+      const resetLink = `${siteUrl}/reset-pin?token=${token}`
       
       const { error: sendError } = await sendEmail({
         to: [email],

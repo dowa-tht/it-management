@@ -2,6 +2,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { getCurrentUserSession } from './user'
 import { sendEmail } from '@/lib/resend'
+import { buildOnboardingInviteEmail } from '@/lib/emailTemplates'
+import { buildPublicBaseUrl } from '@/lib/publicBaseUrl'
 import { randomUUID } from 'crypto'
 import bcrypt from 'bcryptjs'
 
@@ -93,35 +95,16 @@ export async function quickAddUser({ fullName, email, role = 'employee' }) {
 
     // Send Welcome Email if email exists
     if (email) {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-      const setupUrl = `${siteUrl}/onboarding?token=${onboardingToken}`
+      const setupUrl = `${buildPublicBaseUrl()}/onboarding?token=${onboardingToken}`
 
       await sendEmail({
         to: email,
         subject: '[DOWA IT] ยินดีต้อนรับและยืนยันตัวตนเพื่อเข้าใช้งานระบบ',
-        html: `
-          <div style="font-family: sans-serif; padding: 40px; color: #1e293b; background-color: #f8fafc;">
-            <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-              <h2 style="color: #1d4ed8; margin-top: 0;">ยินดีต้อนรับเข้าสู่ DOWA IT System</h2>
-              <p>สวัสดีคุณ <strong>${fullName}</strong>,</p>
-              <p>บัญชีของคุณถูกสร้างขึ้นในระบบเรียบร้อยแล้ว กรุณาใช้ข้อมูลด้านล่างในการยืนยันตัวตน:</p>
-              
-              <p style="margin-top: 32px;">กรุณากดปุ่มด้านล่างเพื่อทำการลงทะเบียนและตั้งค่าความปลอดภัย (รหัสผ่าน และ Signature PIN) เพื่อเข้าใช้งานระบบอย่างเต็มรูปแบบและยืนยันตัวตนในการลงนามเอกสาร:</p>
-              <div style="text-align: center; margin: 32px 0;">
-                <a href="${setupUrl}" style="display: inline-block; padding: 14px 28px; background-color: #1d4ed8; color: white; text-decoration: none; border-radius: 10px; font-weight: bold; box-shadow: 0 4px 6px rgba(29, 78, 216, 0.2);">ตั้งค่าบัญชี (Self-Registration)</a>
-              </div>
-              
-              <p style="font-size: 13px; color: #475569; background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px; border-radius: 4px;">
-                <strong>💡 คำแนะนำ:</strong> หลังจากการตั้งค่าบัญชีเสร็จสิ้น คุณจะสามารถใช้ <strong>Signature PIN</strong> ในการเซ็นชื่อเอกสารได้ทันทีโดยไม่ต้องรอรับ OTP ทางอีเมลในครั้งถัดไป
-              </p>
-
-              <p style="font-size: 12px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 20px; margin-top: 32px;">
-                * ลิงก์สำหรับการลงทะเบียนนี้มีอายุ 24 ชั่วโมง<br/>
-                หากคุณไม่ได้เป็นผู้ขอใช้งานระบบนี้ กรุณาแจ้งฝ่าย IT ทันที
-              </p>
-            </div>
-          </div>
-        `
+        html: buildOnboardingInviteEmail({
+          fullName,
+          setupUrl,
+          isInviteOnly: true,
+        })
       })
     }
 
