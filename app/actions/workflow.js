@@ -9,12 +9,27 @@ import { sendEmail } from '@/lib/resend'
 import { normalizeRole } from '@/lib/auth'
 import { deriveIncidentCancelVerificationPolicy } from '@/lib/incidentCancelVerificationPolicy'
 import { buildPublicBaseUrl } from '@/lib/publicBaseUrl'
+import { createHash, randomBytes } from 'crypto'
 
 const getAdminClient = getSupabaseAdmin
 const INCIDENT_EMAIL_OTP_TTL_MINUTES = 30
 const INCIDENT_EMAIL_OTP_COOLDOWN_SECONDS = 60
+const PUBLIC_APPROVAL_LINK_TTL_MINUTES = 15
+const APPROVAL_TOKEN_DOC_TYPE_MAP = {
+  incident: 'incident_report',
+  checklist: 'it_checklist',
+}
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase()
+const hashPublicApprovalValue = (value) => createHash('sha256').update(String(value || '')).digest('hex')
+const generatePublicApprovalSecret = () => randomBytes(32).toString('hex')
+const getApprovalTokenDocType = (docType) => APPROVAL_TOKEN_DOC_TYPE_MAP[String(docType || '').toLowerCase()] || String(docType || '').toLowerCase()
+const getWorkflowDocTypeFromApprovalToken = (tokenDocType) => {
+  const value = String(tokenDocType || '').toLowerCase()
+  if (value === 'incident_report') return 'incident'
+  if (value === 'it_checklist') return 'checklist'
+  return value
+}
 
 function maskEmail(email) {
   const value = normalizeEmail(email)
@@ -506,7 +521,10 @@ export async function recordAuditLog({ docId, docType, action, details, userEmai
       const fullAction = details ? `${action} | ${details}` : action
       const legacyData = { action: fullAction, user_email: userEmail }
       if (type === 'checklist') legacyData.doc_id = docId; else legacyData.incident_id = docId;
-      await supabaseAdmin.from(table).insert(legacyData).catch(e => console.warn('Legacy Logging Warning:', e))
+      const { error: legacyErr } = await supabaseAdmin.from(table).insert(legacyData)
+      if (legacyErr) {
+        console.warn('Legacy Logging Warning:', legacyErr)
+      }
     }
 
     return { success: true }
@@ -516,83 +534,26 @@ export async function recordAuditLog({ docId, docType, action, details, userEmai
   }
 }
 
-/**
- * 📧 [Phase 2] Helper: ส่งอีเมลแจ้งเตือนผู้อนุมัติ (และ Substitute หากมี)
- */
-async function notifyApprover(approverId, docId, docType, docNo, title) {
+async function notifyApprovalStep(step, docId, docType, docNo, title, createdBy = null, actorEmail = 'system@workflow.internal') {
   try {
     const supabaseAdmin = getAdminClient()
+    const context = await getWorkflowNotificationDocument(supabaseAdmin, docId, docType)
+    if (!context?.doc) return { success: false, error: 'Document not found' }
 
-    // 1. ดึงข้อมูลผู้อนุมัติหลัก (แก้ bug: user_profiles ไม่ใช่ profiles)
-    const { data: profile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('email, full_name')
-      .eq('id', approverId)
-      .single()
-
-    if (!profile?.email) return
-
-    const baseUrl = buildPublicBaseUrl()
-    const link = `${baseUrl}/dashboard/${docType === 'incident' ? 'incidents' : 'checklist'}/${docId}`
-
-    const buildApprovalEmail = (recipientName, noteText = '') => `
-      <div style="padding: 24px; background: #f8fafc; font-family: sans-serif;">
-        <h2 style="color: #1e293b; margin-bottom: 16px;">สวัสดีคุณ ${recipientName}</h2>
-        <p style="color: #475569; font-size: 16px; line-height: 1.6;">
-          มีเอกสารรอการอนุมัติในระบบ DOWA IT System${noteText ? ` <em style="color:#64748b; font-size:14px;">(${noteText})</em>` : ''}
-        </p>
-        <div style="background: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin: 24px 0;">
-          <p style="margin: 0; color: #94a3b8; font-size: 12px; text-transform: uppercase; font-weight: 800;">เลขที่เอกสาร</p>
-          <p style="margin: 4px 0 12px 0; color: #1e293b; font-size: 18px; font-weight: 700;">${docNo}</p>
-          <p style="margin: 0; color: #94a3b8; font-size: 12px; text-transform: uppercase; font-weight: 800;">หัวข้อ</p>
-          <p style="margin: 4px 0 0 0; color: #1e293b; font-size: 16px;">${title}</p>
-        </div>
-        <a href="${link}" style="display: inline-block; padding: 14px 28px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 12px; font-weight: 700;">
-          ไปหน้าตรวจสอบและอนุมัติ
-        </a>
-      </div>
-    `
-
-    // 2. ส่งให้ผู้อนุมัติหลักก่อน
-    await sendEmail({
-      to: profile.email,
-      subject: `[Pending Approval] ${docNo} - ${title}`,
-      html: buildApprovalEmail(profile.full_name),
+    return await sendPublicApprovalLinkEmail({
+      supabaseAdmin,
+      docId,
+      docType,
+      docNo: docNo || context.docNo || docId,
+      title: title || context.title || 'เอกสาร',
+      step,
+      docData: context.doc,
+      createdBy,
+      actorEmail,
     })
-
-    // 3. ตรวจสอบ Substitute ที่ active อยู่ในวันนี้
-    const today = new Date().toISOString().split('T')[0]
-    const { data: substitutes } = await supabaseAdmin
-      .from('approval_substitutes')
-      .select('substitute_id')
-      .eq('primary_approver_id', approverId)
-      .eq('is_active', true)
-      .lte('start_date', today)
-      .gte('end_date', today)
-
-    if (substitutes && substitutes.length > 0) {
-      const subIds = substitutes.map(s => s.substitute_id).filter(Boolean)
-      if (subIds.length > 0) {
-        const { data: subProfiles } = await supabaseAdmin
-          .from('user_profiles')
-          .select('email, full_name')
-          .in('id', subIds)
-
-        for (const sub of (subProfiles || [])) {
-          if (!sub?.email) continue
-          await sendEmail({
-            to: sub.email,
-            subject: `[Pending Approval — แทน ${profile.full_name}] ${docNo} - ${title}`,
-            html: buildApprovalEmail(
-              sub.full_name,
-              `คุณได้รับสิทธิ์อนุมัติแทน ${profile.full_name} ในช่วงนี้`
-            ),
-          }).catch(err => console.error('notifySubstitute Error:', err))
-        }
-      }
-    }
   } catch (err) {
-    console.error('notifyApprover Error:', err)
+    console.error('notifyApprovalStep Error:', err)
+    return { success: false, error: err.message }
   }
 }
 
@@ -1231,16 +1192,31 @@ export async function submitRequest(docId, targetType, triggerKey, userEmail, in
       await onDocumentFinalApproval(docId, targetType)
     }
 
-    // 📧 [Phase 2] Notify Approver
-    if (!finalAutoApprove && config?.primary_approver_id) {
-      const { data: docData } = await supabaseAdmin.from(reg.table).select(`${reg.no_field}, ${reg.title_field}`).eq('id', docId).single()
-      if (docData) {
-        await notifyApprover(
-          config.primary_approver_id, 
-          docId, 
-          targetType, 
-          docData[reg.no_field], 
-          docData[reg.title_field]
+    // 📧 Notify first pending step via public approval link
+    if (!finalAutoApprove) {
+      const { data: docData } = await supabaseAdmin
+        .from(reg.table)
+        .select(`${reg.no_field}, ${reg.title_field}`)
+        .eq('id', docId)
+        .single()
+      const { data: firstPendingStep } = await supabaseAdmin
+        .from('document_approvals')
+        .select('*')
+        .eq('doc_id', docId)
+        .eq('doc_type', String(targetType || '').toLowerCase())
+        .eq('status', 'pending')
+        .order('step_order', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      if (docData && firstPendingStep) {
+        await notifyApprovalStep(
+          firstPendingStep,
+          docId,
+          targetType,
+          docData[reg.no_field],
+          docData[reg.title_field],
+          session.user.id,
+          userEmail
         )
       }
     }
@@ -1500,6 +1476,12 @@ export async function rejectDocumentWorkflow(docId, docType, reason) {
       .eq('doc_id', docId)
       .eq('status', 'pending')
 
+    await revokeApprovalTokens(supabaseAdmin, {
+      docId,
+      docType: normalizedDocType,
+      reason: 'rejected',
+    })
+
     // 3. Record Log
     await recordLog(docId, docType.toLowerCase(), 'Rejected', `ตีกลับเอกสาร | เหตุผล: ${reason}`, session.user.email)
 
@@ -1640,6 +1622,12 @@ export async function cancelDocument(docId, docType, reason, verification = null
       .update({ status: 'cancelled', comment: `Cancelled: ${reason}` })
       .eq('doc_id', docId)
       .in('status', ['pending', 'waiting'])
+
+    await revokeApprovalTokens(supabaseAdmin, {
+      docId,
+      docType: normalizedDocType,
+      reason: 'cancelled',
+    })
 
     // 6. Record Log
     const docNo = doc[reg.no_field] || docId
@@ -1793,6 +1781,320 @@ export async function requestIncidentApprovalOTP(docId, stepId = null) {
   } catch (err) {
     console.error('requestIncidentApprovalOTP Error:', err)
     return { error: err.message }
+  }
+}
+
+async function rejectDocumentWorkflowByPublicLink(docId, docType, reason, actorEmail) {
+  const supabaseAdmin = getAdminClient()
+  const normalizedDocType = String(docType || '').toLowerCase()
+  const reg = WORKFLOW_DOC_REGISTRY[normalizedDocType]
+  if (!reg) return { error: 'Invalid document type' }
+
+  const { error: updateErr } = await supabaseAdmin
+    .from(reg.table)
+    .update({
+      [reg.workflow_status_field]: 'draft',
+      [reg.status_field]: normalizedDocType === 'incident' ? 'In Progress' : 'Open',
+      assigned_approver_id: null,
+    })
+    .eq('id', docId)
+
+  if (updateErr) throw updateErr
+
+  if (normalizedDocType === 'incident') {
+    await closeIncidentSlaPauseWindow(supabaseAdmin, docId)
+  }
+
+  await supabaseAdmin
+    .from('document_approvals')
+    .update({ status: 'rejected', comment: `Rejected: ${reason}` })
+    .eq('doc_id', docId)
+    .eq('doc_type', normalizedDocType)
+    .eq('status', 'pending')
+
+  await revokeApprovalTokens(supabaseAdmin, {
+    docId,
+    docType: normalizedDocType,
+    reason: 'rejected_public_link',
+  })
+
+  await recordLog(docId, normalizedDocType, 'Rejected', `ตีกลับเอกสารผ่าน Public Approval Link | เหตุผล: ${reason}`, actorEmail)
+  return { success: true }
+}
+
+async function getUserProfileContact(supabaseAdmin, userId) {
+  if (!userId) return null
+  const { data: profile, error } = await supabaseAdmin
+    .from('user_profiles')
+    .select('id, email, full_name, role')
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) throw error
+  if (!profile?.email) return null
+  return profile
+}
+
+async function getWorkflowNotificationDocument(supabaseAdmin, docId, docType) {
+  const normalizedDocType = String(docType || '').toLowerCase()
+  const reg = WORKFLOW_DOC_REGISTRY[normalizedDocType]
+  if (!reg) return null
+
+  const selectFields = [
+    'id',
+    reg.no_field,
+    reg.title_field,
+    'reported_by_id',
+    'reporter_email',
+    'reported_by',
+    'created_by_id',
+    'created_by',
+    'status',
+    'workflow_status',
+  ]
+
+  const { data: doc, error } = await supabaseAdmin
+    .from(reg.table)
+    .select(selectFields.join(', '))
+    .eq('id', docId)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!doc) return null
+
+  return {
+    reg,
+    doc,
+    docNo: doc[reg.no_field],
+    title: doc[reg.title_field],
+  }
+}
+
+async function resolveApprovalRecipient(supabaseAdmin, step, docType, docData) {
+  const normalizedDocType = String(docType || '').toLowerCase()
+  if (!step || !docData) return null
+
+  if (step.role_required === 'reporter') {
+    if (docData.reported_by_id) {
+      const profile = await getUserProfileContact(supabaseAdmin, docData.reported_by_id)
+      if (!profile) return null
+      return {
+        approverId: docData.reported_by_id,
+        approverEmail: profile.email,
+        approverName: profile.full_name || docData.reported_by || profile.email,
+        targetLabel: 'Reporter',
+        isExternal: false,
+      }
+    }
+
+    const reporterEmail = normalizeEmail(docData.reporter_email)
+    if (!reporterEmail) return null
+    return {
+      approverId: null,
+      approverEmail: reporterEmail,
+      approverName: docData.reported_by || 'External Reporter',
+      targetLabel: normalizedDocType === 'incident' ? 'Reporter (External)' : 'Reporter',
+      isExternal: true,
+    }
+  }
+
+  if (step.role_required === 'creator') {
+    const profile = await getUserProfileContact(supabaseAdmin, docData.created_by_id)
+    if (!profile) return null
+    return {
+      approverId: docData.created_by_id,
+      approverEmail: profile.email,
+      approverName: profile.full_name || docData.created_by || profile.email,
+      targetLabel: 'Creator',
+      isExternal: false,
+    }
+  }
+
+  if (step.approver_id) {
+    const profile = await getUserProfileContact(supabaseAdmin, step.approver_id)
+    if (!profile) return null
+    return {
+      approverId: step.approver_id,
+      approverEmail: profile.email,
+      approverName: profile.full_name || profile.email,
+      targetLabel: step.role_required || 'Approver',
+      isExternal: false,
+    }
+  }
+
+  return null
+}
+
+async function revokeApprovalTokens(supabaseAdmin, { docId, docType, stepId = null, reason = 'revoked' }) {
+  const tokenDocType = getApprovalTokenDocType(docType)
+  let query = supabaseAdmin
+    .from('approval_tokens')
+    .update({
+      revoked_at: new Date().toISOString(),
+      revoked_reason: reason,
+      session_hash: null,
+      session_expires_at: null,
+    })
+    .eq('document_id', docId)
+    .eq('document_type', tokenDocType)
+    .is('used_at', null)
+    .is('revoked_at', null)
+
+  if (stepId) query = query.eq('step_id', stepId)
+
+  const { error } = await query
+  if (error) throw error
+}
+
+async function issuePublicApprovalToken({
+  supabaseAdmin,
+  docId,
+  docType,
+  docNo,
+  title,
+  step,
+  docData,
+  createdBy = null,
+  resendCount = 0,
+}) {
+  const recipient = await resolveApprovalRecipient(supabaseAdmin, step, docType, docData)
+  if (!recipient?.approverEmail) {
+    return {
+      success: false,
+      error: 'ไม่พบอีเมลของผู้อนุมัติสำหรับขั้นตอนนี้',
+    }
+  }
+
+  await revokeApprovalTokens(supabaseAdmin, {
+    docId,
+    docType,
+    stepId: step.id,
+    reason: resendCount > 0 ? 'resent' : 'superseded',
+  })
+
+  const rawToken = generatePublicApprovalSecret()
+  const now = new Date()
+  const expiresAt = new Date(now.getTime() + PUBLIC_APPROVAL_LINK_TTL_MINUTES * 60 * 1000).toISOString()
+
+  const { data: tokenRow, error: insertErr } = await supabaseAdmin
+    .from('approval_tokens')
+    .insert({
+      document_id: docId,
+      document_type: getApprovalTokenDocType(docType),
+      document_title: title || docNo || 'เอกสาร',
+      token: rawToken,
+      token_hash: hashPublicApprovalValue(rawToken),
+      doc_no: docNo || null,
+      step_id: step.id,
+      step_order: step.step_order || null,
+      approver_id: recipient.approverId,
+      approver_email: recipient.approverEmail,
+      approver_name: recipient.approverName,
+      expires_at: expiresAt,
+      created_by: createdBy || null,
+      resend_count: resendCount,
+      last_sent_at: now.toISOString(),
+    })
+    .select('id')
+    .single()
+
+  if (insertErr) throw insertErr
+
+  return {
+    success: true,
+    tokenId: tokenRow.id,
+    rawToken,
+    expiresAt,
+    recipient,
+    link: `${buildPublicBaseUrl()}/approve?token=${rawToken}`,
+  }
+}
+
+async function sendPublicApprovalLinkEmail({
+  supabaseAdmin,
+  docId,
+  docType,
+  docNo,
+  title,
+  step,
+  docData,
+  createdBy = null,
+  resendCount = 0,
+  actorEmail = 'system@workflow.internal',
+}) {
+  const issueResult = await issuePublicApprovalToken({
+    supabaseAdmin,
+    docId,
+    docType,
+    docNo,
+    title,
+    step,
+    docData,
+    createdBy,
+    resendCount,
+  })
+
+  if (!issueResult.success) return issueResult
+
+  const { recipient, link, expiresAt } = issueResult
+  const subjectPrefix = resendCount > 0 ? '[Approval Link Resent]' : '[Pending Approval]'
+  const emailResult = await sendEmail({
+    to: recipient.approverEmail,
+    subject: `${subjectPrefix} ${docNo} - ${title}`,
+    html: `
+      <div style="padding:24px;background:#f8fafc;font-family:sans-serif;">
+        <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;">
+          <h2 style="color:#1e293b;margin:0 0 12px 0;">สวัสดีคุณ ${recipient.approverName}</h2>
+          <p style="color:#475569;font-size:15px;line-height:1.7;margin:0 0 18px 0;">
+            มีเอกสารรอการอนุมัติจากคุณในระบบ DOWA IT System
+          </p>
+          <div style="background:#f8fafc;padding:18px;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:20px;">
+            <div style="font-size:12px;color:#94a3b8;font-weight:800;text-transform:uppercase;">เลขที่เอกสาร</div>
+            <div style="font-size:18px;color:#0f172a;font-weight:800;margin-top:4px;">${docNo}</div>
+            <div style="font-size:12px;color:#94a3b8;font-weight:800;text-transform:uppercase;margin-top:14px;">หัวข้อ</div>
+            <div style="font-size:15px;color:#0f172a;font-weight:700;margin-top:4px;">${title}</div>
+            <div style="font-size:12px;color:#64748b;margin-top:14px;">Step ${step.step_order || '-'} • ${recipient.targetLabel}</div>
+          </div>
+          <a href="${link}" style="display:inline-block;padding:14px 24px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:800;">
+            เปิดลิงก์อนุมัติ
+          </a>
+          <p style="font-size:12px;color:#64748b;line-height:1.7;margin:18px 0 0 0;">
+            ลิงก์นี้มีอายุ ${PUBLIC_APPROVAL_LINK_TTL_MINUTES} นาที และจะถูกล็อกกับ session แรกที่เปิดใช้งานทันที
+            หากลิงก์หมดอายุหรือถูกเปิดไปแล้ว ผู้ส่งเอกสารต้องกดส่งลิงก์ใหม่ให้คุณอีกครั้ง
+          </p>
+          <p style="font-size:12px;color:#64748b;line-height:1.7;margin:6px 0 0 0;">
+            หมดอายุ: ${new Date(expiresAt).toLocaleString('th-TH')}
+          </p>
+        </div>
+      </div>
+    `,
+  })
+
+  if (emailResult?.error) {
+    return { success: false, error: 'ไม่สามารถส่งอีเมลลิงก์อนุมัติได้' }
+  }
+
+  await recordAuditLog({
+    docId,
+    docType: String(docType || '').toLowerCase(),
+    action: resendCount > 0 ? 'Approval Link Resent' : 'Approval Link Sent',
+    details: `${docNo || docId} -> ${recipient.approverEmail} | step ${step.step_order || '-'} | ttl ${PUBLIC_APPROVAL_LINK_TTL_MINUTES} นาที`,
+    userEmail: actorEmail,
+    metadata: {
+      step_id: step.id,
+      step_order: step.step_order || null,
+      approval_link_public: true,
+      resend_count: resendCount,
+      approver_email: recipient.approverEmail,
+      approver_id: recipient.approverId || null,
+      is_external: recipient.isExternal,
+    },
+  })
+
+  return {
+    success: true,
+    expiresAt,
+    recipient,
+    link,
   }
 }
 
@@ -2160,16 +2462,18 @@ export async function submitApprovalStep(docId, docType, stepId, signatureData, 
         .limit(1)
         .maybeSingle()
 
-      if (nextStep && nextStep.approver_id) {
+      if (nextStep) {
         const reg = WORKFLOW_DOC_REGISTRY[docType.toLowerCase()]
         const { data: docData } = await supabaseAdmin.from(reg.table).select(`${reg.no_field}, ${reg.title_field}`).eq('id', docId).single()
         if (docData) {
-          await notifyApprover(
-            nextStep.approver_id,
+          await notifyApprovalStep(
+            nextStep,
             docId,
             docType.toLowerCase(),
             docData[reg.no_field],
-            docData[reg.title_field]
+            docData[reg.title_field],
+            session.user.id,
+            session.user.email
           )
         }
       }
@@ -2179,6 +2483,226 @@ export async function submitApprovalStep(docId, docType, stepId, signatureData, 
   } catch (err) {
     console.error('submitApprovalStep Error:', err)
     return { error: err.message }
+  }
+}
+
+export async function submitApprovalStepByPublicLink({
+  docId,
+  docType,
+  stepId,
+  comment = '',
+  approverId = null,
+  actorEmail,
+}) {
+  try {
+    const supabaseAdmin = getAdminClient()
+    const normalizedDocType = String(docType || '').toLowerCase()
+
+    const syncResult = await syncDynamicWorkflowApprovers(docId, normalizedDocType)
+    if (!syncResult.success) return { error: syncResult.error }
+
+    const { data: currentStep, error: stepErr } = await supabaseAdmin
+      .from('document_approvals')
+      .select('*')
+      .eq('id', stepId)
+      .eq('doc_id', docId)
+      .eq('doc_type', normalizedDocType)
+      .maybeSingle()
+    if (stepErr) throw stepErr
+    if (!currentStep || currentStep.status !== 'pending') return { error: 'Step not ready for approval' }
+
+    const actualApproverId = approverId ?? currentStep.approver_id ?? null
+    const logDetails = `อนุมัติผ่าน Public Approval Link (${actorEmail})${comment ? ` | Note: ${comment}` : ''}`
+
+    const { data: rpcRes, error: rpcErr } = await supabaseAdmin.rpc('handle_approval_step', {
+      p_doc_id: docId,
+      p_doc_type: normalizedDocType,
+      p_step_id: stepId,
+      p_approver_id: actualApproverId,
+      p_user_email: actorEmail,
+      p_sig_data: null,
+      p_comment: comment,
+      p_is_remote: true,
+      p_log_details: logDetails,
+    })
+
+    if (rpcErr) throw rpcErr
+    if (!rpcRes?.success) return { error: rpcRes?.error || 'Approval failed' }
+
+    await revokeApprovalTokens(supabaseAdmin, {
+      docId,
+      docType: normalizedDocType,
+      stepId,
+      reason: 'approved_public_link',
+    })
+
+    await recordAuditLog({
+      docId,
+      docType: normalizedDocType,
+      action: 'Approved via Public Link',
+      details: `step ${currentStep.step_order || '-'} | ${actorEmail}${comment ? ` | comment: ${comment}` : ''}`,
+      userEmail: actorEmail,
+      metadata: {
+        step_id: currentStep.id,
+        step_order: currentStep.step_order || null,
+        approval_method: 'public_link',
+        approver_id: actualApproverId || null,
+      },
+    })
+
+    if (rpcRes.is_final) {
+      if (normalizedDocType === 'incident') {
+        await closeIncidentSlaPauseWindow(supabaseAdmin, docId)
+      }
+      await onDocumentFinalApproval(docId, normalizedDocType)
+      return { success: true, isFinal: true }
+    }
+
+    const { data: nextStep } = await supabaseAdmin
+      .from('document_approvals')
+      .select('*')
+      .eq('doc_id', docId)
+      .eq('doc_type', normalizedDocType)
+      .eq('status', 'pending')
+      .order('step_order', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (nextStep) {
+      const context = await getWorkflowNotificationDocument(supabaseAdmin, docId, normalizedDocType)
+      if (context?.doc) {
+        await sendPublicApprovalLinkEmail({
+          supabaseAdmin,
+          docId,
+          docType: normalizedDocType,
+          docNo: context.docNo || docId,
+          title: context.title || 'เอกสาร',
+          step: nextStep,
+          docData: context.doc,
+          actorEmail,
+        })
+      }
+    }
+
+    return { success: true, isFinal: false }
+  } catch (err) {
+    console.error('submitApprovalStepByPublicLink Error:', err)
+    return { error: err.message }
+  }
+}
+
+export async function processPublicApprovalLinkAction({
+  tokenRecord,
+  action,
+  comment = '',
+}) {
+  try {
+    const normalizedAction = String(action || '').toLowerCase()
+    if (!tokenRecord?.document_id || !tokenRecord?.document_type || !tokenRecord?.step_id) {
+      return { error: 'Approval token is incomplete' }
+    }
+    const workflowDocType = getWorkflowDocTypeFromApprovalToken(tokenRecord.document_type)
+
+    if (normalizedAction === 'approved') {
+      return await submitApprovalStepByPublicLink({
+        docId: tokenRecord.document_id,
+        docType: workflowDocType,
+        stepId: tokenRecord.step_id,
+        approverId: tokenRecord.approver_id || null,
+        comment,
+        actorEmail: tokenRecord.approver_email,
+      })
+    }
+
+    if (normalizedAction === 'rejected') {
+      return await rejectDocumentWorkflowByPublicLink(
+        tokenRecord.document_id,
+        workflowDocType,
+        comment || 'Rejected via public approval link',
+        tokenRecord.approver_email
+      )
+    }
+
+    return { error: 'Invalid public approval action' }
+  } catch (err) {
+    console.error('processPublicApprovalLinkAction Error:', err)
+    return { error: err.message }
+  }
+}
+
+export async function resendIncidentApprovalLink(docId) {
+  try {
+    const session = await getCurrentUserSession()
+    if (!session || session.type !== 'internal') return { success: false, error: 'Unauthorized' }
+
+    const supabaseAdmin = getAdminClient()
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, role')
+      .eq('id', session.user.id)
+      .maybeSingle()
+    if (profileErr) throw profileErr
+    if (!profile) return { success: false, error: 'Profile not found' }
+
+    const context = await getWorkflowNotificationDocument(supabaseAdmin, docId, 'incident')
+    if (!context?.doc) return { success: false, error: 'Document not found' }
+    if (context.doc.status !== 'Pending Approval') {
+      return { success: false, error: 'ส่งลิงก์ใหม่ได้เฉพาะเอกสารที่อยู่ในสถานะ Pending Approval' }
+    }
+
+    const isAdmin = normalizeRole(profile.role) === 'admin'
+    const isCreator = context.doc.created_by_id === profile.id
+    if (!isAdmin && !isCreator) {
+      return { success: false, error: 'เฉพาะผู้ส่งเอกสารหรือผู้ดูแลระบบเท่านั้นที่สามารถส่งลิงก์ใหม่ได้' }
+    }
+
+    const { data: pendingStep, error: stepErr } = await supabaseAdmin
+      .from('document_approvals')
+      .select('*')
+      .eq('doc_id', docId)
+      .eq('doc_type', 'incident')
+      .eq('status', 'pending')
+      .order('step_order', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (stepErr) throw stepErr
+    if (!pendingStep) return { success: false, error: 'ไม่พบขั้นตอนอนุมัติที่รอดำเนินการ' }
+
+    const { data: latestToken } = await supabaseAdmin
+      .from('approval_tokens')
+      .select('resend_count')
+      .eq('document_id', docId)
+      .eq('document_type', getApprovalTokenDocType('incident'))
+      .eq('step_id', pendingStep.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const sendResult = await sendPublicApprovalLinkEmail({
+      supabaseAdmin,
+      docId,
+      docType: 'incident',
+      docNo: context.docNo || docId,
+      title: context.title || 'เอกสาร',
+      step: pendingStep,
+      docData: context.doc,
+      createdBy: profile.id,
+      resendCount: (latestToken?.resend_count || 0) + 1,
+      actorEmail: session.user.email,
+    })
+
+    if (!sendResult.success) {
+      return { success: false, error: sendResult.error || 'ไม่สามารถส่งลิงก์ใหม่ได้' }
+    }
+
+    return {
+      success: true,
+      maskedEmail: maskEmail(sendResult.recipient?.approverEmail),
+      expiresAt: sendResult.expiresAt,
+    }
+  } catch (err) {
+    console.error('resendIncidentApprovalLink Error:', err)
+    return { success: false, error: err.message }
   }
 }
 
@@ -2331,6 +2855,12 @@ export async function resetDocumentWorkflow(docId, docType, reason = '', options
     if (normalizedDocType === 'incident') {
       await closeIncidentSlaPauseWindow(supabaseAdmin, docId)
     }
+
+    await revokeApprovalTokens(supabaseAdmin, {
+      docId,
+      docType: normalizedDocType,
+      reason: 'workflow_reset',
+    })
 
     const statusTransition = `สถานะเอกสาร: ${currentDoc.status || '-'} -> ${reopenStatus} | workflow_status: ${currentDoc.workflow_status || '-'} -> ${normalizedDocType === 'incident' ? 'rejected' : 'null'}`
     const reasonText = reopenReason ? ` | เหตุผล: ${reopenReason}` : ''

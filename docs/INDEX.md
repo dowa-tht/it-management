@@ -3,7 +3,7 @@
 **[ATTENTION AI AGENTS]**  
 This is the central documentation hub. You MUST read this file first before starting any task to understand the system's architecture and find the relevant documentation for your specific task. **DO NOT read all files unless necessary to avoid context overflow.**
 
-**Latest Update (09-Jun-2026 10:00):** ปิด migration planning pack จนพร้อมเข้า Production Migration Mode ด้วย supplement-based readiness pack และ final verification
+**Latest Update (11-Jun-2026 16:40):** sync เอกสาร public approval link สำหรับ Incident ให้ครอบคลุม one-time consume session, resend policy, responsive public page, และ email trigger มาตรฐาน
 
 ---
 

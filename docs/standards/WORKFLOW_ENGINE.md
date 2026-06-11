@@ -53,6 +53,14 @@
 2. ระบบจะทำการ **"ปลดล็อค"** Step ถัดไป (เปลี่ยน Step 2 จาก `waiting` เป็น `pending`) อัตโนมัติ
 3. เมื่อทุกลำดับเซ็นครบ -> สถานะหลักของเอกสารในตารางหลักจะเปลี่ยนเป็น `Closed`
 
+### 🌐 Public Approval Link (Incident Pending Approval)
+ตั้งแต่ 11-Jun-2026 ระบบ Incident ที่เข้าสถานะ `Pending Approval` ต้องรองรับการแจ้งผู้อนุมัติผ่านลิงก์ public โดยมีมาตรฐานดังนี้:
+1. ระบบส่งอีเมลหา approver ปัจจุบันทันทีหลัง step ถูกปลดล็อค โดยไม่แยกว่าเป็น internal หรือ external
+2. ลิงก์มีอายุ 15 นาที และต้องสร้าง token ใหม่ทุกครั้งเมื่อมีการ resend
+3. ลิงก์ใช้กติกา `one-time on consume session`: browser/session แรกที่เปิดลิงก์จะถูกผูกสิทธิ์ใช้งานทันที หากเปิดซ้ำจาก session อื่นให้ถือว่าใช้งานไม่ได้จนกว่าจะ resend ใหม่
+4. เมื่อ approve, reject, cancel, reset workflow หรือ resend ระบบต้อง revoke token เดิมทั้งหมดของ step นั้นเพื่อกันการใช้ซ้ำ
+5. ผู้ที่กด `Resend Approval Link` ได้มีเฉพาะ `sender` ของเอกสารและ `admin` เท่านั้น และทำได้เฉพาะตอนเอกสารยังอยู่ในสถานะ `Pending Approval`
+
 ---
 
 ## 3. Migration Plan (แผนการย้ายข้อมูลเก่า)
@@ -119,6 +127,12 @@
 1. ต้องยืนยันด้วย `PIN` ของบัญชี `admin` ที่กำลังใช้งานอยู่เท่านั้น
 2. ไม่อนุญาตให้ใช้ OTP ของผู้แจ้งแทนในกรณี `admin` เป็นผู้ดำเนินการยกเลิก
 3. หาก PIN ไม่ถูกต้อง ระบบต้องปฏิเสธการยกเลิกทันที
+
+### 4.5 Public Approval UX Visibility Rule
+สำหรับหน้า Incident Detail:
+1. ส่วน `Approval Flow` จริงควรแสดงเมื่อเอกสารอยู่ในสถานะ `Pending Approval`, `Closed`, หรือ `Cancelled`
+2. หากเอกสารยังอยู่ใน `Open` หรือ `In Progress` ให้ซ่อน flow detail จริงและใช้ preview summary แทน เพื่อไม่ให้ผู้ใช้เข้าใจผิดว่า sequence ถูก lock ตั้งแต่ก่อน submit
+3. หน้า public approve ต้องแสดงรายละเอียดการแก้ไขอย่างน้อย `Root Cause Analysis`, `Resolution`, และ `Corrective Action` ก่อนปุ่มอนุมัติ/ปฏิเสธ
 
 ---
 

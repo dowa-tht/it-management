@@ -119,6 +119,21 @@
     *   บันทึกข้อมูล `resolved_at`, `resolved_by` และคำอธิบายการแก้ปัญหาลงตาราง `incidents`
     *   สร้างขั้นตอนการอนุมัติในตาราง `document_approvals` ผ่านฟังก์ชัน `submitRequest`
     *   เปลี่ยนสถานะตั๋วเป็น `Pending Approval` (หรือสลับเป็น `Closed` ทันทีหากเงื่อนไข Workflow ครบถ้วน)
+    *   หากยังมี approver ที่ต้องดำเนินการต่อ ระบบจะส่ง `Public Approval Link` ไปยัง approver ปัจจุบันทันที
+
+#### 2.1) การอนุมัติผ่าน Public Approval Link
+*   **Trigger:** ผู้อนุมัติเปิดลิงก์จากอีเมลที่ระบบส่งในช่วง `Pending Approval`
+*   **Core Rules:**
+    *   ลิงก์มีอายุ 15 นาที
+    *   ลิงก์ 1 ชุดใช้ได้กับ browser session แรกที่เปิดเท่านั้น
+    *   หากเปิดจาก session อื่น หรือ token ถูก consume/revoke ไปแล้ว ต้องให้ผู้ส่งเอกสารหรือ `admin` กด `Resend Approval Link`
+*   **Screen Behavior:**
+    *   หน้า public approve ต้องแสดงเลขเอกสาร, หัวข้อ, step ปัจจุบัน, เวลาหมดอายุ, และรายละเอียดการแก้ไขปัญหา (`Root Cause Analysis`, `Resolution`, `Corrective Action`)
+    *   ผู้อนุมัติสามารถกรอก comment เพิ่มเติมแล้วกด `อนุมัติ` หรือ `ปฏิเสธ` ได้จากหน้าเดียว
+*   **Security Controls:**
+    *   ตรวจ token hash + expiry + revoke status
+    *   ตรวจ one-time session cookie ที่ผูกกับการเปิดครั้งแรก
+    *   เมื่อ action สำเร็จ ระบบจะ revoke token เดิม และหากมี step ถัดไปจะส่งอีเมลหา approver คนถัดไปอัตโนมัติ
 
 #### 3) การขอยกเลิกตั๋ว (Cancel Flow)
 *   **Trigger:** ผู้ใช้กดปุ่ม **"Cancel Incident"** ในหน้าจอ
@@ -129,6 +144,15 @@
 *   **Outputs & DB Effects:**
     *   สถานะตั๋วในตาราง `incidents` เปลี่ยนเป็น `Cancelled`
     *   ล้างสเต็ปรอการอนุมัติในตาราง `document_approvals` ทั้งหมดเป็น Cancelled ผ่าน `cancelDocument`
+
+#### 4) การส่งลิงก์อนุมัติใหม่ (Resend Approval Link)
+*   **ผู้ที่กดได้:** `sender` ของเอกสาร และ `admin` เท่านั้น
+*   **สถานะที่กดได้:** เฉพาะตอน Incident ยังอยู่ใน `Pending Approval`
+*   **ผลของการกด:**
+    *   revoke ลิงก์เดิมของ step ปัจจุบัน
+    *   ออก token ใหม่อายุ 15 นาที
+    *   ส่งอีเมลใหม่ไปยัง approver คนเดิม
+*   **หมายเหตุ:** ปุ่มนี้อยู่ในส่วน `Workflow Progress` ของหน้า Incident Detail
 
 
 

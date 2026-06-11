@@ -1,66 +1,76 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
+
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 function ApproveContent() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
-  
+
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [tokenData, setTokenData] = useState(null)
-  const [error, setError] = useState('')
   const [comment, setComment] = useState('')
-  const [status, setStatus] = useState('pending') // pending, success, expired, used
+  const [error, setError] = useState('')
+  const [status, setStatus] = useState('pending')
 
   useEffect(() => {
-    if (token) fetchTokenInfo()
-    else {
-      setError('ไม่พบรหัส Token สำหรับการอนุมัติ')
+    if (!token) {
+      setError('ไม่พบ token สำหรับการอนุมัติ')
+      setStatus('invalid')
       setLoading(false)
+      return
     }
+
+    const fetchTokenInfo = async () => {
+      try {
+        const res = await fetch(`/api/approval/verify?token=${encodeURIComponent(token)}`, {
+          cache: 'no-store',
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setError(data.error || 'ไม่สามารถดึงข้อมูลลิงก์อนุมัติได้')
+          if (data.action) setStatus('used')
+          else if (data.isExpired) setStatus('expired')
+          else if (data.consumed) setStatus('consumed')
+          else if (data.revoked) setStatus('revoked')
+          else setStatus('invalid')
+          return
+        }
+
+        setTokenData(data)
+        setStatus('pending')
+      } catch (err) {
+        setError('เกิดข้อผิดพลาดในการเชื่อมต่อ')
+        setStatus('invalid')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchTokenInfo()
   }, [token])
 
-  const fetchTokenInfo = async () => {
-    try {
-      const res = await fetch(`/api/approval/verify?token=${token}`)
-      const data = await res.json()
-      
-      if (!res.ok) {
-        setError(data.error || 'ไม่สามารถดึงข้อมูลการอนุมัติได้')
-        if (data.action) setStatus('used')
-        else if (data.isExpired) setStatus('expired')
-      } else {
-        setTokenData(data)
-        if (data.used_at) setStatus('used')
-        else if (data.isExpired) setStatus('expired')
-      }
-    } catch (err) {
-      setError('เกิดข้อผิดพลาดในการเชื่อมต่อ')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleAction = async (action) => {
-    if (!confirm(`ยืนยันการ ${action === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ'} ใช่ไหม?`)) return
-    
+    if (!confirm(`ยืนยันการ${action === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ'}รายการนี้ใช่หรือไม่`)) return
+
     setSubmitting(true)
+    setError('')
     try {
       const res = await fetch('/api/approval/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, action, comment })
+        body: JSON.stringify({ token, action, comment }),
       })
       const data = await res.json()
-      if (res.ok) {
-        setStatus('success')
-        setTokenData(prev => ({ ...prev, action }))
-      } else {
-        alert(data.error || 'เกิดข้อผิดพลาด')
+      if (!res.ok) {
+        setError(data.error || 'ไม่สามารถดำเนินการได้')
+        return
       }
+      setTokenData((prev) => ({ ...(prev || {}), action }))
+      setStatus('success')
     } catch (err) {
-      alert('ไม่สามารถดำเนินการได้ในขณะนี้')
+      setError('ไม่สามารถดำเนินการได้ในขณะนี้')
     } finally {
       setSubmitting(false)
     }
@@ -68,191 +78,238 @@ function ApproveContent() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div className="spinner" style={{ width: 40, height: 40, border: '4px solid #e5e7eb', borderTopColor: '#1d4ed8', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
-          <p style={{ color: '#6b7280', fontSize: 14 }}>กำลังดึงข้อมูลเอกสาร...</p>
-        </div>
-        <style jsx>{` @keyframes spin { to { transform: rotate(360deg); } } `}</style>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#f8fafc' }}>
+        <div style={{ textAlign: 'center', color: '#475569' }}>กำลังเตรียมลิงก์อนุมัติ...</div>
       </div>
     )
   }
 
-  return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center',
-      padding: '24px'
-    }}>
-      <div style={{ 
-        width: '100%', 
-        maxWidth: '500px', 
-        background: 'rgba(255, 255, 255, 0.95)', 
-        backdropFilter: 'blur(10px)',
-        borderRadius: '24px',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-        padding: '40px',
-        textAlign: 'center'
-      }}>
-        
-        {/* Status Icons */}
-        <div style={{ marginBottom: '24px' }}>
-          {status === 'pending' && <div style={{ fontSize: '64px' }}>📄</div>}
-          {status === 'success' && <div style={{ fontSize: '64px' }}>✅</div>}
-          {status === 'used' && <div style={{ fontSize: '64px' }}>⏳</div>}
-          {(status === 'expired' || error) && <div style={{ fontSize: '64px' }}>⚠️</div>}
-        </div>
+  const cardStyle = {
+    width: '100%',
+    maxWidth: '1120px',
+    background: 'rgba(255,255,255,0.96)',
+    border: '1px solid #e2e8f0',
+    borderRadius: '28px',
+    boxShadow: '0 25px 60px -30px rgba(15,23,42,0.35)',
+    padding: '32px',
+  }
 
+  const resolutionFieldStyle = {
+    border: '1px solid #e2e8f0',
+    background: '#ffffff',
+    borderRadius: 14,
+    padding: '14px 16px',
+  }
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      padding: '32px 24px',
+      display: 'grid',
+      placeItems: 'center',
+      background: 'radial-gradient(circle at top left, #dbeafe 0%, transparent 35%), radial-gradient(circle at bottom right, rgba(125,211,252,0.35) 0%, transparent 28%), linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%)',
+    }}>
+      <div style={cardStyle}>
         {status === 'pending' && tokenData && (
           <>
-            <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#1f2937', marginBottom: '8px' }}>
-              พิจารณาการอนุมัติ
-            </h1>
-            <p style={{ color: '#6b7280', marginBottom: '32px' }}>
-              เรียน คุณ{tokenData.approver_name} กรุณาตรวจสอบข้อมูลด้านล่าง
-            </p>
+            <div className="approve-shell">
+              <section className="approve-hero">
+                <div style={{ display: 'inline-flex', padding: '7px 14px', borderRadius: 999, background: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 800, marginBottom: 18 }}>
+                  Public Approval Link
+                </div>
+                <h1 style={{ fontSize: 42, fontWeight: 900, color: '#0f172a', margin: 0, lineHeight: 1.08 }}>อนุมัติเอกสาร</h1>
+                <p style={{ margin: '12px 0 28px 0', color: '#475569', lineHeight: 1.7, fontSize: 18, maxWidth: 560 }}>
+                  คุณกำลังใช้งานลิงก์อนุมัติแบบ one-time session สำหรับ <strong>{tokenData.approver_name}</strong>
+                </p>
 
-            <div style={{ 
-              background: '#f9fafb', 
-              borderRadius: '16px', 
-              padding: '20px', 
-              textAlign: 'left',
-              marginBottom: '24px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <div style={{ marginBottom: '12px' }}>
-                <span style={{ fontSize: '12px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ประเภทเอกสาร</span>
-                <div style={{ fontSize: '15px', fontWeight: '600', color: '#374151' }}>{tokenData.document_type}</div>
-              </div>
-              <div style={{ marginBottom: '12px' }}>
-                <span style={{ fontSize: '12px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ชื่อเอกสาร/รายการ</span>
-                <div style={{ fontSize: '15px', fontWeight: '600', color: '#374151' }}>{tokenData.document_title}</div>
-              </div>
-              <div>
-                <span style={{ fontSize: '12px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>รหัสอ้างอิง</span>
-                <div style={{ fontSize: '14px', color: '#1d4ed8', fontFamily: 'monospace' }}>#{tokenData.document_id}</div>
-              </div>
-            </div>
+                <div style={{ border: '1px solid #dbe7f5', background: 'linear-gradient(180deg, #f8fbff 0%, #f8fafc 100%)', borderRadius: 18, padding: 22, marginBottom: 24 }}>
+                  <div className="approve-meta-grid">
+                    <div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>เลขที่เอกสาร</div>
+                      <div style={{ fontSize: 28, fontWeight: 900, color: '#0f172a', marginTop: 6 }}>{tokenData.document_no}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>สถานะลิงก์</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: '#1d4ed8', marginTop: 8 }}>
+                        Step {tokenData.step_order || '-'} • หมดอายุ {new Date(tokenData.expires_at).toLocaleString('th-TH')}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 18 }}>
+                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>หัวข้อ</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', marginTop: 6 }}>{tokenData.document_title}</div>
+                  </div>
+                </div>
 
-            <div style={{ marginBottom: '32px', textAlign: 'left' }}>
-              <label style={{ fontSize: '14px', fontWeight: '600', color: '#374151', display: 'block', marginBottom: '8px' }}>
-                ความเห็นเพิ่มเติม (ไม่บังคับ)
-              </label>
-              <textarea 
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="ระบุเหตุผลในการอนุมัติหรือปฏิเสธ..."
-                style={{ 
-                  width: '100%', 
-                  padding: '12px 16px', 
-                  borderRadius: '12px', 
-                  border: '1px solid #d1d5db',
-                  fontSize: '14px',
-                  minHeight: '100px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
-                }}
-              />
-            </div>
+                {tokenData.document_type === 'incident' && tokenData.document_context && (
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 900, color: '#1e293b', marginBottom: 12 }}>
+                      รายละเอียดการแก้ไขปัญหา
+                    </div>
+                    <div className="approve-resolution-grid">
+                      <div style={resolutionFieldStyle}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: 6 }}>Root Cause Analysis</div>
+                        <div style={{ fontSize: 14, color: '#1e293b', fontWeight: 700, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
+                          {tokenData.document_context.root_cause || '— ไม่มีข้อมูล —'}
+                        </div>
+                      </div>
+                      <div style={resolutionFieldStyle}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: 6 }}>Resolution</div>
+                        <div style={{ fontSize: 14, color: '#1e293b', fontWeight: 700, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
+                          {tokenData.document_context.resolution || '— ไม่มีข้อมูล —'}
+                        </div>
+                      </div>
+                      <div style={resolutionFieldStyle}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: 6 }}>Corrective Action</div>
+                        <div style={{ fontSize: 14, color: '#1e293b', fontWeight: 700, whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
+                          {tokenData.document_context.corrective_action || '— ไม่มีข้อมูล —'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </section>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <button 
-                onClick={() => handleAction('rejected')}
-                disabled={submitting}
-                style={{ 
-                  padding: '14px', 
-                  borderRadius: '12px', 
-                  border: '2px solid #ef4444',
-                  background: 'transparent',
-                  color: '#ef4444',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                ปฏิเสธ
-              </button>
-              <button 
-                onClick={() => handleAction('approved')}
-                disabled={submitting}
-                style={{ 
-                  padding: '14px', 
-                  borderRadius: '12px', 
-                  border: 'none',
-                  background: '#10b981',
-                  color: '#fff',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 14px 0 rgba(16, 185, 129, 0.39)',
-                  transition: 'all 0.2s'
-                }}
-              >
-                {submitting ? 'กำลังบันทึก...' : 'อนุมัติรายการ'}
-              </button>
+              <aside className="approve-sidebar">
+                <div className="approve-sidebar-card">
+                  <div style={{ fontSize: 13, fontWeight: 900, color: '#1e293b', marginBottom: 10 }}>
+                    ความเห็นเพิ่มเติม
+                  </div>
+                  <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.7, marginBottom: 12 }}>
+                    ระบุความเห็นประกอบการอนุมัติหรือการปฏิเสธได้ตามต้องการ
+                  </div>
+                  <textarea
+                    rows={8}
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="ระบุความเห็นประกอบการอนุมัติ"
+                    style={{ width: '100%', borderRadius: 16, border: '1px solid #cbd5e1', padding: '16px 18px', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', minHeight: 200 }}
+                  />
+
+                  {error && (
+                    <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 12, background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', fontSize: 13, fontWeight: 700 }}>
+                      {error}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginTop: 18 }}>
+                    <button
+                      type="button"
+                      onClick={() => handleAction('approved')}
+                      disabled={submitting}
+                      style={{ padding: '16px 18px', borderRadius: 16, border: '1px solid #2563eb', background: '#2563eb', color: '#fff', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', fontSize: 16 }}
+                    >
+                      {submitting ? 'กำลังบันทึก...' : 'อนุมัติ'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAction('rejected')}
+                      disabled={submitting}
+                      style={{ padding: '16px 18px', borderRadius: 16, border: '1px solid #fca5a5', background: '#fff1f2', color: '#be123c', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', fontSize: 16 }}
+                    >
+                      ปฏิเสธ
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid #e2e8f0', fontSize: 12, color: '#64748b', lineHeight: 1.8 }}>
+                    ลิงก์นี้จะใช้ได้กับ browser session นี้เท่านั้นหลังจากเปิดครั้งแรก หากปิด session หรือเปิดซ้ำจากที่อื่นต้องให้ผู้ส่งกด resend ใหม่
+                  </div>
+                </div>
+              </aside>
             </div>
           </>
         )}
 
         {status === 'success' && (
           <>
-            <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#059669', marginBottom: '16px' }}>
-              ดำเนินการสำเร็จ
-            </h1>
-            <p style={{ color: '#6b7280', marginBottom: '32px', lineHeight: '1.6' }}>
-              ระบบได้บันทึกการ <b>{tokenData?.action === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ'}</b> เอกสาร {tokenData?.document_title} เรียบร้อยแล้ว
+            <h1 style={{ fontSize: 28, fontWeight: 900, color: '#059669', margin: 0 }}>บันทึกสำเร็จ</h1>
+            <p style={{ margin: '12px 0 0 0', color: '#475569', lineHeight: 1.7 }}>
+              ระบบบันทึกการ{tokenData?.action === 'rejected' ? 'ปฏิเสธ' : 'อนุมัติ'}เอกสารเรียบร้อยแล้ว
             </p>
-            <button 
-              onClick={() => window.close()}
-              style={{ padding: '12px 32px', background: '#374151', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '600', cursor: 'pointer' }}
-            >
-              ปิดหน้านี้
-            </button>
           </>
         )}
 
-        {status === 'used' && (
+        {status !== 'pending' && status !== 'success' && (
           <>
-            <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#1f2937', marginBottom: '16px' }}>
-              Token นี้ถูกใช้งานแล้ว
-            </h1>
-            <p style={{ color: '#6b7280', marginBottom: '32px', lineHeight: '1.6' }}>
-              รายการนี้ได้รับการดำเนินการไปแล้ว <br/>
-              เมื่อวันที่ {new Date(tokenData?.used_at).toLocaleString('th-TH')}
+            <h1 style={{ fontSize: 28, fontWeight: 900, color: '#b91c1c', margin: 0 }}>ไม่สามารถใช้งานลิงก์นี้ได้</h1>
+            <p style={{ margin: '12px 0 0 0', color: '#475569', lineHeight: 1.7 }}>
+              {error || 'กรุณาขอให้ผู้ส่งเอกสารส่งลิงก์อนุมัติใหม่อีกครั้ง'}
             </p>
-            <button 
-              onClick={() => window.close()}
-              style={{ padding: '12px 32px', background: '#374151', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '600', cursor: 'pointer' }}
-            >
-              ปิดหน้านี้
-            </button>
           </>
         )}
-
-        {(status === 'expired' || error) && (
-          <>
-            <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#dc2626', marginBottom: '16px' }}>
-              ไม่สามารถดำเนินการได้
-            </h1>
-            <p style={{ color: '#6b7280', marginBottom: '32px', lineHeight: '1.6' }}>
-              {error || 'ลิงก์การอนุมัตินี้หมดอายุหรือข้อมูลไม่ถูกต้อง กรุณาติดต่อเจ้าหน้าที่ IT'}
-            </p>
-            <a href="mailto:it-support@dowa-it.com" style={{ color: '#1d4ed8', fontWeight: '600', textDecoration: 'none' }}>
-              ติดต่อ IT Support
-            </a>
-          </>
-        )}
-
       </div>
+      <style jsx>{`
+        .approve-shell {
+          display: grid;
+          grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.9fr);
+          gap: 28px;
+          align-items: start;
+        }
+
+        .approve-hero {
+          min-width: 0;
+        }
+
+        .approve-sidebar {
+          min-width: 0;
+          position: sticky;
+          top: 24px;
+        }
+
+        .approve-sidebar-card {
+          border: 1px solid #dbe7f5;
+          background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+          border-radius: 22px;
+          padding: 22px;
+          box-shadow: 0 18px 40px -28px rgba(15, 23, 42, 0.28);
+        }
+
+        .approve-meta-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+          gap: 18px;
+          align-items: end;
+        }
+
+        .approve-resolution-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        @media (max-width: 1024px) {
+          .approve-shell {
+            grid-template-columns: 1fr;
+          }
+
+          .approve-sidebar {
+            position: static;
+          }
+
+          .approve-resolution-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .approve-meta-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .approve-shell {
+            gap: 18px;
+          }
+        }
+      `}</style>
     </div>
   )
 }
 
 export default function ApprovePage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>Loading...</div>}>
       <ApproveContent />
     </Suspense>
   )

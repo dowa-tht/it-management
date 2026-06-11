@@ -1,5 +1,24 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Changelog)
 
+- **[16:08] Public Approval Link One-Time Consume Session**
+  - ปรับ workflow approval ให้การแจ้งเตือนผู้อนุมัติส่งออกเป็น `Public Approval Link` แบบอายุ 15 นาที และออก token ใหม่ทุกครั้งเมื่อมีการ resend
+  - เพิ่มกติกา `consume-on-open` ที่หน้า [approve](/C:/Users/Lenovo/dowa-it-system/app/approve/page.js) และ [route.js](/C:/Users/Lenovo/dowa-it-system/app/api/approval/verify/route.js): ลิงก์จะถูกผูกกับ browser session แรกที่เปิดใช้งานทันที ถ้าเปิดซ้ำจาก session อื่นต้อง resend ใหม่เท่านั้น
+  - เพิ่มปุ่ม `Resend Approval Link` บนหน้า [Incident Detail](/C:/Users/Lenovo/dowa-it-system/app/dashboard/incidents/[id]/page.js) สำหรับผู้ส่งเอกสารหรือผู้ดูแลในสถานะ `Pending Approval`
+  - เพิ่ม logic revoke token เดิมเมื่อ approve/reject/cancel/reset workflow และเพิ่ม migration file [20260611_public_approval_consume_session.sql](/C:/Users/Lenovo/dowa-it-system/supabase/migrations/20260611_public_approval_consume_session.sql)
+  - แก้ compatibility เพิ่มเติมใน [workflow.js](/C:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) ให้ `approval_tokens.document_type` รองรับฐานที่ยังใช้ constraint เก่า (`incident_report` / `it_checklist`) เพื่อไม่ให้การสร้างลิงก์อนุมัติล้มก่อนส่งอีเมล
+  - ตรวจสอบแล้วด้วย `npm run build` ผ่านสำเร็จ
+- **[16:40] Public Approval Delivery Hardening & Docs Sync**
+  - ขยายหน้า [approve](/C:/Users/Lenovo/dowa-it-system/app/approve/page.js) ให้แสดงรายละเอียด `Root Cause Analysis`, `Resolution`, และ `Corrective Action` ของ Incident เพื่อให้ผู้อนุมัติเห็นบริบทการแก้ไขครบก่อนตัดสินใจ
+  - ปรับ layout หน้า public approve ให้เป็น responsive จริง รองรับ desktop, tablet, และ mobile ในหน้าเดียว โดยแยก card ข้อมูลเอกสารกับ action panel อย่างชัดเจน
+  - แก้ one-time session cookie ใน [route.js](/C:/Users/Lenovo/dowa-it-system/app/api/approval/verify/route.js) ให้ใช้ path ระดับ `/` เพื่อไม่ให้เคสเปิดลิงก์ครั้งแรกแล้ว submit ต่อไม่ได้เพราะ browser ไม่ส่ง session cookie กลับ
+  - ปรับ [workflow.js](/C:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) ให้ `submitApprovalStepByPublicLink()` เรียก RPC `handle_approval_step` ตาม signature ที่ฐาน dev ใช้อยู่จริง ลดปัญหา `Could not find the function ... in the schema cache`
+  - ยืนยัน UAT แล้วว่า public approve link เปิดใช้งานและอนุมัติได้ตามปกติหลังแก้ session + RPC compatibility
+
+- **[13:42] Hide Incident Approval Flow Until Pending Approval**
+  - ปรับหน้า Incident Detail ให้ซ่อนการ์ด `Approval Flow` จริงในสถานะ `Open` และ `In Progress` เพื่อไม่ให้ผู้ใช้เข้าใจผิดว่า workflow ถูกล็อกแล้วตั้งแต่ก่อนส่งอนุมัติ
+  - เพิ่มข้อความ preview แทนในช่วงก่อน submit โดยแจ้งว่าระบบจะสร้างลำดับอนุมัติเมื่อเอกสารเข้าสู่ `Pending Approval` และแสดงจำนวน step ตาม config ปัจจุบันแบบสรุป
+  - คงการแสดง `WorkflowProgressBar` เต็มรูปแบบไว้เฉพาะเมื่อเอกสารอยู่ในสถานะ `Pending Approval`, `Closed`, หรือ `Cancelled`
+
 - **[14:33] Fix ReferenceError in QR Preview Modal Text Tab**
   - ดำเนินการแก้ไขข้อผิดพลาด `ReferenceError: disabled is not defined` ภายในคอมโพเนนต์ `FieldSelector` ในไฟล์ [TargetRegistryClient.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/settings/target-registry/TargetRegistryClient.js)
   - โดยระบุค่า `disabled` ใน props destructuring พร้อมค่าเริ่มต้นเป็น `false` เพื่อป้องกันปัญหาหน้าจอค้างหรือ Crash เมื่อเปิดแท็บ "ข้อความ" (Text) ในกล่องออกแบบ QR Code
@@ -63,4 +82,4 @@
 - [CHANGELOG_2026_05_07.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_07.md)
 
 ---
-*อัปเดตล่าสุด: 10-Jun-2026 13:15*
+*อัปเดตล่าสุด: 11-Jun-2026 16:40*

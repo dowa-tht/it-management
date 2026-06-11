@@ -1,8 +1,8 @@
 # Function Registry
 <!-- อัปเดตโดย Smart AI ทุกครั้งที่มีการเปลี่ยนแปลง function -->
 
-สร้างจากการอ่าน `docs/INDEX.md`, `docs/history/USER_TASKS.md`, `app/actions/*` และ `app/dashboard/**/page.js` ณ วันที่ 6 มิถุนายน 2569
-อัปเดตล่าสุด: 6 มิถุนายน 2569 — เพิ่ม shared audit helper, structured document/settings audit hooks, ขยาย logs viewer และบันทึก migration ปิด auditor RLS leak
+สร้างจากการอ่าน `docs/INDEX.md`, `docs/history/USER_TASKS.md`, `app/actions/*` และ `app/dashboard/**/page.js` ณ วันที่ 11 มิถุนายน 2569
+อัปเดตล่าสุด: 11 มิถุนายน 2569 — เพิ่ม public approval link flow, one-time consume session, resend policy, และ public approval route/page registry
 
 หมายเหตุ:
 - Registry นี้บันทึกเฉพาะฟังก์ชัน/คอมโพเนนต์ที่พบจริงจาก source path ที่ USER ระบุ
@@ -122,21 +122,29 @@
 | resolve actor สำหรับ client audit | `app/actions/audit.js` | `resolveAuditActor()` | internal helper; ดึง session/profile ของผู้กระทำ |
 | บันทึก audit จาก client mutation | `app/actions/audit.js` | `recordClientAuditLog()` | Server Action; ใช้กับ document/settings edit flows เพื่อสร้าง `field_changes` |
 | แจ้งเตือน approver | `app/actions/workflow.js` | `notifyApprover()` | internal helper, L281 |
+| สร้าง base URL สำหรับลิงก์อนุมัติ public | `lib/publicBaseUrl.js` | `buildPublicBaseUrl()` | helper; ใช้ env public URL ก่อน fallback ไป `VERCEL_URL` หรือ `localhost:3000` |
+| แปลง doc_type ให้เข้ากับ approval_tokens | `app/actions/workflow.js` | `normalizeApprovalTokenDocumentType()` | internal helper; รองรับ constraint เก่า `incident_report` / `it_checklist` |
+| ยกเลิก approval token ที่ยัง active | `app/actions/workflow.js` | `revokeApprovalTokens()` | internal helper; ใช้ตอน resend / approve / reject / cancel / reset |
+| ออก public approval token | `app/actions/workflow.js` | `issuePublicApprovalToken()` | internal helper; สร้าง token 15 นาทีพร้อม one-time consume session metadata |
+| ส่งเมลลิงก์อนุมัติ public | `app/actions/workflow.js` | `sendPublicApprovalLinkEmail()` | internal helper; ส่งอีเมลหา approver ไม่แยก internal/external |
+| ประมวลผล action ผ่าน public approval link | `app/actions/workflow.js` | `processPublicApprovalLinkAction()` | internal helper; ตรวจ token/session ก่อนส่งต่อการ approve/reject |
 | โหลด approval audit log | `app/actions/workflow.js` | `getApprovalAuditLog()` | Server Action, L327 |
 | โหลด pending approvals รวม | `app/actions/workflow.js` | `getUnifiedPendingApprovals()` | Server Action, L426 |
 | โหลด my pending items รวม | `app/actions/workflow.js` | `getUnifiedMyPendingItems()` | Server Action, L517 |
 | โหลด system logs | `app/actions/workflow.js` | `getSystemLogs()` | Server Action, L579 |
 | Apply initial signatures to workflow | `app/actions/workflow.js` | `applySignaturesToWorkflow()` | internal helper, L710 |
-| Submit request เข้า workflow | `app/actions/workflow.js` | `submitRequest()` | Server Action, L821 |
+| Submit request เข้า workflow | `app/actions/workflow.js` | `submitRequest()` | Server Action, L821; เมื่อมี approver step แรกจะ trigger public approval email |
 | Generate workflow steps | `app/actions/workflow.js` | `generateWorkflowSteps()` | Server Action, L923 |
 | โหลดสถานะ workflow ของเอกสาร | `app/actions/workflow.js` | `getDocumentWorkflowStatus()` | Server Action, L1011 |
 | Preview potential workflow steps | `app/actions/workflow.js` | `getPotentialWorkflowSteps()` | Server Action, L1034 |
 | Reject document workflow | `app/actions/workflow.js` | `rejectDocumentWorkflow()` | Server Action, L1103 |
 | Submit approval step | `app/actions/workflow.js` | `submitApprovalStep()` | Server Action, L1141 |
+| Submit approval step ผ่าน public link | `app/actions/workflow.js` | `submitApprovalStepByPublicLink()` | Server Action; ใช้ one-time session token อนุมัติ/ปฏิเสธจากหน้า public approve |
 | Migration helper workflow | `app/actions/workflow.js` | `runWorkflowMigration()` | Server Action, L1237 |
 | Reset document workflow | `app/actions/workflow.js` | `resetDocumentWorkflow()` | Server Action, L1323 |
 | Admin reset workflow | `app/actions/workflow.js` | `adminResetWorkflow()` | Server Action, L1340 |
 | Update approval config | `app/actions/workflow.js` | `updateApprovalConfig()` | Server Action, L1401 |
+| ส่งลิงก์อนุมัติ Incident ใหม่ | `app/actions/workflow.js` | `resendIncidentApprovalLink()` | Server Action; อนุญาตเฉพาะ sender หรือ `admin` ขณะสถานะ `Pending Approval` |
 | ยกเลิกเอกสาร (Checklist/Incident) | `app/actions/workflow.js` | `cancelDocument()` | Server Action; Incident ใช้ policy กลางตาม role (admin PIN, reporter PIN, assignee/it_staff ใช้ reporter PIN/OTP, external reporter OTP เท่านั้น) |
 | ขอ OTP ยืนยันการยกเลิก Incident | `app/actions/workflow.js` | `requestIncidentCancelOTP()` | Server Action; อนุญาตเฉพาะ role ที่ policy กลางอนุญาต OTP |
 | ขอ OTP ยืนยันการอนุมัติ Incident | `app/actions/workflow.js` | `requestIncidentApprovalOTP()` | Server Action; ส่ง OTP ให้ Reporter email ก่อน submitApprovalStep |
@@ -160,6 +168,13 @@
 | ชื่อฟังก์ชัน | ไฟล์ | function name จริง | หมายเหตุ |
 |---|---|---|---|
 | อ่านข้อมูลติดตามเคสแบบไม่ล็อกอิน | `app/api/incidents/followup/route.js` | `GET()` | Route Handler; validate token hash + expiry + revoke + return read-only incident payload |
+| ตรวจและผูก one-time public approval session | `app/api/approval/verify/route.js` | `GET()` | Route Handler; validate token + bind browser session cookie + preload document context สำหรับหน้า approve |
+
+## public/pages
+
+| ชื่อฟังก์ชัน | ไฟล์ | function name จริง | หมายเหตุ |
+|---|---|---|---|
+| หน้า Public Approval | `app/approve/page.js` | `ApprovePage()` | Public page component; responsive approve/reject form สำหรับ incident/checklist |
 
 ## auth/user-management
 

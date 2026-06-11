@@ -7,7 +7,7 @@ import { verifyEmployeePIN } from '@/app/actions/users'
 import Link from 'next/link'
 import { formatDate, formatDateTime } from '@/lib/dateFormat'
 import { calculateIncidentSlaSnapshot } from '@/lib/slaUtils'
-import { getPotentialWorkflowSteps, recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow, syncDynamicWorkflowApprovers, diagnoseApprovalPin, cancelDocument, requestIncidentCancelOTP, requestIncidentApprovalOTP, verifyIncidentApprovalOTP, diagnoseIncidentApprovalOTP } from '@/app/actions/workflow'
+import { getPotentialWorkflowSteps, recordLog, submitRequest, getDocumentWorkflowStatus, submitApprovalStep, resetDocumentWorkflow, rejectDocumentWorkflow, syncDynamicWorkflowApprovers, diagnoseApprovalPin, cancelDocument, requestIncidentCancelOTP, requestIncidentApprovalOTP, verifyIncidentApprovalOTP, diagnoseIncidentApprovalOTP, resendIncidentApprovalLink } from '@/app/actions/workflow'
 import { acknowledgeIncident, createIncidentExclusionManual, closeIncidentExclusionManual, getIncidentMasterData, requestIncidentReporterOtp, verifyIncidentReporterOtp, resendIncidentFollowupLink, validateExternalReporterEmail } from '@/app/actions/incidents'
 import { recordClientAuditLog } from '@/app/actions/audit'
 import { isSubstituteOf } from '@/lib/workflow'
@@ -320,6 +320,7 @@ export default function IncidentDetailPage() {
   const [reporterDraft, setReporterDraft] = useState({ reported_by: '', reporter_email: '', reported_by_id: null })
   const [reporterMode, setReporterMode] = useState('existing')
   const [resendFollowupLoading, setResendFollowupLoading] = useState(false)
+  const [resendApprovalLinkLoading, setResendApprovalLinkLoading] = useState(false)
   const [followupMeta, setFollowupMeta] = useState(null)
   const startDatePickerRef = useRef(null)
   const endDatePickerRef = useRef(null)
@@ -1153,6 +1154,15 @@ export default function IncidentDetailPage() {
   const acknowledgeActionLabel = isAdminRole ? '📌 มอบหมายงาน (Dispatch)' : '⚡ รับเรื่อง (Accept)'
   const isExternalReporterCase = Boolean(!incident?.reported_by_id && incident?.reporter_email)
   const canResendFollowupLink = Boolean(!isExternalFollowupMode && ['admin', 'it_staff'].includes(currentUser?.role) && isExternalReporterCase)
+  const canResendApprovalLink = Boolean(
+    !isExternalFollowupMode &&
+    incident.status === 'Pending Approval' &&
+    currentStep &&
+    (isAdminRole || isCreator)
+  )
+  const showApprovalFlow = ['Pending Approval', 'Closed', 'Cancelled'].includes(incident.status)
+  const previewStepCount = workflowSteps.length
+  const approvedStepCount = workflowSteps.filter(s => s.status === 'approved').length
 
   const handleResendFollowupLink = async () => {
     setResendFollowupLoading(true)
@@ -1167,6 +1177,24 @@ export default function IncidentDetailPage() {
       showToast({ message: err.message, type: 'error' })
     }
     setResendFollowupLoading(false)
+  }
+
+  const handleResendApprovalLink = async () => {
+    setResendApprovalLinkLoading(true)
+    try {
+      const res = await resendIncidentApprovalLink(id)
+      if (res?.success) {
+        showToast({
+          message: `ส่งลิงก์อนุมัติใหม่ไปที่ ${res.maskedEmail || 'ผู้อนุมัติ'} แล้ว`,
+          type: 'success'
+        })
+      } else {
+        showToast({ message: res?.error || 'ไม่สามารถส่งลิงก์อนุมัติใหม่ได้', type: 'error' })
+      }
+    } catch (err) {
+      showToast({ message: err.message, type: 'error' })
+    }
+    setResendApprovalLinkLoading(false)
   }
 
   const field = (label, name, value, options = null) => (
@@ -1505,33 +1533,83 @@ export default function IncidentDetailPage() {
         <div className="premium-card" style={{ padding: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h2 style={{ fontSize: '12px', fontWeight: 800, color: '#1e293b', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>Workflow Progress</h2>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>{workflowSteps.filter(s => s.status === 'approved').length} / {workflowSteps.length} Steps Completed</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {canResendApprovalLink && (
+                <button
+                  type="button"
+                  onClick={handleResendApprovalLink}
+                  disabled={resendApprovalLinkLoading}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    border: '1px solid #93c5fd',
+                    background: resendApprovalLinkLoading ? '#dbeafe' : '#eff6ff',
+                    color: '#1d4ed8',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: resendApprovalLinkLoading ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  {resendApprovalLinkLoading ? 'กำลังส่งลิงก์ใหม่...' : 'Resend Approval Link'}
+                </button>
+              )}
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>
+                {showApprovalFlow
+                  ? `${approvedStepCount} / ${workflowSteps.length} Steps Completed`
+                  : (previewStepCount > 0 ? `Preview ${previewStepCount} Step${previewStepCount > 1 ? 's' : ''}` : 'Workflow will be generated on submit')}
+              </div>
+            </div>
           </div>
-          {wasRejected && (
+          {showApprovalFlow ? (
+            <>
+              {wasRejected && (
+                <div style={{
+                  marginBottom: '16px', padding: '14px 16px', borderRadius: '16px',
+                  background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 900, marginBottom: '6px' }}>
+                    <span>↩️</span>
+                    <span>เอกสารถูกตีกลับจากการอนุมัติ</span>
+                  </div>
+                  <div style={{ fontSize: '12px', lineHeight: 1.6, color: '#7c2d12' }}>
+                    <strong>เหตุผล:</strong> {rejectReason || 'ไม่พบรายละเอียดเหตุผล'}
+                  </div>
+                  {latestRejectedLog?.created_at && (
+                    <div style={{ marginTop: '6px', fontSize: '10px', fontWeight: 700, color: '#c2410c' }}>
+                      ตีกลับเมื่อ: {formatDateTime(latestRejectedLog.created_at)} โดย {latestRejectedLog.user_full_name || latestRejectedLog.user_email || 'ไม่พบผู้ดำเนินการ'}
+                    </div>
+                  )}
+                </div>
+              )}
+              <WorkflowProgressBar
+                currentStatus={incident.status}
+                steps={workflowSteps}
+                senderName={latestSubmittedLog?.user_full_name || ''}
+                senderEmail={latestSubmittedLog?.user_email || ''}
+              />
+            </>
+          ) : (
             <div style={{
-              marginBottom: '16px', padding: '14px 16px', borderRadius: '16px',
-              background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412'
+              padding: '18px 20px',
+              borderRadius: '16px',
+              border: '1px dashed #cbd5e1',
+              background: '#f8fafc',
+              color: '#475569'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 900, marginBottom: '6px' }}>
-                <span>↩️</span>
-                <span>เอกสารถูกตีกลับจากการอนุมัติ</span>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>
+                Approval Flow จะถูกสร้างเมื่อกดส่งอนุมัติ
               </div>
-              <div style={{ fontSize: '12px', lineHeight: 1.6, color: '#7c2d12' }}>
-                <strong>เหตุผล:</strong> {rejectReason || 'ไม่พบรายละเอียดเหตุผล'}
+              <div style={{ fontSize: '12px', lineHeight: 1.7 }}>
+                สถานะ <strong>{incident.status}</strong> ยังไม่เข้าสู่กระบวนการอนุมัติจริง ระบบจะแสดงลำดับขั้นตอนอย่างเป็นทางการเมื่อเอกสารถูกส่งเข้า <strong>Pending Approval</strong>
               </div>
-              {latestRejectedLog?.created_at && (
-                <div style={{ marginTop: '6px', fontSize: '10px', fontWeight: 700, color: '#c2410c' }}>
-                  ตีกลับเมื่อ: {formatDateTime(latestRejectedLog.created_at)} โดย {latestRejectedLog.user_full_name || latestRejectedLog.user_email || 'ไม่พบผู้ดำเนินการ'}
+              {previewStepCount > 0 && (
+                <div style={{ marginTop: '12px', fontSize: '12px', color: '#64748b' }}>
+                  ลำดับตาม config ปัจจุบัน: {previewStepCount} Step{previewStepCount > 1 ? 's' : ''}
                 </div>
               )}
             </div>
           )}
-          <WorkflowProgressBar
-            currentStatus={incident.status}
-            steps={workflowSteps}
-            senderName={latestSubmittedLog?.user_full_name || ''}
-            senderEmail={latestSubmittedLog?.user_email || ''}
-          />
         </div>
 
         {/* Main Grid */}
