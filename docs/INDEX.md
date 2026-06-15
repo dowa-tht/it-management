@@ -3,7 +3,7 @@
 **[ATTENTION AI AGENTS]**  
 This is the central documentation hub. You MUST read this file first before starting any task to understand the system's architecture and find the relevant documentation for your specific task. **DO NOT read all files unless necessary to avoid context overflow.**
 
-**Latest Update (11-Jun-2026 16:40):** sync เอกสาร public approval link สำหรับ Incident ให้ครอบคลุม one-time consume session, resend policy, responsive public page, และ email trigger มาตรฐาน
+**Latest Update (15-Jun-2026 00:00):** archive changelog ของ 12-Jun-2026 ไป `docs/history/archive/CHANGELOG_2026_06_12.md` และรีเซ็ต `CHANGELOG.md` ให้พร้อมบันทึกรอบงานของวันที่ปัจจุบัน
 
 ---
 
@@ -70,6 +70,7 @@ This is the central documentation hub. You MUST read this file first before star
 - [DOCUMENT_MAPPING_STANDARD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/DOCUMENT_MAPPING_STANDARD.md) : มาตรฐานการจับคู่ข้อมูลและสถานะ Workflow ของระบบ
 - [SYSTEM_ARCHITECTURE_MAP.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/SYSTEM_ARCHITECTURE_MAP.md) : [AGGREGATION TOOL] แผนผังโครงสร้างสถาปัตยกรรมและ Logic Flow (สำหรับ Agent)
 - [AGENCY_QUICK_REFERENCE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/AGENCY_QUICK_REFERENCE.md) : [AGGREGATION TOOL] รวมสูตรสำเร็จ (Cheat Sheet), audit log mapping, และคำสั่งที่ใช้บ่อย (สำหรับ Agent)
+- [FUNCTION_REGISTRY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/FUNCTION_REGISTRY.md) : บัญชีรายชื่อฟังก์ชันและคอมโพเนนต์ที่สำคัญ พร้อมหมายเหตุการเปลี่ยนแปลงล่าสุดสำหรับตรวจ migration
 - [roles/README.md](file:///c:/Users/Lenovo/dowa-it-system/docs/standards/roles/README.md) : สารบัญและโครงสร้างของบทบาท Agent ย่อย
 
 
@@ -85,6 +86,8 @@ This is the central documentation hub. You MUST read this file first before star
 - [UI_UX_WORKFLOW_CARD_UPGRADE.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/UI_UX_WORKFLOW_CARD_UPGRADE.md): [PLAN] แผนการอัปเกรด UI/UX เป็นแบบ Card (Phase 3)
 - [CHANGELOG.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/CHANGELOG.md) : บันทึกการเปลี่ยนแปลงรายวัน
 - [archive/CHANGELOG_2026_06_09.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_09.md) : บันทึก changelog รายวันแบบ archive สำหรับ 9-Jun-2026
+- [archive/CHANGELOG_2026_06_11.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_11.md) : บันทึก changelog รายวันแบบ archive สำหรับ 11-Jun-2026
+- [archive/CHANGELOG_2026_06_12.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_12.md) : บันทึก changelog รายวันแบบ archive สำหรับ 12-Jun-2026
 - [archive/CHANGELOG_2026_06_04.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_04.md) : บันทึก changelog รายวันแบบ archive สำหรับ 4-Jun-2026
 - [archive/CHANGELOG_2026_05_29.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_29.md) : บันทึก changelog รายวันแบบ archive สำหรับ 29-May-2026
 - [USER_TASKS.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/USER_TASKS.md) : รายการงานที่ USER ฝากแก้ไขและติดตามความคืบหน้า (Agent ต้องอ่านทุกครั้ง)
@@ -101,8 +104,12 @@ This is the central documentation hub. You MUST read this file first before star
 - [IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_TARGET_REGISTRY_QR_ASSET_HISTORY.md) : [PLAN] แผนลงรายละเอียดการพัฒนา Target Registry, QR Navigation และ Asset History หลัง Template Builder/Procedure Editor พร้อมแล้ว
 - [IMPLEMENTATION_PLAN_SETTINGS_GUIDE_LOGS_MASTERDATA_FIX.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_SETTINGS_GUIDE_LOGS_MASTERDATA_FIX.md) : [PLAN] แผนแก้ Guide edit/content, Logs Doc No./Email/System Errors และลดขนาด Incident Master Data form
 - [IMPLEMENTATION_PLAN_UNIFIED_SLA_SETTINGS_AND_CALCULATION.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_UNIFIED_SLA_SETTINGS_AND_CALCULATION.md) : [PLAN] แผนรวมศูนย์การตั้งค่า SLA, SLA Exclusion Reason, และสูตรคำนวณ SLA กลางสำหรับ Dashboard/Report/Incident Detail
+- [IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_RLS_FIX_2026_06_15.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_RLS_FIX_2026_06_15.md) : [PLAN] แผน migration สำหรับแก้ production checklist create ที่ล้มด้วย error `uuid = text` จาก checklist RLS helper
 - [IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_CANCEL_FIX_2026_06_15.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_CANCEL_FIX_2026_06_15.md) : [PLAN] release plan สำหรับแก้ production checklist cancel ที่ล้มด้วย error `column checklist_docs.reported_by_id does not exist`
 - [IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_RECREATE_AFTER_CANCEL_FIX_2026_06_15.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_RECREATE_AFTER_CANCEL_FIX_2026_06_15.md) : [PLAN] release plan สำหรับแก้ production checklist create ให้ `Cancelled + untouched` สร้างใหม่ได้ตามมาตรฐานเดียวกับ dev
+- [IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_CANCEL_AND_NO_SERIES_RESET_FIX_2026_06_15.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_CANCEL_AND_NO_SERIES_RESET_FIX_2026_06_15.md) : [PLAN] release plan สำหรับปิด production drift ของ `approval_tokens` และทำให้ `CHK` reset ตาม `starting_no` ได้จริง
+- [IMPLEMENTATION_PLAN_NO_SERIES_STANDARD_ALIGNMENT_2026_06_15.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_NO_SERIES_STANDARD_ALIGNMENT_2026_06_15.md) : [PLAN] Phase 1 audit/fix plan สำหรับทำให้ No. Series ของ dev/prod ใช้มาตรฐานเดียวกันทั้ง schema, logic, และ data state
+- [IMPLEMENTATION_PLAN_PRODUCTION_NO_SERIES_ALIGNMENT_2026_06_15.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_NO_SERIES_ALIGNMENT_2026_06_15.md) : [PLAN] release plan และ execution result สำหรับ production no-series alignment ของ `CHK` รวม schema contract, data repair, verification, และ production repo sync
 - [IMPLEMENTATION_PLAN_REMOTE_APPROVE_REBUILD.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_REMOTE_APPROVE_REBUILD.md) : [PLAN] แผน Rebuild Remote Approve (Incident + Checklist) แบบ 2-step verify/sign พร้อม PIN/OTP policy และ audit contract
 - [IMPLEMENTATION_PLAN_AUDIT_TRAIL_AND_LOG_VIEWER.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_AUDIT_TRAIL_AND_LOG_VIEWER.md) : [PLAN] แผนยกระดับ Audit Trail สำหรับ document/settings changes และขยายหน้า Logs กลางให้พร้อมใช้งานสำหรับการตรวจสอบระบบ
 - [SCAN_SUMMARY_SETTINGS_AUDIT.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/SCAN_SUMMARY_SETTINGS_AUDIT.md) : [AUDIT] รายงานผลการตรวจสอบสถาปัตยกรรมและ UI/UX ของโมดูล Settings (Standalone Route & Responsive)

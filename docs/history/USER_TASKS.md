@@ -1,6 +1,6 @@
 # 📋 รายการงาน (Task Tracker)
 
-**อัปเดตล่าสุด:** 9 มิถุนายน 2569
+**อัปเดตล่าสุด:** 15 มิถุนายน 2569
 
 ---
 
@@ -11,6 +11,23 @@
 ---
 
 ## ✅ งานที่เสร็จสิ้นแล้ว (Completed)
+
+### 31. Production Checklist Cancel Drift + CHK Reset by Starting No.
+- **สถานะ:** ✅ เสร็จสมบูรณ์
+- **วันที่:** 15 มิถุนายน 2569
+- **รายละเอียด:**
+  - ตรวจพบว่า production ยกเลิก Checklist สำเร็จแล้ว แต่ขึ้น error เพิ่มภายหลัง เพราะ runtime เรียก `revokeApprovalTokens()` ไปอัปเดต `approval_tokens.revoked_at` ทั้งที่ production schema ยังไม่มีคอลัมน์ชุด public approval token contract
+  - ยืนยันจาก production probe ว่า `approval_tokens.revoked_at` ไม่มีจริง ขณะที่ dev มีคอลัมน์ครบแล้ว จึงเป็น schema drift ไม่ใช่ UI bug
+  - เพิ่ม migration `20260615_fix_approval_tokens_runtime_contract.sql` เพื่อเติมคอลัมน์และ index ที่ runtime public approval ใช้อยู่ (`token_hash`, `consumed_at`, `session_hash`, `revoked_at`, `revoked_reason`, ...)
+  - ปรับ `lib/noSeries.js` และ helper ใหม่ `lib/noSeriesRuntime.js` ให้ `starting_no` ของ active line override persisted document history ได้ เมื่อ line นั้นยังไม่มี `last_no_used`
+  - เพิ่ม regression tests สำหรับ no-series reset behavior และยืนยันผ่าน `npm test` 40/40 กับ `npm run build`
+  - apply production DB fix แล้ว พร้อม reset `CHK` line เดือน `2026-06` ให้ `starting_no = DTT-CHK-2606-001` และ clear `last_no_used`/`last_date_used` ทั้ง header และ line เพื่อให้ผู้ใช้สร้างเอกสารทดสอบใหม่ได้ทันทีตาม setup
+- **ไฟล์ที่เกี่ยวข้อง:**
+  - `lib/noSeries.js`
+  - `lib/noSeriesRuntime.js`
+  - `tests/no-series-runtime.test.js`
+  - `supabase/migrations/20260615_fix_approval_tokens_runtime_contract.sql`
+  - `docs/history/IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_CANCEL_AND_NO_SERIES_RESET_FIX_2026_06_15.md`
 
 ### 30. Production Re-baseline Final Artifact Templates and User Remap Pack
 - **สถานะ:** ✅ เสร็จสมบูรณ์
@@ -186,6 +203,10 @@
   - Root cause: `app/actions/workflow.js` line 1158 hardcode `reported_by_id` ใน select ทุก doc type
   - สร้าง `scripts/cancel_checklist_admin.js` ให้ Admin ยกเลิกเอกสารได้ผ่าน Supabase client (Service Role) โดยไม่แตะ DB ตรงๆ
   - รัน script ยกเลิก `DTT-CHK-2605-006` สำเร็จ พร้อมบันทึก audit log ด้วย `user_email` field ที่ถูกต้อง
+  - วันที่ 15 มิถุนายน 2569 มีการแก้ source จริงใน `app/actions/workflow.js` แล้ว โดยเปลี่ยน query กลางของ `cancelDocument()` ให้ใช้ `.select('*')` ตาม schema ของแต่ละ document type และเตรียม release plan สำหรับ promote ขึ้น production
+  - promote ขึ้น production repo `dowa-tht/it-management` สำเร็จที่ commit `2b510f8` โดยจำกัด diff เฉพาะ fix ของ checklist cancel regression รอบนี้
+  - ปรับกติกาการสร้าง checklist ใหม่เพิ่มเติมให้ `Cancelled + untouched` ไม่นับเป็น used item อีกต่อไป โดยย้าย logic ไป helper กลางและเพิ่ม unit tests สำหรับ behavior นี้
+  - promote fix กติกา `Cancelled + untouched` ขึ้น production repo `dowa-tht/it-management` สำเร็จที่ commit `e025cd4`
 - **ไฟล์ที่เกี่ยวข้อง:**
   - `app/actions/workflow.js` (bug location — ยังไม่ได้แก้ source, ใช้ script แทน)
   - `scripts/cancel_checklist_admin.js`

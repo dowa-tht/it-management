@@ -1,70 +1,67 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Changelog)
 
-- **[15-Jun-2026 14:05] Standardize Checklist Recreate Rule for Cancelled Untouched Docs**
+## 15 มิถุนายน 2569 (15-Jun-2026)
+
+- **[16:05] Fix Production Approval Token Drift and CHK Reset Contract**
+  - เพิ่ม migration [20260615_fix_approval_tokens_runtime_contract.sql](/C:/Users/Lenovo/dowa-it-system/supabase/migrations/20260615_fix_approval_tokens_runtime_contract.sql) เพื่อเติม public approval token runtime contract ที่ production ขาดอยู่ โดยเฉพาะ `revoked_at`, `revoked_reason`, `token_hash`, `consumed_at`, `session_hash`, และ `session_expires_at`
+  - apply migration ไป production database `yrgsukhjkoexvdybyyjm` สำเร็จ และตรวจยืนยันหลัง apply แล้วว่า query `approval_tokens.revoked_at` ไม่ error อีกต่อไป
+  - reset production data ของ `CHK` line รอบ `2026-06` ให้ `starting_no = DTT-CHK-2606-001` พร้อม clear `last_no_used`/`last_date_used` ที่ header และ line เพื่อเตรียมการทดสอบสร้างเอกสารใหม่ตาม setup
+- **[16:18] Align No. Series Runtime with Explicit Starting Number**
+  - เพิ่ม helper กลาง [noSeriesRuntime.js](/C:/Users/Lenovo/dowa-it-system/lib/noSeriesRuntime.js) และปรับ [noSeries.js](/C:/Users/Lenovo/dowa-it-system/lib/noSeries.js) ให้ `starting_no` ของ active line override persisted document history ได้ เมื่อ line นั้นยังไม่มี `last_no_used`
+  - เพิ่ม regression tests ที่ [no-series-runtime.test.js](/C:/Users/Lenovo/dowa-it-system/tests/no-series-runtime.test.js) ครอบคลุมกรณี reset line, continuation จาก `last_no_used`, และ numeric `starting_no`
+  - ยืนยันผ่าน `npm test` 40/40, `npm run build`, และ `npm test` ซ้ำบน production release clone ก่อน push
+
+- **[08:35] Prepare Checklist RLS Compatibility Fix for Production Drift**
+  - เพิ่ม migration [20260615_fix_checklist_rls_approved_by_type_cast.sql](/C:/Users/Lenovo/dowa-it-system/supabase/migrations/20260615_fix_checklist_rls_approved_by_type_cast.sql) เพื่อ redefine helper `current_user_can_read_checklist_doc()` และ `current_user_can_access_checklist_doc()`
+  - แก้การเทียบ `checklist_docs.approved_by` กับ `auth.uid()` ให้ใช้ `::text` ทั้งสองฝั่ง เพื่อลด schema drift ระหว่าง environment ที่เก็บ `approved_by` เป็น `uuid` หรือ `text`
+  - รอบนี้เป็นการเตรียม fix ใน Development Mode เท่านั้น ยังไม่ได้ apply migration ไป production
+- **[08:52] Add Migration Planning Pack for Production Checklist RLS Fix**
+  - สร้างเอกสาร [IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_RLS_FIX_2026_06_15.md](/C:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_RLS_FIX_2026_06_15.md) เพื่อสรุป release scope, migration file list, verification plan, rollback plan, และ stop conditions
+  - อัปเดต [docs/INDEX.md](/C:/Users/Lenovo/dowa-it-system/docs/INDEX.md) ให้เชื่อมเอกสารแผนใหม่ในหมวด Implementation History
+- **[09:20] Apply Production Checklist RLS Fix**
+  - apply migration [20260615_fix_checklist_rls_approved_by_type_cast.sql](/C:/Users/Lenovo/dowa-it-system/supabase/migrations/20260615_fix_checklist_rls_approved_by_type_cast.sql) ไปยัง production database `yrgsukhjkoexvdybyyjm` สำเร็จ
+  - ตรวจยืนยันหลัง apply แล้วว่า helper `current_user_can_access_checklist_doc()` และ `current_user_can_read_checklist_doc()` ไม่เหลือนิพจน์ `d.approved_by = auth.uid()::text` และเปลี่ยนเป็น `d.approved_by::text = auth.uid()::text` ครบทั้งสองฟังก์ชัน
+  - บันทึก snapshot ก่อน/หลังการตรวจไว้ชั่วคราวเพื่อ verification แล้วล้างออกจาก `brain/` ตาม scratch workspace policy
+- **[10:05] Phase 1 No. Series Standard Alignment Audit**
+  - ตรวจเทียบ code path และ DB state ของ `CHK` ระหว่าง dev/prod พบว่า preview หน้า `No. Series` กับ runtime create flow ใช้กติกาคนละชุด
+  - ยืนยันว่า production มี relation drift ของ `no_series_lines -> no_series` ทำให้ query `no_series(format, linked_form)` ใช้ได้ใน dev แต่ล้มใน production
+  - สร้างเอกสาร [IMPLEMENTATION_PLAN_NO_SERIES_STANDARD_ALIGNMENT_2026_06_15.md](/C:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_NO_SERIES_STANDARD_ALIGNMENT_2026_06_15.md) เพื่อกำหนด target standard และลำดับงานสำหรับ Phase 2
+- **[11:27] Phase 2 No. Series Runtime Alignment (Development Source)**
+  - refactor [lib/noSeries.js](/C:/Users/Lenovo/dowa-it-system/lib/noSeries.js) ให้เลิกพึ่ง relation select แบบ `no_series(format, linked_form)` และแยก flow `peek/get next number` ออกจาก `update last number` อย่างชัดเจน
+  - ปรับ [app/dashboard/checklist/page.js](/C:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/page.js) ให้สร้างเลข `CHK` ตาม `period_date` จริง และ sync `header/line` ด้วย working date เดียวกันหลัง insert สำเร็จ
+  - ปรับ [app/dashboard/settings/no-series/page.js](/C:/Users/Lenovo/dowa-it-system/app/dashboard/settings/no-series/page.js) ให้ preview เรียก helper กลางตัวเดียวกับ runtime จริง
+  - เพิ่ม migration [20260615_align_no_series_runtime_contract.sql](/C:/Users/Lenovo/dowa-it-system/supabase/migrations/20260615_align_no_series_runtime_contract.sql) เพื่อกำหนด schema contract ของ `no_series` / `no_series_lines` และ foreign key `series_code -> no_series.code`
+- **[11:37] Verify Development No. Series Runtime Against Live Dev Data**
+  - ตรวจ dev data จริงผ่าน service role ของ project `fhcsvvlwhwqzlsltrkuq` แล้วยืนยันว่า `CHK` มี next number = `DTT-CHK-2606-002` และ `INC` มี next number = `DTT-INC-2606-011` ตาม persisted documents ปัจจุบัน
+  - ยืนยันว่า dev schema ปัจจุบันยัง resolve relation `no_series_lines -> no_series` ได้จาก query สด แม้ runtime helper ใหม่จะไม่พึ่ง relation นี้โดยตรงแล้ว
+  - ทำ isolated integration test ด้วย series ชั่วคราวแบบ unlinked เพื่อยืนยันว่า `updateLastNo()` sync ค่า `last_no_used` ทั้งใน `no_series` และ `no_series_lines` สำเร็จ แล้วล้างข้อมูลทดสอบออกจาก dev เรียบร้อย
+- **[11:56] Execute Production No. Series Alignment Release**
+  - apply migrations [20260615_align_no_series_runtime_contract.sql](/C:/Users/Lenovo/dowa-it-system/supabase/migrations/20260615_align_no_series_runtime_contract.sql) และ [20260615_repair_chk_no_series_state_from_latest_doc.sql](/C:/Users/Lenovo/dowa-it-system/supabase/migrations/20260615_repair_chk_no_series_state_from_latest_doc.sql) สำเร็จบน production database `yrgsukhjkoexvdybyyjm`
+  - ยืนยันหลัง apply แล้วว่า FK `no_series_lines_series_code_fkey` ถูกสร้าง, relation probe ผ่าน, และ `CHK` line ถูก sync เป็น `DTT-CHK-2606-003` ทำให้ next number คาดหมายเป็น `DTT-CHK-2606-004`
+  - sync code ไป production repo `dowa-tht/it-management` สำเร็จที่ commit `12a4bb9` เพื่อให้ runtime helper, checklist create flow, และ no-series preview ใช้มาตรฐานเดียวกับ development source
+  - สร้างเอกสาร [IMPLEMENTATION_PLAN_PRODUCTION_NO_SERIES_ALIGNMENT_2026_06_15.md](/C:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_NO_SERIES_ALIGNMENT_2026_06_15.md) เพื่อเก็บ release scope, rollback plan, verification, และ execution result ของรอบ production นี้
+- **[12:48] Fix Checklist Cancel Regression in Development Source**
+  - แก้ [workflow.js](/C:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) ที่ `cancelDocument()` เคย hardcode `reported_by_id` และ reporter fields แบบ incident-only ใน query กลางของทุก document type
+  - ปรับ query ให้ใช้ `.select('*')` จากตารางตาม `WORKFLOW_DOC_REGISTRY` เพื่อให้ checklist ยกเลิกเอกสารได้โดยไม่อ้างคอลัมน์ที่ไม่มีใน `checklist_docs` ขณะ incident flow ยังอ่าน reporter fields จาก schema ของ `incidents` ได้ตามเดิม
+  - เพิ่ม regression test ใน [incident-otp-flow.test.js](/C:/Users/Lenovo/dowa-it-system/tests/incident-otp-flow.test.js) และยืนยันผ่านทั้ง `npm test` กับ `npm run build`
+- **[13:20] Promote Checklist Cancel Fix to Production**
+  - sync code-only fix นี้ไป production repo `dowa-tht/it-management` สำเร็จที่ commit `2b510f8`
+  - release diff บน production จำกัดเฉพาะ `workflow.js`, regression test, `docs/INDEX.md`, `docs/history/CHANGELOG.md`, และ [IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_CANCEL_FIX_2026_06_15.md](/C:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_CANCEL_FIX_2026_06_15.md)
+  - ยืนยันบน production clone แล้วว่า `npm test` ผ่าน 35/35; ส่วน `npm run build` ล้มจากข้อจำกัด Turbopack ต่อ `node_modules` junction ชั่วคราว ไม่ใช่จาก source diff ของ fix นี้
+- **[14:05] Standardize Checklist Recreate Rule for Cancelled Untouched Docs**
   - เพิ่ม helper กลาง [checklistPeriodUsage.js](/C:/Users/Lenovo/dowa-it-system/lib/checklistPeriodUsage.js) เพื่อกำหนดกติกาเดียวกันว่าถ้าเอกสาร `Cancelled` และ item ทุกตัว `status = null` ต้องไม่นับเป็น `used`
   - ปรับ [page.js](/C:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/page.js) ทั้งตอนเปิด modal และตอนกดสร้างจริง ให้ ignore เฉพาะ `Cancelled + untouched` แต่ยัง block เอกสาร active หรือ `Cancelled` ที่มีการตรวจแล้ว
   - เพิ่ม unit tests ที่ [checklist-period-usage.test.js](/C:/Users/Lenovo/dowa-it-system/tests/checklist-period-usage.test.js) และยืนยันผ่าน `npm test` 37/37 กับ `npm run build`
-
-- **[15-Jun-2026 13:20] Production Checklist Cancel Fix**
-  - แก้ [workflow.js](/C:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) ใน `cancelDocument()` ให้เลิก hardcode `reported_by_id` และ reporter fields แบบ incident-only ใน query กลางของทุก document type
-  - ปรับ query เป็น `.select('*')` เพื่อให้ checklist cancel ไม่อ้างคอลัมน์ที่ไม่มีใน `checklist_docs` และคง incident cancel policy เดิมไว้
-  - เพิ่ม regression test ใน [incident-otp-flow.test.js](/C:/Users/Lenovo/dowa-it-system/tests/incident-otp-flow.test.js) และเตรียม release note [IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_CANCEL_FIX_2026_06_15.md](/C:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_CANCEL_FIX_2026_06_15.md)
-
-- **[16:08] Public Approval Link One-Time Consume Session**
-  - ปรับ workflow approval ให้การแจ้งเตือนผู้อนุมัติส่งออกเป็น `Public Approval Link` แบบอายุ 15 นาที และออก token ใหม่ทุกครั้งเมื่อมีการ resend
-  - เพิ่มกติกา `consume-on-open` ที่หน้า [approve](/C:/Users/Lenovo/dowa-it-system/app/approve/page.js) และ [route.js](/C:/Users/Lenovo/dowa-it-system/app/api/approval/verify/route.js): ลิงก์จะถูกผูกกับ browser session แรกที่เปิดใช้งานทันที ถ้าเปิดซ้ำจาก session อื่นต้อง resend ใหม่เท่านั้น
-  - เพิ่มปุ่ม `Resend Approval Link` บนหน้า [Incident Detail](/C:/Users/Lenovo/dowa-it-system/app/dashboard/incidents/[id]/page.js) สำหรับผู้ส่งเอกสารหรือผู้ดูแลในสถานะ `Pending Approval`
-  - เพิ่ม logic revoke token เดิมเมื่อ approve/reject/cancel/reset workflow และเพิ่ม migration file [20260611_public_approval_consume_session.sql](/C:/Users/Lenovo/dowa-it-system/supabase/migrations/20260611_public_approval_consume_session.sql)
-  - แก้ compatibility เพิ่มเติมใน [workflow.js](/C:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) ให้ `approval_tokens.document_type` รองรับฐานที่ยังใช้ constraint เก่า (`incident_report` / `it_checklist`) เพื่อไม่ให้การสร้างลิงก์อนุมัติล้มก่อนส่งอีเมล
-  - ตรวจสอบแล้วด้วย `npm run build` ผ่านสำเร็จ
-- **[16:40] Public Approval Delivery Hardening & Docs Sync**
-  - ขยายหน้า [approve](/C:/Users/Lenovo/dowa-it-system/app/approve/page.js) ให้แสดงรายละเอียด `Root Cause Analysis`, `Resolution`, และ `Corrective Action` ของ Incident เพื่อให้ผู้อนุมัติเห็นบริบทการแก้ไขครบก่อนตัดสินใจ
-  - ปรับ layout หน้า public approve ให้เป็น responsive จริง รองรับ desktop, tablet, และ mobile ในหน้าเดียว โดยแยก card ข้อมูลเอกสารกับ action panel อย่างชัดเจน
-  - แก้ one-time session cookie ใน [route.js](/C:/Users/Lenovo/dowa-it-system/app/api/approval/verify/route.js) ให้ใช้ path ระดับ `/` เพื่อไม่ให้เคสเปิดลิงก์ครั้งแรกแล้ว submit ต่อไม่ได้เพราะ browser ไม่ส่ง session cookie กลับ
-  - ปรับ [workflow.js](/C:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) ให้ `submitApprovalStepByPublicLink()` เรียก RPC `handle_approval_step` ตาม signature ที่ฐาน dev ใช้อยู่จริง ลดปัญหา `Could not find the function ... in the schema cache`
-  - ยืนยัน UAT แล้วว่า public approve link เปิดใช้งานและอนุมัติได้ตามปกติหลังแก้ session + RPC compatibility
-
-- **[13:42] Hide Incident Approval Flow Until Pending Approval**
-  - ปรับหน้า Incident Detail ให้ซ่อนการ์ด `Approval Flow` จริงในสถานะ `Open` และ `In Progress` เพื่อไม่ให้ผู้ใช้เข้าใจผิดว่า workflow ถูกล็อกแล้วตั้งแต่ก่อนส่งอนุมัติ
-  - เพิ่มข้อความ preview แทนในช่วงก่อน submit โดยแจ้งว่าระบบจะสร้างลำดับอนุมัติเมื่อเอกสารเข้าสู่ `Pending Approval` และแสดงจำนวน step ตาม config ปัจจุบันแบบสรุป
-  - คงการแสดง `WorkflowProgressBar` เต็มรูปแบบไว้เฉพาะเมื่อเอกสารอยู่ในสถานะ `Pending Approval`, `Closed`, หรือ `Cancelled`
-
-- **[14:33] Fix ReferenceError in QR Preview Modal Text Tab**
-  - ดำเนินการแก้ไขข้อผิดพลาด `ReferenceError: disabled is not defined` ภายในคอมโพเนนต์ `FieldSelector` ในไฟล์ [TargetRegistryClient.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/settings/target-registry/TargetRegistryClient.js)
-  - โดยระบุค่า `disabled` ใน props destructuring พร้อมค่าเริ่มต้นเป็น `false` เพื่อป้องกันปัญหาหน้าจอค้างหรือ Crash เมื่อเปิดแท็บ "ข้อความ" (Text) ในกล่องออกแบบ QR Code
-  - ดำเนินการทดสอบผ่าน Browser Subagent ด้วยการ Login บัญชี `test_admin@dowa.local` (และได้ทำการรีเซ็ตรหัสผ่านบัญชีทดสอบใน Database เป็น `ChangeMe1234!`) เปิดแท็บข้อความได้โดยไม่เกิดข้อผิดพลาดใดๆ
-  - ยืนยันผลลัพธ์การแก้ไขโดยตรวจสอบผ่าน ESLint บนไฟล์ดังกล่าวผ่าน 100% ไม่มีข้อผิดพลาด
-- **[13:15] Hide Linked Form from No. Series Page**
-  - ดำเนินการซ่อนคอมโพเนนต์ dropdown "Linked Form" จากหน้าจอ No. Series Management ([app/dashboard/settings/no-series/page.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/settings/no-series/page.js))
-  - ปรับสไตล์ Grid ใน Header Settings จาก 4 คอลัมน์เป็น 3 คอลัมน์เพื่อให้เลย์เอาต์สวยงามสมดุล
-  - แก้ไข bug ฟังก์ชันบันทึกข้อมูลส่วนหัว (Save Header) โดยเปลี่ยนจาก `showMessage` ที่ไม่มีอยู่จริงในไฟล์นี้ ให้เรียกใช้ `setMsg` เพื่อแสดงแจ้งเตือนสถานะสำเร็จ/ล้มเหลวได้อย่างถูกต้อง
-  - รัน sanity test ด้วย `npm test` ผลลัพธ์ 34/34 ผ่านทั้งหมด
-- **[11:05] login_logs Schema Fix & Historical Log Restoration**
-  - วิเคราะห์และระบุข้อจำกัดของตาราง `public.login_logs` ที่ไม่มีคอลัมน์ `metadata` ส่งผลให้การ Insert ข้อมูล `action = 'login'` ที่มี metadata ล้มเหลวทั้งหมดในอดี트 (ขณะที่ Logout ทำงานปกติเพราะไม่มีการส่งฟิลด์นี้)
-  - เพิ่มการตรวจสอบในคำสั่ง Insert/Select เพื่อสร้างคอลัมน์ `metadata` JSONB สำเร็จ
-  - ดำเนินการย้ายประวัติการล็อกอินย้อนหลัง (Data Migration) จาก `auth.audit_log_entries` กลับมาเข้าตาราง `public.login_logs` เฉพาะผู้ใช้ที่ยังคงใช้งานอยู่ในระบบจริง (ป้องกัน Foreign Key Error จาก Deleted Users)
-  - สร้างไฟล์ migration: [20260610_add_metadata_to_login_logs_and_restore_history.sql](file:///c:/Users/Lenovo/dowa-it-system/supabase/migrations/20260610_add_metadata_to_login_logs_and_restore_history.sql)
-- **[10:10] Session Restore Login Logging & CHECK Constraint Alignment**
-  - ค้นพบสาเหตุหลักของปัญหา Log การ Login ไม่บันทึกเนื่องจากติดกฎ **CHECK Constraint** ของฐานข้อมูลบนตาราง `login_logs` (ที่อนุญาตเฉพาะค่า `'login'` และ `'logout'`)
-  - ปรับปรุงการบันทึกประวัติการ Login ทั้งหมด (Unified, SSO, Session Restore) ให้ใช้ Action เป็นตัวพิมพ์เล็ก `'login'` เพื่อให้ผ่านด่าน Constraint ของฐานข้อมูล และจัดเก็บข้อมูลแยกประเภทไว้ใน `metadata` แทน
-  - เพิ่มการส่ง JWT Access Token จาก Client-side ไปใช้ดึงและตรวจสอบสิทธิ์ผู้ใช้ผ่าน Supabase admin ใน Server Action `recordSessionRestoreLog` เพื่อแก้ปัญหา Cookie ยังไม่ซิงค์บนเบราว์เซอร์ที่เปิดใหม่
-  - ปรับปรุง [login.js](file:///c:/Users/Lenovo/dowa-it-system/app/actions/login.js), [page.js](file:///c:/Users/Lenovo/dowa-it-system/app/page.js), [layout.js](file:///c:/Users/Lenovo/dowa-it-system/app/dashboard/layout.js) และ [route.js](file:///c:/Users/Lenovo/dowa-it-system/app/auth/callback/route.js) ตามแผนการปรับปรุงโครงสร้างข้อมูลนี้
-- **[09:28] Production Schema Synchronization & Alignment**
-  - วิเคราะห์เปรียบเทียบ Schema Drift ระหว่างสภาพแวดล้อม Dev และ Production
-  - สร้างสคริปต์ Sync Dev: [20260610_align_dev_schema_to_production.sql](file:///c:/Users/Lenovo/dowa-it-system/supabase/migrations/20260610_align_dev_schema_to_production.sql) เพื่อบันทึกคอลัมน์กู้คืนและอนุมัติที่คุณทำไว้บน Production ให้ตรงกันในเครื่อง
-  - สร้างและแนะนำ SQL Patch สำหรับ Production: [20260610_production_schema_alignment_patch.sql](file:///c:/Users/Lenovo/dowa-it-system/supabase/migrations/20260610_production_schema_alignment_patch.sql) แบบปลอดภัย (Non-destructive) เพื่อแก้ไขตาราง/คอลัมน์และแคสต์ประเภทข้อมูลตามโค้ด Runtime
-  - ตรวจสอบ Parity สำเร็จ และรันเทส `npm test` ทั้งหมดผ่าน 100% (34/34 tests passed)
-- **[08:17] Create production migration hand-off document**
-  - สร้างเอกสารส่งต่องาน [HANDOFF_PRODUCTION_STATUS_2026_06_10.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/HANDOFF_PRODUCTION_STATUS_2026_06_10.md)
-  - สรุปเป้าหมาย สถานะ production ปัจจุบัน สิ่งที่ยืนยันแล้ว ความเสี่ยงค้าง และรายการงานที่ agent ถัดไปต้องทำต่อ
-  - ย้าย changelog ของวันที่ 8-9 มิถุนายน 2569 ไป archive เพื่อให้ `CHANGELOG.md` เหลือเฉพาะของวันปัจจุบันตามกฎ Daily Log Shrinking
-- **[08:17] Add reusable hand-off prompt document**
-  - สร้าง [HANDOFF_PROMPT_PRODUCTION_STATUS_2026_06_10.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/HANDOFF_PROMPT_PRODUCTION_STATUS_2026_06_10.md)
-  - จัดรูปแบบเป็น prompt พร้อมใช้สำหรับ agent ถัดไป โดยระบุ environment, เป้าหมาย, guardrails, ลำดับการอ่านเอกสาร, runtime evidence files, และ task continuation list
+- **[14:24] Promote Checklist Recreate Rule Fix to Production**
+  - sync code-only fix นี้ไป production repo `dowa-tht/it-management` สำเร็จที่ commit `e025cd4`
+  - release diff บน production จำกัดเฉพาะ `app/dashboard/checklist/page.js`, [checklistPeriodUsage.js](/C:/Users/Lenovo/dowa-it-system/lib/checklistPeriodUsage.js), [checklist-period-usage.test.js](/C:/Users/Lenovo/dowa-it-system/tests/checklist-period-usage.test.js), `docs/INDEX.md`, `docs/history/CHANGELOG.md`, และ [IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_RECREATE_AFTER_CANCEL_FIX_2026_06_15.md](/C:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_RECREATE_AFTER_CANCEL_FIX_2026_06_15.md)
+  - ยืนยันบน production clone แล้วว่า `npm test` ผ่าน 37/37 และใช้ผล `npm run build` ที่ผ่านจาก development source เป็น release gate ของรอบนี้
 
 ## 📦 บันทึกย้อนหลัง (Archives)
 
 ### มิถุนายน 2569 (June 2026)
+- [CHANGELOG_2026_06_12.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_12.md)
+- [CHANGELOG_2026_06_11.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_11.md)
 - [CHANGELOG_2026_06_09.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_09.md)
 - [CHANGELOG_2026_06_06.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_06.md)
 - [CHANGELOG_2026_06_05.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_06_05.md)
@@ -92,4 +89,4 @@
 - [CHANGELOG_2026_05_07.md](file:///c:/Users/Lenovo/dowa-it-system/docs/history/archive/CHANGELOG_2026_05_07.md)
 
 ---
-*อัปเดตล่าสุด: 11-Jun-2026 16:40*
+*อัปเดตล่าสุด: 15-Jun-2026 14:24*
