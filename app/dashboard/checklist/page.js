@@ -19,6 +19,7 @@ import ViewToggle from '@/components/ViewToggle'
 import WorkflowMiniProgress from '@/components/workflow/WorkflowMiniProgress'
 import { resolveChecklistQr } from '@/app/actions/target'
 import { usePageAutoRefresh } from '@/lib/usePageAutoRefresh'
+import { collectUsedChecklistKeys } from '@/lib/checklistPeriodUsage'
 
 const DATE_FILTERS = [
   { label: 'วันนี้', value: 'today' },
@@ -688,7 +689,7 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
     // 2. Find items already in documents for this period
     const { data: periodDocs } = await supabase
       .from('checklist_docs')
-      .select('id')
+      .select('id, status')
       .eq('freq_type', freq)
       .gte('period_date', range.start)
       .lte('period_date', range.end)
@@ -698,12 +699,12 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
     if (docIds.length > 0) {
       const { data: itemsData } = await supabase
         .from('checklist_items')
-        .select('item_key')
+        .select('doc_id, item_key, status')
         .in('doc_id', docIds)
       usedItems = itemsData || []
     }
 
-    const usedKeys = new Set(usedItems?.map(i => i.item_key) || [])
+    const { usedKeys } = collectUsedChecklistKeys(periodDocs || [], usedItems)
     const available = (templates || []).map(t => ({
       ...t,
       selection_key: t.id || `${t.item_key || 'template'}-${t.freq_type || 'freq'}-${t.item_label || 'label'}`,
@@ -724,20 +725,22 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
     const range = getPeriodRange(date, freq)
     const { data: periodDocs } = await supabase
       .from('checklist_docs')
-      .select('id')
+      .select('id, status')
       .eq('freq_type', freq)
       .gte('period_date', range.start)
       .lte('period_date', range.end)
 
     const docIds = periodDocs?.map(d => d.id) || []
-    let usedKeys = new Set()
+    let usedItems = []
     if (docIds.length > 0) {
       const { data: itemsData } = await supabase
         .from('checklist_items')
-        .select('item_key')
+        .select('doc_id, item_key, status')
         .in('doc_id', docIds)
-      usedKeys = new Set(itemsData?.map(i => i.item_key) || [])
+      usedItems = itemsData || []
     }
+
+    const { usedKeys } = collectUsedChecklistKeys(periodDocs || [], usedItems)
 
     const selectedTemplates = items.filter(t => selectedTemplateIds.includes(t.selection_key))
     const duplicateTemplates = selectedTemplates.filter(t => usedKeys.has(t.item_key))

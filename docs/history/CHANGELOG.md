@@ -1,5 +1,10 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Changelog)
 
+- **[15-Jun-2026 14:05] Standardize Checklist Recreate Rule for Cancelled Untouched Docs**
+  - เพิ่ม helper กลาง [checklistPeriodUsage.js](/C:/Users/Lenovo/dowa-it-system/lib/checklistPeriodUsage.js) เพื่อกำหนดกติกาเดียวกันว่าถ้าเอกสาร `Cancelled` และ item ทุกตัว `status = null` ต้องไม่นับเป็น `used`
+  - ปรับ [page.js](/C:/Users/Lenovo/dowa-it-system/app/dashboard/checklist/page.js) ทั้งตอนเปิด modal และตอนกดสร้างจริง ให้ ignore เฉพาะ `Cancelled + untouched` แต่ยัง block เอกสาร active หรือ `Cancelled` ที่มีการตรวจแล้ว
+  - เพิ่ม unit tests ที่ [checklist-period-usage.test.js](/C:/Users/Lenovo/dowa-it-system/tests/checklist-period-usage.test.js) และยืนยันผ่าน `npm test` 37/37 กับ `npm run build`
+
 - **[15-Jun-2026 13:20] Production Checklist Cancel Fix**
   - แก้ [workflow.js](/C:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) ใน `cancelDocument()` ให้เลิก hardcode `reported_by_id` และ reporter fields แบบ incident-only ใน query กลางของทุก document type
   - ปรับ query เป็น `.select('*')` เพื่อให้ checklist cancel ไม่อ้างคอลัมน์ที่ไม่มีใน `checklist_docs` และคง incident cancel policy เดิมไว้
