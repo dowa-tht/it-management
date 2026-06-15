@@ -1509,7 +1509,7 @@ export async function cancelDocument(docId, docType, reason, verification = null
     // 1. Get document info to check permissions
     const { data: doc, error: docErr } = await supabaseAdmin
       .from(reg.table)
-      .select(`*, reported_by_id, reporter_email, reported_by, created_by_id, ${reg.no_field}`)
+      .select('*')
       .eq('id', docId)
       .single()
 

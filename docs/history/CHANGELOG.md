@@ -1,5 +1,10 @@
 # 🕒 ประวัติการเปลี่ยนแปลง (Changelog)
 
+- **[15-Jun-2026 13:20] Production Checklist Cancel Fix**
+  - แก้ [workflow.js](/C:/Users/Lenovo/dowa-it-system/app/actions/workflow.js) ใน `cancelDocument()` ให้เลิก hardcode `reported_by_id` และ reporter fields แบบ incident-only ใน query กลางของทุก document type
+  - ปรับ query เป็น `.select('*')` เพื่อให้ checklist cancel ไม่อ้างคอลัมน์ที่ไม่มีใน `checklist_docs` และคง incident cancel policy เดิมไว้
+  - เพิ่ม regression test ใน [incident-otp-flow.test.js](/C:/Users/Lenovo/dowa-it-system/tests/incident-otp-flow.test.js) และเตรียม release note [IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_CANCEL_FIX_2026_06_15.md](/C:/Users/Lenovo/dowa-it-system/docs/history/IMPLEMENTATION_PLAN_PRODUCTION_CHECKLIST_CANCEL_FIX_2026_06_15.md)
+
 - **[16:08] Public Approval Link One-Time Consume Session**
   - ปรับ workflow approval ให้การแจ้งเตือนผู้อนุมัติส่งออกเป็น `Public Approval Link` แบบอายุ 15 นาที และออก token ใหม่ทุกครั้งเมื่อมีการ resend
   - เพิ่มกติกา `consume-on-open` ที่หน้า [approve](/C:/Users/Lenovo/dowa-it-system/app/approve/page.js) และ [route.js](/C:/Users/Lenovo/dowa-it-system/app/api/approval/verify/route.js): ลิงก์จะถูกผูกกับ browser session แรกที่เปิดใช้งานทันที ถ้าเปิดซ้ำจาก session อื่นต้อง resend ใหม่เท่านั้น

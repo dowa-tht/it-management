@@ -31,6 +31,14 @@ test('workflow submitApprovalStep accepts otp and verifies external reporter ste
   assert.match(source, /\[Verify by OTP\]/)
 })
 
+test('workflow cancelDocument does not hardcode incident-only reporter fields into checklist queries', async () => {
+  const source = await readFile(path.join(rootDir, 'app', 'actions', 'workflow.js'), 'utf8')
+
+  assert.match(source, /export async function cancelDocument\(docId,\s*docType,\s*reason,\s*verification = null\)/)
+  assert.match(source, /\.from\(reg\.table\)\s*[\r\n\s]*\.select\('\*'\)\s*[\r\n\s]*\.eq\('id', docId\)/)
+  assert.doesNotMatch(source, /\.select\(`\*,\s*reported_by_id,\s*reporter_email,\s*reported_by,\s*created_by_id,\s*\$\{reg\.no_field\}`\)/)
+})
+
 test('legacy quickAddUser path is explicitly disabled', async () => {
   const source = await readFile(path.join(rootDir, 'app', 'actions', 'users.js'), 'utf8')
 
