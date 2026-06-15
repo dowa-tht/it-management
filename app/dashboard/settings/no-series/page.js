@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { generateNextNo } from '@/lib/noSeries'
+import { generateNextNo, getNextNo } from '@/lib/noSeries'
 import { formatDate } from '@/lib/dateFormat'
 import { useWorkingDate } from '@/lib/context/WorkingDateContext'
 
@@ -52,6 +52,7 @@ export default function NoSeriesPage() {
   const [msg, setMsg] = useState({ text: '', type: '' })
   const [currentUser, setCurrentUser] = useState(null)
   const [importing, setImporting] = useState(false)
+  const [previewMap, setPreviewMap] = useState({})
   const fileInputRef = useRef(null)
 
   useEffect(() => { init() }, [])
@@ -257,10 +258,7 @@ export default function NoSeriesPage() {
   }
 
   const getPreview = (s) => {
-    const sLines = lines.filter(l => l.series_code === s.code)
-    const activeLine = sLines.find(l => new Date(l.starting_date) <= (workingDate || new Date()))
-    if (activeLine) return generateNextNo(s.format, activeLine.last_no_used, workingDate)
-    return generateNextNo(s.format, s.last_no_used, workingDate)
+    return previewMap[s.code] || generateNextNo(s.format, s.last_no_used, workingDate)
   }
 
   const [showGuide, setShowGuide] = useState(false)
@@ -304,6 +302,37 @@ export default function NoSeriesPage() {
   useEffect(() => {
     fetchGuide()
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadPreviews = async () => {
+      if (!series.length) {
+        if (!cancelled) setPreviewMap({})
+        return
+      }
+
+      const entries = await Promise.all(series.map(async (s) => {
+        try {
+          const result = await getNextNo(s.code, workingDate, supabase)
+          return [s.code, result?.nextNo || generateNextNo(s.format, s.last_no_used, workingDate)]
+        } catch (error) {
+          console.error(`Preview failed for series ${s.code}`, error)
+          return [s.code, generateNextNo(s.format, s.last_no_used, workingDate)]
+        }
+      }))
+
+      if (!cancelled) {
+        setPreviewMap(Object.fromEntries(entries))
+      }
+    }
+
+    loadPreviews()
+
+    return () => {
+      cancelled = true
+    }
+  }, [series, workingDate])
 
   const handleSaveGuide = async () => {
     const { error } = await supabase.from('system_settings').upsert({ key: 'no_series_guide_content', value: guideContent, updated_at: new Date().toISOString() })

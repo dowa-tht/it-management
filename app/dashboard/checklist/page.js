@@ -18,6 +18,7 @@ import { recordLog } from '@/app/actions/workflow'
 import ViewToggle from '@/components/ViewToggle'
 import WorkflowMiniProgress from '@/components/workflow/WorkflowMiniProgress'
 import { resolveChecklistQr } from '@/app/actions/target'
+import { usePageAutoRefresh } from '@/lib/usePageAutoRefresh'
 
 const DATE_FILTERS = [
   { label: 'วันนี้', value: 'today' },
@@ -219,10 +220,10 @@ function ChecklistListForm() {
   }
 
 
-  const fetchDocs = async (pageToFetch = 0, isLoadMore = false) => {
+  const fetchDocs = async (pageToFetch = 0, isLoadMore = false, forceFresh = false) => {
     const cacheKey = `${filters.freq_type}-${filters.status}-${filters.date_from}-${filters.date_to}-${filters.only_ng}-${pageToFetch}-${currentUser?.id || 'auditor'}`
     
-    if (!isLoadMore && docsCache[cacheKey]) {
+    if (!isLoadMore && docsCache[cacheKey] && !forceFresh) {
       setDocs(docsCache[cacheKey])
     } else if (!isLoadMore) {
       setLoading(true)
@@ -311,6 +312,17 @@ function ChecklistListForm() {
     setLoading(false)
     setLoadingMore(false)
   }
+
+  usePageAutoRefresh({
+    enabled: !!currentUser,
+    intervalMs: 90000,
+    minIntervalMs: 10000,
+    refreshOnFocus: false,
+    onRefresh: async () => {
+      setPage(0)
+      await fetchDocs(0, false, true)
+    },
+  })
 
   const handleQrResolve = async (qrValue) => {
     setLoading(true)
@@ -737,7 +749,7 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
       return
     }
 
-    const noRes = await getNextNo('CHK')
+    const noRes = await getNextNo('CHK', date)
     const docNo = noRes ? noRes.nextNo : `CHK-${Date.now()}`
 
     const { data: newDoc, error } = await supabase
@@ -753,7 +765,7 @@ function CreateChecklistModal({ userEmail, userId, onClose, onCreated }) {
       .select().single()
 
     if (error) { alert(error.message); setCreating(false); return }
-    if (noRes) { const { updateLastNo } = await import('@/lib/noSeries'); await updateLastNo('CHK', docNo) }
+    if (noRes) { const { updateLastNo } = await import('@/lib/noSeries'); await updateLastNo('CHK', docNo, date) }
 
     // Reuse selectedTemplates declared on line 718
     const inserts = selectedTemplates.map(t => {
